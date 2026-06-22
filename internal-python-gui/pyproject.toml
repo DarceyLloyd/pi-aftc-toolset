@@ -1,0 +1,10 @@
+[project]
+name = "aftc-ssh-gui"
+version = "0.1.0"
+description = "AFTC SSH GUI - Python port with PyQt6 and Flask API"
+requires-python = ">=3.11"
+dependencies = [
+    "PyQt6>=6.6.0",
+    "flask>=3.0.0",
+    "paramiko>=3.4.0",
+]

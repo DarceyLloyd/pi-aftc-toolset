@@ -1,0 +1,30 @@
+{
+  "name": "pi-aftc-toolset",
+  "version": "1.0.0",
+  "description": "AFTC productivity toolset for pi — footer diagnostics, SQLite model usage reports, cache analysis, input shortcuts, cache-audit skill, theme, and SSH tools backed by a PyQt6 GUI.",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "themes": ["./themes"]
+  },
+  "author": "Darcey Lloyd",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DarceyLloyd/pi-aftc-toolset.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DarceyLloyd/pi-aftc-toolset/issues"
+  },
+  "homepage": "https://github.com/DarceyLloyd/pi-aftc-toolset#readme",
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "dependencies": {
+    "better-sqlite3": "12.11.1"
+  }
+}
