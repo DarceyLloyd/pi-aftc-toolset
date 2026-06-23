@@ -113,7 +113,7 @@ console.log("  wrote " + html.length + " bytes");
 
 // Required IDs include new projections ones
 const requiredIds = [
-  "generated-at", "period-tabs", "most-used", "summary",
+  "generated-at", "period-tabs", "leaderboards-panel", "lb-grid", "lb-period", "summary",
   "lifetime-totals", "daily-trend-chart", "daily-table", "daily-tbody", "daily-empty",
   "thinking-table", "thinking-tbody", "thinking-empty",
   "models-table", "models-tbody", "models-empty", "report-data",

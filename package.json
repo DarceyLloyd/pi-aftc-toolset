@@ -1,6 +1,6 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AFTC productivity toolset for pi — footer diagnostics, SQLite model usage reports, cache analysis, input shortcuts, cache-audit skill, theme, and SSH tools backed by a PyQt6 GUI.",
   "keywords": ["pi-package"],
   "pi": {
