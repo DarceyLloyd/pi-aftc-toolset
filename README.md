@@ -29,10 +29,10 @@ Install project-local only:
 pi install npm:pi-aftc-toolset -l
 ```
 
-Pin a specific version:
+Pin a specific version (optional — omit `@<version>` to always get the latest):
 
 ```bash
-pi install npm:pi-aftc-toolset@1.0.0
+pi install npm:pi-aftc-toolset@<version>
 ```
 
 Try it temporarily for one run (nothing is saved):
@@ -41,24 +41,30 @@ Try it temporarily for one run (nothing is saved):
 pi -e npm:pi-aftc-toolset
 ```
 
-### From GitHub (pinned release)
+### From GitHub (latest)
 
-Install a release tag globally:
+Install the latest from the default branch globally:
 
 ```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v1.0.0
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset
 ```
 
 Install project-local only:
 
 ```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v1.0.0 -l
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset -l
 ```
 
 Try it temporarily for one run:
 
 ```bash
-pi -e git:github.com/DarceyLloyd/pi-aftc-toolset@v1.0.0
+pi -e git:github.com/DarceyLloyd/pi-aftc-toolset
+```
+
+Pin a specific release tag (optional — omit `@v<version>` to always get the latest):
+
+```bash
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
 ```
 
 ### From a local clone
@@ -454,16 +460,16 @@ npm (latest):
 pi update npm:pi-aftc-toolset
 ```
 
-npm (pinned version):
+npm (pinned version — optional, omit `@<version>` to stay on latest):
 
 ```bash
-pi install npm:pi-aftc-toolset@1.0.0
+pi install npm:pi-aftc-toolset@<version>
 ```
 
-GitHub (pinned release):
+GitHub (pinned release — optional, omit `@v<version>` to stay on latest):
 
 ```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v1.0.0
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
 ```
 
 Local clone:
