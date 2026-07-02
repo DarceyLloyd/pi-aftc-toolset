@@ -830,10 +830,16 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
         const cr = acc.lastTurnCacheRead;
         const fresh = Math.max(0, acc.lastTurnInput - cr);
         const total = acc.lastTurnInput + acc.lastTurnOutput;
-        console.log(
-            `[aftc-toolset] turn: ${fmt(total)} tok · in ${fmt(acc.lastTurnInput)} (${fmt(cr)} cached / ${fmt(fresh)} new) · out ${fmt(acc.lastTurnOutput)} · $${acc.cost.toFixed(4)} · think ${fmtDurationShort(lastThinkingMs)} · resp ${fmtDurationShort(lastResponseMs)}`,
-        );
-        void ctx;
+        const summary =
+            `[aftc-toolset] turn: ${fmt(total)} tok · in ${fmt(acc.lastTurnInput)} (${fmt(cr)} cached / ${fmt(fresh)} new) · out ${fmt(acc.lastTurnOutput)} · $${acc.cost.toFixed(4)} · think ${fmtDurationShort(lastThinkingMs)} · resp ${fmtDurationShort(lastResponseMs)}`;
+        try {
+            // Route to the same toast channel as /cache-profile, /cost-timer-info, etc.
+            // ctx.ui may be undefined in headless mode → fall back to stdout there.
+            if (ctx?.hasUI) ctx.ui.notify(summary, "info");
+            else console.log(summary);
+        } catch {
+            console.log(summary); // headless / missing-ui fallback only
+        }
     });
 
     // -----------------------------------------------------------------------
