@@ -20,6 +20,7 @@ commands/shortcuts/tools it registers. See `rules.md` §12.
 | `ssh.ts` | Five AI-callable SSH tools (`ssh_status`, `ssh_connect`, `ssh_run`, `ssh_peek`, `ssh_interrupt`) and five matching slash commands. |
 | `response.ts` | Full-width themed divider above every assistant reply. Toggled by `/aftc-response-divider`. |
 | `input-clear.ts` | `alt+c` keyboard shortcut — clears the input editor. |
+| `stfu.ts` | `/aftc-stop` and `/stfu` slash commands — emergency abort of the current agent operation (escape a runaway thinking loop). |
 | `db.ts` | Shared better-sqlite3 connection. Lazy-opens the DB; returns `null` if the native binding isn't installed. |
 | `paths.ts` | Resolves the package root, runtime data dir, and the bundled Python GUI dir. |
 | `types.ts` | Shared `TurnRecord` / `TurnRecorder` / `FooterDataProvider` interfaces so cross-module wiring is type-safe without module imports. |

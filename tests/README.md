@@ -17,6 +17,7 @@ tests/
 ├── full-check/full-check.mjs            # usage module: DB + projections + HTML
 ├── widget-render-check/                 # orchestrator pattern + footer widget
 │   └── widget-render-check.mjs
+├── stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
 └── load-test/load-test.cjs              # end-to-end: factory + events + commands + widget
 ```
 
@@ -38,6 +39,7 @@ project root (or anywhere — paths resolve from the script itself).
 node tests/parse-check/parse-check.mjs
 node tests/full-check/full-check.mjs
 node tests/widget-render-check/widget-render-check.mjs
+node tests/stfu-check/stfu-check.cjs
 node tests/load-test/load-test.cjs
 ```
 

@@ -10,37 +10,55 @@ report. Owns the report commands.
 intentionally one self-contained file — embedded CSS, embedded JSON,
 embedded JS — so opening it from disk has no external dependencies.
 
-The report covers:
+The report is organised into six sections:
 
-- **Lifetime totals** — turns, user prompts, sub-prompts, steering
-  / follow-up / continuation counts, cache read/write, total cost,
-  avg cost/turn and per user prompt.
-- **Model leaderboards** — six ranked cards per time window (Last
-  3h, 6h, 12h, Today, Yesterday, Last 3d, Week, Month). Most
-  prompted, most model calls, longest avg response, highest cost
-  per turn, most cost over period, highest cache hit rate.
-- **Summary cards** — cheapest, most expensive, most cache
-  inefficient, etc. Each pill-labelled GOOD / OK / BAD with
-  $/hr · $/day · $/wk · $/mo rate breakdowns.
-- **Trend** — interactive chart with hourly / daily / weekly /
-  monthly grain and cost / prompts / turns metrics.
-- **Trend table** — date, model, turns, prompts, cost, cache, etc.
-  Sortable columns.
-- **Per-model cost report** — period tabs, turns, prompts, max
-  calls/prompt, avg cost/turn and per prompt, cache, think/response.
-- **Model × thinking level** — cost + cache + timing per model and
-  thinking level.
-- **Cost projections** — 6h / 12h / 1d / 7d / 30d, with selectable
-  calculation modes (recommended, avg base-prompt cost, avg
-  all-prompt cost, raw model-call velocity, worst prompt-loop risk).
+### Section 1 — Daily totals (last 24 hours)
+Four cards:
+- **Most used** — derived from base-prompt count (highest `basePromptCount`)
+- **Most inefficient** — derived from turns / self-prompting (highest
+  `turnsPerBasePrompt`, capped at 0.1 minimum)
+- **Highest avg cost** — derived from base + sub prompts
+  (`avgCostPerUserPrompt`, highest)
+- **Lowest avg cost** — derived from base + sub prompts
+  (`avgCostPerUserPrompt`, lowest)
+
+### Section 2 — Weekly totals (last 7 days)
+Same four cards as Section 1, computed from the last 7 days of data.
+Includes a **weekend toggle** button that switches between
+include/exclude Sat/Sun data (`strftime('%w', ...) NOT IN ('0','6')`).
+Both variants are precomputed server-side so the toggle flips instantly.
+
+### Section 3 — Monthly totals (last 28 days)
+Same four cards as Section 1, computed from the last 28 days of data.
+Same weekend toggle as Section 2.
+
+### Section 4 — Per-model cost report
+Sortable table with a period selector (`Daily` / `Weekly` /
+`Monthly` / `All time`, default `All time`). Columns: model, cost,
+turns, user/base/sub prompts, calls/prompt, max calls/prompt,
+avg cost/turn, avg cost/prompt, avg cache, avg think, avg response.
+
+### Section 5 — Per-model × thinking level
+Same shape as Section 4 but keyed by model + thinking level, so a
+single model can have multiple rows (one per thinking level used).
+
+### Section 6 — Cost projections
+Per model × thinking level: `$`/hour, `$`/day, `$`/week, `$`/month,
+`$`/year. Derived from total spend ÷ active hours, then scaled by
+24 / 168 / 720 / 8760. Active hours = max(0.5h, last-turn − first-turn).
+
+**Thin-data handling**: if fewer than ~14 calendar days are present across
+all data, projections are flagged as estimates with the note
+*"Not enough data available for calculation, averages have been used."*
+Rows with less than 1 hour of activity are individually flagged as
+estimates regardless of the global threshold.
 
 ## Reading the SQLite DB
 
 The DB lives at `<package-root>/.pi-aftc-toolset/data/turns.db`
 (populated by `usage-recording.ts`). The report query is read-only
-via `better-sqlite3`. If better-sqlite3 isn't installed (e.g. the
-user hasn't run `/aftc-install`), the commands report an error and
-the HTML report cannot be generated.
+via `better-sqlite3`. If better-sqlite3 isn't installed, the commands
+report an error and the HTML report cannot be generated.
 
 ## Commands registered (2)
 
@@ -49,6 +67,23 @@ the HTML report cannot be generated.
   logs the path to stdout).
 - `/usage-clear` — permanently deletes all rows from `turns`
   after user confirmation. Useful for resetting the dataset.
+
+## Data shape (embedded JSON)
+
+```text
+{
+  generatedAt: number,
+  totals: { ... },                 // lifetime aggregates
+  sections: {                      // 4-card bundles per period
+    daily: { title, subtitle, cards: [4 cards] },
+    weekly: {...}, weeklyExcl: {...},
+    monthly: {...}, monthlyExcl: {...},
+  },
+  modelsByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
+  modelThinkingByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
+  projections: { rows: [], estimated: boolean, note: string },
+}
+```
 
 ## Why "report" and not just "usage"
 

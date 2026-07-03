@@ -38,6 +38,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 //   - response.ts           (aftc-response-divider)
 //   - help.ts               (aftc-help) ← this file
 //   - input-clear.ts        (alt+c)
+//   - stfu.ts               (aftc-stop, stfu)
 //
 // Note: /show-thinking and /hide-thinking were removed — pi's built-in
 // Ctrl+T (app.thinking.toggle) and the hideThinkingBlock setting
@@ -52,6 +53,11 @@ const GENERAL_COMMANDS: Array<[string, string]> = [
 
 const RESPONSE_COMMANDS: Array<[string, string]> = [
     ["/aftc-response-divider", "Toggle the full-width themed divider above each assistant reply (default: on)"],
+];
+
+const INTERRUPT_COMMANDS: Array<[string, string]> = [
+    ["/aftc-stop", "Stop the current agent operation (escape a runaway thinking loop or stalled tool call). Alias for /stfu."],
+    ["/stfu",      "Short alias for /aftc-stop — same action, fewer keystrokes."],
 ];
 
 const CACHE_COMMANDS: Array<[string, string]> = [
@@ -130,6 +136,8 @@ class HelpModule {
         lines.push(...renderSection("General", GENERAL_COMMANDS));
         lines.push("");
         lines.push(...renderSection("Response", RESPONSE_COMMANDS));
+        lines.push("");
+        lines.push(...renderSection("Interrupt", INTERRUPT_COMMANDS));
         lines.push("");
         lines.push(...renderSection("Footer / cache / timing", CACHE_COMMANDS));
         lines.push("");

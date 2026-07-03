@@ -11,7 +11,7 @@ A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
 - Live footer widget which displays cache hit rate, cache efficiency, context time and live cost tracking.
 - Secure SSH GUI that keeps server credentials away from the AI.
-- Usage reports with model rankings, trends and spending insights.
+- Usage reports with model rankings, trends and spending insights (ALPHA, in development).
 - Cache diagnostics and profiling tools.
 - Themed response divider above every assistant reply.
 - Built-in cache-oriented theme.
@@ -124,6 +124,9 @@ See **SSH Remote Terminal** below.
 
 ## Usage Reports
 
+ALPHA — in development. The feature works but the output, schema, and
+defaults may change before the first stable release.
+
 Generate a self-contained HTML report containing:
 
 - Lifetime statistics
@@ -154,6 +157,18 @@ it easier to scan a long conversation. Toggle it with
 
 ---
 
+## Interrupt
+
+When a reasoning model gets stuck in a long internal monologue or a
+runaway tool-call loop, hit `/aftc-stop` (or `/stfu`) to abort the
+current agent operation and return to the editor. Both commands call
+`ctx.abort()` under the hood and behave identically — `/stfu` is just
+a short alias you can type in a hurry. When the agent is already
+idle, you'll get a friendly "Agent is already idle — nothing to
+stop." notification instead of a silent no-op.
+
+---
+
 ## Included Theme
 
 **cache-viz** provides a cache-focused green/cyan colour scheme.
@@ -179,6 +194,11 @@ it easier to scan a long conversation. Toggle it with
 - `/aftc-response-divider`
 - `/cls`
 
+## Interrupt
+
+- `/aftc-stop` — stop the current agent operation (escape a runaway thinking loop or stalled tool call).
+- `/stfu` — short alias for `/aftc-stop`. Same action, fewer keystrokes.
+
 ## Footer Widget, Cache, Costs, Stats +
 
 - `/aftc-footer`
@@ -196,7 +216,7 @@ it easier to scan a long conversation. Toggle it with
 
 ## Usage
 
-- `/usage-report` (currently in alpha)
+- `/usage-report` (ALPHA — in development)
 - `/usage-clear`
 
 ## Skills
@@ -325,6 +345,9 @@ appropriate:
 
 ## Usage Report
 
+ALPHA — in development. Output, schema, and defaults may change before
+the first stable release.
+
 Every completed assistant response that includes usage data is
 recorded to a local SQLite database at
 `.pi-aftc-toolset/data/turns.db`. Generate a report from it with:
@@ -337,62 +360,33 @@ This writes a single self-contained HTML file to
 `.pi-aftc-toolset/data/report.html` and opens it in your browser.
 No server, no external assets, no build step.
 
-The report contains:
+The report is organised into six sections:
 
-- **Lifetime totals**
-  - Turns / model calls, user prompts, base prompts, sub prompts
-  - Steering, follow-up, continuation prompt counts
-  - Automated continuations, cache read/write, tokens, total
-    cost
-  - Average cost per turn and per user prompt, model calls per
-    prompt
+- **Section 1 — Daily totals (last 24 hours)** — four cards:
+  most used (derived from base prompts), most inefficient (derived
+  from turns/self-prompting), highest avg cost (derived from base +
+  sub prompts), lowest avg cost (derived from base + sub prompts).
 
-- **Model leaderboards** — one shared time-window selector drives
-  six ranked cards (top 5 models each):
-  - Time windows: Last 3 Hours, Last 6 Hours, Last 12 Hours,
-    Today, Yesterday, Last 3 Days, Week, Month
-  - Most prompted (prompts, sub prompts, turns, avg cost/turn,
-    total cost)
-  - Most model calls / turns (turns, prompts, sub prompts, avg
-    cost/turn, total cost)
-  - Longest avg response (avg response, avg think, turns, avg
-    cost/turn)
-  - Most cost per turn (avg cost/turn, turns, cache, total cost)
-  - Most cost over period (total cost, turns, prompts, avg
-    cost/turn)
-  - Highest cache hit rate (cache, turns, avg cost/turn, total
-    cost)
+- **Section 2 — Weekly totals (last 7 days)** — same four cards,
+  with a **weekend toggle** to include/exclude Sat/Sun.
 
-- **Summary cards** — cheapest, most expensive (each with
-  `$/hr · $/day · $/wk · $/mo` rate breakdown), most cache
-  inefficient, most turn inefficient, highest spend, most used,
-  slowest thinking, slowest response. Each card is pill-labelled
-  **GOOD** / **OK** / **BAD**.
+- **Section 3 — Monthly totals (last 28 days)** — same four cards,
+  with a weekend toggle.
 
-- **Trend** — interactive chart with:
-  - Hourly / Daily / Weekly / Monthly views
-  - Cost / User prompts / Turns metrics
-  - Stacked model colours with a legend
+- **Section 4 — Per-model cost report** — sortable table with a
+  period selector (Daily / Weekly / Monthly / All time, default
+  All time).
 
-- **Trend data table** — date, model, turns, user prompts, base,
-  sub, steering, follow-up, continuation, cost, avg cost/turn,
-  active hours, avg cache. Sortable columns.
+- **Section 5 — Per-model × thinking level** — same shape as
+  Section 4 but keyed by model + thinking level, so a single model
+  has one row per thinking level used.
 
-- **Per-model cost report** — sortable table with period tabs
-  (Today / Week / Month), turns, prompts, sub prompts, avg/max
-  calls per prompt, avg cost per turn and per prompt, cache,
-  think/response times.
-
-- **Model × thinking level** — breakdown of cost, turns, prompts,
-  cache, think/response time per model and thinking level.
-
-- **Cost projections** — 6h / 12h / 1d / 7d / 30d, with selectable
-  calculation modes:
-  - Recommended: base prompt pace
-  - Average base-prompt cost
-  - Average all-prompt cost
-  - Raw model-call velocity
-  - Worst prompt loop risk
+- **Section 6 — Cost projections** — per model × thinking level:
+  `$`/hr, `$`/day, `$`/week, `$`/month, `$`/year derived from total
+  spend ÷ active hours. When fewer than ~14 calendar days are
+  recorded, projections are flagged as estimates with a note:
+  *"Not enough data available for calculation, averages have been
+  used."*
 
 ### What gets recorded per turn
 
@@ -402,6 +396,13 @@ steering/follow-ups, and automated tool-call continuations. **The
 actual text of the user's prompt and sub-prompts is never
 recorded** — only classification flags. This keeps the DB small
 (one row ≈ ~100 bytes) and avoids storing anything sensitive.
+
+### Thin-data handling
+
+The tool may have only a few minutes or hours of recorded data.
+Projections use `max(0.5h, active hours)` as the denominator so a
+single turn never produces a divide-by-zero, and any projection
+based on fewer than ~14 calendar days is flagged as an estimate.
 
 #### Per-row columns
 
@@ -646,6 +647,7 @@ Tests live under `tests/` (one subfolder per test, dependency-free —
 node tests/parse-check/parse-check.mjs          # jiti parses usage-report.ts
 node tests/full-check/full-check.mjs            # DB + projections + HTML structure
 node tests/widget-render-check/widget-render-check.mjs  # orchestrator + footer widget + ticker
+node tests/stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
 node tests/load-test/load-test.cjs              # end-to-end: factory + events + commands + SQLite
 ```
 
@@ -680,6 +682,7 @@ All runtime data and logs are gitignored — they never get committed.
 | Installer | `extensions/toolset/install.ts` | `/aftc-install` |
 | Help | `extensions/toolset/help.ts` | `/aftc-help` command reference |
 | Response divider | `extensions/toolset/response.ts` | Full-width themed rule above each assistant reply, `/aftc-response-divider` |
+| Interrupt | `extensions/toolset/stfu.ts` | `/aftc-stop` and `/stfu` slash commands — emergency abort of current agent operation |
 | Input clear | `extensions/toolset/input-clear.ts` | `alt+c` editor clear shortcut |
 | SSH | `extensions/toolset/ssh.ts`, `internal-python-gui/` | AI-callable SSH tools and visible terminal GUI |
 | Skill | `skills/cache-audit/` | Reusable cache audit workflow |

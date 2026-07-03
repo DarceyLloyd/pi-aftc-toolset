@@ -69,6 +69,7 @@ pi-aftc-toolset/
 │   ├── parse-check/                   ← smoke test: jiti parses usage-report.ts
 │   ├── full-check/                    ← DB + projections + HTML structure
 │   ├── widget-render-check/           ← orchestrator + footer widget + ticker
+│   ├── stfu-check/                    ← /aftc-stop + /stfu: idle / streaming / headless
 │   └── load-test/                     ← end-to-end: factory + events + commands + SQLite
 │
 ├── docs/                              ← meta-documentation
@@ -289,8 +290,6 @@ Workflow for adding a new feature (e.g. a "recent files" widget):
    imports).
 7. **Add a test** in `tests/<test-name>/` if the new module has
    non-trivial behaviour.
-8. **Bump the version** in `package.json` on task completion (per
-   rules.md §3).
 
 ---
 
@@ -374,13 +373,6 @@ cached prefix. Do not divide by `input` alone.
 `hitRate()` returning the formatted string. Modify these carefully
 — the `/cache-profile` output and the widget both depend on them.
 
-### Updating the version
-
-Per rules.md §3:
-- The version lives **only** in `package.json`.
-- Bump on task completion (when the user signals done).
-- Major: new feature. Minor: enhancement. Patch: bug fix.
-
 ---
 
 ## 10. Tests
@@ -391,6 +383,7 @@ All tests are under `tests/`, each in its own subfolder.
 node tests/parse-check/parse-check.mjs          # jiti parses usage-report.ts
 node tests/full-check/full-check.mjs            # DB + projections + HTML structure
 node tests/widget-render-check/widget-render-check.mjs  # orchestrator + widget + ticker
+node tests/stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
 node tests/load-test/load-test.cjs              # end-to-end integration
 ```
 
