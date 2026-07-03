@@ -71,7 +71,7 @@ You can chain them: \x1b[1;33m = bold + yellow. Always end with \x1b[0m to reset
 //   use wrapTextWithAnsi() from @earendil-works/pi-tui.
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// FOREGROUND (TEXT) COLOR TOKENS  —  all 51 required theme tokens
+// FOREGROUND (TEXT) COLOR TOKENS  -  all 51 required theme tokens
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // CORE UI (11)
@@ -79,9 +79,9 @@ You can chain them: \x1b[1;33m = bold + yellow. Always end with \x1b[0m to reset
 //   "border"           normal border color
 //   "borderAccent"     highlighted/active border
 //   "borderMuted"      subtle border (e.g. inactive editor frame)
-//   "success"          green — success states
-//   "error"            red   — error states
-//   "warning"          yellow — warning states
+//   "success"          green - success states
+//   "error"            red   - error states
+//   "warning"          yellow - warning states
 //   "muted"            secondary text (de-emphasised but still readable)
 //   "dim"              tertiary text (timestamps, hints, "faint" labels)
 //   "text"             default text  (pass "" to use terminal default)
@@ -96,19 +96,19 @@ You can chain them: \x1b[1;33m = bold + yellow. Always end with \x1b[0m to reset
 //   "toolOutput"                             tool output text
 //   "selectedBg"                             selected line in any list
 //
-// MARKDOWN (10)  — pi renders markdown for assistant text and tool outputs
+// MARKDOWN (10)  - pi renders markdown for assistant text and tool outputs
 //   "mdHeading", "mdLink", "mdLinkUrl", "mdCode", "mdCodeBlock",
 //   "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder", "mdHr", "mdListBullet"
 //
-// TOOL DIFFS (3)  — used in edit / write tool result rendering
+// TOOL DIFFS (3)  - used in edit / write tool result rendering
 //   "toolDiffAdded", "toolDiffRemoved", "toolDiffContext"
 //
-// SYNTAX HIGHLIGHTING (9)  — for code blocks (use highlightCode() helper)
+// SYNTAX HIGHLIGHTING (9)  - for code blocks (use highlightCode() helper)
 //   "syntaxComment", "syntaxKeyword", "syntaxFunction", "syntaxVariable",
 //   "syntaxString", "syntaxNumber", "syntaxType",
 //   "syntaxOperator", "syntaxPunctuation"
 //
-// THINKING-LEVEL BORDER (6)  — editor border color reflects current
+// THINKING-LEVEL BORDER (6)  - editor border color reflects current
 //                               /thinking level, from subtle to loud
 //   "thinkingOff", "thinkingMinimal", "thinkingLow",
 //   "thinkingMedium", "thinkingHigh", "thinkingXhigh"
@@ -123,7 +123,7 @@ You can chain them: \x1b[1;33m = bold + yellow. Always end with \x1b[0m to reset
 //   "toolPendingBg", "toolSuccessBg", "toolErrorBg"
 //
 // ─────────────────────────────────────────────────────────────────────────────
-// QUICK CHEAT SHEET  — common patterns
+// QUICK CHEAT SHEET  - common patterns
 // ─────────────────────────────────────────────────────────────────────────────
 //
 //   // Status line in the footer

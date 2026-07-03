@@ -1,4 +1,4 @@
-# pi — Working with the pi coding agent
+# pi - Working with the pi coding agent
 
 Everything you need to know to extend pi with TypeScript extensions,
 custom commands, tools, TUI widgets, themes, skills, and packages. Written
@@ -7,7 +7,7 @@ from the perspective of an extension author who has shipped
 the pi docs.
 
 > If you're picking up `pi-aftc-toolset` itself, also read
-> [`project_guide.md`](./project_guide.md) — it covers the conventions
+> [`project_guide.md`](./project_guide.md) - it covers the conventions
 > and workflows specific to that package.
 
 ---
@@ -20,19 +20,19 @@ event handlers, and TUI components. Skills and prompt templates add
 reusable instructions. Themes restyle the TUI. Packages bundle any of
 the above for distribution via npm or git.
 
-pi loads extensions via **jiti** — no build step. `.ts` files run as-is.
+pi loads extensions via **jiti** - no build step. `.ts` files run as-is.
 The rule: **TypeScript works without compilation. Do not add `tsc`,
 bundlers, or `dist/` output.**
 
 Official docs (also copied under `docs/pi-docs/`):
-- `extensions.md` — extension API, events, lifecycle
-- `tui.md` — components, widgets, footer, themes
-- `themes.md` — theme format, all 51 color tokens
-- `keybindings.md` — keyboard shortcuts
-- `skills.md` — skill format (Agent Skills standard)
-- `packages.md` — distribution via npm/git
-- `sdk.md` — programmatic / runtime API
-- `development.md` — forking pi itself
+- `extensions.md` - extension API, events, lifecycle
+- `tui.md` - components, widgets, footer, themes
+- `themes.md` - theme format, all 51 color tokens
+- `keybindings.md` - keyboard shortcuts
+- `skills.md` - skill format (Agent Skills standard)
+- `packages.md` - distribution via npm/git
+- `sdk.md` - programmatic / runtime API
+- `development.md` - forking pi itself
 
 Authoritative location for the running pi install:
 `C:\Users\Darcey\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\`
@@ -55,7 +55,7 @@ export default function (pi: ExtensionAPI): void {
 
 The factory is called once at startup. It can be sync or async (async
 is useful for one-time init like fetching model lists). **Never start
-background resources (timers, sockets, processes) in the factory** —
+background resources (timers, sockets, processes) in the factory** -
 defer to `session_start` and clean up in `session_shutdown`.
 
 ### ExtensionAPI methods (used in pi-aftc-toolset)
@@ -78,7 +78,7 @@ defer to `session_start` and clean up in `session_shutdown`.
 | `pi.getFlag(name)` | CLI flag value passed at startup. |
 
 `pi.ui.*` and `pi.sessionManager.*` are accessed via `ctx.ui` /
-`ctx.sessionManager` inside event / command handlers — see §4.
+`ctx.sessionManager` inside event / command handlers - see §4.
 
 ---
 
@@ -86,28 +86,28 @@ defer to `session_start` and clean up in `session_shutdown`.
 
 Two flavors of context object passed to handlers.
 
-**`ExtensionContext`** (everything) — passed to event handlers and
+**`ExtensionContext`** (everything) - passed to event handlers and
 shortcut handlers:
 - `ctx.cwd`, `ctx.hasUI`, `ctx.mode` (`"tui" | "rpc" | "json" | "print"`),
   `ctx.model`, `ctx.signal`, `ctx.sessionManager`, `ctx.ui`
-- `ctx.isProjectTrusted()` — for gating project-local resource reads.
+- `ctx.isProjectTrusted()` - for gating project-local resource reads.
 - `ctx.shutdown()`, `ctx.compact()`, `ctx.getContextUsage()`,
   `ctx.getSystemPrompt()`, `ctx.abort()`, `ctx.hasPendingMessages()`,
   `ctx.isIdle()`
 
-**`ExtensionCommandContext`** — extends ExtensionContext with
+**`ExtensionCommandContext`** - extends ExtensionContext with
 session-control methods. Only commands get this. **Never call
-session-control methods from event handlers — they can deadlock.**
+session-control methods from event handlers - they can deadlock.**
 
 Command-context additions:
-- `ctx.waitForIdle()` — wait for the agent to finish.
-- `ctx.newSession({ setup?, withSession? })` — start a new session.
-- `ctx.fork(entryId, { position?, withSession? })` — fork from an entry.
-- `ctx.switchSession(path, { withSession? })` — switch to a saved session.
-- `ctx.navigateTree(targetId, opts?)` — jump to a session-tree node.
-- `ctx.reload()` — equivalent to `/reload`.
+- `ctx.waitForIdle()` - wait for the agent to finish.
+- `ctx.newSession({ setup?, withSession? })` - start a new session.
+- `ctx.fork(entryId, { position?, withSession? })` - fork from an entry.
+- `ctx.switchSession(path, { withSession? })` - switch to a saved session.
+- `ctx.navigateTree(targetId, opts?)` - jump to a session-tree node.
+- `ctx.reload()` - equivalent to `/reload`.
 
-### ctx.mode and ctx.hasUI — guard UI work
+### ctx.mode and ctx.hasUI - guard UI work
 
 ```typescript
 if (!ctx.hasUI) return;          // skip dialogs in headless modes
@@ -133,7 +133,7 @@ pi starts
           ├─► before_agent_start (can inject message + modify systemPrompt)
           ├─► agent_start
           ├─► message_start / message_update / message_end
-          │   (loop per turn — tool calls cause more message_start/end pairs)
+          │   (loop per turn - tool calls cause more message_start/end pairs)
           ├─► tool_execution_start / tool_execution_update / tool_execution_end
           ├─► turn_start / turn_end
           └─► agent_end
@@ -144,33 +144,33 @@ pi starts
 
 | Event | When | Payload |
 |---|---|---|
-| `project_trust` | Before project resources load (user/global + CLI extensions only) | `{ cwd }` — return `{ trusted: "yes"\|"no"\|"undecided", remember? }` |
+| `project_trust` | Before project resources load (user/global + CLI extensions only) | `{ cwd }` - return `{ trusted: "yes"\|"no"\|"undecided", remember? }` |
 | `session_start` | Session started/loaded/reloaded | `{ reason: "startup"\|"new"\|"resume"\|"fork"\|"reload", previousSessionFile? }` |
 | `session_info_changed` | `/name` or `pi.setSessionName()` | `{ name, previousName? }` |
-| `session_before_switch` | Before `/new` or `/resume` | `{ reason, targetSessionFile? }` — return `{ cancel: true }` to abort |
-| `session_before_fork` | Before `/fork` or `/clone` | `{ entryId, position }` — return `{ cancel: true }` |
+| `session_before_switch` | Before `/new` or `/resume` | `{ reason, targetSessionFile? }` - return `{ cancel: true }` to abort |
+| `session_before_fork` | Before `/fork` or `/clone` | `{ entryId, position }` - return `{ cancel: true }` |
 | `session_before_compact` | Before `/compact` or auto-compact | `{ preparation, branchEntries, customInstructions, reason, willRetry, signal }` |
 | `session_before_tree` | Before `/tree` navigation | `{ preparation, signal }` |
-| `session_shutdown` | Before session runtime torn down | `{ reason: "quit"\|"reload"\|"new"\|"resume"\|"fork", targetSessionFile? }` — clean up resources |
+| `session_shutdown` | Before session runtime torn down | `{ reason: "quit"\|"reload"\|"new"\|"resume"\|"fork", targetSessionFile? }` - clean up resources |
 | `session_compact` | After compaction | `{ compactionEntry, fromExtension, reason, willRetry }` |
 | `session_tree` | After `/tree` navigation | `{ newLeafId, oldLeafId, summaryEntry, fromExtension }` |
-| `input` | User submitted input, before skill/template expansion | `{ text, images?, source: "interactive"\|"rpc"\|"extension", streamingBehavior? }` — return `{ action: "continue"\|"transform"\|"handled" }` |
-| `before_agent_start` | User prompt received, before agent loop | `{ prompt, images?, systemPrompt, systemPromptOptions }` — return `{ message?, systemPrompt? }` |
+| `input` | User submitted input, before skill/template expansion | `{ text, images?, source: "interactive"\|"rpc"\|"extension", streamingBehavior? }` - return `{ action: "continue"\|"transform"\|"handled" }` |
+| `before_agent_start` | User prompt received, before agent loop | `{ prompt, images?, systemPrompt, systemPromptOptions }` - return `{ message?, systemPrompt? }` |
 | `agent_start` | Once per user prompt | `{}` |
 | `agent_end` | Agent finished | `{ messages }` |
 | `turn_start` / `turn_end` | One turn = one LLM response + tool calls | `{ turnIndex, timestamp }` / `{ turnIndex, message, toolResults }` |
-| `message_start` | Message lifecycle | `{ message }` — message has `role` (`"user"\|"assistant"\|"toolResult"`) |
-| `message_update` | Streaming | `{ message, assistantMessageEvent }` — `assistantMessageEvent.type` is `"text_start"\|"text_delta"\|"thinking_delta"\|"toolcall_start"\|...` |
-| `message_end` | Message finalized | `{ message }` — handler can return `{ message }` to replace it. |
+| `message_start` | Message lifecycle | `{ message }` - message has `role` (`"user"\|"assistant"\|"toolResult"`) |
+| `message_update` | Streaming | `{ message, assistantMessageEvent }` - `assistantMessageEvent.type` is `"text_start"\|"text_delta"\|"thinking_delta"\|"toolcall_start"\|...` |
+| `message_end` | Message finalized | `{ message }` - handler can return `{ message }` to replace it. |
 | `tool_execution_start` / `_update` / `_end` | Tool lifecycle | `{ toolCallId, toolName, args }` / `{ toolCallId, toolName, args, partialResult }` / `{ toolCallId, toolName, result, isError }` |
-| `tool_call` | After `tool_execution_start`, before execution. **Can block.** | `{ toolName, toolCallId, input }` — mutate `event.input` in place; return `{ block: true, reason? }` to block. Use `isToolCallEventType("bash", event)` to narrow input types. |
-| `tool_result` | After tool execution, before `tool_execution_end`. **Can modify.** | `{ toolName, toolCallId, input, content, details, isError }` — return `{ content?, details?, isError? }` partial patches. |
-| `user_bash` | User typed `!command`. **Can intercept.** | `{ command, excludeFromContext, cwd }` — return `{ operations? }` (e.g. SSH override) or `{ result? }`. |
+| `tool_call` | After `tool_execution_start`, before execution. **Can block.** | `{ toolName, toolCallId, input }` - mutate `event.input` in place; return `{ block: true, reason? }` to block. Use `isToolCallEventType("bash", event)` to narrow input types. |
+| `tool_result` | After tool execution, before `tool_execution_end`. **Can modify.** | `{ toolName, toolCallId, input, content, details, isError }` - return `{ content?, details?, isError? }` partial patches. |
+| `user_bash` | User typed `!command`. **Can intercept.** | `{ command, excludeFromContext, cwd }` - return `{ operations? }` (e.g. SSH override) or `{ result? }`. |
 | `model_select` | Model changed (`/model`, `Ctrl+P`, restore) | `{ model, previousModel?, source }` |
 | `thinking_level_select` | Thinking level changed | `{ level, previousLevel }` |
-| `context` | Before each LLM call. **Modify messages.** | `{ messages }` (deep copy, safe to mutate) — return `{ messages }` |
-| `before_provider_request` | After payload built, before HTTP request. Inspect/replace. | `{ payload }` — return `{ ...payload }` to replace. |
-| `after_provider_response` | After HTTP response received, before stream consumed | `{ status, headers }` — logging / rate-limit detection. |
+| `context` | Before each LLM call. **Modify messages.** | `{ messages }` (deep copy, safe to mutate) - return `{ messages }` |
+| `before_provider_request` | After payload built, before HTTP request. Inspect/replace. | `{ payload }` - return `{ ...payload }` to replace. |
+| `after_provider_response` | After HTTP response received, before stream consumed | `{ status, headers }` - logging / rate-limit detection. |
 
 ### Helper type guards
 
@@ -190,9 +190,9 @@ type InputEventResult =
     | { action: "handled" };
 ```
 
-- `continue` — pass through unchanged (default if you return nothing).
-- `transform` — rewrite input before skill/template expansion.
-- `handled` — skip the agent entirely (first handler to return this wins).
+- `continue` - pass through unchanged (default if you return nothing).
+- `transform` - rewrite input before skill/template expansion.
+- `handled` - skip the agent entirely (first handler to return this wins).
 
 ---
 
@@ -228,11 +228,11 @@ pi.registerTool({
 
 ### Critical rules
 
-- **Errors throw, not return** — throwing sets `isError: true` on the
+- **Errors throw, not return** - throwing sets `isError: true` on the
   result. Returning a value never marks an error.
 - **`execute` parameters**: `(toolCallId, params, signal, onUpdate, ctx)`.
   `params` is already validated/typed against the Typebox schema.
-- **String enums use `StringEnum` from `@earendil-works/pi-ai`** —
+- **String enums use `StringEnum` from `@earendil-works/pi-ai`** -
   never `Type.Union([Type.Literal("a"), Type.Literal("b")])`. Google
   API breaks on the latter.
 - **Use `ctx.signal`** for nested async (`fetch`, child-process
@@ -256,9 +256,9 @@ it on `execute`'s return.
 
 ### Custom rendering
 
-`renderCall(args, theme, ctx)` — what the LLM sees when it calls
+`renderCall(args, theme, ctx)` - what the LLM sees when it calls
 the tool.
-`renderResult(result, { expanded, isPartial }, theme, ctx)` — what
+`renderResult(result, { expanded, isPartial }, theme, ctx)` - what
 the user sees after execution.
 
 Both must return a `pi-tui` Component (use `Text` / `Box` / `Markdown`
@@ -285,7 +285,7 @@ pi.registerCommand("my-command", {
   `/help` that collide with built-ins.
 - **Long output** → use `ctx.ui.select(title, lines, { timeout })`.
   Returns when dismissed, ESC, Enter, or timeout. Never `console.log`
-  inside a TUI extension — interleaves with pi's redraws.
+  inside a TUI extension - interleaves with pi's redraws.
 - **Commands checked BEFORE `input` event, skills, and templates.**
   Keep them focused and fast.
 
@@ -295,13 +295,13 @@ pi.registerCommand("my-command", {
 
 ### Built-in components (import from `@earendil-works/pi-tui`)
 
-- `Text` — multi-line text with word wrapping.
-- `Box` — container with padding + bg.
-- `Container` — groups children vertically.
-- `Spacer(n)` — n empty lines.
-- `Markdown(content, padX, padY, theme)` — markdown with syntax
+- `Text` - multi-line text with word wrapping.
+- `Box` - container with padding + bg.
+- `Container` - groups children vertically.
+- `Spacer(n)` - n empty lines.
+- `Markdown(content, padX, padY, theme)` - markdown with syntax
   highlighting (use `getMarkdownTheme()` for the theme).
-- `Image(base64, mime, theme, opts)` — terminal images (Kitty,
+- `Image(base64, mime, theme, opts)` - terminal images (Kitty,
   iTerm2, Ghostty, WezTerm, Warp).
 
 ### Component interface
@@ -330,7 +330,7 @@ Key identifiers: `Key.enter`, `Key.escape`, `Key.tab`, `Key.space`,
 `Key.shift("tab")`, `Key.ctrlShift("p")`. String format also works:
 `"enter"`, `"ctrl+c"`, `"ctrl+shift+p"`.
 
-### Line width — critical
+### Line width - critical
 
 Every line in `render(width)`'s return MUST be ≤ `width` visible
 cells. Use `truncateToWidth(str, width, ellipsis?)` from
@@ -338,7 +338,7 @@ cells. Use `truncateToWidth(str, width, ellipsis?)` from
 Without truncation, the TUI can crash with a "rendered line exceeds
 terminal width" error.
 
-### Theme changes — invalidate() must rebuild pre-baked styles
+### Theme changes - invalidate() must rebuild pre-baked styles
 
 If you build styled content with `theme.fg(...)` and cache it, you
 **must** override `invalidate()` and rebuild:
@@ -365,12 +365,12 @@ class MyComponent extends Container {
 If you don't pre-bake styles (e.g. pass theme callbacks into child
 components at render time), `invalidate()` can be a no-op.
 
-### setWidget vs setFooter — pick the right slot
+### setWidget vs setFooter - pick the right slot
 
 | Slot | Behavior | Use when |
 |---|---|---|
 | `ctx.ui.setFooter(factory, opts?)` | **Exclusive.** Whichever extension loads last wins. Factory gets `footerData: ReadonlyFooterDataProvider` with git branch + extension statuses. | You want to replace pi's entire footer. Don't share with other footer extensions. |
-| `ctx.ui.setWidget(key, content, opts?)` | **Keyed.** Multiple extensions coexist. Each widget has a unique string key. | Default choice — composes with other extensions. |
+| `ctx.ui.setWidget(key, content, opts?)` | **Keyed.** Multiple extensions coexist. Each widget has a unique string key. | Default choice - composes with other extensions. |
 | `ctx.ui.setStatus(key, content?)` | Bottom-of-screen status line. | Small status indicator (e.g. divider active toggle). |
 
 ```typescript
@@ -390,7 +390,7 @@ ctx.ui.setStatus("my-status", theme.fg("accent", "● on"));  // pass undefined 
 
 ### Common UI patterns (from official examples)
 
-**Selection dialog** — `SelectList` + `DynamicBorder` + `Container`:
+**Selection dialog** - `SelectList` + `DynamicBorder` + `Container`:
 
 ```typescript
 import { Container, SelectList, Text } from "@earendil-works/pi-tui";
@@ -407,11 +407,11 @@ await ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
 });
 ```
 
-**Long scrollable text** — `ctx.ui.select(title, lines, { timeout })`.
+**Long scrollable text** - `ctx.ui.select(title, lines, { timeout })`.
 
-**Settings toggles** — `SettingsList` + `getSettingsListTheme()`.
+**Settings toggles** - `SettingsList` + `getSettingsListTheme()`.
 
-**Async with cancel** — `BorderedLoader`:
+**Async with cancel** - `BorderedLoader`:
 
 ```typescript
 import { BorderedLoader } from "@earendil-works/pi-coding-agent";
@@ -420,7 +420,7 @@ loader.onAbort = () => done(null);
 fetchData(loader.signal).then(done).catch(() => done(null));
 ```
 
-**Working indicator animation** — `ctx.ui.setWorkingIndicator`:
+**Working indicator animation** - `ctx.ui.setWorkingIndicator`:
 
 ```typescript
 ctx.ui.setWorkingIndicator({
@@ -457,30 +457,30 @@ Pass `undefined` or empty `frames: []` to hide / restore default.
 
 ### All 51 required color tokens
 
-**Core UI (11)** — `accent`, `border`, `borderAccent`, `borderMuted`,
+**Core UI (11)** - `accent`, `border`, `borderAccent`, `borderMuted`,
 `success`, `error`, `warning`, `muted`, `dim`, `text` (use `""` for
 default), `thinkingText`.
 
-**Backgrounds & content (11)** — `selectedBg`, `userMessageBg`,
+**Backgrounds & content (11)** - `selectedBg`, `userMessageBg`,
 `userMessageText`, `customMessageBg`, `customMessageText`,
 `customMessageLabel`, `toolPendingBg`, `toolSuccessBg`,
 `toolErrorBg`, `toolTitle`, `toolOutput`. Use with `theme.bg(token, text)`.
 
-**Markdown (10)** — `mdHeading`, `mdLink`, `mdLinkUrl`, `mdCode`,
+**Markdown (10)** - `mdHeading`, `mdLink`, `mdLinkUrl`, `mdCode`,
 `mdCodeBlock`, `mdCodeBlockBorder`, `mdQuote`, `mdQuoteBorder`,
 `mdHr`, `mdListBullet`.
 
-**Tool diffs (3)** — `toolDiffAdded`, `toolDiffRemoved`,
+**Tool diffs (3)** - `toolDiffAdded`, `toolDiffRemoved`,
 `toolDiffContext`.
 
-**Syntax (9)** — `syntaxComment`, `syntaxKeyword`, `syntaxFunction`,
+**Syntax (9)** - `syntaxComment`, `syntaxKeyword`, `syntaxFunction`,
 `syntaxVariable`, `syntaxString`, `syntaxNumber`, `syntaxType`,
 `syntaxOperator`, `syntaxPunctuation`.
 
-**Thinking-level borders (6)** — `thinkingOff`, `thinkingMinimal`,
+**Thinking-level borders (6)** - `thinkingOff`, `thinkingMinimal`,
 `thinkingLow`, `thinkingMedium`, `thinkingHigh`, `thinkingXhigh`.
 
-**Modes (1)** — `bashMode`.
+**Modes (1)** - `bashMode`.
 
 ### Color value formats
 
@@ -493,7 +493,7 @@ default), `thinkingText`.
 
 pi watches the active theme file and reloads on change. Components
 that pre-bake theme colors must override `invalidate()` to rebuild
-— see §7.
+- see §7.
 
 ### Runtime theme switching
 
@@ -523,9 +523,9 @@ description: Specific description of when to use this skill.
 ```
 
 Frontmatter fields (per Agent Skills spec):
-- `name` (required) — 1-64 chars, lowercase a-z 0-9 hyphens.
-- `description` (required) — what the skill does AND when to use it.
-  Be specific — this is what the model matches on.
+- `name` (required) - 1-64 chars, lowercase a-z 0-9 hyphens.
+- `description` (required) - what the skill does AND when to use it.
+  Be specific - this is what the model matches on.
 - `license`, `compatibility`, `metadata`, `allowed-tools`,
   `disable-model-invocation` (optional).
 
@@ -644,7 +644,7 @@ bus.on("my-extension:status", (data) => console.log(data));
 bus.emit("my-extension:status", { state: "ready" });
 ```
 
-Use sparingly — most communication should go through the orchestrator
+Use sparingly - most communication should go through the orchestrator
 pattern (one module imports another via the entry file).
 
 ---
@@ -669,7 +669,7 @@ Use `setWidget` for coexistence.
 
 ### Tool input shape
 
-`event.input` in `tool_call` is mutable — mutate in place before
+`event.input` in `tool_call` is mutable - mutate in place before
 the tool runs. Use `isToolCallEventType("bash", event)` to narrow.
 
 ### `input` event `streamingBehavior`
@@ -699,7 +699,7 @@ ticker callback in try/catch so errors don't kill the timer.
 
 ### `console.log` inside TUI extensions
 
-Never use `console.log` for output the user should see — it
+Never use `console.log` for output the user should see - it
 interleaves with the TUI's redraws and corrupts the screen. Use
 `ctx.ui.notify(...)`, `ctx.ui.select(...)`, or your widget.
 
@@ -825,7 +825,7 @@ in options if the overlay should not steal focus.
 
 ---
 
-## 16. When to use what — decision tree
+## 16. When to use what - decision tree
 
 | Need | Use |
 |---|---|
@@ -856,12 +856,12 @@ For offline reference. These are copies of the official pi docs
 at the time this guide was written. If they drift, the live versions
 live at `C:\Users\Darcey\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\`.
 
-- `extensions.md` — full extension API reference
-- `tui.md` — TUI components, widgets, footer, common patterns
-- `themes.md` — theme format + all 51 color tokens
-- `keybindings.md` — full action list + customization
-- `skills.md` — skill format (Agent Skills standard)
-- `packages.md` — npm/git distribution
-- `sdk.md` — programmatic / runtime API (`createAgentSession`)
-- `development.md` — forking pi itself
-- `quickstart.md` — install + auth + first command
+- `extensions.md` - full extension API reference
+- `tui.md` - TUI components, widgets, footer, common patterns
+- `themes.md` - theme format + all 51 color tokens
+- `keybindings.md` - full action list + customization
+- `skills.md` - skill format (Agent Skills standard)
+- `packages.md` - npm/git distribution
+- `sdk.md` - programmatic / runtime API (`createAgentSession`)
+- `development.md` - forking pi itself
+- `quickstart.md` - install + auth + first command

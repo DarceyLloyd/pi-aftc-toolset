@@ -16,7 +16,7 @@ any pending migrations.
 This DB stores **per-turn metrics and prompt-type classification
 flags only**. The actual text of user prompts, sub-prompts, or
 assistant responses is **never** stored here. That keeps the DB
-small (~100 bytes per row) even for long sessions — and avoids
+small (~100 bytes per row) even for long sessions - and avoids
 storing anything sensitive. The model call content lives in pi's
 own session JSONL; this DB only stores metrics + classification.
 
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS turns (
 ```
 
 Migrations for the prompt-flag columns added after the initial
-schema (idempotent — each runs in a try/catch, errors swallowed
+schema (idempotent - each runs in a try/catch, errors swallowed
 because the column already exists):
 
 - `user_prompt`, `prompt_index`, `sub_prompt`, `session_id`
@@ -78,15 +78,15 @@ True if better-sqlite3 loaded successfully at module-init time.
 ## Why a utility module, not a feature
 
 Per rules.md §1.5, feature modules don't import each other. They
-both need the DB, so the DB connection is a utility — `db.ts`
+both need the DB, so the DB connection is a utility - `db.ts`
 imports `getDb`, both feature modules import `getDb`. No feature
 imports any other feature.
 
 ## Failure modes
 
-- better-sqlite3 not installed — `console.warn` at load time with
+- better-sqlite3 not installed - `console.warn` at load time with
   a hint to run `/aftc-install`. `getDb()` returns `null` forever.
-- DB file unwritable — `console.log` the error, `getDb()` returns
+- DB file unwritable - `console.log` the error, `getDb()` returns
   `null` for the rest of the session.
-- Schema migration error (column already exists) — silently
+- Schema migration error (column already exists) - silently
   ignored, migration is a no-op.

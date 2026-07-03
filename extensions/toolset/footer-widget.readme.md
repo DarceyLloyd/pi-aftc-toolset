@@ -24,11 +24,11 @@ segment is intentionally omitted (see rules.md §10).
 
 A 1Hz `setInterval` inside the component:
 1. Calls `data.onTick()` (which is `recomputeCachedSession` from
-   core.ts — re-reads `data.json` and updates the in-memory
+   core.ts - re-reads `data.json` and updates the in-memory
    `cachedSession`).
 2. Calls `tui.requestRender()` to force a TUI re-render.
 
-The ticker is wrapped in try/catch — a single error logs but does
+The ticker is wrapped in try/catch - a single error logs but does
 not kill the timer or spam the log.
 
 ## Component lifecycle
@@ -41,13 +41,13 @@ needs to render the widget, it calls the factory, which:
 The active component is tracked at module scope so `/aftc-footer`
 (hide) and `session_shutdown` can call `dispose()` and stop the
 ticker cleanly. Without this, recreating the widget (theme change,
-`/reload`, etc.) leaks 1Hz timers — one per recreation.
+`/reload`, etc.) leaks 1Hz timers - one per recreation.
 
 ## Events subscribed
 
-- `session_start` — call `show(ctx)` if the widget was active when
+- `session_start` - call `show(ctx)` if the widget was active when
   the previous session ended.
-- `session_shutdown` — dispose the active component.
+- `session_shutdown` - dispose the active component.
 
 ## Public factory
 
@@ -64,5 +64,5 @@ The orchestrator passes `data` (a `FooterDataProvider` returned by
 
 ## Commands registered (1)
 
-- `/aftc-footer` — toggle the widget on/off. Disposes the active
+- `/aftc-footer` - toggle the widget on/off. Disposes the active
   component on hide so its 1Hz ticker stops.

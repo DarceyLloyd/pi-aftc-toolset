@@ -89,9 +89,9 @@ pi-aftc-toolset/
 ├── rules.md                           ← source-of-truth conventions
 ├── README.md                          ← public docs (install, commands, etc.)
 ├── LICENSE
-├── full-check.mjs                     ← (legacy — moved to tests/full-check/)
-├── parse-check.mjs                    ← (legacy — moved to tests/parse-check/)
-└── widget-render-check.mjs            ← (legacy — moved to tests/widget-render-check/)
+├── full-check.mjs                     ← (legacy - moved to tests/full-check/)
+├── parse-check.mjs                    ← (legacy - moved to tests/parse-check/)
+└── widget-render-check.mjs            ← (legacy - moved to tests/widget-render-check/)
 ```
 
 ---
@@ -116,10 +116,10 @@ index.ts (orchestrator)
 ```
 
 Two cross-module data flows:
-1. `core.ts(pi, recorder)` — orchestrator passes the
+1. `core.ts(pi, recorder)` - orchestrator passes the
    `UsageRecorder` instance into `createCore` so core can call
    `recordTurn(...)` on every `message_end`.
-2. `footer-widget.ts(pi, footerData)` — orchestrator passes the
+2. `footer-widget.ts(pi, footerData)` - orchestrator passes the
    `FooterDataProvider` returned by `createCore` into
    `createFooterWidget` so the widget reads cache/timing state
    without importing core.
@@ -133,16 +133,16 @@ Cross-module types live in `types.ts` (`TurnRecord`, `TurnRecorder`,
 
 `rules.md` is the source of truth. The most important rules:
 
-1. **KISS** — keep code and folders logical, clean, simple. Don't over-engineer.
-2. **Simplest approach** — fewer files, fewer abstractions, fewer events.
-3. **No build step** — pi loads via jiti. TypeScript works as-is.
-4. **Modular files** — `extensions/toolset/help.ts` handles help, `input-clear.ts` handles clearing, etc.
-5. **Orchestrator pattern** — feature modules don't import each other.
-6. **Version is in `package.json` only** — not in README, not in headings.
-7. **Tests in `tests/<test-name>/`** — one subfolder per test.
-8. **Per-file READMEs** — `<name>.readme.md` next to each TS file; folder-level `readme.md` for structural overview.
+1. **KISS** - keep code and folders logical, clean, simple. Don't over-engineer.
+2. **Simplest approach** - fewer files, fewer abstractions, fewer events.
+3. **No build step** - pi loads via jiti. TypeScript works as-is.
+4. **Modular files** - `extensions/toolset/help.ts` handles help, `input-clear.ts` handles clearing, etc.
+5. **Orchestrator pattern** - feature modules don't import each other.
+6. **Version is in `package.json` only** - not in README, not in headings.
+7. **Tests in `tests/<test-name>/`** - one subfolder per test.
+8. **Per-file READMEs** - `<name>.readme.md` next to each TS file; folder-level `readme.md` for structural overview.
 
-Read `rules.md` whenever you're not sure how to do something — it
+Read `rules.md` whenever you're not sure how to do something - it
 has the conventions baked in.
 
 ---
@@ -164,7 +164,7 @@ actual `registerCommand` / `registerTool` calls in each file.
 | `/cache-profile` | core.ts | Per-tool token costs, prefix shape, churn analysis |
 | `/cache-stats` | core.ts | Current-context cache diagnostics + cost rate |
 | `/cache-reset` | core.ts | Zero accumulators and timer (debugging) |
-| (cost-timer removed) | — | Two-mode toggle removed. Context clock is always wall-clock from first user prompt. |
+| (cost-timer removed) | - | Two-mode toggle removed. Context clock is always wall-clock from first user prompt. |
 | `/cls` | core.ts | Clear the terminal screen |
 | `/usage-report` | usage-report.ts | Write + open `report.html` |
 | `/usage-clear` | usage-report.ts | Delete all SQLite rows (with confirmation) |
@@ -174,7 +174,7 @@ actual `registerCommand` / `registerTool` calls in each file.
 | `/ssh-status` | ssh.ts | Show GUI running state + connection status |
 | `/ssh-disconnect` | ssh.ts | Disconnect the active SSH session |
 
-### Tools (5 — all from ssh.ts)
+### Tools (5 - all from ssh.ts)
 
 | Tool | Purpose |
 |---|---|
@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS turns (
 );
 ```
 
-Migrations are idempotent — each ALTER runs in a try/catch so
+Migrations are idempotent - each ALTER runs in a try/catch so
 already-existing columns are silently skipped.
 
 `getDb()` returns `null` if `better-sqlite3` isn't installed. Both
@@ -371,7 +371,7 @@ cached prefix. Do not divide by `input` alone.
 
 `core.ts` has `hitRateNum()` returning 0..1 (NaN if no data) and
 `hitRate()` returning the formatted string. Modify these carefully
-— the `/cache-profile` output and the widget both depend on them.
+- the `/cache-profile` output and the widget both depend on them.
 
 ---
 
@@ -387,7 +387,7 @@ node tests/stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / str
 node tests/load-test/load-test.cjs              # end-to-end integration
 ```
 
-Tests are dependency-free — `node` + `better-sqlite3` (already in
+Tests are dependency-free - `node` + `better-sqlite3` (already in
 `dependencies`) + pi's bundled jiti only. No network, no TUI.
 
 When adding a feature, add a test that exercises it. When changing

@@ -1,21 +1,21 @@
 # help.ts
 
-`/aftc-help` — a static, scrollable list of every slash command and
+`/aftc-help` - a static, scrollable list of every slash command and
 keyboard shortcut this extension registers.
 
 ## What it does
 
 Renders a `ctx.ui.select` dialog grouped by category:
 
-- **General** — `/aftc-help`, `/aftc-install`, `/cls`
-- **Response** — `/aftc-response-divider`
-- **Footer / cache / timing** — `/aftc-footer`, `/cache-profile`,
+- **General** - `/aftc-help`, `/aftc-install`, `/cls`
+- **Response** - `/aftc-response-divider`
+- **Footer / cache / timing** - `/aftc-footer`, `/cache-profile`,
   `/cache-stats`, `/cache-reset`
-- **Usage report** — `/usage-report`, `/usage-clear`
-- **SSH** — `/ssh-gui`, `/ssh-connect`, `/ssh-run`, `/ssh-status`,
+- **Usage report** - `/usage-report`, `/usage-clear`
+- **SSH** - `/ssh-gui`, `/ssh-connect`, `/ssh-run`, `/ssh-status`,
   `/ssh-disconnect`
-- **Skills** — `/skill:cache-audit`
-- **Shortcuts** — `alt+c`, `Ctrl+T` (built-in pi)
+- **Skills** - `/skill:cache-audit`
+- **Shortcuts** - `alt+c`, `Ctrl+T` (built-in pi)
 
 Sections are dash-underlined, columns aligned, no box characters.
 Clean, scannable, works in any terminal.
@@ -41,11 +41,11 @@ opening a TUI dialog. (rules.md §6.3)
 export function createHelpModule(pi: ExtensionAPI): HelpModule
 ```
 
-Returns the module instance (currently unused — the module is
+Returns the module instance (currently unused - the module is
 self-contained, but the orchestrator pattern keeps the reference
 around for symmetry with other modules).
 
 ## Commands registered (1)
 
-- `/aftc-help` — show this command and shortcut list in a
+- `/aftc-help` - show this command and shortcut list in a
   scrollable dialog (60s timeout, then auto-dismiss).

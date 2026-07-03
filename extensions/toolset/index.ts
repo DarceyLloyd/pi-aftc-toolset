@@ -13,6 +13,7 @@
  *   - response.ts     — full-width <hr> divider above each assistant reply
  *   - input-clear.ts  — Alt+C shortcut to clear the input editor
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
+ *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -37,26 +38,28 @@ import { createInstallModule } from "./install";
 import { createSshModule } from "./ssh";
 import { createResponseDivider } from "./response";
 import { createStfu } from "./stfu";
+import { createCd } from "./cd";
 
 export default function (pi: ExtensionAPI): void {
-    // Independent modules first (self-register commands/handlers).
-    const recorder = createUsageRecording(pi);
-    const usage = createUsageModule(pi);
-    const help = createHelpModule(pi);
-    createInstallModule(pi);
-    createInputClear(pi);
-    createSshModule(pi);
-    createResponseDivider(pi);
-    createStfu(pi);
+	// Independent modules first (self-register commands/handlers).
+	const recorder = createUsageRecording(pi);
+	const usage = createUsageModule(pi);
+	const help = createHelpModule(pi);
+	createInstallModule(pi);
+	createInputClear(pi);
+	createSshModule(pi);
+	createResponseDivider(pi);
+	createStfu(pi);
+	createCd(pi);
 
-    // Core owns the data; the widget renders it. The orchestrator wires
-    // them so neither module imports the other (rules.md §1.5).
-    const footerData = createCore(pi, recorder);
-    createFooterWidget(pi, footerData);
+	// Core owns the data; the widget renders it. The orchestrator wires
+	// them so neither module imports the other (rules.md §1.5).
+	const footerData = createCore(pi, recorder);
+	createFooterWidget(pi, footerData);
 
-    // usage and help are intentionally not passed to anyone — they
-    // self-register their commands/handlers in attach() and are otherwise
-    // standalone.
-    void usage;
-    void help;
+	// usage and help are intentionally not passed to anyone — they
+	// self-register their commands/handlers in attach() and are otherwise
+	// standalone.
+	void usage;
+	void help;
 }

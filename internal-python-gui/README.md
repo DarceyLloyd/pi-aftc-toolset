@@ -4,10 +4,10 @@ A Python-based SSH terminal GUI that monitors a `std/` folder for file-based IPC
 
 ## Architecture
 
-- **PyQt6 GUI** — terminal output, command input, connection form, status bar
-- **PowerShell subprocess** — runs `ssh` commands via stdin/stdout pipes (no window)
-- **Flask API** — listens on `http://127.0.0.85:8564` for external command injection
-- **File IPC** — monitors `std/in.txt`, `std/out.txt`, `std/err.txt`
+- **PyQt6 GUI** - terminal output, command input, connection form, status bar
+- **PowerShell subprocess** - runs `ssh` commands via stdin/stdout pipes (no window)
+- **Flask API** - listens on `http://127.0.0.85:8564` for external command injection
+- **File IPC** - monitors `std/in.txt`, `std/out.txt`, `std/err.txt`
 
 ## Dependencies (locked via uv)
 

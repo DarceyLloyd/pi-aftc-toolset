@@ -22,6 +22,7 @@ Apply these rules whenever you write or edit a .md file.
 - No `**bold**` or `***italic***`. Plain prose only.
 - No markdown tables. Use prose or lists.
 - Never use emphasis.
+- No em dashes. Use a regular hyphen instead, surrounded by spaces when used as a parenthetical or aside, or no spaces when used as a compound modifier. Em dashes add visual noise and require special handling in many text tools.
 - One idea per bullet. Short paragraphs.
 
 ## Why

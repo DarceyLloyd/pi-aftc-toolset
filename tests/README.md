@@ -1,6 +1,6 @@
 # tests/
 
-Test harnesses for the pi-aftc-toolset extension. No API calls, no TUI —
+Test harnesses for the pi-aftc-toolset extension. No API calls, no TUI -
 every test loads the extension through pi's bundled `jiti` with a stub
 `ExtensionAPI` and exercises the factory, every event handler, every
 slash command, and the widget render path.
@@ -33,7 +33,7 @@ provider calls.
 ## Run
 
 Each test runs independently from any cwd. Use `node <script>` from the
-project root (or anywhere — paths resolve from the script itself).
+project root (or anywhere - paths resolve from the script itself).
 
 ```bash
 node tests/parse-check/parse-check.mjs
@@ -51,7 +51,7 @@ with a stack trace.
 
 Create `tests/<name>/<name>.<ext>`. Resolve paths from the script
 (`__dirname` / `fileURLToPath(import.meta.url)`), not from `process.cwd()`
-— tests must run from any cwd. Keep harnesses dependency-free (`node` +
+- tests must run from any cwd. Keep harnesses dependency-free (`node` +
 pi's bundled jiti only) so they run anywhere pi is installed.
 
 When a refactor changes the public surface an existing test exercises

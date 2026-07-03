@@ -18,7 +18,7 @@ pi extension (Node.js, this file)
 ## How credentials stay away from the model
 
 - Username, server, and password are entered in the local Python
-  GUI only — never in the pi editor, never in a prompt, never
+  GUI only - never in the pi editor, never in a prompt, never
   sent to the model.
 - The model only ever calls tools like `ssh_run` with a **command
   to execute**. It never sees the connection details.
@@ -42,19 +42,19 @@ to the server.**
 
 ## Commands registered (5)
 
-- `/ssh-gui` — launch the local PyQt6 SSH GUI manually.
-- `/ssh-connect user@host [password]` — connect to a remote server
+- `/ssh-gui` - launch the local PyQt6 SSH GUI manually.
+- `/ssh-connect user@host [password]` - connect to a remote server
   (prompts for password if omitted).
-- `/ssh-run <command>` — run a one-shot command on the connected
+- `/ssh-run <command>` - run a one-shot command on the connected
   server.
-- `/ssh-status` — show SSH GUI running state and connection
+- `/ssh-status` - show SSH GUI running state and connection
   status.
-- `/ssh-disconnect` — disconnect the active SSH session.
+- `/ssh-disconnect` - disconnect the active SSH session.
 
 ## Safety
 
 - Avoid interactive commands such as `vim`, `nano`, `top` in
-  `ssh_run` — they hang because they need keystrokes. Use
+  `ssh_run` - they hang because they need keystrokes. Use
   non-interactive alternatives.
 - The Python GUI binds to `127.0.0.85:8564` (loopback only).
 
@@ -71,4 +71,4 @@ to the server.**
 
 `guiProcess` is module-scoped. The `exit` and `error` handlers
 null it out. Multiple `ensureGui` calls check `isApiReachable()`
-before launching — a single GUI instance per session.
+before launching - a single GUI instance per session.

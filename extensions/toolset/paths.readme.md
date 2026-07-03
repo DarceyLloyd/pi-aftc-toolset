@@ -2,7 +2,7 @@
 
 Path helpers for the extension's package-anchored files. The
 extension's runtime data (SQLite DB, HTML report) must live in a
-package-relative location, not in the user's project cwd — pi may
+package-relative location, not in the user's project cwd - pi may
 be opened from any folder, but the extension's data is global to
 the installed package.
 
@@ -53,11 +53,11 @@ getGuiDir(): string
 
 ## Why package-root, not cwd
 
-Per rules.md §10 — the extension's runtime data must remain
+Per rules.md §10 - the extension's runtime data must remain
 global to the installed package, not per-project. If the user
 opens pi from `/home/user/project-A` and then from
 `/home/user/project-B`, both sessions should see the same usage
-data — not two isolated DBs.
+data - not two isolated DBs.
 
 ## Caching
 

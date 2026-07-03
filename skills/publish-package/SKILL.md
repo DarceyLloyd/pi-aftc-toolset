@@ -1,0 +1,55 @@
+---
+name: publish-package
+description: Package-registry publishing for npm, crates.io, PyPI, and Homebrew. Verifies prerequisites, runs the publish command, confirms visibility. Use when the user asks to publish a package, or when finalizing a release.
+---
+
+# Publish Package
+
+> **HARD GATE** - Do not attempt to publish without verifying prerequisites. Missing auth tokens, stale builds, or duplicate versions cause CI failures that are hard to debug post-push.
+>
+> **HARD GATE** - Always run `--dry-run` first. Package registries are append-only - a bad publish cannot be fully undone on most registries.
+
+Publish packages to language-specific registries. Detects package type from manifest files, verifies publish prerequisites, runs the registry-specific publish command, and confirms the version appears on the registry.
+
+## Process
+
+### 1. Detect package type
+
+Read the project root for manifest files to determine the package type:
+
+- Manifest / Registry / Publish command
+  - `package.json` - npm / `npm publish --access public`
+  - `Cargo.toml` - crates.io / `cargo publish`
+  - `setup.py` / `pyproject.toml` - PyPI / `twine upload dist/*` or `flit publish`
+  - `Formula/<name>.rb` - Homebrew / `brew bump-formula-pr`
+  - Multiple detected - Polyglot / Error: specify registry with `--registry <npm / crates.io / pypi / brew>`
+
+If no manifest is found, prompt the user to specify the type or pass `--type <npm|crates.io|pypi|brew>`.
+
+### 2. Verify prerequisites
+
+Before attempting any publish, run all applicable checks:
+
+npm (`package.json`):
+
+crates.io (`Cargo.toml`):
+
+PyPI (`setup.py` / `pyproject.toml`):
+
+### 3. Run publish
+
+After all prerequisite checks pass, run the registry-specific command:
+
+### 4. Verify publish success
+
+After publish, confirm the version appears on the registry:
+
+### 5. Error handling
+
+On failure, surface actionable hints:
+
+### 6. Dry-run mode (`--dry-run`)
+
+Run `--dry-run` to verify all prerequisites without actually publishing:
+
+### 7. Dry-run mode per registry

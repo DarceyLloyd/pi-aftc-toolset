@@ -37,7 +37,7 @@ interface TurnRecorder {
 }
 ```
 
-`usage-recording.ts` implements `TurnRecorder` structurally — as long
+`usage-recording.ts` implements `TurnRecorder` structurally - as long
 as the method signature matches, `core.ts` doesn't need to import
 the concrete class.
 
@@ -47,13 +47,13 @@ The widget reads data via a `FooterDataProvider` interface, never
 importing core.ts. The view types are the minimal fields the
 widget actually reads:
 
-- `AccumulatorView` — snapshot of the cache accumulator (no
+- `AccumulatorView` - snapshot of the cache accumulator (no
   methods, just fields).
-- `ModelView` — model name + reasoning + context window + thinking
+- `ModelView` - model name + reasoning + context window + thinking
   level.
-- `ToolCacheView` — `getCount()`, `getTotal()`, `getSkillCount()`,
+- `ToolCacheView` - `getCount()`, `getTotal()`, `getSkillCount()`,
   `getSkillToks()`.
-- `SessionView` — current context-window clock + cost rates
+- `SessionView` - current context-window clock + cost rates
   (already sampled).
 
 The full interface:
@@ -76,7 +76,7 @@ interface FooterDataProvider {
 ## Why structural typing, not abstract classes
 
 JS / TS structural typing means `core.ts` can return a plain
-object literal that satisfies the interface — no need for abstract
+object literal that satisfies the interface - no need for abstract
 classes, no `implements` keyword, no inheritance. Both modules
 remain independent.
 
@@ -85,7 +85,7 @@ remain independent.
 `types.ts` is the **neutral** ground. Neither core.ts nor
 footer-widget.ts nor usage-recording.ts owns these types. They
 live in a file that no feature module imports directly as a runtime
-dependency — features import types only.
+dependency - features import types only.
 
 ## Adding a new type
 
@@ -93,5 +93,5 @@ dependency — features import types only.
 2. Have one feature module implement it (as a method on a returned
    object or a class method).
 3. Have another feature module consume it (via the orchestrator).
-4. Both files import the interface from `./types` — they don't
+4. Both files import the interface from `./types` - they don't
    import each other.

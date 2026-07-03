@@ -1,0 +1,1328 @@
+/**
+ * pi-aftc-toolset — directory navigation feature module.
+ *
+ * Registers the `/cd` slash command which switches the current Pi
+ * session to a different directory.
+ *
+ * With an argument → one-shot switch (resolves `~`, absolute, relative;
+ * creates missing directories after a confirm dialog).
+ *
+ * With no argument → two-step interactive flow:
+ *   Step 1: "Preserve current session?" prompt. "Preserve" means
+ *           resume the most recent session in the target directory
+ *           via `SessionManager.continueRecent` (or fall back to a
+ *           fresh session if none exists). "Fresh" means a brand-new
+ *           empty session via `SessionManager.create`. The choice is
+ *           remembered but NOT applied until a directory has been
+ *           picked, so cancelling the picker cancels the whole flow.
+ *   Step 2: directory-picker overlay.
+ *     - Header shows the current browsing directory in cyan.
+ *     - `..` at top of the listing navigates up one level. At the
+ *       drive root, `..` switches to drive listing instead.
+ *     - Depth-2 flattening: each entry shows direct children plus
+ *       grandchildren, with depth-2 entries labelled "parent/leaf"
+ *       to keep collisions readable.
+ *     - Left/Right arrows: ← up a level, → drill into a folder
+ *       (refresh listing).
+ *     - Up/Down arrows: change selection.
+ *     - Enter: select the highlighted entry. On `..`, this navigates
+ *       up. When the only entry is `..` (target is an empty folder
+ *       reached via →), Enter on `..` selects the current folder
+ *       (dual-semantics `..` rule — no separate "Select this dir"
+ *       entry needed).
+ *     - Tab: autocompletes the highlighted entry into the input.
+ *     - Esc: cancel without switching.
+ *   Step 3 (after picker): create-or-resume the session in the picked
+ *   directory using the choice from Step 1, then `ctx.switchSession`.
+ *
+ * ---------------------------------------------------------------------------
+ * SESSION CLEANUP
+ * ---------------------------------------------------------------------------
+ * On `session_shutdown` (except `reason === "reload"`), delete the
+ * just-left session file if it contains no real user/assistant messages.
+ * This makes `/cd` a quiet operation: switching into a fresh directory
+ * and walking away without typing → empty session is auto-cleaned.
+ *
+ * ---------------------------------------------------------------------------
+ * CROSS-PLATFORM
+ * ---------------------------------------------------------------------------
+ * Drive listing uses `fs.readdirSync` to probe A→Z on Windows; POSIX
+ * systems return `["/"]` (the single root). Path parsing uses Node's
+ * `path` module so separators + drive letters are handled per-OS.
+ *
+ * Per rules.md §1.5, this is a self-contained feature module: no
+ * shared state with other feature modules, wired in by `index.ts`.
+ *
+ * See `cd.readme.md` for the full contract (events, commands,
+ * factory signature, failure modes).
+ */
+
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	Theme,
+} from "@earendil-works/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import {
+	CURSOR_MARKER,
+	type Focusable,
+	fuzzyFilter,
+	matchesKey,
+	sliceByColumn,
+	truncateToWidth,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Config
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Default depth of descendants shown in the listing (children + N levels).
+ * Mutable at runtime via `/cd-set-max-depth`. */
+const DEFAULT_MAX_DEPTH = 3;
+/** Cache TTL for directory reads (rules.md §4.3 intentional persistence). */
+const CACHE_TTL_MS = 500;
+/** Lower bound exposed by `/cd-set-max-depth`. */
+const MIN_DEPTH = 2;
+/** Upper bound exposed by `/cd-set-max-depth`. */
+const MAX_DEPTH = 10;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers — directory resolution + listing + drive detection
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DirEntry {
+	value: string;
+	label: string;
+	description?: string;
+	/** Discriminator so confirm/tab can tell `..`, real dirs, and drives apart. */
+	kind?: "parent" | "drive" | "dir";
+}
+
+// Two-level cache so repeated keystrokes never touch the filesystem.
+// Module-scoped and intentionally persistent across sessions — directory
+// contents don't need per-session freshness, and the TTL prevents staleness.
+const direntCache = new Map<string, { time: number; entries: fs.Dirent[] }>();
+const subdirCache = new Map<string, { time: number; entries: DirEntry[] }>();
+
+function readDirCached(dir: string): fs.Dirent[] {
+	const now = Date.now();
+	const cached = direntCache.get(dir);
+	if (cached && now - cached.time < CACHE_TTL_MS) return cached.entries;
+	try {
+		const entries = fs.readdirSync(dir, { withFileTypes: true });
+		direntCache.set(dir, { time: now, entries });
+		return entries;
+	} catch {
+		return [];
+	}
+}
+
+/** Read + sort the immediate subdirectory entries of `dir`. */
+function readSubdirsCached(dir: string): DirEntry[] {
+	const now = Date.now();
+	const cached = subdirCache.get(dir);
+	if (cached && now - cached.time < CACHE_TTL_MS) return cached.entries;
+
+	const subdirs: DirEntry[] = [];
+	for (const dirent of readDirCached(dir)) {
+		if (dirent.name === "." || dirent.name === "..") continue;
+		const entry = direntToEntry(dir, dirent);
+		if (entry) subdirs.push(entry);
+	}
+	sortEntries(subdirs);
+	subdirCache.set(dir, { time: now, entries: subdirs });
+	return subdirs;
+}
+
+export function prefetchDirectory(dir: string): void {
+	readDirCached(dir);
+}
+
+/** Convert a dirent into a DirEntry if it is a (real) directory. */
+function direntToEntry(baseDir: string, dirent: fs.Dirent): DirEntry | null {
+	let isDir: boolean;
+	try {
+		// isDirectory() on a Dirent uses the stat info already fetched by
+		// readdir, so this is cheap. Symlinks need a follow-up stat.
+		if (dirent.isSymbolicLink()) {
+			isDir = fs.statSync(path.join(baseDir, dirent.name)).isDirectory();
+		} else {
+			isDir = dirent.isDirectory();
+		}
+	} catch {
+		return null;
+	}
+	if (!isDir) return null;
+	const full = path.join(baseDir, dirent.name);
+	return {
+		value: full,
+		label: dirent.name + "/",
+		description: shortenPath(full),
+	};
+}
+
+/** Alphabetical, with dotfiles sorted after regular entries. */
+function sortEntries(entries: DirEntry[]): void {
+	entries.sort((a, b) => {
+		const aHidden = a.label.startsWith(".");
+		const bHidden = b.label.startsWith(".");
+		if (aHidden !== bHidden) return aHidden ? 1 : -1;
+		return a.label.localeCompare(b.label);
+	});
+}
+
+/** Collapse $HOME to `~`. */
+function shortenPath(full: string): string {
+	const home = os.homedir();
+	if (!home) return full;
+	if (full === home) return "~";
+	if (full.startsWith(home + path.sep)) return "~" + full.slice(home.length);
+	return full;
+}
+
+function resolveDirectory(input: string, cwd: string): string | null {
+	let resolved = input;
+	if (input.startsWith("~/") || input === "~") {
+		resolved = path.join(os.homedir(), input.slice(1));
+	} else if (!path.isAbsolute(input)) {
+		resolved = path.resolve(cwd, input);
+	}
+	resolved = path.normalize(resolved);
+	try {
+		return fs.statSync(resolved).isDirectory() ? resolved : null;
+	} catch {
+		return null;
+	}
+}
+
+/** True if `p` is the root of its drive (Windows) or `/` (POSIX). */
+function isRootDrive(p: string): boolean {
+	try {
+		return path.parse(p).root === p;
+	} catch {
+		return false;
+	}
+}
+
+/** Probe A→Z on Windows; return `["/"]` on POSIX. */
+function listDrives(): string[] {
+	if (process.platform !== "win32") return [path.normalize(path.sep)];
+	const drives: string[] = [];
+	for (let c = 65; c <= 90; c++) {
+		const letter = String.fromCharCode(c);
+		const drive = `${letter}:${path.sep}`;
+		try {
+			fs.readdirSync(drive);
+			drives.push(drive);
+		} catch {
+			// Drive not present / not accessible — skip.
+		}
+	}
+	return drives;
+}
+
+/**
+ * Depth-limited recursive listing. Walks all descendants of `baseDir`
+ * up to `maxDepth` and returns them as a flat array. **No cap on the
+ * number of entries returned** — the viewport in `CdOverlay.render`
+ * handles scrolling. Capping the listing would prevent the user from
+ * navigating back to a deep folder when walking up the tree through
+ * a parent directory that has many descendants (e.g. `node_modules/`).
+ *
+ * The cache (`subdirCache` + `direntCache`, 500ms TTL) ensures the
+ * walker only reads the disk once per (dir, 500ms) pair, so the cost
+ * of unbounded listings is paid at most twice per second.
+ *
+ * Labels:
+ *   - depth-1: leaf name + "/"  e.g. "src/"
+ *   - depth-N: parent/.../leaf + "/" e.g. "src/core/"  (collision-safe)
+ *
+ * Hidden directories are NOT filtered — we always include them so
+ * users can reach dotfolders.
+ */
+function findDirectoriesAtDepth(
+	baseDir: string,
+	prefix: string,
+	maxDepth: number,
+): DirEntry[] {
+	// If the user typed a path that resolves to an existing directory,
+	// drill into that instead of showing siblings.
+	let effectiveBase = baseDir;
+	if (prefix.trim().length > 0) {
+		const resolved = resolveDirectory(prefix, baseDir);
+		if (resolved) effectiveBase = resolved;
+	}
+
+	const results: DirEntry[] = [];
+	walkDirs(effectiveBase, maxDepth, results);
+
+	// If the typed prefix is NOT itself an existing dir, fuzzy-filter
+	// the flat listing against the leaf — useful when the user types
+	// part of a deeply-nested folder name. No cap on the result count.
+	if (prefix.trim().length > 0 && !resolveDirectory(prefix, baseDir)) {
+		const q = prefix.trim();
+		return fuzzyFilter(results, q, (e) => e.label.replace(/\/$/, ""));
+	}
+
+	return results;
+}
+
+/**
+ * Breadth-first recursive listing of `baseDir` up to `maxDepth`.
+ *
+ * BFS (not DFS) so the depth-1 children of `baseDir` are listed
+ * BEFORE their grandchildren — otherwise a wide subtree like
+ * `node_modules/` or `.git/` dominates the top of the listing and
+ * hides the user's actual target directory.
+ *
+ * Each entry's label is its full relative path from `baseDir`,
+ * joined with "/". This makes "src/core/" visually distinct
+ * from "tests/core/" regardless of listing depth.
+ *
+ * No entry-count cap — the viewport in `CdOverlay.render` handles
+ * scrolling. The cache (`subdirCache` + `direntCache`, 500ms TTL)
+ * ensures the walker only reads the disk once per (dir, 500ms)
+ * pair, so the cost of unbounded listings is paid at most twice
+ * per second.
+ */
+function walkDirs(baseDir: string, maxDepth: number, out: DirEntry[]): void {
+	// Queue of {absoluteDir, relativePathFromBase, depth}. Start at baseDir.
+	const queue: Array<{ dir: string; relPath: string; depth: number }> = [
+		{ dir: baseDir, relPath: "", depth: 0 },
+	];
+	while (queue.length > 0) {
+		const item = queue.shift();
+		if (!item || item.depth > maxDepth) continue;
+		const subdirs = readSubdirsCached(item.dir);
+		for (const sub of subdirs) {
+			const leaf = path.basename(sub.value);
+			const newRelPath =
+				item.relPath === "" ? leaf : `${item.relPath}/${leaf}`;
+			out.push({
+				value: sub.value,
+				label: newRelPath + "/",
+				kind: "dir",
+			});
+			if (item.depth < maxDepth) {
+				queue.push({
+					dir: sub.value,
+					relPath: newRelPath,
+					depth: item.depth + 1,
+				});
+			}
+		}
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CdOverlay — modal directory picker
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PickerResult =
+	| { kind: "picked"; directory: string }
+	| { kind: "typed"; text: string } // input has text but no matching result; resolve/create as if it were a CLI arg
+	| { kind: "cancelled" };
+
+class CdOverlay implements Focusable {
+	readonly width = 110;
+	readonly minWidth = 72;
+	readonly maxWidth = 160;
+	readonly maxResults = 18;
+	private readonly title = "📂 Move to directory";
+
+	focused = false;
+
+	// ---- state ----
+	private input = "";
+	private cursor = 0;
+	private inputScrollOffset = 0;
+	private selectedIndex = 0;
+	/** Index of the first visible row. Adjusted to keep `selectedIndex`
+	 * in view as the user navigates. */
+	private scrollOffset = 0;
+	/** Number of list rows actually painted on the last render. Used by
+	 * PageUp/PageDown so each page step matches the visible viewport.
+	 * Initialised to 10 as a sane fallback before the first render. */
+	private viewportRowCount = 10;
+
+	/** The directory currently being browsed. */
+	private currentDir: string;
+	/** True when displaying the drives list. */
+	private isShowingDrives = false;
+	/** Visible entries — drives when `isShowingDrives`, otherwise dirs. */
+	private entries: DirEntry[] = [];
+	/** Cached render — invalidated on state changes. */
+	private cachedWidth?: number;
+	private cachedLines?: string[];
+	/** Mutable max descendant depth for the listing (set by `/cd-set-max-depth`). */
+	private maxDepth: number;
+
+	constructor(
+		private theme: Theme,
+		cwd: string,
+		maxDepth: number,
+		private done: (result: PickerResult) => void,
+	) {
+		// Resolve to an absolute path so the header never renders `.` / `..`.
+		this.currentDir = path.resolve(cwd);
+		this.maxDepth = maxDepth;
+		this.refreshEntries();
+	}
+
+	// ---- input handling ----
+
+	handleInput(data: string): void {
+		this.invalidateCache();
+
+		if (matchesKey(data, "escape")) {
+			this.done({ kind: "cancelled" });
+			return;
+		}
+
+		if (matchesKey(data, "tab") && this.entries.length > 0) {
+			this.acceptCompletion();
+			return;
+		}
+
+		// Navigation: arrows first, then enter, then text editing.
+		if (matchesKey(data, "up")) {
+			this.moveSelection(-1);
+			return;
+		}
+		if (matchesKey(data, "down")) {
+			this.moveSelection(1);
+			return;
+		}
+
+		// PageUp / PageDown: jump by the visible viewport size. The actual
+		// step is set by the most recent render() call. No wrap-around —
+		// clamping at row 0 / last is the conventional page-nav behaviour.
+		if (matchesKey(data, "pageup")) {
+			this.moveByPage(-this.viewportRowCount);
+			return;
+		}
+		if (matchesKey(data, "pagedown")) {
+			this.moveByPage(this.viewportRowCount);
+			return;
+		}
+		// Ctrl+PgUp / Ctrl+PgDn: jump to first / last entry.
+		if (matchesKey(data, "ctrl+pageup")) {
+			this.jumpToEdge("top");
+			return;
+		}
+		if (matchesKey(data, "ctrl+pagedown")) {
+			this.jumpToEdge("bottom");
+			return;
+		}
+
+		// Left / Right arrows traverse the tree.
+		if (matchesKey(data, "left")) {
+			this.navigateUp();
+			return;
+		}
+		if (matchesKey(data, "right")) {
+			this.drillIntoSelected();
+			return;
+		}
+
+		// Enter confirms the selection.
+		if (matchesKey(data, "return") || matchesKey(data, "enter")) {
+			this.confirmSelection();
+			return;
+		}
+
+		// Cursor + editing keys (within the input box).
+		if (matchesKey(data, "backspace")) {
+			this.deleteBackward();
+			return;
+		}
+		if (matchesKey(data, "delete") || matchesKey(data, "ctrl+d")) {
+			this.deleteForward();
+			return;
+		}
+		if (matchesKey(data, "ctrl+u")) {
+			this.input = this.input.slice(this.cursor);
+			this.cursor = 0;
+			this.refreshEntries();
+			return;
+		}
+		if (matchesKey(data, "ctrl+k")) {
+			this.input = this.input.slice(0, this.cursor);
+			this.refreshEntries();
+			return;
+		}
+		if (matchesKey(data, "ctrl+w") || matchesKey(data, "alt+backspace")) {
+			this.deleteWordBackward();
+			return;
+		}
+		if (matchesKey(data, "home") || matchesKey(data, "ctrl+a")) {
+			this.cursor = 0;
+			return;
+		}
+		if (matchesKey(data, "end") || matchesKey(data, "ctrl+e")) {
+			this.cursor = this.input.length;
+			return;
+		}
+
+		// Plain character → insert.
+		if (data.length === 1 && data.charCodeAt(0) >= 32) {
+			this.input =
+				this.input.slice(0, this.cursor) + data + this.input.slice(this.cursor);
+			this.cursor++;
+			this.refreshEntries();
+		}
+	}
+
+	// ---- entry-list operations ----
+
+	/** Refresh `entries` to reflect the current state of `currentDir` / `isShowingDrives` / `input`. */
+	private refreshEntries(): void {
+		if (this.isShowingDrives) {
+			// Drive list. Each entry tagged with `kind: "drive"` so confirm
+			// can route correctly.
+			const drives = listDrives();
+			this.entries = drives.map((d) => ({
+				value: d,
+				label: d,
+				kind: "drive" as const,
+			}));
+			this.selectedIndex = Math.min(
+				this.selectedIndex,
+				Math.max(0, this.entries.length - 1),
+			);
+			return;
+		}
+
+		// Dir mode — no synthetic `..` row. Left-arrow is the only way up.
+		const found = findDirectoriesAtDepth(this.currentDir, this.input, this.maxDepth);
+		this.entries = found.map((e) => ({ ...e, kind: "dir" as const }));
+		if (this.selectedIndex >= this.entries.length) {
+			this.selectedIndex = Math.max(0, this.entries.length - 1);
+		}
+		// Clamp scroll so selection stays visible.
+		this.clampScroll();
+	}
+
+	/**
+	 * Keep `selectedIndex` within the visible viewport. Called from
+	 * `refreshEntries` (when the entries list changes) and from
+	 * `moveSelection` (when the user arrows up/down).
+	 */
+	private clampScroll(): void {
+		if (this.entries.length === 0) {
+			this.scrollOffset = 0;
+			return;
+		}
+		// Selection must fit inside the [scrollOffset, scrollOffset + maxResults) window.
+		if (this.selectedIndex < this.scrollOffset) {
+			this.scrollOffset = this.selectedIndex;
+		} else if (this.selectedIndex >= this.scrollOffset + this.maxResults) {
+			this.scrollOffset = this.selectedIndex - this.maxResults + 1;
+		}
+		// Cap scrollOffset so we don't leave empty rows at the bottom.
+		const maxStart = Math.max(0, this.entries.length - this.maxResults);
+		if (this.scrollOffset > maxStart) this.scrollOffset = maxStart;
+		if (this.scrollOffset < 0) this.scrollOffset = 0;
+	}
+
+	/** Up-arrow: move within entries. Wraps around at the edges. */
+	private moveSelection(delta: number): void {
+		const total = this.totalSelectable;
+		if (total === 0) return;
+		this.selectedIndex = (this.selectedIndex + delta + total) % total;
+		this.clampScroll();
+	}
+
+	/**
+	 * PageUp / PageDown: jump by `delta` rows, clamped to [0, entries.length - 1].
+	 * The delta is set to the most recent viewport row count so each page step
+	 * matches what the user can actually see. PageUp from row 0 clamps to 0
+	 * (no wrap-around — wrapping would be surprising for page navigation).
+	 */
+	private moveByPage(delta: number): void {
+		const total = this.entries.length;
+		if (total === 0) return;
+		let target = this.selectedIndex + delta;
+		if (target < 0) target = 0;
+		if (target >= total) target = total - 1;
+		this.selectedIndex = target;
+		this.clampScroll();
+	}
+
+	/** Ctrl+PgUp / Ctrl+PgDn: jump to the first or last entry. */
+	private jumpToEdge(edge: "top" | "bottom"): void {
+		const total = this.entries.length;
+		if (total === 0) return;
+		this.selectedIndex = edge === "top" ? 0 : total - 1;
+		this.clampScroll();
+	}
+
+	/**
+	 * Up-arrow / Left-arrow equivalent: navigate up one level.
+	 * At the drive root, switch to drives-listing mode (no parent).
+	 */
+	private navigateUp(): void {
+		if (this.isShowingDrives) return; // nowhere to go up from drives
+		if (isRootDrive(this.currentDir)) {
+			this.showDrives();
+			return;
+		}
+		const parent = path.dirname(this.currentDir);
+		this.currentDir = parent;
+		this.input = "";
+		this.cursor = 0;
+		this.refreshEntries();
+		this.selectedIndex = 0;
+	}
+
+	/** Right-arrow / drill: open the highlighted entry as a directory.
+	 *  If the highlighted folder has no subdirectories, this is a no-op. */
+	private drillIntoSelected(): void {
+		const entry = this.entries[this.selectedIndex];
+		if (!entry) return;
+		// Drives mode → drill straight in (drives are always non-empty).
+		if (this.isShowingDrives) {
+			this.currentDir = entry.value;
+			this.isShowingDrives = false;
+			this.input = "";
+			this.cursor = 0;
+			this.scrollOffset = 0;
+			this.refreshEntries();
+			this.selectedIndex = 0;
+			return;
+		}
+		// Dir mode → only drill if the folder has children. Cheap peek via
+		// the two-level cache; treats empty folders as a no-op so the
+		// user can never enter a leaf folder via → (per spec).
+		const children = readSubdirsCached(entry.value);
+		if (children.length === 0) return;
+		this.currentDir = entry.value;
+		this.input = "";
+		this.cursor = 0;
+		this.scrollOffset = 0;
+		this.refreshEntries();
+		this.selectedIndex = 0;
+	}
+
+	private showDrives(): void {
+		this.isShowingDrives = true;
+		this.input = "";
+		this.cursor = 0;
+		this.refreshEntries();
+		this.selectedIndex = 0;
+	}
+
+	/** Tab: complete the highlighted entry into the input field. */
+	private acceptCompletion(): void {
+		const selected = this.entries[this.selectedIndex];
+		if (!selected) return;
+		// Drives-mode Tab completes to the drive path (e.g. "C:\"). The user
+		// can then edit / Enter to use it as a literal path.
+		this.input = selected.value;
+		this.cursor = this.input.length;
+		this.inputScrollOffset = 0;
+		this.refreshEntries();
+	}
+
+	/** Enter: confirm the highlighted entry (or fall back to typed input). */
+	private confirmSelection(): void {
+		const entry = this.entries[this.selectedIndex];
+
+		// Drives-listing mode: Enter selects the drive as target (right-arrow
+		// still drills in). Keeps Enter="select current" consistent.
+		if (this.isShowingDrives) {
+			if (entry) this.done({ kind: "picked", directory: entry.value });
+			return;
+		}
+
+		// Dir mode. Three subcases:
+		//  (a) Highlighted entry is a real folder → pick it.
+		//  (b) No highlighted entry + no input → pick the current folder
+		//      (the user pressed Enter on an empty listing; the most
+		//      useful interpretation is "select where I am").
+		//  (c) No highlighted entry + input has text → fall back to the
+		//      CLI-arg resolve/create flow with the typed text.
+		if (entry?.kind === "dir") {
+			this.done({ kind: "picked", directory: entry.value });
+			return;
+		}
+		if (this.entries.length === 0) {
+			if (this.input.trim().length > 0) {
+				// (c) Typed a non-matching path; defer to handleCdCommand.
+				this.done({ kind: "typed", text: this.input.trim() });
+				return;
+			}
+			// (b) Empty folder, no input typed — pick the current folder.
+			this.done({ kind: "picked", directory: this.currentDir });
+			return;
+		}
+		// Defensive no-op (shouldn't reach here).
+	}
+
+	// ---- input editing (textbox cursor within `this.input`) ----
+
+	private deleteBackward(): void {
+		if (this.cursor <= 0) return;
+		this.input =
+			this.input.slice(0, this.cursor - 1) + this.input.slice(this.cursor);
+		this.cursor--;
+		this.refreshEntries();
+	}
+
+	private deleteForward(): void {
+		if (this.cursor >= this.input.length) return;
+		this.input =
+			this.input.slice(0, this.cursor) + this.input.slice(this.cursor + 1);
+		this.refreshEntries();
+	}
+
+	private deleteWordBackward(): void {
+		if (this.cursor <= 0) return;
+		let i = this.cursor;
+		while (i > 0 && /[\\/\s]/.test(this.input[i - 1] ?? "")) i--;
+		while (i > 0 && !/[\\/\s]/.test(this.input[i - 1] ?? "")) i--;
+		this.input = this.input.slice(0, i) + this.input.slice(this.cursor);
+		this.cursor = i;
+		this.refreshEntries();
+	}
+
+	// ---- rendering ----
+
+	private get totalSelectable(): number {
+		return this.entries.length;
+	}
+
+	render(termWidth: number): string[] {
+		const w = Math.max(this.minWidth, Math.min(this.maxWidth, termWidth));
+		if (this.cachedLines && this.cachedWidth === w) {
+			return this.cachedLines;
+		}
+
+		const th = this.theme;
+		const innerW = w - 2;
+		const lines: string[] = [];
+
+		const border = (s: string) => th.fg("border", s);
+		const cell = (inner: string) => border("│") + inner + border("│");
+		const blank = cell(" ".repeat(innerW));
+
+		lines.push(this.renderTopBorder(innerW));
+		lines.push(blank);
+		lines.push(cell(this.renderInput(innerW)));
+		lines.push(blank);
+
+		// Current-dir / drives header line (cyan, non-selectable).
+		const headerText = this.isShowingDrives
+			? "Drives"
+			: `Current Path: ${shortenPath(this.currentDir)}`;
+		const headerPath = ` ${headerText}`;
+		lines.push(
+			cell(truncateToWidth(th.fg("mdHeading", headerPath), innerW, "", true)),
+		);
+		lines.push(blank);
+
+		// Render the entries list. The viewport slides through `entries`
+		// based on `scrollOffset` so the user can navigate past the
+		// visible rows without losing track of the selection.
+		const isEmpty = this.entries.length === 0;
+		const viewportStart = this.scrollOffset;
+		const viewportEnd = Math.min(this.entries.length, viewportStart + this.maxResults);
+		// Track how many rows we actually painted for PageUp/PageDown
+		// step size. Defaults to the constructor's initial 10 if this is
+		// the first render and entries are still empty.
+		if (viewportEnd > viewportStart) {
+			this.viewportRowCount = viewportEnd - viewportStart;
+		}
+
+		if (isEmpty && this.isShowingDrives) {
+			lines.push(
+				cell(
+					truncateToWidth(
+						` ${th.fg("dim", "No drives detected")}`,
+						innerW,
+						"",
+						true,
+					),
+				),
+			);
+		} else if (isEmpty) {
+			lines.push(
+				cell(
+					truncateToWidth(
+						` ${th.fg("dim", "No subdirectories")}`,
+						innerW,
+						"",
+						true,
+					),
+				),
+			);
+		} else {
+			for (let i = viewportStart; i < viewportEnd; i++) {
+				const item = this.entries[i];
+				if (!item) continue;
+				const isParentRow = item.kind === "drive";
+				lines.push(
+					cell(
+						this.renderEntryRow(
+							item.label,
+							i === this.selectedIndex,
+							innerW,
+							isParentRow,
+						),
+					),
+				);
+			}
+			if (this.entries.length > this.maxResults) {
+				lines.push(
+					cell(
+						truncateToWidth(
+							` ${th.fg(
+								"dim",
+								`↓ rows ${viewportStart + 1}\u2013${viewportEnd} of ${this.entries.length} (keep typing to narrow)`,
+							)}`,
+							innerW,
+							"",
+							true,
+						),
+					),
+				);
+			}
+		}
+
+		lines.push(blank);
+		for (const helpLine of this.renderHelp(innerW, isEmpty)) {
+			lines.push(cell(helpLine));
+		}
+		lines.push(border(`╰${"─".repeat(innerW)}╯`));
+
+		this.cachedWidth = w;
+		this.cachedLines = lines;
+		return lines;
+	}
+
+	invalidate(): void {
+		this.invalidateCache();
+	}
+
+	dispose(): void {
+		this.invalidateCache();
+	}
+
+	private invalidateCache(): void {
+		this.cachedWidth = undefined;
+		this.cachedLines = undefined;
+	}
+
+	private renderTopBorder(innerW: number): string {
+		const th = this.theme;
+		const title = ` ${this.title} `;
+		const titleW = visibleWidth(title);
+		const leadDashW = 1;
+		const tailDashCount = Math.max(1, innerW - leadDashW - titleW);
+		return (
+			th.fg("border", "╭") +
+			th.fg("border", "─") +
+			th.fg("accent", title) +
+			th.fg("border", "─".repeat(tailDashCount)) +
+			th.fg("border", "╮")
+		);
+	}
+
+	private renderInput(innerW: number): string {
+		const th = this.theme;
+		const prompt = th.fg("accent", "  Path: ");
+		const promptW = visibleWidth(prompt);
+		const availW = Math.max(1, innerW - promptW);
+
+		// Horizontal scroll so the cursor never drifts off-screen.
+		let offset = this.inputScrollOffset;
+		if (offset > this.cursor) offset = this.cursor;
+		if (this.cursor >= offset + availW) offset = this.cursor - availW + 1;
+		offset = Math.max(0, offset);
+		this.inputScrollOffset = offset;
+
+		const marker = this.focused ? CURSOR_MARKER : "";
+		const cursorChar =
+			this.cursor < this.input.length ? (this.input[this.cursor] ?? " ") : " ";
+
+		let core: string;
+		if (this.input.length === 0) {
+			const placeholder = th.fg("dim", "Type a path or use ↑↓ navigate");
+			core = `${marker}\x1b[7m${cursorChar}\x1b[27m${placeholder}`;
+		} else {
+			const before = this.input.slice(0, this.cursor);
+			const after = this.input.slice(this.cursor + 1);
+			core = `${before}${marker}\x1b[7m${cursorChar}\x1b[27m${after}`;
+		}
+
+		const field = sliceByColumn(core, offset, availW);
+		const fieldW = visibleWidth(field);
+		const padded = field + (fieldW < availW ? " ".repeat(availW - fieldW) : "");
+		return prompt + padded;
+	}
+
+	private renderEntryRow(
+		label: string,
+		isSelected: boolean,
+		innerW: number,
+		isParentRow: boolean,
+	): string {
+		const th = this.theme;
+		const prefix = isSelected ? "❯ " : "  ";
+		const inner = isSelected
+			? th.bg(
+					"selectedBg",
+					truncateToWidth(`${prefix}${label}`, innerW, "", true),
+				)
+			: truncateToWidth(
+					`${prefix}${th.fg(isParentRow ? "muted" : "text", label)}`,
+					innerW,
+					"",
+					true,
+				);
+		return inner;
+	}
+
+	private renderHelp(innerW: number, isEmptyFolder: boolean): string[] {
+		const th = this.theme;
+		let controlsLine: string;
+		let extraLine: string | null = null;
+		if (this.isShowingDrives) {
+			// Drives mode — no ← up (already at the top), no Tab. Page
+			// keys still apply since drives list can have many entries.
+			controlsLine =
+				"↑↓ = navigate | → = Enter | Enter = Select | Esc = cancel";
+			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom`;
+		} else if (isEmptyFolder) {
+			// Empty folder: no → (nothing to drill), no Tab. User can
+			// Enter to pick the current folder. Page keys no-op so we
+			// skip the extra line for cleanliness.
+			controlsLine =
+				"↑↓ = navigate | ← = Up level | Enter = Select this folder | Esc = cancel";
+		} else {
+			controlsLine =
+				"↑↓ = navigate | ← = Up level | → = Enter | Enter = Select folder | Tab = Auto complete | Esc = cancel";
+			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom`;
+		}
+		const lines: string[] = [
+			truncateToWidth(` ${th.fg("dim", controlsLine)}`, innerW, "", true),
+		];
+		if (extraLine) {
+			lines.push(truncateToWidth(` ${th.fg("dim", extraLine)}`, innerW, "", true));
+		}
+		return lines;
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PreserveOverlay — Yes/No picker matching the dir-browser style
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PreserveResult =
+	| { kind: "yes" }
+	| { kind: "no" }
+	| { kind: "cancelled" };
+
+/**
+ * Modal Yes/No picker rendered in the same box-drawing style as
+ * CdOverlay, so the preserve-session step visually matches the
+ * directory picker that follows. Arrow keys to navigate,
+ * Enter to confirm, Esc to cancel. No timeout / countdown.
+ */
+class PreserveOverlay implements Focusable {
+	focused = false;
+	private selectedIndex = 0;
+	private readonly options = ["Yes", "No"] as const;
+
+	private cachedWidth?: number;
+	private cachedLines?: string[];
+
+	constructor(
+		private theme: Theme,
+		private done: (result: PreserveResult) => void,
+	) {}
+
+	handleInput(data: string): void {
+		this.invalidateCache();
+		if (matchesKey(data, "escape")) {
+			this.done({ kind: "cancelled" });
+			return;
+		}
+		if (matchesKey(data, "up")) {
+			this.selectedIndex = 0;
+			return;
+		}
+		if (matchesKey(data, "down")) {
+			this.selectedIndex = 1;
+			return;
+		}
+		if (matchesKey(data, "return") || matchesKey(data, "enter")) {
+			const kind = this.options[this.selectedIndex] === "Yes" ? "yes" : "no";
+			this.done({ kind });
+			return;
+		}
+	}
+
+	render(termWidth: number): string[] {
+		const w = Math.max(40, Math.min(64, termWidth));
+		if (this.cachedLines && this.cachedWidth === w) return this.cachedLines;
+
+		const th = this.theme;
+		const innerW = w - 2;
+		const lines: string[] = [];
+
+		const border = (s: string) => th.fg("border", s);
+		const cell = (inner: string) => border("│") + inner + border("│");
+		const blank = cell(" ".repeat(innerW));
+
+		lines.push(this.renderTopBorder(innerW));
+		lines.push(blank);
+
+		// Render the two options centered, one per row, with a ❯ highlight.
+		for (let i = 0; i < this.options.length; i++) {
+			const label = this.options[i];
+			const isSelected = i === this.selectedIndex;
+			const prefix = isSelected ? "❯ " : "  ";
+			const text = `${prefix}${label}`;
+			const row = isSelected
+				? th.bg("selectedBg", truncateToWidth(text, innerW, "", true))
+				: truncateToWidth(`${prefix}${th.fg("text", label)}`, innerW, "", true);
+			lines.push(cell(row));
+		}
+
+		lines.push(blank);
+		lines.push(cell(this.renderHelp(innerW)));
+		lines.push(border(`╰${"─".repeat(innerW)}╯`));
+
+		this.cachedWidth = w;
+		this.cachedLines = lines;
+		return lines;
+	}
+
+	invalidate(): void {
+		this.invalidateCache();
+	}
+
+	dispose(): void {
+		this.invalidateCache();
+	}
+
+	private invalidateCache(): void {
+		this.cachedWidth = undefined;
+		this.cachedLines = undefined;
+	}
+
+	private renderTopBorder(innerW: number): string {
+		const th = this.theme;
+		const title = " 📂 Preserve current session? ";
+		const titleW = visibleWidth(title);
+		const leadDashW = 1;
+		const tailDashCount = Math.max(1, innerW - leadDashW - titleW);
+		return (
+			th.fg("border", "╭") +
+			th.fg("border", "─") +
+			th.fg("accent", title) +
+			th.fg("border", "─".repeat(tailDashCount)) +
+			th.fg("border", "╮")
+		);
+	}
+
+	private renderHelp(innerW: number): string {
+		const th = this.theme;
+		const content = ` ${th.fg(
+			"dim",
+			"↑↓ = navigate | Enter = Select | Esc = cancel",
+		)}`;
+		return truncateToWidth(content, innerW, "", true);
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Command handler — preserve-session prompt + picker overlay
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleCdCommand(
+	args: string,
+	maxDepth: number,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	const trimmedArg = args.trim();
+
+	if (trimmedArg.length > 0) {
+		// One-shot path: resolve + confirm + switch. Always fresh (preserve=false).
+		const target = await resolveOrCreateDirectory(trimmedArg, ctx);
+		if (target !== null)
+			await switchToNewSession(target, /* preserve */ false, ctx);
+		return;
+	}
+
+	if (!ctx.hasUI || ctx.mode !== "tui") {
+		ctx.ui.notify(
+			"/cd requires interactive TUI mode (run with a path argument instead, e.g. /cd ~/projects)",
+			"error",
+		);
+		return;
+	}
+
+	// Step 1: ask whether to preserve or fresh-start.
+	const preserveChoice = await ctx.ui.custom<PreserveResult>(
+		(_tui, theme, _keybindings, done) => new PreserveOverlay(theme, done),
+		{ overlay: true },
+	);
+	if (!preserveChoice || preserveChoice.kind === "cancelled") {
+		// User dismissed the dialog — cancel the whole flow.
+		return;
+	}
+	const preserve = preserveChoice.kind === "yes";
+
+	// Step 2: directory-picker overlay.
+	const result = await ctx.ui.custom<PickerResult>(
+		(_tui, theme, _keybindings, done) =>
+			new CdOverlay(theme, ctx.cwd, maxDepth, done),
+		{ overlay: true },
+	);
+	if (!result || result.kind === "cancelled") return;
+
+	// Step 3: switch session in the picked directory.
+	if (result.kind === "typed") {
+		// User typed a non-matching path in the overlay — run it through
+		// the same resolve/create flow as a CLI arg, preserving the
+		// preserve/fresh choice.
+		const target = await resolveOrCreateDirectory(result.text, ctx);
+		if (target !== null) await switchToNewSession(target, preserve, ctx);
+		return;
+	}
+	await switchToNewSession(result.directory, preserve, ctx);
+}
+
+async function resolveOrCreateDirectory(
+	input: string,
+	ctx: ExtensionCommandContext,
+): Promise<string | null> {
+	const resolved = resolveDirectory(input, ctx.cwd);
+	if (resolved !== null) return resolved;
+
+	let targetPath: string;
+	if (input.startsWith("~/")) {
+		targetPath = path.join(os.homedir(), input.slice(2));
+	} else if (path.isAbsolute(input)) {
+		targetPath = path.normalize(input);
+	} else {
+		targetPath = path.resolve(ctx.cwd, input);
+	}
+
+	const parentDir = path.dirname(targetPath);
+	if (!fs.existsSync(parentDir)) {
+		ctx.ui.notify(
+			`Cannot create "${path.basename(targetPath)}": parent directory does not exist`,
+			"error",
+		);
+		return null;
+	}
+
+	const basename = path.basename(targetPath);
+	const confirmed = await ctx.ui.confirm(
+		"Create directory?",
+		`"${basename}" does not exist. Create it?`,
+	);
+	if (!confirmed) return null;
+
+	try {
+		fs.mkdirSync(targetPath, { recursive: true });
+		return targetPath;
+	} catch (err) {
+		ctx.ui.notify(
+			`Failed to create directory: ${err instanceof Error ? err.message : String(err)}`,
+			"error",
+		);
+		return null;
+	}
+}
+
+async function switchToNewSession(
+	targetDir: string,
+	preserve: boolean,
+	ctx: ExtensionCommandContext,
+): Promise<void> {
+	const action = preserve ? "Resuming session in" : "Moving to";
+	ctx.ui.notify(`${action} ${targetDir}...`, "info");
+
+	try {
+		let newSession: SessionManager;
+		try {
+			newSession = preserve
+				? SessionManager.continueRecent(targetDir)
+				: SessionManager.create(targetDir);
+		} catch (err) {
+			ctx.ui.notify(
+				`Failed to ${preserve ? "locate a recent session in" : "create session in"} ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
+				"error",
+			);
+			return;
+		}
+
+		const sessionFile = newSession.getSessionFile();
+
+		// sessionFile is undefined only for in-memory sessions that have
+		// no persistent file. In that case (preserve=true but no recent
+		// session found), fall back to creating one.
+		let activeFile: string | undefined = sessionFile;
+		let activeId: string;
+
+		if (!activeFile) {
+			// Fallback path: continueRecent found nothing → make a fresh
+			// session and persist it.
+			try {
+				newSession = SessionManager.create(targetDir);
+				activeFile = newSession.getSessionFile();
+				if (!activeFile) {
+					ctx.ui.notify(
+						"Failed to create new session (no session file path)",
+						"error",
+					);
+					return;
+				}
+			} catch (err) {
+				ctx.ui.notify(
+					`Failed to create fallback session in ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
+					"error",
+				);
+				return;
+			}
+		}
+
+		activeId = newSession.getSessionId();
+
+		// Critical: DO NOT overwrite an existing session file (preserve
+		// mode may have found a recent session). Only write a fresh
+		// header when the target file does not already exist.
+		if (!fs.existsSync(activeFile)) {
+			const header = {
+				type: "session",
+				version: 3,
+				id: activeId,
+				timestamp: new Date().toISOString(),
+				cwd: targetDir,
+			};
+			const sessionDir = newSession.getSessionDir();
+			if (!fs.existsSync(sessionDir)) {
+				fs.mkdirSync(sessionDir, { recursive: true });
+			}
+			fs.writeFileSync(activeFile, JSON.stringify(header) + "\n", "utf-8");
+		}
+
+		await ctx.switchSession(activeFile);
+	} catch (err) {
+		ctx.ui.notify(
+			`Failed to move: ${err instanceof Error ? err.message : String(err)}`,
+			"error",
+		);
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public factory — wired by the orchestrator (index.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function createCd(pi: ExtensionAPI): void {
+	// Closure-scoped max descendant depth for the directory listing.
+	// Mutable at runtime via `/cd-set-max-depth`. Per-session state — the
+	// user sets their preferred depth for the session and it's reset on
+	// next session start.
+	let maxDepth = DEFAULT_MAX_DEPTH;
+
+	// Clean up empty sessions when leaving them.
+	// Uses in-memory entries (always current — appended before persist)
+	// and only deletes sessions with no real user/assistant messages.
+	pi.on("session_shutdown", (event, ctx) => {
+		if (event.reason === "reload") return;
+		const entries = ctx.sessionManager.getEntries();
+		const hasRealMessages = entries.some(
+			(e: { type: string; message?: { role?: string } }) =>
+				e.type === "message" &&
+				(e.message?.role === "user" || e.message?.role === "assistant"),
+		);
+		if (hasRealMessages) return;
+
+		const sessionFile = ctx.sessionManager.getSessionFile();
+		if (!sessionFile) return;
+		try {
+			fs.unlinkSync(sessionFile);
+		} catch {
+			/* file gone */
+		}
+	});
+
+	pi.registerCommand("cd", {
+		description:
+			"Switch to a different directory. No args → interactive picker + preserve/fresh session prompt. With a path → direct switch (always fresh).",
+		getArgumentCompletions: (): null => null,
+		handler: async (args, ctx) => {
+			await handleCdCommand(args, maxDepth, ctx);
+		},
+	});
+
+	// `/cd-set-max-depth [n]` — set the descendant-depth cap for the
+	// directory picker listing. Accepts values 2..10 (the upper bound is
+	// wide enough for deep monorepos without flooding the listing).
+	// Without args → opens a picker over 2..10 with the current value marked.
+	pi.registerCommand("cd-set-max-depth", {
+		description: `Set the /cd picker listing depth (${MIN_DEPTH}-${MAX_DEPTH}, default ${DEFAULT_MAX_DEPTH})`,
+		getArgumentCompletions: (): null => null,
+		handler: async (args, ctx) => {
+			const trimmed = args.trim();
+			// Argument form: just parse the number.
+			if (trimmed.length > 0) {
+				const n = parseInt(trimmed, 10);
+				if (Number.isFinite(n) && n >= MIN_DEPTH && n <= MAX_DEPTH) {
+					maxDepth = n;
+					ctx.ui.notify?.(
+						`/cd picker depth set to ${n}`,
+						"info",
+					);
+				} else {
+					ctx.ui.notify?.(
+						`Invalid depth "${trimmed}". Must be ${MIN_DEPTH}-${MAX_DEPTH}.`,
+						"error",
+					);
+				}
+				return;
+			}
+			// No arg → picker over 2..10 with current value marked.
+			if (!ctx.hasUI || ctx.mode !== "tui") {
+				ctx.ui.notify?.(
+					`/cd-set-max-depth: current depth = ${maxDepth}. Pass a number ${MIN_DEPTH}-${MAX_DEPTH} to set.`,
+					"info",
+				);
+				return;
+			}
+			const options: string[] = [];
+			for (let i = MIN_DEPTH; i <= MAX_DEPTH; i++) {
+				options.push(
+					i === maxDepth ? `${i} (current)` : String(i),
+				);
+			}
+			const choice = await ctx.ui.select(
+				"Set /cd picker listing depth",
+				options,
+				// timeout: 0 → no countdown; user dismisses explicitly with Esc.
+				{ timeout: 0 },
+			);
+			if (choice === undefined) return;
+			const n = parseInt(choice, 10);
+			if (Number.isFinite(n) && n >= MIN_DEPTH && n <= MAX_DEPTH) {
+				maxDepth = n;
+				ctx.ui.notify?.(
+					`/cd picker depth set to ${n}`,
+					"info",
+				);
+			}
+		},
+	});
+
+	console.log("[aftc-toolset] loaded — /cd, /cd-set-max-depth");
+}

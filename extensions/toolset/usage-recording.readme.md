@@ -18,7 +18,7 @@ to import this file.
 ## What is recorded (and what is NOT)
 
 This module records **metrics and prompt-type classification
-flags only** — never the actual text of user prompts, sub-prompts,
+flags only** - never the actual text of user prompts, sub-prompts,
 or assistant responses. That keeps the DB small (one row ≈
 100 bytes) and avoids storing anything sensitive. The model call
 content lives in pi's own session JSONL; this DB only stores
@@ -30,7 +30,7 @@ assistant responded over time*, query this DB.
 
 ## Schema (see `db.ts`)
 
-### Per-row columns — metrics
+### Per-row columns - metrics
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -49,9 +49,9 @@ assistant responded over time*, query this DB.
 | `session_id` | text | Stable per-runtime-session id |
 | `prompt_index` | int | 1-based user-prompt number; all automated continuations share the same index as the user prompt that caused them |
 
-### Per-row columns — prompt-type classification (flags)
+### Per-row columns - prompt-type classification (flags)
 
-These flag the *kind of trigger* for the assistant turn — **not
+These flag the *kind of trigger* for the assistant turn - **not
 the content of the prompt**. They're either `0` (false) or `1`
 (true).
 
@@ -63,7 +63,7 @@ the content of the prompt**. They're either `0` (false) or `1`
 | `steering_prompt` | `1` if the user sent this sub-prompt while the agent was still actively processing the previous one (pi's `steer()`). |
 | `followup_prompt` | `1` if the user queued this sub-prompt to be delivered after the agent finished (pi's `followUp()`). |
 | `continuation_prompt` | `1` if this is an idle follow-up / refinement sent in the same task thread. |
-| `prompt_kind` | text — single human-readable label (see below) |
+| `prompt_kind` | text - single human-readable label (see below) |
 
 ### `prompt_kind` values
 
@@ -77,7 +77,7 @@ grouping in the report.
 | 1 | `continuation` | Idle follow-up / refinement in the same task thread. |
 | 1 | `steer` | Sub-prompt sent while the agent was still actively processing the previous one. |
 | 1 | `followup` | Sub-prompt queued in the editor and delivered after the agent finished. |
-| 0 | `auto` | Automated tool-call continuation round — no new user input between this and the prior turn. |
+| 0 | `auto` | Automated tool-call continuation round - no new user input between this and the prior turn. |
 
 ### What is NOT recorded
 
@@ -90,7 +90,7 @@ grouping in the report.
 
 ## Why this used to be called `thinking.ts`
 
-The old name was misleading — this module has nothing to do with the
+The old name was misleading - this module has nothing to do with the
 model's `<thinking>` blocks (those are handled by pi's Ctrl+T and
 the `hideThinkingBlock` setting). The new name describes what it
 actually does: record usage data to SQLite.
@@ -99,7 +99,7 @@ actually does: record usage data to SQLite.
 
 This module previously owned `/show-thinking` and `/hide-thinking`
 which toggled visibility of the footer line 3 timing segments. Those
-commands were removed — pi already has Ctrl+T (`app.thinking.toggle`)
+commands were removed - pi already has Ctrl+T (`app.thinking.toggle`)
 for collapsing/expanding `<thinking>` blocks in the main output, and
 the `hideThinkingBlock` setting for the default. The footer timing
 info (Thinking time / Response time) is now always visible.
@@ -112,12 +112,12 @@ export function createUsageRecording(pi: ExtensionAPI): TurnRecorder
 
 Returns a `TurnRecorder` (structurally typed, see `types.ts`) that
 core.ts can call on every `message_end`. Never import this file
-directly — go through the orchestrator.
+directly - go through the orchestrator.
 
 ## Failure mode
 
 If better-sqlite3 isn't installed (user hasn't run `/aftc-install`),
 `getDb()` returns `null` and `recordTurn` is a silent no-op. The
-SQLite insert itself is wrapped in try/catch — any other error is
+SQLite insert itself is wrapped in try/catch - any other error is
 logged via `console.log` and swallowed. Per-turn failures never break
 the agent loop.
