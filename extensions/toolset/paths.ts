@@ -5,6 +5,8 @@
  * pi's current working directory. pi can be opened from any project folder;
  * using process.cwd() or ctx.cwd for this extension's SQLite/report data would
  * create per-project data folders and break global usage tracking.
+ *
+ * See `paths.readme.md` for the full path map.
  */
 
 import * as fs from "node:fs";
@@ -53,13 +55,9 @@ export function getRuntimeRoot(): string {
     return path.join(getPackageRoot(), ".pi-aftc-toolset");
 }
 
-/** Directory containing data.json, turns.db, and report.html. */
+/** Directory containing turns.db and report.html. */
 export function getDataDir(): string {
     return path.join(getRuntimeRoot(), "data");
-}
-
-export function getDataFile(): string {
-    return path.join(getDataDir(), "data.json");
 }
 
 export function getDbFile(): string {

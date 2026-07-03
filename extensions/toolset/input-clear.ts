@@ -7,8 +7,10 @@
  * The handler calls `ctx.ui.setEditorText("")` and shows a brief
  * notification so the user has feedback that the clear fired.
  *
- * Per rules.md §2, this is a self-contained feature module: it owns no
- * shared state and is wired into pi by the orchestrator in index.ts.
+ * Per rules.md §1.5, this is a self-contained feature module: it owns
+ * no shared state and is wired into pi by the orchestrator in index.ts.
+ *
+ * See `input-clear.readme.md` for the full contract.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";

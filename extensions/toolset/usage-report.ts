@@ -1,10 +1,24 @@
-/*
- * pi-aftc-toolset — upgraded usage-report feature module.
+/**
+ * pi-aftc-toolset — usage-report feature module.
  *
- * Reads the per-turn SQLite database and writes a self-contained HTML report
- * to <package-root>/.pi-aftc-toolset/data/report.html, then opens it in the
+ * Reads the per-turn SQLite database (populated by usage-recording.ts)
+ * and writes a self-contained HTML report to
+ * <package-root>/.pi-aftc-toolset/data/report.html, then opens it in the
  * user's browser.
- * The HTML is intentionally one file: embedded CSS, embedded JSON, embedded JS.
+ *
+ * The HTML is intentionally one file: embedded CSS, embedded JSON,
+ * embedded JS — no external dependencies. The report includes
+ * lifetime totals, model leaderboards, summary cards, trend chart,
+ * per-model cost tables, model × thinking level breakdown, and cost
+ * projections across multiple horizons.
+ *
+ * Per rules.md §1.5, this is a self-contained feature module: it owns
+ * no shared state with other feature modules and is wired into pi by
+ * the orchestrator in index.ts. It does not import core.ts or
+ * usage-recording.ts (it only reads the DB they share).
+ *
+ * See `usage-report.readme.md` for the full report contents and the
+ * projection math.
  */
 
 import * as fs from "node:fs";

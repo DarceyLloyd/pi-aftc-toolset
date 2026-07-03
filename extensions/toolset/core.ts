@@ -1,21 +1,20 @@
 /**
- * pi-aftc-toolset — core cache-diagnostics feature.
+ * pi-aftc-toolset — cache-diagnostics data module.
  *
- * Per rules.md §2.4, this extension uses the multi-file layout:
- *   - index.ts        — orchestrator
- *   - core.ts         — this file: cache diagnostics (footer + commands)
- *   - input-clear.ts  — Alt+C shortcut to clear the input editor
+ * Owns the cache / timing / cost accumulators, the per-tool token cost
+ * cache, the prefix-shape tracker, and the context-window clock.
  *
- * Cache diagnostics footer for pi. Displays model, thinking level, dual
- * cache hit rates, absolute cache split, context window, tool costs,
- * prefix shape status, git branch, current context-window time + cost rate,
- * and thinking/response time per turn on a dark-background bar.
+ * Rendering lives in footer-widget.ts; this file never imports it and
+ * never calls `ctx.ui.setWidget`. The orchestrator (index.ts) wires
+ * this module's returned `FooterDataProvider` to the widget so the
+ * footer reads the latest data via cheap getters (rules.md §1.5,
+ * §7.2 — never block in render).
  *
  * Hit-rate formula (matches OpenAI usage shape):
  *   hit% = cacheRead / (cacheRead + input)
- * where pi's `input` is *new* prompt tokens only and `cacheRead` is the
- * cached prefix. The true total prompt is their sum. Do not divide by
- * `input` alone.
+ * where pi's `input` is *new* prompt tokens only and `cacheRead` is
+ * the cached prefix. The true total prompt is their sum. Do not
+ * divide by `input` alone.
  *
  * Thinking time = request-sent → first text or tool-call output
  *                 (time to first visible output).
@@ -23,33 +22,49 @@
  * These are tracked per turn and averaged over the recent window.
  *
  * Performance: all expensive work (tool cost computation, prefix-shape
- * hashing, git branch) is cached and refreshed from events — never inside
- * `render()`, which runs every TUI frame. A 1s ticker in the footer calls
- * `tui.requestRender()` so the context-window clock and cost rates stay
- * current. See rules.md Section 8.2.
+ * hashing) is cached and refreshed from events — never inside the
+ * widget's render(). A 1s ticker in footer-widget.ts calls
+ * `data.onTick()` so the context-window clock and cost rates stay
+ * current.
  *
- * Context-window timer has two modes (set via /cost-timer-* commands):
- *   - "always-running"  (default): wall-clock from first user prompt in
- *     this context window.
- *   - "stop-when-idle": clock advances only while the model is actively
- *     processing a turn (between assistant message_start and message_end).
- *     During idle time (between turns, while the user reads/types) the
- *     clock is frozen. Cost rates then reflect cost per minute of model
- *     activity rather than wall-clock minutes.
+ * Context-window clock: wall-clock elapsed since the first user
+ * prompt of the current session. Tracked in-memory only (set in
+ * `message_start` for user, cleared in `resetTiming`). No file I/O
+ * — the clock is per-session and resets at every session boundary
+ * (`session_start` / `/reload` / `/new` / `/resume`), so persistence
+ * would be pointless.
  *
- * Model/thinking come from session_start + model_select events (ctx.model
- * can be undefined on early renders, so we capture from event contexts).
+ * Model/thinking come from session_start + model_select events
+ * (ctx.model can be undefined on early renders, so we capture from
+ * event contexts).
  *
- * Model and thinking-level changes update footer labels only; they do not
- * reset the context-window timer or accumulated cost.
+ * Model and thinking-level changes update footer labels only; they do
+ * not reset the context-window clock or accumulated cost.
+ *
+ * Layout (per rules.md §1.4):
+ *   - index.ts          — orchestrator
+ *   - core.ts           — this file: data + events + commands
+ *   - footer-widget.ts  — widget rendering + /aftc-footer toggle
+ *   - input-clear.ts    — Alt+C shortcut to clear the input editor
+ *
+ * See `core.readme.md` for the full contract (events, commands,
+ * public factory signature, closure state).
  */
 
-import type { ExtensionAPI, ExtensionCommandContext, Theme, ToolInfo } from "@earendil-works/pi-coding-agent";
-import type { TurnRecorder } from "./types";
+import type { ExtensionAPI, ExtensionCommandContext, ToolInfo } from "@earendil-works/pi-coding-agent";
+import type {
+    AccumulatorView,
+    FooterDataProvider,
+    ModelView,
+    ToolCacheView,
+    SessionView,
+    TurnRecorder,
+} from "./types";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { truncateToWidth } from "@earendil-works/pi-tui";
-import { getDataDir, getDataFile } from "./paths";
-import * as fs from "node:fs";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,83 +108,13 @@ interface ToolCost {
 // stable while the user types and the TUI re-renders frequently.
 //
 // The footer's cost rate is deliberately context-local: current footer cost
-// divided by the current context-window timer. The durable usage DB and
+// divided by the current context-window clock. The durable usage DB and
 // report still track all historical/today usage separately.
 interface CachedSession {
     sessionMs: number;
     sessionStr: string;
     costPerHour: number;
     costPerMinute: number;
-}
-
-// ---------------------------------------------------------------------------
-// Persistent data file (session state, future stats, etc.)
-// ---------------------------------------------------------------------------
-//
-// Stored at <package-root>/.pi-aftc-toolset/data/data.json. This is
-// extension-owned data, not project-local data: pi may be opened from any
-// cwd, but usage/timer data must remain global to the installed package.
-//
-// The data file is sampled at 1Hz by the footer ticker (not on every
-// render) so cost rates don't drift faster when the user types and the
-// TUI re-renders frequently.
-
-const DATA_DIR = getDataDir();
-const DATA_FILE = getDataFile();
-
-interface DataFile {
-    version: number;
-    session: {
-        /** ms since epoch, or null if no session has started yet. */
-        startTime: number | null;
-    };
-    // Future top-level fields can be added here without breaking the
-    // version-1 readers below (they default-merge unknown fields).
-}
-
-const DEFAULT_DATA: DataFile = {
-    version: 1,
-    session: { startTime: null },
-};
-
-function readDataFile(): DataFile {
-    try {
-        if (!fs.existsSync(DATA_FILE)) return { ...DEFAULT_DATA };
-        const raw = fs.readFileSync(DATA_FILE, "utf-8");
-        const parsed = JSON.parse(raw) as Partial<DataFile>;
-        if (typeof parsed !== "object" || parsed === null) return { ...DEFAULT_DATA };
-        if (typeof parsed.version !== "number") return { ...DEFAULT_DATA };
-        const session = (parsed as DataFile).session;
-        const start = session?.startTime;
-        if (start !== null && typeof start !== "number") {
-            return { version: parsed.version, session: { startTime: null } };
-        }
-        return { version: parsed.version, session: { startTime: start ?? null } };
-    } catch (err) {
-        console.log(`[aftc-toolset] data.json read error: ${(err as Error).message} — using defaults`);
-        return { ...DEFAULT_DATA };
-    }
-}
-
-function writeDataFile(data: DataFile): void {
-    try {
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-        fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
-    } catch (err) {
-        console.log(`[aftc-toolset] data.json write error: ${(err as Error).message}`);
-    }
-}
-
-function startNewSession(): void {
-    const data = readDataFile();
-    writeDataFile({ ...data, session: { startTime: Date.now() } });
-}
-
-function clearSessionStart(): void {
-    const data = readDataFile();
-    writeDataFile({ ...data, session: { startTime: null } });
 }
 
 // ---------------------------------------------------------------------------
@@ -191,17 +136,20 @@ function fmt(n: number): string {
     return (n / 1000000).toFixed(1) + "M";
 }
 
-// Long-form duration for the context-window clock. Adaptive: omits the
-// leading zero unit(s) so "0H 8M 3S" renders as "8M 3S", and "0H 0M 5S" as "5S".
+// Long-form duration for the context-window clock. Adaptive: lower-case
+// suffixes (10s 10m 10h 10d), drops zero sub-units. Two-unit precision
+// so e.g. "5m 30s" is shown when at least 1 minute has elapsed.
 function fmtDurationLong(ms: number): string {
-    if (ms <= 0) return "0S";
+    if (ms <= 0) return "0s";
     const s = Math.floor(ms / 1000);
-    const h = Math.floor(s / 3600);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
-    if (h > 0) return `${h}H ${m}M ${sec}S`;
-    if (m > 0) return `${m}M ${sec}S`;
-    return `${sec}S`;
+    if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+    if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    if (m > 0) return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
+    return `${sec}s`;
 }
 
 // Duration for thinking/response. Always a float in seconds to one
@@ -221,14 +169,6 @@ function hitRateNum(cached: number, input: number): number {
 function hitRate(cached: number, input: number): string {
     const r = hitRateNum(cached, input);
     return Number.isNaN(r) ? "—" : (r * 100).toFixed(1) + "%";
-}
-
-// Trend arrow: recent avg vs session avg.
-function trendArrow(recent: number, session: number): string {
-    if (Number.isNaN(recent) || Number.isNaN(session)) return "";
-    if (recent > session + 0.05) return "↑";
-    if (recent < session - 0.05) return "↓";
-    return "→";
 }
 
 // ---------------------------------------------------------------------------
@@ -329,106 +269,13 @@ class ShapeTracker {
 }
 
 // ---------------------------------------------------------------------------
-// Footer — 4 lines, dark background, rendered every TUI frame (must stay cheap)
+// createCore — the cache-diagnostics data module
+//
+// Owns the cache / timing / cost accumulators and prefix-shape tracker.
+// Returns a FooterDataProvider that footer-widget.ts reads from.
 // ---------------------------------------------------------------------------
 
-function createFooter(
-    pi: ExtensionAPI,
-    tui: { requestRender(): void },
-    _theme: Theme,
-    footerData: { getGitBranch(): string | null; onBranchChange(cb: () => void): () => void },
-    theme: Theme,
-    getAcc: () => CacheAccumulator,
-    getRecentAvg: () => number,
-    getShape: () => ShapeTracker,
-    getModel: () => ModelInfo,
-    getToolCache: () => ToolCostCache,
-    getCachedSession: () => CachedSession | null,
-    getLastThinkingMs: () => number,
-    getAvgThinkingMs: () => number,
-    getLastResponseMs: () => number,
-    getAvgResponseMs: () => number,
-    onTick: () => void,
-) {
-    // Cache git branch; refresh reactively via onBranchChange (not per-frame).
-    let branch: string | null = footerData.getGitBranch();
-    const unsubscribe = footerData.onBranchChange(() => { branch = footerData.getGitBranch(); tui.requestRender(); });
-
-    // 1Hz tick: refreshes the cached context-window time + cost rates, then
-    // requests a TUI re-render. Cost rates are computed in the tick
-    // callback, not in render(), so they only change once per second
-    // regardless of how often the TUI re-renders (e.g. while the user
-    // is typing). Cleared in dispose() when the footer is replaced.
-    const ticker = setInterval(() => { onTick(); tui.requestRender(); }, 1000);
-
-    function line(text: string, width: number): string {
-        const truncated = truncateToWidth(text, width, "…", true);
-        const padded = truncated + " ".repeat(Math.max(0, width - truncated.length));
-        return theme.bg("customMessageBg", theme.fg("dim", padded));
-    }
-
-    return {
-        dispose() { clearInterval(ticker); unsubscribe(); },
-        invalidate() {},
-        render(width: number): string[] {
-            const w = Math.max(1, width);
-            const a = getAcc();
-            const m = getModel();
-            const cache = getToolCache();
-            const shape = getShape();
-
-            const hasTurns = a.turns > 0;
-            const turnHit = hasTurns ? hitRate(a.lastTurnCacheRead, a.lastTurnInput) : "—";
-            const aggHit = hasTurns ? hitRate(a.cacheRead, a.input) : "—";
-            const trend = hasTurns ? trendArrow(getRecentAvg(), hitRateNum(a.cacheRead, a.input)) : "";
-            const modelName = m.name || "no model";
-            const thinkSuffix = m.reasoning && m.thinkingLevel && m.thinkingLevel !== "off" ? ` · ${m.thinkingLevel}` : "";
-            const ctxStr = m.contextWindow > 0 ? `${fmt(m.contextWindow)} window` : "—";
-
-            const splitStr = a.lastTurnInput > 0
-                ? `${fmt(a.lastTurnCacheRead)} cached / ${fmt(Math.max(0, a.lastTurnInput - a.lastTurnCacheRead))} new`
-                : "no data";
-            const costStr = a.cost > 0 ? `$${a.cost.toFixed(5)}` : "$0.00000";
-
-            // Context-window clock + current-context cost rate. This is
-            // intentionally simple and local to the footer context window:
-            // current in-memory cost divided by the footer timer.
-            const cached = getCachedSession();
-            const projPart = cached
-                ? `Ctx Time ${cached.sessionStr} │ $${cached.costPerHour.toFixed(2)}/hr · $${cached.costPerMinute.toFixed(3)}/min`
-                : `Ctx Time 0S │ $0.00/hr · $0.000/min`;
-
-            const skillInfo = cache.getSkillCount() > 0 ? ` │ Skills ${cache.getSkillCount()} ~${fmt(cache.getSkillToks())}t` : "";
-            // Footer line 3 timing segments are always visible — they are
-            // the most useful diagnostic data this extension surfaces
-            // (turn latency → cache ROI). Visibility of the model's
-            // <thinking> content blocks in the main output is handled by
-            // pi (Ctrl+T / hideThinkingBlock setting), not by this footer.
-            const thinkLast = fmtDurationShort(getLastThinkingMs());
-            const thinkAvg = fmtDurationShort(getAvgThinkingMs());
-            const respLast = fmtDurationShort(getLastResponseMs());
-            const respAvg = fmtDurationShort(getAvgResponseMs());
-            const timingInfo = ` │ Thinking time ${thinkLast} Last / ${thinkAvg} Avg │ Response time: ${respLast} Last / ${respAvg} Avg`;
-
-            const churn = shape.getChurn();
-            const shapeLabel = !hasTurns ? "OK" : churn ? `CHANGED: ${churn}` : "OK";
-            const branchPart = branch ? ` │ Git Branch: ${branch}` : ` │ Git: Not Setup`;
-
-            return [
-                line(`▏ ${modelName}${thinkSuffix} │ Cache Turn ${turnHit} / AVG ${aggHit} ${trend} │ ${ctxStr}`, w),
-                line(`▏ IO ↑${fmt(a.input)} ↓${fmt(a.output)} │ ${splitStr} │ ${costStr} (${a.turns} turns · ${a.userTurns} user) | ${projPart}`, w),
-                line(`▏ ${cache.getCount()} Tools ~${fmt(cache.getTotal())}t${skillInfo}${timingInfo}`, w),
-                line(`▏ STATUS: ${shapeLabel}${branchPart}`, w),
-            ];
-        },
-    };
-}
-
-// ---------------------------------------------------------------------------
-// createCore — the cache-diagnostics feature module
-// ---------------------------------------------------------------------------
-
-export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
+export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): FooterDataProvider {
     const RECENT_TURNS = 10;
 
     const acc: CacheAccumulator = {
@@ -456,19 +303,13 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
 
     // Timing state — context-window clock + per-turn thinking/response times.
     let sessionStarted = false;                       // true after first user prompt of a context window
+    let _sessionStartTime: number | null = null;      // wall-clock at first user prompt (in-memory only)
     let currentTurnStart: number | null = null;        // assistant message_start time
     let currentTurnFirstOutput: number | null = null;  // first text/tool-call in current turn
     let lastThinkingMs = 0;
     let lastResponseMs = 0;
     const thinkingTimes: number[] = [];
     const responseTimes: number[] = [];
-
-    // Timer mode (user preference, persists across session_start / model_select).
-    // "always-running" = wall-clock from first user prompt in this context window.
-    // "stop-when-idle" = active model-processing time only.
-    let timerMode: "always-running" | "stop-when-idle" = "always-running";
-    let activeStartTime: number | null = null;         // start of current active period (assistant message_start)
-    let accumulatedActiveMs = 0;                       // total active time before current period
 
     function resetAccumulators(): void {
         acc.cacheRead = acc.cacheWrite = acc.input = acc.output = acc.cost = acc.turns = acc.userTurns = 0;
@@ -490,19 +331,14 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
 
     function resetTiming(): void {
         sessionStarted = false;
+        _sessionStartTime = null;
         currentTurnStart = null;
         currentTurnFirstOutput = null;
         lastThinkingMs = 0;
         lastResponseMs = 0;
         thinkingTimes.length = 0;
         responseTimes.length = 0;
-        activeStartTime = null;
-        accumulatedActiveMs = 0;
         cachedSession = null;
-        // timerMode is intentionally NOT reset — it's a user preference.
-        // Clear the persisted footer timer on runtime/context resets. The
-        // next first user prompt records the new start time.
-        clearSessionStart();
         // Re-prime the cache so the post-reset render doesn't wait up to
         // 1s for the next ticker tick.
         recomputeCachedSession();
@@ -514,19 +350,15 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
     let cachedSession: CachedSession | null = null;
 
     function recomputeCachedSession(): void {
-        let sessionMs = 0;
-        if (timerMode === "always-running") {
-            // Source of truth: data.json. It is cleared on context/runtime
-            // reset and written only when the first user prompt arrives.
-            const data = readDataFile();
-            if (data.session.startTime !== null) {
-                sessionMs = Math.max(0, Date.now() - data.session.startTime);
-            }
-        } else {
-            // stop-when-idle: in-memory active model-processing time only.
-            sessionMs = accumulatedActiveMs + (activeStartTime !== null ? Math.max(0, Date.now() - activeStartTime) : 0);
-        }
-
+        // Wall-clock elapsed since the first user prompt of the session.
+        // Set in `message_start` for user, cleared in `resetTiming`.
+        // The footer ticker's only job is to call this on a 1Hz cadence
+        // so the displayed Context Time and $/hr·$/min burn rates stay
+        // current. No file I/O — this is per-session state, reset at
+        // every session boundary.
+        const sessionMs = _sessionStartTime !== null
+            ? Math.max(0, Date.now() - _sessionStartTime)
+            : 0;
         const elapsedMinutes = sessionMs / 60000;
         const costPerMinute = elapsedMinutes > 0 ? acc.cost / elapsedMinutes : 0;
         cachedSession = {
@@ -543,7 +375,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
 
     const toolCache = new ToolCostCache();
     const shape = new ShapeTracker();
-    let active = true;
     let lastSysPrompt = "";
     const model: ModelInfo = { name: "", reasoning: false, contextWindow: 0, thinkingLevel: "" };
 
@@ -554,34 +385,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
     function recentAvg(): number {
         if (recentHits.length === 0) return NaN;
         return recentHits.reduce((s, x) => s + x, 0) / recentHits.length;
-    }
-
-    // -----------------------------------------------------------------------
-    // Footer lifecycle
-    // -----------------------------------------------------------------------
-
-    function show(ctx: { hasUI: boolean; ui: { setFooter: Function } }) {
-        if (!ctx.hasUI) return;
-        active = true;
-        // Prime the cache so the first render shows correct values without
-        // waiting up to 1s for the first tick.
-        recomputeCachedSession();
-        ctx.ui.setFooter((tui: any, theme: Theme, footerData: any) => createFooter(
-            pi, tui, theme, footerData, theme,
-            () => acc, recentAvg, () => shape, () => model, () => toolCache,
-            () => cachedSession,
-            () => lastThinkingMs,
-            () => avgMs(thinkingTimes),
-            () => lastResponseMs,
-            () => avgMs(responseTimes),
-            recomputeCachedSession,
-            ));
-    }
-
-    function hide(ctx: { hasUI: boolean; ui: { setFooter: Function } }) {
-        if (!ctx.hasUI) return;
-        active = false;
-        ctx.ui.setFooter(undefined);
     }
 
     // -----------------------------------------------------------------------
@@ -602,11 +405,10 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
         // thinkingLevel is NOT on the Model object — it's separate agent
         // state. Seed it from pi.getThinkingLevel() so the level is known
         // from the first render, not only after the user changes it.
-        // (rules.md §11)
+        // (rules.md §10)
         model.thinkingLevel = pi.getThinkingLevel();
 
         refreshToolCache();
-        show(ctx as any);
     });
 
     pi.on("model_select", async (event, _ctx) => {
@@ -665,23 +467,22 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
                 : _pendingContinuationPrompt ? "continuation"
                 : "base";
             if (!sessionStarted) {
-                // First user message of a new context window/startup — write
-                // the context start time to data.json (source of truth) and
-                // mark the in-memory flag so we don't write again until
+                // First user message of a new context window/startup —
+                // start the in-memory context clock. The footer ticker's
+                // 1Hz recomputeCachedSession() will surface Context Time.
+                // Mark the in-memory flag so we don't reset until
                 // resetTiming() runs (session_start or /cache-reset).
                 sessionStarted = true;
-                startNewSession();
+                _sessionStartTime = Date.now();
                 // Prime the cache so the next render shows the new value
                 // without waiting up to 1s for the ticker.
                 recomputeCachedSession();
             }
         } else if (msg.role === "assistant") {
-            // New assistant turn — start the per-turn clock and the
-            // active-period clock (used by stop-when-idle mode).
+            // New assistant turn — start the per-turn clock.
             const now = Date.now();
             currentTurnStart = now;
             currentTurnFirstOutput = null;
-            activeStartTime = now;
         }
     });
 
@@ -719,15 +520,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
             if (thinkingTimes.length > RECENT_TURNS) thinkingTimes.shift();
             currentTurnStart = null;
             currentTurnFirstOutput = null;
-        }
-
-        // Active-period timing (used by stop-when-idle mode).
-        // Each assistant turn contributes its wall-clock duration to the
-        // running total; turns may chain (tool-call rounds) and each one
-        // is added independently.
-        if (activeStartTime !== null) {
-            accumulatedActiveMs += Math.max(0, Date.now() - activeStartTime);
-            activeStartTime = null;
         }
 
         // Accumulators (need usage data) — guarded separately so timing
@@ -827,32 +619,22 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
 
     pi.on("agent_end", async (_event, ctx) => {
         if (acc.lastTurnInput === 0) return;
+        // The cache-diagnostics footer widget already shows per-turn
+        // token / cost / timing info, so we do NOT emit a UI toast here —
+        // that would duplicate the line into the main output. Only emit a
+        // stdout line in headless mode (no TUI), where the footer is absent.
+        if (ctx?.hasUI) return;
         const cr = acc.lastTurnCacheRead;
         const fresh = Math.max(0, acc.lastTurnInput - cr);
         const total = acc.lastTurnInput + acc.lastTurnOutput;
-        const summary =
-            `[aftc-toolset] turn: ${fmt(total)} tok · in ${fmt(acc.lastTurnInput)} (${fmt(cr)} cached / ${fmt(fresh)} new) · out ${fmt(acc.lastTurnOutput)} · $${acc.cost.toFixed(4)} · think ${fmtDurationShort(lastThinkingMs)} · resp ${fmtDurationShort(lastResponseMs)}`;
-        try {
-            // Route to the same toast channel as /cache-profile, /cost-timer-info, etc.
-            // ctx.ui may be undefined in headless mode → fall back to stdout there.
-            if (ctx?.hasUI) ctx.ui.notify(summary, "info");
-            else console.log(summary);
-        } catch {
-            console.log(summary); // headless / missing-ui fallback only
-        }
+        console.log(
+            `[aftc-toolset] turn: ${fmt(total)} tok · in ${fmt(acc.lastTurnInput)} (${fmt(cr)} cached / ${fmt(fresh)} new) · out ${fmt(acc.lastTurnOutput)} · $${acc.cost.toFixed(4)} · think ${fmtDurationShort(lastThinkingMs)} · resp ${fmtDurationShort(lastResponseMs)}`
+        );
     });
 
     // -----------------------------------------------------------------------
     // Commands
     // -----------------------------------------------------------------------
-
-    pi.registerCommand("aftc-footer", {
-        description: "Toggle the cache footer bar on/off",
-        handler: async (_a: string, ctx: ExtensionCommandContext) => {
-            if (active) { hide(ctx as any); ctx.ui.notify("Cache footer hidden.", "info"); }
-            else { show(ctx as any); ctx.ui.notify("Cache footer shown.", "info"); }
-        },
-    });
 
     pi.registerCommand("cache-profile", {
         description: "Per-tool token costs, prefix shape, churn analysis",
@@ -959,63 +741,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
         },
     });
 
-    // -- Timer mode commands ------------------------------------------------
-    // Mode is a user preference and persists across context resets and model
-    // changes. Switching mode mid-context is safe; the displayed context time
-    // will jump to reflect the new mode on the next render (1Hz tick or next
-    // input event).
-
-    pi.registerCommand("cost-timer-stop-when-idle", {
-        description: "Use active model-processing time for the context cost rate",
-        handler: async (_a: string, ctx: ExtensionCommandContext) => {
-            timerMode = "stop-when-idle";
-            ctx.ui.notify("Timer mode: stop-when-idle (context clock freezes while idle, advances during active model processing)", "info");
-        },
-    });
-
-    pi.registerCommand("cost-timer-always-running", {
-        description: "Use wall-clock time for the context cost rate (default)",
-        handler: async (_a: string, ctx: ExtensionCommandContext) => {
-            timerMode = "always-running";
-            ctx.ui.notify("Timer mode: always-running (context wall-clock from first prompt)", "info");
-        },
-    });
-
-    pi.registerCommand("cost-timer-info", {
-        description: "Show the available timer modes and the current mode",
-        handler: async (_a: string, ctx: ExtensionCommandContext) => {
-            const lines = [
-                "Context cost timer modes",
-                "════════════════════════",
-                "",
-                `Current mode: ${timerMode}`,
-                "",
-                "/cost-timer-stop-when-idle",
-                "  The context timer advances only while the model is actively",
-                "  processing a turn (between assistant message_start and",
-                "  message_end). It freezes during idle time while you read,",
-                "  decide, or type the next prompt.",
-                "",
-                "  The footer rate then estimates cost per minute/hour of",
-                "  active model work.",
-                "",
-                "/cost-timer-always-running",
-                "  The context timer runs continuously from the first prompt",
-                "  in the current context window. This is the default and is",
-                "  best for quick while-you-code spend estimates.",
-                "",
-                "Footer line 2 shows:",
-                '  Ctx Time XH YM ZS │ $X.XX/hr · $X.XXX/min',
-                "",
-                "The rate is just current-context cost divided by current",
-                "context time. It is intentionally simple; use /usage-report",
-                "for detailed historical/day/model usage.",
-                "Model and thinking-level changes do not reset the context",
-                "timer or accumulated context cost.",
-            ];
-            if (ctx.hasUI) await ctx.ui.select("Cache timer info", lines, { timeout: 60000 });
-        },
-    });
+    // -- Miscellaneous commands -----------------------------------------------
 
     pi.registerCommand("cls", {
         description: "Clear the terminal screen",
@@ -1028,5 +754,28 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): void {
         },
     });
 
-    console.log("[aftc-toolset] loaded — /cache-profile, /cache-stats, /cache-reset, /aftc-footer, /cost-timer-stop-when-idle, /cost-timer-always-running, /cost-timer-info, /cls");
+    console.log("[aftc-toolset] loaded — /cache-profile, /cache-stats, /cache-reset, /cls");
+
+    // Return the data provider so the orchestrator (index.ts) can wire
+    // it to footer-widget.ts. The widget reads from these getters on
+    // every render; the underlying state is updated by the event
+    // handlers above. View types live in types.ts (rules.md §1.5:
+    // structural interfaces, no module imports).
+    const accView: AccumulatorView = acc;
+    const modelView: ModelView = model;
+    const toolCacheView: ToolCacheView = toolCache;
+    const getCachedSession = (): SessionView | null => cachedSession;
+
+    return {
+        getAccumulator: () => accView,
+        getRecentAvg: recentAvg,
+        getModel: () => modelView,
+        getToolCache: () => toolCacheView,
+        getCachedSession,
+        getLastThinkingMs: () => lastThinkingMs,
+        getAvgThinkingMs: () => avgMs(thinkingTimes),
+        getLastResponseMs: () => lastResponseMs,
+        getAvgResponseMs: () => avgMs(responseTimes),
+        onTick: recomputeCachedSession,
+    };
 }

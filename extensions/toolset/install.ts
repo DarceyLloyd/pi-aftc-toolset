@@ -23,9 +23,11 @@
  *   because jiti sets __dirname to the file's actual disk
  *   location in both cases.
  *
- * Per rules.md §2, this is a self-contained feature module: it
+ * Per rules.md §1.5, this is a self-contained feature module: it
  * owns no shared state with other feature modules and is wired
  * into pi by the orchestrator in index.ts.
+ *
+ * See `install.readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";

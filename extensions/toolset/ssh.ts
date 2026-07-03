@@ -10,6 +10,9 @@
  * Communication goes through the GUI's HTTP API at http://127.0.0.85:8564.
  * Terminal output is also persisted in internal-python-gui/std/out.txt
  * (plain text, ANSI-stripped) for file-based peeking.
+ *
+ * See `ssh.readme.md` for the full architecture diagram, credential
+ * safety design, and tool/command reference.
  */
 
 import fs from "fs";

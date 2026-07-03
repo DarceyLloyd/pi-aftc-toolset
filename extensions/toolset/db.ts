@@ -2,17 +2,20 @@
  * pi-aftc-toolset — shared SQLite database utility.
  *
  * Owns the singleton better-sqlite3 connection used by both the recorder
- * (thinking.ts → recordTurn) and the report generator (usage.ts →
- * generateReport). The DB lives at:
+ * (usage-recording.ts → recordTurn) and the report generator
+ * (usage-report.ts → generateReportHtml). The DB lives at:
  *   <package-root>/.pi-aftc-toolset/data/turns.db
  *
- * This is a utility module, NOT a feature module. Per rules.md §2.3,
- * feature modules (thinking.ts, usage.ts, core.ts, input-clear.ts) must
- * not import each other, but they're all free to import this file.
+ * This is a utility module, NOT a feature module. Per rules.md §1.5,
+ * feature modules (usage-recording.ts, usage-report.ts, core.ts,
+ * footer-widget.ts, input-clear.ts, etc.) must not import each other,
+ * but they're all free to import this file.
  *
  * better-sqlite3 is an optional runtime dependency — if it's not
  * installed, getDb() returns null forever and a single console.warn is
  * emitted at load time. Both callers handle null gracefully.
+ *
+ * See `db.readme.md` for schema, API, and failure modes.
  */
 
 import * as fs from "node:fs";
@@ -42,6 +45,27 @@ try {
 const DATA_DIR = getDataDir();
 const DB_FILE = getDbFile();
 
+// Schema design note:
+// One row = one assistant turn. The schema stores METRICS (tokens,
+// cost, cache, timing) and prompt-type CLASSIFICATION FLAGS only.
+// The actual text of user prompts, sub-prompts, or assistant
+// responses is NEVER stored here — that keeps the DB small
+// (~100 bytes per row) even for long sessions, and avoids storing
+// anything sensitive. The model call content lives in pi's own
+// session JSONL.
+//
+// The 20 columns are:
+//   - id, turn, timestamp, session_id, prompt_index
+//   - model_name, thinking_level
+//   - thinking_ms, response_ms, cost_usd
+//   - input_tokens, output_tokens, cache_read, cache_write
+//   - user_prompt, base_prompt, sub_prompt
+//   - steering_prompt, followup_prompt, continuation_prompt
+//   - prompt_kind (text: "base" | "continuation" | "steer" |
+//     "followup" | "auto")
+//
+// See `usage-recording.readme.md` for the full column reference
+// and what each prompt-kind value means.
 const SCHEMA = `
     CREATE TABLE IF NOT EXISTS turns (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,

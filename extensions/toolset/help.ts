@@ -11,15 +11,17 @@
  * static description is simpler, more stable across pi versions, and
  * gives us control over wording/formatting.
  *
- * Per rules.md §2, this is a self-contained feature module: it owns no
- * state and is wired into pi by the orchestrator in index.ts.
+ * Per rules.md §1.5, this is a self-contained feature module: it owns
+ * no state and is wired into pi by the orchestrator in index.ts.
  *
- * Output goes through ctx.ui.select (rules.md §7.4: "For long output,
- * use ctx.ui.select(title, lines, { timeout }) so the user can scroll
- * and dismiss; don't dump to console only"). Writing directly to
+ * Output goes through ctx.ui.select (rules.md §6.3: "For long output,
+ * use ctx.ui.select(title, lines, { timeout })"). Writing directly to
  * stdout via console.log inside a TUI extension interleaves with pi's
  * redraws and corrupts the screen — that is what broke pi in earlier
  * versions of this module.
+ *
+ * See `help.readme.md` for the command/shortcut table and headless
+ * fallback behaviour.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -27,14 +29,15 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 // -----------------------------------------------------------------------------
 // Static command + shortcut tables. Keep these in sync with the actual
 // `registerCommand` / `registerShortcut` calls in:
-//   - core.ts          (cache-profile, cache-stats, cache-reset,
-//                       aftc-footer, cost-timer-*, cls)
-//   - usage.ts         (usage-report, usage-clear)
-//   - install.ts       (aftc-install)
-//   - ssh.ts           (ssh-connect, ssh-disconnect, ssh-status,
-//                       ssh-gui, ssh-run)
-//   - help.ts          (aftc-help) ← this file
-//   - input-clear.ts   (alt+c)
+//   - core.ts               (cache-profile, cache-stats, cache-reset, cls)
+//   - footer-widget.ts      (aftc-footer)
+//   - usage-report.ts       (usage-report, usage-clear)
+//   - install.ts            (aftc-install)
+//   - ssh.ts                (ssh-connect, ssh-disconnect, ssh-status,
+//                            ssh-gui, ssh-run)
+//   - response.ts           (aftc-response-divider)
+//   - help.ts               (aftc-help) ← this file
+//   - input-clear.ts        (alt+c)
 //
 // Note: /show-thinking and /hide-thinking were removed — pi's built-in
 // Ctrl+T (app.thinking.toggle) and the hideThinkingBlock setting
@@ -47,14 +50,15 @@ const GENERAL_COMMANDS: Array<[string, string]> = [
     ["/cls",          "Clear the terminal screen"],
 ];
 
+const RESPONSE_COMMANDS: Array<[string, string]> = [
+    ["/aftc-response-divider", "Toggle the full-width themed divider above each assistant reply (default: on)"],
+];
+
 const CACHE_COMMANDS: Array<[string, string]> = [
     ["/aftc-footer",     "Show or hide the footer dashboard"],
     ["/cache-profile",   "Per-tool token costs, prefix shape hashes, system prompt size, churn analysis"],
     ["/cache-stats",     "Session cache stats, cache-write ROI, SQLite-backed projections, model spend, prefix hashes"],
     ["/cache-reset",     "Zero in-memory accumulators (tokens, cost, turns, churn) for benchmarking/debugging"],
-    ["/cost-timer-always-running", "Run the session cost timer continuously from the first user prompt (default)"],
-    ["/cost-timer-stop-when-idle", "Advance the session timer only while the assistant is actively processing"],
-    ["/cost-timer-info", "Show the current timer mode and explain both modes"],
 ];
 
 const USAGE_COMMANDS: Array<[string, string]> = [
@@ -124,6 +128,8 @@ class HelpModule {
         lines.push("AFTC productivity tools for pi: footer diagnostics, usage reports, SSH, shortcuts, skill/theme helpers.");
         lines.push("");
         lines.push(...renderSection("General", GENERAL_COMMANDS));
+        lines.push("");
+        lines.push(...renderSection("Response", RESPONSE_COMMANDS));
         lines.push("");
         lines.push(...renderSection("Footer / cache / timing", CACHE_COMMANDS));
         lines.push("");

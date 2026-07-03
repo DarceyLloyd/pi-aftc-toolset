@@ -1,19 +1,25 @@
 /**
  * Shared types for cross-module communication.
  *
- * Per rules.md §2.3, feature modules must not import each other directly.
- * Both core.ts and thinking.ts need to agree on the shape of a per-turn
- * record and the surface of the recorder they pass to each other via
- * the orchestrator (index.ts), so those types live here in a neutral
- * utility file.
+ * Per rules.md §1.5, feature modules must not import each other directly.
+ * The orchestrator (index.ts) wires them through these interfaces.
  *
- * Structural typing handles the rest: the ThinkingModule class in
- * thinking.ts satisfies TurnRecorder as long as its method signatures
- * match. No "import the other module" needed.
+ * Structural typing handles the rest: the UsageRecorder class in
+ * usage-recording.ts satisfies TurnRecorder as long as its method
+ * signatures match. The footer widget in footer-widget.ts reads only
+ * the methods declared on FooterDataProvider — it never imports
+ * core.ts.
+ *
+ * See `types.readme.md` for the full type catalogue and structural-
+ * typing rationale.
  */
 
+// ──────────────────────────────────────────────────────────────────────
+// Turn recording (core.ts → usage-recording.ts via SQLite)
+// ──────────────────────────────────────────────────────────────────────
+
 export interface TurnRecord {
-    /** Session-scoped turn counter (matches acc.turns in core.ts). */
+    /** Session-scoped turn counter (matches the widget's turn count). */
     turn: number;
     /** ms since epoch at message_end time. */
     timestamp: number;
@@ -67,4 +73,77 @@ export interface TurnRecord {
  */
 export interface TurnRecorder {
     recordTurn(record: TurnRecord): void;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Footer widget data (core.ts → footer-widget.ts)
+// ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Snapshot of the current context's cache / token / cost accumulator.
+ *
+ * Mirrors the private `CacheAccumulator` interface in core.ts but only
+ * exposes the fields the footer actually renders. Returning a fresh
+ * view each call is fine — the widget caches the rendered string.
+ */
+export interface AccumulatorView {
+    cacheRead: number;
+    cacheWrite: number;
+    input: number;
+    output: number;
+    cost: number;
+    turns: number;
+    userTurns: number;
+    lastTurnCacheRead: number;
+    lastTurnInput: number;
+    lastTurnOutput: number;
+}
+
+/** Minimal model fields the footer needs. */
+export interface ModelView {
+    name: string;
+    reasoning: boolean;
+    contextWindow: number;
+    thinkingLevel: string;
+}
+
+/** Per-tool token cost summary. */
+export interface ToolCacheView {
+    getCount(): number;
+    getTotal(): number;
+    getSkillCount(): number;
+    getSkillToks(): number;
+}
+
+/** Current context-window clock + cost rates (already sampled). */
+export interface SessionView {
+    sessionStr: string;
+    costPerHour: number;
+    costPerMinute: number;
+}
+
+/**
+ * Surface that footer-widget.ts reads from core.ts.
+ *
+ * core.ts implements this; the orchestrator (index.ts) passes the
+ * returned object to footer-widget.ts so the widget never imports
+ * core.ts directly. This keeps the orchestrator pattern (rules.md
+ * §1.5): feature modules communicate through structural interfaces,
+ * not by importing each other.
+ *
+ * All getters must be cheap — render() runs every TUI frame.
+ */
+export interface FooterDataProvider {
+    getAccumulator(): AccumulatorView;
+    getRecentAvg(): number;
+    getModel(): ModelView;
+    getToolCache(): ToolCacheView;
+    getCachedSession(): SessionView | null;
+    getLastThinkingMs(): number;
+    getAvgThinkingMs(): number;
+    getLastResponseMs(): number;
+    getAvgResponseMs(): number;
+    /** Called from the footer's 1Hz ticker; recomputes the session
+     * clock + cost rates and lets the widget render them. */
+    onTick(): void;
 }
