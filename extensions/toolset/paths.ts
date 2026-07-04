@@ -64,6 +64,17 @@ export function getDbFile(): string {
     return path.join(getDataDir(), "turns.db");
 }
 
+/**
+ * Path to state.json — cross-session user preferences that persist
+ * forever (footer timeframe, footer on/off, response divider on/off).
+ * This is the ONLY persisted state file; there is no per-session
+ * resumption state anymore (that was over-engineered and never worked
+ * reliably across resume). See `state.ts` for the full contract.
+ */
+export function getStateJson(): string {
+    return path.join(getDataDir(), "state.json");
+}
+
 export function getReportFile(): string {
     return path.join(getDataDir(), "report.html");
 }

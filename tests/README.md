@@ -18,6 +18,10 @@ tests/
 ├── widget-render-check/                 # orchestrator pattern + footer widget
 │   └── widget-render-check.mjs
 ├── stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
+├── bulk-read-check/                     # bulk-read skill: script + walker
+│   └── bulk-read-check.mjs
+├── theme-check/theme-check.cjs          # /theme: pre-select, page-nav, overlay
+├── state-check/state-check.cjs          # state.json (defaults generation, get/set, persistence)
 └── load-test/load-test.cjs              # end-to-end: factory + events + commands + widget
 ```
 
@@ -40,6 +44,9 @@ node tests/parse-check/parse-check.mjs
 node tests/full-check/full-check.mjs
 node tests/widget-render-check/widget-render-check.mjs
 node tests/stfu-check/stfu-check.cjs
+node tests/bulk-read-check/bulk-read-check.mjs
+node tests/theme-check/theme-check.cjs
+node tests/state-check/state-check.cjs
 node tests/load-test/load-test.cjs
 ```
 

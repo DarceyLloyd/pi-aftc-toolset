@@ -25,9 +25,19 @@ adds a set of productivity tools to the pi coding agent:
 - A **response divider** (full-width rule above each assistant
   reply).
 - `alt+c` shortcut to clear the input editor.
+- `/theme` shortcut that opens a theme picker and switches the
+  active theme.
 - `/aftc-help` command reference, `/aftc-install` dependency
   installer, and various `/cache-*` commands.
-- A bundled `cache-audit` skill and `cache-viz` theme.
+- `/aftc-stop` / `/stfu` emergency-abort commands to escape
+  runaway thinking or tool-call loops.
+- `/cd` (with `/cd-set-max-depth`) interactive directory
+  switcher.
+- A bundled `cache-audit` skill, a bundled `bulk-read` skill
+  (concatenates many files into one markdown document for fast
+  project-wide reads), and two bundled themes: `cache-viz`
+  (green/cyan, cache-focused) and `aftc-orange-viz`
+  (orange-accented sea-shells variant).
 
 Package root: `W:\Dev\pi-aftc-toolset` (Windows).
 Global pi install: `C:\Users\Darcey\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent`.
@@ -49,15 +59,20 @@ pi-aftc-toolset/
 │   ├── ssh.ts                         ← SSH tools + commands
 │   ├── response.ts                    ← response divider
 │   ├── input-clear.ts                 ← alt+c shortcut
+│   ├── theme.ts                       ← /theme shortcut to pi's theme picker
+│   ├── stfu.ts                        ← /aftc-stop + /stfu interrupt commands
+│   ├── cd.ts                          ← /cd + /cd-set-max-depth directory switcher
 │   ├── db.ts                          ← SQLite utility
 │   ├── paths.ts                       ← path helpers
 │   ├── types.ts                       ← shared interfaces
 │   ├── info.md                        ← ANSI/theme color reference
 │   ├── readme.md                      ← folder-level overview
-│   └── <name>.readme.md               ← per-file README (13 of them)
+│   └── <name>.readme.md               ← per-file README (one per TS file)
 │
-├── skills/cache-audit/SKILL.md        ← bundled skill
-├── themes/cache-viz.json              ← bundled theme
+├── skills/cache-audit/SKILL.md        ← bundled cache-audit skill
+├── skills/bulk-read/SKILL.md          ← bundled bulk-read skill (Node.js script inline)
+├── themes/cache-viz.json              ← bundled theme (green/cyan)
+├── themes/aftc-orange-viz.json        ← bundled theme (orange sea-shells variant)
 ├── internal-python-gui/               ← SSH GUI (PyQt6 + paramiko + Flask)
 │   ├── main.py
 │   ├── std/                           ← IPC files (out.txt, in.txt, err.txt)
@@ -70,6 +85,8 @@ pi-aftc-toolset/
 │   ├── full-check/                    ← DB + projections + HTML structure
 │   ├── widget-render-check/           ← orchestrator + footer widget + ticker
 │   ├── stfu-check/                    ← /aftc-stop + /stfu: idle / streaming / headless
+│   ├── bulk-read-check/               ← bulk-read skill: script extract + walk + manifest
+│   ├── theme-check/                   ← /theme: register, pick, cancel, setTheme-fail, no-UI
 │   └── load-test/                     ← end-to-end: factory + events + commands + SQLite
 │
 ├── docs/                              ← meta-documentation
@@ -79,10 +96,19 @@ pi-aftc-toolset/
 │
 ├── .pi-aftc-toolset/                  ← extension-owned runtime state (gitignored)
 │   └── data/
+│       ├── state.json                 ← cross-session user preferences (the only persisted state)
 │       ├── turns.db                   ← SQLite usage database
 │       └── report.html                ← latest generated report
 
-   The context-window clock is in-memory only (no data.json).
+   `state.json` holds user preferences that persist across ALL
+   session boundaries (footer AVG timeframe, footer on/off, response
+   divider on/off). It is created with `DEFAULT_PREFERENCES` on first
+   access and only re-written when one of those preferences actually
+   changes. There is no per-session resumption state anymore — cache
+   accumulators, timing, model info, and the context-window clock are
+   per-session and live only in the `core.ts` closure, reset on every
+   `session_start`. See `extensions/toolset/state.readme.md` for the
+   full contract.
 │
 ├── .pi/settings.json                  ← dev self-reference: { packages: [".."] }
 ├── package.json                       ← pi manifest + npm metadata
@@ -109,8 +135,11 @@ index.ts (orchestrator)
   ├─→ help.ts → HelpModule
   ├─→ install.ts → InstallModule
   ├─→ input-clear.ts (no return)
+  ├─→ theme.ts (no return)
   ├─→ ssh.ts → SshModule
   ├─→ response.ts (no return)
+  ├─→ stfu.ts (no return)
+  ├─→ cd.ts (no return)
   ├─→ core.ts(pi, recorder) → FooterDataProvider
   └─→ footer-widget.ts(pi, dataProvider)
 ```
@@ -153,19 +182,25 @@ All commands register via `pi.registerCommand` and tools via
 `pi.registerTool`. Keep `help.ts`'s static table in sync with the
 actual `registerCommand` / `registerTool` calls in each file.
 
-### Commands (18)
+### Commands (21)
 
 | Command | File | Description |
 |---|---|---|
 | `/aftc-help` | help.ts | Static command/shortcut reference |
 | `/aftc-install` | install.ts | Install better-sqlite3 + Python SSH GUI deps |
 | `/aftc-footer` | footer-widget.ts | Toggle the cache dashboard widget |
+| `/aftc-footer-report-timeframe` | core.ts | Set the footer 4th-line time window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d) |
 | `/aftc-response-divider` | response.ts | Toggle the response divider |
+| `/aftc-stop` | stfu.ts | Stop the current agent operation (alias for /stfu) |
+| `/stfu` | stfu.ts | Short alias for /aftc-stop |
 | `/cache-profile` | core.ts | Per-tool token costs, prefix shape, churn analysis |
 | `/cache-stats` | core.ts | Current-context cache diagnostics + cost rate |
 | `/cache-reset` | core.ts | Zero accumulators and timer (debugging) |
 | (cost-timer removed) | - | Two-mode toggle removed. Context clock is always wall-clock from first user prompt. |
 | `/cls` | core.ts | Clear the terminal screen |
+| `/theme` | theme.ts | Open a theme picker and switch to the selected theme |
+| `/cd` | cd.ts | Switch directory (interactive picker or one-shot path) |
+| `/cd-set-max-depth [2-10]` | cd.ts | Set the /cd picker listing depth (default 3) |
 | `/usage-report` | usage-report.ts | Write + open `report.html` |
 | `/usage-clear` | usage-report.ts | Delete all SQLite rows (with confirmation) |
 | `/ssh-gui` | ssh.ts | Launch the local PyQt6 SSH GUI |
@@ -173,6 +208,13 @@ actual `registerCommand` / `registerTool` calls in each file.
 | `/ssh-run` | ssh.ts | Run a one-shot command on the connected server |
 | `/ssh-status` | ssh.ts | Show GUI running state + connection status |
 | `/ssh-disconnect` | ssh.ts | Disconnect the active SSH session |
+
+Skills (loadable workflows, not slash commands in the strict sense but referenced via `/skill:<name>`):
+
+| Skill | Location | Description |
+|---|---|---|
+| `/skill:cache-audit` | skills/cache-audit/SKILL.md | Bundled cache-hit and prefix diagnostics workflow |
+| `/skill:bulk-read` | skills/bulk-read/SKILL.md | Bundled workflow for reading many files into one markdown document |
 
 ### Tools (5 - all from ssh.ts)
 

@@ -1,6 +1,6 @@
 ---
 name: web-frontend
-description: Web frontend development: HTML5, CSS3, SCSS, Tailwind, accessibility, and performance. Use when working on full web frontend projects, choosing between CSS approaches, or auditing accessibility/performance.
+description: "Web frontend development: HTML5, CSS3, SCSS, Tailwind, accessibility, and performance. Use when working on full web frontend projects, choosing between CSS approaches, or auditing accessibility/performance."
 ---
 
 # Web Frontend

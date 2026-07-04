@@ -97,6 +97,7 @@ export interface AccumulatorView {
     lastTurnCacheRead: number;
     lastTurnInput: number;
     lastTurnOutput: number;
+    lastTurnCost: number;
 }
 
 /** Minimal model fields the footer needs. */
@@ -123,6 +124,24 @@ export interface SessionView {
 }
 
 /**
+ * Aggregate stats over a configurable timeframe, computed from the
+ * SQLite `turns` table for the footer widget's 4th line.
+ *
+ * `timeframeLabel` is a short display label like "Today", "3h", "24h",
+ * "7d". Cache hit rates are 0..1 (0..100%). Default fields are 0 when
+ * the database is unavailable or no turns fall in the timeframe.
+ */
+export interface TimeframeStatsView {
+    timeframeLabel: string;
+    costUsd: number;
+    userPrompts: number;
+    totalTurns: number;
+    avgCacheHit: number;      // 0..1 — average cache hit rate over the timeframe
+    avgThinkingMs: number;    // 0 if no turns with thinking data
+    avgResponseMs: number;    // 0 if no turns
+}
+
+/**
  * Surface that footer-widget.ts reads from core.ts.
  *
  * core.ts implements this; the orchestrator (index.ts) passes the
@@ -139,10 +158,19 @@ export interface FooterDataProvider {
     getModel(): ModelView;
     getToolCache(): ToolCacheView;
     getCachedSession(): SessionView | null;
+    /** Number of skills the agent/user has actually invoked this
+     *  session (read a SKILL.md, or a `/skill:name` user command).
+     *  Best-effort heuristic; reset on session_start. */
+    getUsedSkillCount(): number;
     getLastThinkingMs(): number;
     getAvgThinkingMs(): number;
     getLastResponseMs(): number;
     getAvgResponseMs(): number;
+    /** Aggregate stats for the active timeframe (configurable via
+     * `/aftc-footer-report-timeframe`) from the SQLite turns table.
+     * Cached and refreshed at most every 10s, or immediately on
+     * timeframe change. */
+    getTimeframeStats(): TimeframeStatsView;
     /** Called from the footer's 1Hz ticker; recomputes the session
      * clock + cost rates and lets the widget render them. */
     onTick(): void;

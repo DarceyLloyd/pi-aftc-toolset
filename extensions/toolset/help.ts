@@ -32,7 +32,8 @@ import type {
 // -----------------------------------------------------------------------------
 // Static command + shortcut tables. Keep these in sync with the actual
 // `registerCommand` / `registerShortcut` calls in:
-//   - core.ts               (cache-profile, cache-stats, cache-reset, cls)
+//   - core.ts               (cache-profile, cache-stats, cache-reset,
+//                            aftc-footer-report-timeframe, cls)
 //   - footer-widget.ts      (aftc-footer)
 //   - usage-report.ts       (usage-report, usage-clear)
 //   - install.ts            (aftc-install)
@@ -41,6 +42,7 @@ import type {
 //   - response.ts           (aftc-response-divider)
 //   - help.ts               (aftc-help) ← this file
 //   - input-clear.ts        (alt+c)
+//   - theme.ts              (theme)
 //   - stfu.ts               (aftc-stop, stfu)
 //   - cd.ts                 (cd)
 //
@@ -56,6 +58,7 @@ const GENERAL_COMMANDS: Array<[string, string]> = [
 		"Install missing runtime dependencies: better-sqlite3 plus Python SSH GUI deps",
 	],
 	["/cls", "Clear the terminal screen"],
+	["/theme", "Open a theme picker (PgUp/PgDn, Ctrl+PgUp/PgDn, Enter to switch)"],
 ];
 
 const RESPONSE_COMMANDS: Array<[string, string]> = [
@@ -86,6 +89,10 @@ const NAVIGATION_COMMANDS: Array<[string, string]> = [
 
 const CACHE_COMMANDS: Array<[string, string]> = [
 	["/aftc-footer", "Show or hide the footer dashboard"],
+	[
+		"/aftc-footer-report-timeframe",
+		"Set the footer 4th-line time window: Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d (default: Today)",
+	],
 	[
 		"/cache-profile",
 		"Per-tool token costs, prefix shape hashes, system prompt size, churn analysis",
@@ -126,6 +133,10 @@ const SKILL_COMMANDS: Array<[string, string]> = [
 	[
 		"/skill:cache-audit",
 		"Load the bundled workflow for cache-hit and prefix diagnostics",
+	],
+	[
+		"/skill:bulk-read",
+		"Concatenate many files in a folder into one markdown doc (read all files, analyze the project, audit code)",
 	],
 ];
 
@@ -183,7 +194,7 @@ class HelpModule {
 		const lines: string[] = [];
 		lines.push("pi-aftc-toolset help");
 		lines.push(
-			"AFTC productivity tools for pi: footer diagnostics, usage reports, SSH, shortcuts, skill/theme helpers.",
+			"AFTC productivity tools for pi: footer diagnostics, usage reports, SSH, shortcuts, skills (cache-audit, bulk-read), and themes.",
 		);
 		lines.push("");
 		lines.push(...renderSection("General", GENERAL_COMMANDS));

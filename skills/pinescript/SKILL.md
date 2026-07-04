@@ -1,6 +1,6 @@
 ---
 name: pinescript
-description: Pine Script v6 for TradingView .pine files: indicators and strategies. Use when adding inputs (input.int, input.source, input.float, input.color, input.session), plots, signals, alerts, requests (request.security), tables, labels, lines, or any feature to a .pine file, or when discussing TradingView indicators, strategies, performance, common Pine Script v6 issues, or the AFTC coding standards (color.new with RGB, camelCase with boolean prefixes, 80-char section separators, START/END markers). Content targets Pine Script v6 specifically - Pine Script v5 has different syntax for some features.
+description: "Pine Script v6 for TradingView .pine files: indicators and strategies. Use when adding inputs (input.int, input.source, input.float, input.color, input.session), plots, signals, alerts, requests (request.security), tables, labels, lines, or any feature to a .pine file, or when discussing TradingView indicators, strategies, performance, common Pine Script v6 issues, or the AFTC coding standards (color.new with RGB, camelCase with boolean prefixes, 80-char section separators, START/END markers). Content targets Pine Script v6 specifically - Pine Script v5 has different syntax for some features."
 ---
 
 # Pine Script

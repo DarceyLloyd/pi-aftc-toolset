@@ -54,6 +54,7 @@
 import type { ExtensionAPI, ExtensionCommandContext, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type {
     AccumulatorView,
+    TimeframeStatsView,
     FooterDataProvider,
     ModelView,
     ToolCacheView,
@@ -61,6 +62,12 @@ import type {
     TurnRecorder,
 } from "./types";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import * as path from "node:path";
+import { getDb } from "./db";
+import {
+    getPreference,
+    setPreference,
+} from "./state";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,6 +89,7 @@ interface CacheAccumulator {
     lastTurnCacheWrite: number;
     lastTurnInput: number;   // last turn only — total prompt tokens (new + cached)
     lastTurnOutput: number;  // last turn only
+    lastTurnCost: number;    // last turn only — usage.cost.total for that turn
 }
 
 interface PrefixShape {
@@ -180,6 +188,7 @@ class ToolCostCache {
     private total = 0;
     private skillCount = 0;
     private skillToks = 0;
+    private skillSignature = "";
     private signature = "";
 
     /** Stringify a tool the same way everywhere — one source of truth. */
@@ -197,13 +206,29 @@ class ToolCostCache {
             .map(t => ({ name: t.name, tokens: estimateTokens(this.serialize(t)) }))
             .sort((a, b) => b.tokens - a.tokens);
         this.total = this.costs.reduce((s, c) => s + c.tokens, 0);
-        const skills = this.costs.filter(c => /skill|memory/i.test(c.name));
-        this.skillCount = skills.length;
-        this.skillToks = skills.reduce((s, c) => s + c.tokens, 0);
         return true;
     }
 
+    /**
+     * Set the loaded skills (NOT tools). Skills are loaded into the
+     * system prompt as text blocks (`systemPromptOptions.skills`) and
+     * are never exposed as tools, so they cannot be inferred from the
+     * tool list. The caller passes the Skill[] from
+     * `before_agent_start`'s `event.systemPromptOptions.skills`. We
+     * recompute only on name/description change.
+     */
+    setSkills(skills: { name: string; description: string }[]): void {
+        const sig = JSON.stringify(skills.map(s => ({ n: s.name, d: s.description || "" })));
+        if (sig === this.skillSignature) return;
+        this.skillSignature = sig;
+        this.skillCount = skills.length;
+        this.skillToks = estimateTokens(
+            JSON.stringify(skills.map(s => ({ name: s.name, description: s.description || "" }))),
+        );
+    }
+
     getCosts(): readonly ToolCost[] { return this.costs; }
+
     getTotal(): number { return this.total; }
     getSkillCount(): number { return this.skillCount; }
     getSkillToks(): number { return this.skillToks; }
@@ -280,7 +305,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
 
     const acc: CacheAccumulator = {
         cacheRead: 0, cacheWrite: 0, input: 0, output: 0, cost: 0, turns: 0, userTurns: 0,
-        lastTurnCacheRead: 0, lastTurnCacheWrite: 0, lastTurnInput: 0, lastTurnOutput: 0,
+        lastTurnCacheRead: 0, lastTurnCacheWrite: 0, lastTurnInput: 0, lastTurnOutput: 0, lastTurnCost: 0,
     };
     const recentHits: number[] = [];   // last N turn hit rates (0..1)
 
@@ -311,12 +336,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
     const thinkingTimes: number[] = [];
     const responseTimes: number[] = [];
 
-    function resetAccumulators(): void {
-        acc.cacheRead = acc.cacheWrite = acc.input = acc.output = acc.cost = acc.turns = acc.userTurns = 0;
-        acc.lastTurnCacheRead = acc.lastTurnCacheWrite = acc.lastTurnInput = acc.lastTurnOutput = 0;
-        recentHits.length = 0;
-        shape.reset("");
-        _sessionId = newSessionId();
+    /**
+     * Reset the per-prompt tracking flags + the in-progress turn
+     * timing fields. Called from resetAccumulators on every session
+     * start. Per-session only; nothing persisted.
+     */
+    function resetEphemeralState(): void {
         _pendingUserTurn = false;
         _pendingBasePrompt = false;
         _pendingSubPrompt = false;
@@ -327,6 +352,29 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         _pendingStreamingBehavior = undefined;
         _currentPromptIndex = 0;
         _pendingPromptIndex = 0;
+        currentTurnStart = null;
+        currentTurnFirstOutput = null;
+        // Skill-usage tracking is per-session: a fresh session starts
+        // with nothing loaded/used. availableSkills is repopulated on
+        // the first before_agent_start of the new session.
+        usedSkills.clear();
+        availableSkills = [];
+    }
+
+    /**
+     * Reset EVERYTHING for a fresh session start. Called on every
+     * session_start - accumulators are per-session and live only in
+     * this closure; there is no per-session persistence anymore
+     * (state.json holds only user preferences).
+     */
+    function resetAccumulators(): void {
+        acc.cacheRead = acc.cacheWrite = acc.input = acc.output = acc.cost = acc.turns = acc.userTurns = 0;
+        acc.lastTurnCacheRead = acc.lastTurnCacheWrite = acc.lastTurnInput = acc.lastTurnOutput = acc.lastTurnCost = 0;
+        recentHits.length = 0;
+        shape.reset("");
+        _sessionId = newSessionId();
+        resetEphemeralState();
+        resetTiming();
     }
 
     function resetTiming(): void {
@@ -369,6 +417,120 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         };
     }
 
+    // ------------------------------------------------------------------------
+    // Timeframe stats (4th footer line) — aggregates from the SQLite
+    // `turns` table for a configurable time window (Today / 3h / 6h / 24h
+    // / 2d / 3d / 7d / 28d). Cached and refreshed on the 1Hz ticker,
+    // throttled to every 10s, OR refreshed immediately on timeframe
+    // change. DB unavailable / query failure → all zeros.
+    // ------------------------------------------------------------------------
+    type TimeframeKey = "today" | "3h" | "6h" | "24h" | "2d" | "3d" | "7d" | "28d";
+    const TIMEFRAMES: Record<TimeframeKey, { label: string; cut: () => number }> = {
+        today: { label: "Today", cut: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); } },
+        "3h":   { label: "3h",     cut: () => Date.now() - 3 * 3_600_000 },
+        "6h":   { label: "6h",     cut: () => Date.now() - 6 * 3_600_000 },
+        "24h":  { label: "24h",    cut: () => Date.now() - 24 * 3_600_000 },
+        "2d":   { label: "2d",     cut: () => Date.now() - 2 * 86_400_000 },
+        "3d":   { label: "3d",     cut: () => Date.now() - 3 * 86_400_000 },
+        "7d":   { label: "7d",     cut: () => Date.now() - 7 * 86_400_000 },
+        "28d":  { label: "28d",    cut: () => Date.now() - 28 * 86_400_000 },
+    };
+    let _timeframe: TimeframeKey = "today";
+    let cachedTimeframeStats: TimeframeStatsView = {
+        timeframeLabel: "Today",
+        costUsd: 0,
+        userPrompts: 0,
+        totalTurns: 0,
+        avgCacheHit: 0,
+        avgThinkingMs: 0,
+        avgResponseMs: 0,
+    };
+    let lastTimeframeStatsRefresh = 0;
+    const TIMEFRAME_STATS_REFRESH_MS = 10_000;
+
+    function refreshTimeframeStats(): void {
+        const now = Date.now();
+        if (now - lastTimeframeStatsRefresh < TIMEFRAME_STATS_REFRESH_MS) return;
+        lastTimeframeStatsRefresh = now;
+
+        const tf = TIMEFRAMES[_timeframe] ?? TIMEFRAMES.today;
+        const since = tf.cut();
+        const label = tf.label;
+
+        const empty = {
+            timeframeLabel: label,
+            costUsd: 0,
+            userPrompts: 0,
+            totalTurns: 0,
+            avgCacheHit: 0,
+            avgThinkingMs: 0,
+            avgResponseMs: 0,
+        };
+
+        const db = getDb();
+        if (!db) {
+            cachedTimeframeStats = empty;
+            return;
+        }
+
+        try {
+            const totals = db
+                .prepare(
+                    `SELECT
+                        COALESCE(SUM(cost_usd), 0) AS total_cost,
+                        COALESCE(SUM(user_prompt), 0) AS user_prompts,
+                        COUNT(*) AS total_turns,
+                        COALESCE(AVG(thinking_ms), 0) AS avg_thinking,
+                        COALESCE(AVG(response_ms), 0) AS avg_response,
+                        COALESCE(AVG(CAST(cache_read AS REAL) / NULLIF(cache_read + input_tokens, 0)), 0) AS avg_cache_hit
+                    FROM turns
+                    WHERE timestamp >= ?`,
+                )
+                .get(since) as
+                    | {
+                        total_cost: number;
+                        user_prompts: number;
+                        total_turns: number;
+                        avg_thinking: number;
+                        avg_response: number;
+                        avg_cache_hit: number | null;
+                    }
+                    | undefined;
+
+            cachedTimeframeStats = {
+                timeframeLabel: label,
+                costUsd: totals?.total_cost ?? 0,
+                userPrompts: totals?.user_prompts ?? 0,
+                totalTurns: totals?.total_turns ?? 0,
+                avgCacheHit: totals?.avg_cache_hit ?? 0,
+                avgThinkingMs: totals?.avg_thinking ?? 0,
+                avgResponseMs: totals?.avg_response ?? 0,
+            };
+        } catch (err) {
+            console.log(
+                `[aftc-toolset] timeframe stats query error: ${(err as Error).message}`,
+            );
+            cachedTimeframeStats = empty;
+        }
+    }
+
+    /**
+     * Set the active timeframe. Updates both the in-memory _timeframe
+     * cache AND state.json (via setPreference) so the user's choice
+     * survives /new, /reload, and fresh pi startup.
+     */
+    function setTimeframe(key: string): boolean {
+        if (!(key in TIMEFRAMES)) return false;
+        if (_timeframe !== key) {
+            _timeframe = key as TimeframeKey;
+            lastTimeframeStatsRefresh = 0; // force refresh
+            // Persist as a user preference (state.json) so the choice
+            // survives across all session boundaries, not just resume.
+            setPreference("footerTimeframe", key);
+        }
+        return true;
+    }
+
     function avgMs(arr: number[]): number {
         return arr.length === 0 ? 0 : arr.reduce((s, x) => s + x, 0) / arr.length;
     }
@@ -378,8 +540,26 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
     let lastSysPrompt = "";
     const model: ModelInfo = { name: "", reasoning: false, contextWindow: 0, thinkingLevel: "" };
 
+    // ---- Skill usage tracking (best-effort, per-session) ----
+    // `availableSkills` is the Skill[] loaded into the system prompt
+    // (captured each turn from before_agent_start.systemPromptOptions).
+    // `usedSkills` accumulates the names of skills the agent/user has
+    // actually pulled into context this session: a `/skill:name` user
+    // command, or a `read` tool call whose target is a skill's
+    // SKILL.md (or a file under its baseDir). Reset on session_start.
+    let availableSkills: { name: string; filePath: string; baseDir: string }[] = [];
+    const usedSkills = new Set<string>();
+
     function refreshToolCache(): void {
-        toolCache.refresh(pi.getAllTools());
+        // pi.getAllTools() returns EVERY configured tool, active or not.
+        // The footer must reflect the *active* set (what is actually in
+        // the system prompt), so intersect with pi.getActiveTools().
+        // When nothing is filtered (active set empty / unavailable), fall
+        // back to the full list so the count is never misleadingly zero.
+        const active = new Set(pi.getActiveTools());
+        const all = pi.getAllTools();
+        const tools = active.size > 0 ? all.filter(t => active.has(t.name)) : all;
+        toolCache.refresh(tools);
     }
 
     function recentAvg(): number {
@@ -392,17 +572,32 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
     // -----------------------------------------------------------------------
 
     pi.on("session_start", async (_event, ctx) => {
+        // USER PREFERENCES (state.json) are the ONLY persisted state.
+        // They survive /new, /reload, fresh pi startup, and reboot.
+        // Everything else (accumulators, timing, model info) is
+        // per-session and lives only in this closure — reset on every
+        // session_start. There is no per-session resumption state.
+
+        // ---- 1. Load preferences ----
+        const tf = getPreference("footerTimeframe", "today");
+        if (tf && tf in TIMEFRAMES) {
+            _timeframe = tf as TimeframeKey;
+            lastTimeframeStatsRefresh = 0; // force fresh query on next read
+        }
+
+        // ---- 2. Reset per-session accumulators + timing ----
         resetAccumulators();
         resetTiming();
-        lastSysPrompt = "";
 
+        // ---- 3. Refresh model info + tool cache ----
+        lastSysPrompt = "";
         const m = (ctx as any).model;
         if (m) {
             model.name = m.name || m.id || "";
             model.reasoning = m.reasoning === true;
             model.contextWindow = m.contextWindow || 0;
         }
-        // thinkingLevel is NOT on the Model object — it's separate agent
+        // thinkingLevel is NOT on the Model object - it's separate agent
         // state. Seed it from pi.getThinkingLevel() so the level is known
         // from the first render, not only after the user changes it.
         // (rules.md §10)
@@ -433,8 +628,27 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
     pi.on("before_agent_start", async (event, _ctx) => {
         const sp = (event as any).systemPrompt || "";
         if (sp) lastSysPrompt = sp;
-        // Tools can change between turns (setActiveTools, dynamic registration).
+        // Tools can change between turns (setActiveTools, dynamic
+        // registration). Refresh against the ACTIVE set only.
         refreshToolCache();
+        // Skills are loaded into the system prompt as text blocks
+        // (systemPromptOptions.skills), not as tools. Capture the real
+        // Skill[] here so the footer's "Skills used/available"
+        // reflects what is actually loaded, not a regex guess from tool
+        // names. `availableSkills` is also used by the tool_result
+        // handler below to detect when a skill body is read into context.
+        const rawSkills = (event as any).systemPromptOptions?.skills ?? [];
+        const skillsArr: { name: string; description: string; filePath: string; baseDir: string }[] =
+            Array.isArray(rawSkills)
+                ? rawSkills.map((s: any) => ({
+                    name: s.name || "",
+                    description: s.description || "",
+                    filePath: s.filePath || "",
+                    baseDir: s.baseDir || "",
+                }))
+                : [];
+        toolCache.setSkills(skillsArr.map(s => ({ name: s.name, description: s.description })));
+        availableSkills = skillsArr.filter(s => s.name);
     });
 
     pi.on("input", async (event, _ctx) => {
@@ -444,7 +658,45 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         _pendingStreamingBehavior = event.streamingBehavior === "steer" || event.streamingBehavior === "followUp"
             ? event.streamingBehavior
             : undefined;
+        // Detect `/skill:name` user commands (input fires BEFORE skill
+        // expansion, so the raw text is visible here). Each is a skill
+        // being explicitly pulled into context this session.
+        const m = /(^|\s)\/skill:([^\s]+)/.exec((event as any).text || "");
+        if (m && m[2]) {
+            const name = m[2].toLowerCase();
+            if (availableSkills.some(s => s.name.toLowerCase() === name)) {
+                usedSkills.add(name);
+            }
+        }
         return { action: "continue" as const };
+    });
+
+    // Mark a skill "in use" when the agent successfully reads its
+    // SKILL.md (or any file under its baseDir) via the `read` tool — that
+    // loads the skill body into the active context. Uses tool_result
+    // (not tool_call) so a failed read does not count. Cheap: only runs
+    // for `read`, and the match is a small linear scan over
+    // availableSkills.
+    pi.on("tool_result", async (event, ctx) => {
+        if ((event as any).toolName !== "read") return;
+        if ((event as any).isError) return;
+        const inputPath: string | undefined = (event as any).input?.path;
+        if (!inputPath || availableSkills.length === 0) return;
+        const resolved = path.resolve(ctx.cwd, inputPath);
+        for (const s of availableSkills) {
+            if (!s.name) continue;
+            if (s.filePath && resolved === path.resolve(s.filePath)) {
+                usedSkills.add(s.name.toLowerCase());
+                return;
+            }
+            if (s.baseDir) {
+                const base = path.resolve(s.baseDir);
+                if (resolved === base || resolved.startsWith(base + path.sep)) {
+                    usedSkills.add(s.name.toLowerCase());
+                    return;
+                }
+            }
+        }
     });
 
     pi.on("message_start", async (event, _ctx) => {
@@ -467,13 +719,13 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
                 : _pendingContinuationPrompt ? "continuation"
                 : "base";
             if (!sessionStarted) {
-                // First user message of a new context window/startup —
-                // start the in-memory context clock. The footer ticker's
-                // 1Hz recomputeCachedSession() will surface Context Time.
-                // Mark the in-memory flag so we don't reset until
-                // resetTiming() runs (session_start or /cache-reset).
+                // First user message of this context window. _sessionStartTime
+                // is null (resetTiming cleared it on session_start) - start
+                // the context-window clock now. In-memory only; no file I/O.
                 sessionStarted = true;
-                _sessionStartTime = Date.now();
+                if (_sessionStartTime === null) {
+                    _sessionStartTime = Date.now();
+                }
                 // Prime the cache so the next render shows the new value
                 // without waiting up to 1s for the ticker.
                 recomputeCachedSession();
@@ -559,6 +811,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         acc.lastTurnCacheWrite = usage.cacheWrite;
         acc.lastTurnInput = usage.input;
         acc.lastTurnOutput = usage.output;
+        acc.lastTurnCost = usage.cost.total;
 
         // Recent-hit trend window
         const r = hitRateNum(usage.cacheRead, usage.input);
@@ -641,17 +894,20 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         handler: async (_a: string, ctx: ExtensionCommandContext) => {
             refreshToolCache();
             const tools = pi.getAllTools();
+            const activeCount = toolCache.getCount();
             const costs = [...toolCache.getCosts()];
             const total = toolCache.getTotal();
             const max = costs.length > 0 ? costs[0].tokens : 1;
             const lines: string[] = [];
-            lines.push(`Tool schema costs (${tools.length} tools, ~${fmt(total)} tok total):`);
+            lines.push(`Tool schema costs (${activeCount} active / ${tools.length} configured, ~${fmt(total)} tok active total):`);
             lines.push("");
             for (const c of costs) {
                 const bar = "█".repeat(Math.min(30, max > 0 ? Math.round((c.tokens / max) * 30) : 0));
                 const pc = total > 0 ? ((c.tokens / total) * 100).toFixed(1) + "%" : "";
                 lines.push(`  ${c.name.padEnd(22)} ~${String(c.tokens).padStart(4)} tok ${pc.padStart(6)} ${bar}`);
             }
+            lines.push("");
+            lines.push(`Skills loaded: ${toolCache.getSkillCount()} (~${fmt(toolCache.getSkillToks())} tok)`);
             lines.push("");
             lines.push("Cache prefix shape:");
             const sysPrompt = ctx.getSystemPrompt();
@@ -741,6 +997,55 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         },
     });
 
+    // Pick the time window the 4th footer line aggregates over.
+    // Default is "Today" (local 00:00 → now). The choice is persisted
+    // to state.json (a USER PREFERENCE that survives /new, /reload,
+    // and fresh pi startup).
+    pi.registerCommand("aftc-footer-report-timeframe", {
+        description: "Set the time window the footer 4th line aggregates over (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d)",
+        handler: async (_a: string, ctx: ExtensionCommandContext) => {
+            const options = [
+                "Today",
+                "3 Hours",
+                "6 Hours",
+                "24 Hours",
+                "2 Days",
+                "3 Days",
+                "7 Days",
+                "28 Days",
+            ];
+            const labelToKey: Record<string, string> = {
+                "Today": "today",
+                "3 Hours": "3h",
+                "6 Hours": "6h",
+                "24 Hours": "24h",
+                "2 Days": "2d",
+                "3 Days": "3d",
+                "7 Days": "7d",
+                "28 Days": "28d",
+            };
+            const chosen = await ctx.ui.select(
+                "Footer 4th-line timeframe",
+                options,
+                { timeout: 0 },
+            );
+            if (chosen === undefined) return;
+            const key = labelToKey[chosen];
+            if (!key || !setTimeframe(key)) {
+                ctx.ui.notify?.("Invalid timeframe selection", "error");
+                return;
+            }
+            // setTimeframe already calls setPreference internally, so
+            // no separate save is needed here.
+            const stats = getTimeframeStats();
+            ctx.ui.notify?.(
+                `Footer timeframe set to ${stats.timeframeLabel}` +
+                    ` (cost=$${stats.costUsd.toFixed(2)}, ${stats.totalTurns} turns)`,
+                "info",
+            );
+        },
+    });
+
     // -- Miscellaneous commands -----------------------------------------------
 
     pi.registerCommand("cls", {
@@ -764,7 +1069,26 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
     const accView: AccumulatorView = acc;
     const modelView: ModelView = model;
     const toolCacheView: ToolCacheView = toolCache;
-    const getCachedSession = (): SessionView | null => cachedSession;
+    // Re-compute on every read so the displayed time is always fresh even
+    // when the ticker is throttled (CPU load, system sleep, etc.). The
+    // cost is just `Date.now() - _sessionStartTime` arithmetic — free.
+    const getCachedSession = (): SessionView | null => {
+        recomputeCachedSession();
+        return cachedSession;
+    };
+    // Eagerly populate timeframe stats on the first call so the first
+    // render has data, not a flashing 0s row.
+    const getTimeframeStats = (): TimeframeStatsView => {
+        refreshTimeframeStats();
+        return cachedTimeframeStats;
+    };
+
+    // Combined ticker callback: refreshes the session clock/cost rates
+    // every tick, and the timeframe-stats aggregate at most every 10s.
+    function onTickFull(): void {
+        recomputeCachedSession();
+        refreshTimeframeStats();
+    }
 
     return {
         getAccumulator: () => accView,
@@ -772,10 +1096,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         getModel: () => modelView,
         getToolCache: () => toolCacheView,
         getCachedSession,
+        getTimeframeStats,
+        getUsedSkillCount: () => usedSkills.size,
         getLastThinkingMs: () => lastThinkingMs,
         getAvgThinkingMs: () => avgMs(thinkingTimes),
         getLastResponseMs: () => lastResponseMs,
         getAvgResponseMs: () => avgMs(responseTimes),
-        onTick: recomputeCachedSession,
+        onTick: onTickFull,
     };
 }

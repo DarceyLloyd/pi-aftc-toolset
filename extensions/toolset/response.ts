@@ -54,6 +54,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
+import { getPreference, setPreference } from "./state";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIGURATION  —  tweak these to taste
@@ -161,9 +162,11 @@ const HR_TRAILING_BLANK = false;
  * every assistant response.
  */
 export function createResponseDivider(pi: ExtensionAPI): void {
-    // Toggle state. Lives in the factory closure — survives across events
-    // within the session, resets to `true` on /reload or new session.
-    let enabled = true;
+    // Toggle state. Loaded from state.json (a USER PREFERENCE that
+    // persists across /reload, /new, and fresh pi startup). Falls back
+    // to true (the historical default) if state.json is missing or
+    // the field hasn't been written yet.
+    let enabled = getPreference("responseDividerEnabled", true);
 
     /** Status key used so the toggle's setStatus() also forces a re-render. */
     const STATUS_KEY = "aftc-response-divider";
@@ -233,6 +236,9 @@ export function createResponseDivider(pi: ExtensionAPI): void {
             "Toggle the full-width response divider above each assistant reply (default: on)",
         handler: async (_args, ctx) => {
             enabled = !enabled;
+            // Persist the new value as a user preference so it
+            // survives /reload, /new, and fresh pi startup.
+            setPreference("responseDividerEnabled", enabled);
             if (enabled) {
                 ctx.ui.setStatus(
                     STATUS_KEY,

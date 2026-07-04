@@ -1,7 +1,7 @@
 /**
  * pi-aftc-toolset — cache diagnostics footer widget.
  *
- * Renders the three-line cache-diagnostics bar as a widget below the
+ * Renders the four-line cache-diagnostics bar as a widget below the
  * editor. Owns rendering, show/hide lifecycle, the 1Hz ticker, and the
  * /aftc-footer toggle command.
  *
@@ -33,6 +33,7 @@
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { FooterDataProvider } from "./types";
+import { getPreference, setPreference } from "./state";
 
 // ──────────────────────────────────────────────────────────────────────
 // Formatting helpers (used only by the footer)
@@ -49,6 +50,20 @@ function fmt(n: number): string {
 function fmtDurationShort(ms: number): string {
     if (ms <= 0) return "0.0s";
     return (ms / 1000).toFixed(1) + "s";
+}
+
+/** Long "Hh Mm Ss" duration, used for the timeframe average
+ *  thinking/response times on line 4. Drops leading zero units:
+ *  "0s" / "1m 30s" / "1h 2m 3s". */
+function fmtDurationHMS(ms: number): string {
+    if (!Number.isFinite(ms) || ms <= 0) return "0s";
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
 }
 
 /** hit% = cacheRead / (cacheRead + input). Returns formatted string. */
@@ -71,7 +86,7 @@ function trendArrow(recent: number, session: number): string {
 // ──────────────────────────────────────────────────────────────────────
 
 /**
- * Build the three-line widget component. Called by the pi widget factory
+ * Build the four-line widget component. Called by the pi widget factory
  * each time the TUI needs to render, so the closure captures a fresh
  * `tui` and `theme` from pi. Returned object implements the pi-tui
  * Component interface.
@@ -110,34 +125,52 @@ function createFooterComponent(
             const cache = data.getToolCache();
 
             const hasTurns = a.turns > 0;
-            const turnHit = hasTurns ? hitRate(a.lastTurnCacheRead, a.lastTurnInput) : "—";
-            const aggHit = hasTurns ? hitRate(a.cacheRead, a.input) : "—";
+            const turnHit = hasTurns ? hitRate(a.lastTurnCacheRead, a.lastTurnInput) : "0";
+            const aggHit = hasTurns ? hitRate(a.cacheRead, a.input) : "0";
             const trend = hasTurns ? trendArrow(data.getRecentAvg(), a.cacheRead / Math.max(1, a.cacheRead + a.input)) : "";
             const modelName = m.name || "no model";
             const thinkSuffix = m.reasoning && m.thinkingLevel && m.thinkingLevel !== "off" ? ` · ${m.thinkingLevel}` : "";
-            const ctxStr = m.contextWindow > 0 ? `${fmt(m.contextWindow)} Context Window` : "—";
+            const ctxStr = m.contextWindow > 0 ? `${fmt(m.contextWindow)} CTX Window` : "0";
 
             const splitStr = a.lastTurnInput > 0
-                ? `${fmt(a.lastTurnCacheRead)} cached / ${fmt(Math.max(0, a.lastTurnInput - a.lastTurnCacheRead))} new`
-                : "no data";
-            const costStr = a.cost > 0 ? `$${a.cost.toFixed(5)}` : "$0.00000";
+                ? `${fmt(a.lastTurnCacheRead)} Cached / ${fmt(Math.max(0, a.lastTurnInput - a.lastTurnCacheRead))} new`
+                : "";
+            const turnCostStr = `$${a.lastTurnCost.toFixed(5)}`;
+            const ctxTotalStr = `$${a.cost.toFixed(2)}`;
 
             const cached = data.getCachedSession();
             const projPart = cached
-                ? `Context Time ${cached.sessionStr} │ $${cached.costPerHour.toFixed(2)}/hr · $${cached.costPerMinute.toFixed(3)}/min`
-                : `Context Time 0s │ $0.00/hr · $0.000/min`;
+                ? `CTX Time ${cached.sessionStr} · $${cached.costPerHour.toFixed(2)}/hr · $${cached.costPerMinute.toFixed(3)}/min`
+                : `CTX Time 0s · $0.00/hr · $0.000/min`;
 
-            const skillInfo = cache.getSkillCount() > 0 ? ` │ Skills ${cache.getSkillCount()} ~${fmt(cache.getSkillToks())}t` : "";
+            const skillAvail = cache.getSkillCount();
+            const skillInfo = skillAvail > 0 || data.getUsedSkillCount() > 0
+                ? ` │ Skills ${data.getUsedSkillCount()}/${skillAvail}`
+                : "";
             const thinkLast = fmtDurationShort(data.getLastThinkingMs());
             const thinkAvg = fmtDurationShort(data.getAvgThinkingMs());
             const respLast = fmtDurationShort(data.getLastResponseMs());
             const respAvg = fmtDurationShort(data.getAvgResponseMs());
             const timingInfo = ` │ Thinking time ${thinkLast} Last / ${thinkAvg} Avg │ Response time: ${respLast} Last / ${respAvg} Avg`;
 
+            // 4th line: aggregates from the SQLite `turns` table over a
+            // configurable time window (Today / 3h / 6h / 24h / 2d / 3d /
+            // 7d / 28d, set via /aftc-footer-report-timeframe). Refresh is
+            // throttled to 10s by core.ts; this just reads the cached
+            // snapshot, so it's cheap on every render.
+            const tf = data.getTimeframeStats();
+            const tfStr =
+                `▏ Avg ${tf.timeframeLabel}: Cost $${tf.costUsd.toFixed(2)} | ` +
+                `Prompts/Turns ${tf.userPrompts}/${tf.totalTurns} | ` +
+                `Cache ${(tf.avgCacheHit * 100).toFixed(1)}% | ` +
+                `Think time ${fmtDurationHMS(tf.avgThinkingMs)} | ` +
+                `Response time ${fmtDurationHMS(tf.avgResponseMs)}`;
+
             return [
-                line(`▏ ${modelName}${thinkSuffix} │ Cache Turn ${turnHit} / AVG ${aggHit} ${trend} │ ${ctxStr}`, w),
-                line(`▏ IO ↑${fmt(a.input)} ↓${fmt(a.output)} │ ${splitStr} │ ${costStr} (${a.turns} turns · ${a.userTurns} user) | ${projPart}`, w),
+                line(`▏ ${modelName}${thinkSuffix} │ Cache Turn ${turnHit} / Avg ${aggHit} ${trend} │ ${ctxStr} │ IO ↑${fmt(a.input)} ↓${fmt(a.output)} │ ${splitStr}`, w),
+                line(`▏ Turn ${turnCostStr} · CTX Total ${ctxTotalStr} (${a.userTurns} User / ${a.turns} Turns) | ${projPart}`, w),
                 line(`▏ ${cache.getCount()} Tools ~${fmt(cache.getTotal())}t${skillInfo}${timingInfo}`, w),
+                line(tfStr, w),
             ];
         },
     };
@@ -148,7 +181,10 @@ function createFooterComponent(
 // ──────────────────────────────────────────────────────────────────────
 
 export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): void {
-    let active = true;
+    // Toggle state. Loaded from state.json (a USER PREFERENCE that
+    // persists across /reload, /new, and fresh pi startup). Falls
+    // back to true (the historical default) if state.json is missing.
+    let active = getPreference("footerEnabled", true);
     // Track the live component so /aftc-footer (hide) and widget
     // recreation can dispose the previous one and stop its ticker.
     // Without this, recreating the widget (theme change, /reload,
@@ -196,18 +232,23 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
             if (active) {
                 hide(ctx);
+                // Persist the new value as a user preference so the
+                // widget stays hidden across /reload, /new, and
+                // fresh pi startup.
+                setPreference("footerEnabled", false);
                 ctx.ui.notify?.("Cache footer hidden.", "info");
             } else {
                 show(ctx);
+                setPreference("footerEnabled", true);
                 ctx.ui.notify?.("Cache footer shown.", "info");
             }
         },
     });
 
     // Show the widget on session_start (after the orchestrator has
-    // wired core's data provider to us). User can toggle off via
-    // /aftc-footer; state is per-process and resets on /reload or
-    // new session.
+    // wired core's data provider to us). The user's preference
+    // (loaded above) is the source of truth for "should this be
+    // visible right now".
     pi.on("session_start", async (_event, ctx) => {
         if (active) show(ctx);
     });

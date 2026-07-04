@@ -7,14 +7,17 @@ keyboard shortcut this extension registers.
 
 Renders a `ctx.ui.select` dialog grouped by category:
 
-- **General** - `/aftc-help`, `/aftc-install`, `/cls`
+- **General** - `/aftc-help`, `/aftc-install`, `/cls`, `/theme`
 - **Response** - `/aftc-response-divider`
-- **Footer / cache / timing** - `/aftc-footer`, `/cache-profile`,
-  `/cache-stats`, `/cache-reset`
+- **Interrupt** - `/aftc-stop`, `/stfu`
+- **Navigation** - `/cd`, `/cd-set-max-depth`
+- **Footer / cache / timing** - `/aftc-footer`,
+  `/aftc-footer-report-timeframe`, `/cache-profile`, `/cache-stats`,
+  `/cache-reset`
 - **Usage report** - `/usage-report`, `/usage-clear`
 - **SSH** - `/ssh-gui`, `/ssh-connect`, `/ssh-run`, `/ssh-status`,
   `/ssh-disconnect`
-- **Skills** - `/skill:cache-audit`
+- **Skills** - `/skill:cache-audit`, `/skill:bulk-read`
 - **Shortcuts** - `alt+c`, `Ctrl+T` (built-in pi)
 
 Sections are dash-underlined, columns aligned, no box characters.

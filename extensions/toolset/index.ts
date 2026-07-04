@@ -12,6 +12,7 @@
  *   - ssh.ts          — SSH remote terminal tools + slash commands
  *   - response.ts     — full-width <hr> divider above each assistant reply
  *   - input-clear.ts  — Alt+C shortcut to clear the input editor
+ *   - theme.ts        — /theme: shortcut to pi's theme picker
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
  *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
  *   - db.ts           — shared SQLite connection utility
@@ -31,6 +32,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createCore } from "./core";
 import { createFooterWidget } from "./footer-widget";
 import { createInputClear } from "./input-clear";
+import { createTheme } from "./theme";
 import { createUsageRecording } from "./usage-recording";
 import { createUsageModule } from "./usage-report";
 import { createHelpModule } from "./help";
@@ -47,6 +49,7 @@ export default function (pi: ExtensionAPI): void {
 	const help = createHelpModule(pi);
 	createInstallModule(pi);
 	createInputClear(pi);
+	createTheme(pi);
 	createSshModule(pi);
 	createResponseDivider(pi);
 	createStfu(pi);

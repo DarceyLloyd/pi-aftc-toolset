@@ -8,7 +8,13 @@ A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 `pi-aftc-toolset` is a collection of tools for pi - from my point of view, essentials to assist with what I do on a daily basis and to get the most out of AI models.
 
 ## Recent updates
-- Added a collection of skills from my own projects and from other open source projects (TODO: Refactor)
+- Fixed skills in footer widget
+- Added new line of info to footer widget
+- Pruned skills: archived 18 SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, plus git-workflow / guard-git / github / release-branch) to `.rar` files in `skills/`. The four git skills were merged into a single lean `/skill:git`. Reduces per-turn context cost since every skill's `description` is injected into the system prompt on every turn.
+- **aftc-orange-viz** orange accented theme added (based on sea-shells theme)
+- **/skill:bulk-read** skill - concatenate many files into one markdown for fast project-wide reads
+- **/aftc-footer-report-timeframe** sets the footer's 4th-line time window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d)
+- **/theme** shortcut opens a theme picker
 - **/cd** command added (change dir with new conext window or not without closing pi)
 - **/stfu** or **/aftc-stop** (if the ML model goes into some repeat loop, just use /stfu to get out of it)
 - Footer became a **Widget**
@@ -125,6 +131,9 @@ A live diagnostics widget showing:
 - Token usage
 - Tool and skill usage
 - Thinking and response times
+- AVG-window aggregates from the SQLite `turns` table
+  (configurable time window via `/aftc-footer-report-timeframe`,
+  default Today)
 
 ---
 
@@ -204,9 +213,10 @@ for full usage.
 
 ---
 
-## Included Theme
+## Included Themes
 
-**cache-viz** provides a cache-focused green/cyan colour scheme.
+- **cache-viz** - cache-focused green/cyan colour scheme.
+- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default).
 
 ---
 
@@ -228,6 +238,7 @@ for full usage.
 - `/aftc-install`
 - `/aftc-response-divider`
 - `/cls`
+- `/theme` - open a theme picker. Pre-selects the active theme, supports arrow keys, PageUp / PageDown for page jumps, Ctrl+PageUp / Ctrl+PageDown for top / bottom, Enter to switch, Esc to cancel. Handles 100s of themes without losing place.
 
 ## Interrupt
 
@@ -242,6 +253,7 @@ for full usage.
 ## Footer Widget, Cache, Costs, Stats +
 
 - `/aftc-footer`
+- `/aftc-footer-report-timeframe` - set the footer 4th-line time window: Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d (default: Today)
 - `/cache-profile`
 - `/cache-stats`
 - `/cache-reset`
@@ -267,7 +279,7 @@ for full usage.
 
 ## Model, Cache, Costs and usage Footer Widget
 
-The footer widget is a three-line diagnostic panel (not pi's
+The footer widget is a four-line diagnostic panel (not pi's
 footer), so it composes alongside other footer/status-bar extensions
 (e.g. pi-bar) instead of replacing them. It updates live from pi
 events and a 1Hz session sampler. Toggle it with `/aftc-footer`.
@@ -276,9 +288,18 @@ What each line shows:
 
 | Line | Shows |
 | --- | --- |
-| 1 | Model, thinking level, latest-turn cache hit rate, session-average hit rate, trend arrow, context window |
-| 2 | Input/output token totals, last-turn cache split, session cost, total model calls, user-prompt count, context time, burn rate |
-| 3 | Active tool count/token estimate, skill/memory tool cost, thinking time, response time |
+| 1 | Model, thinking level, latest-turn cache hit rate, session-average hit rate, trend arrow, context window, IO token totals, last-turn cache split |
+| 2 | Last-turn cost, context-session total cost, user-prompt count, total model calls, context time, burn rate |
+| 3 | Active tool count/token estimate, skills `used/available` (pulled into context this session vs loaded in `<available_skills>`), thinking time, response time |
+| 4 | AVG-window aggregates from the SQLite `turns` table over a configurable time window: cost, prompts/turns, **average** cache hit rate, average thinking time, average response time |
+
+Line 4's time window is configurable via `/aftc-footer-report-timeframe`.
+Options: Today (default, local 00:00 to now), 3h, 6h, 24h, 2d, 3d,
+7d, 28d. The selection persists across `/reload`, `/new`, and
+fresh pi startup (stored as a user preference in
+`.pi-aftc-toolset/data/state.json`). The label is shown in the
+footer as `AVG <label>: ...`. Refreshed at most every 10s from
+SQLite so the DB isn't hammered on every render tick.
 
 ### How cache hit rate is calculated
 
@@ -622,11 +643,7 @@ Load it with:
 
 ### Version control
 
-- `/skill:git-workflow` git operations, Conventional Commits, branching, PR workflows
-- `/skill:kickoff-branch` git worktree + feature branch + clean baseline
-- `/skill:guard-git` block dangerous git commands, enforce commit conventions
-- `/skill:hook-commits` pre-commit hooks (formatter, type checker, tests)
-- `/skill:release-branch` merge / PR / worktree cleanup
+- `/skill:git` git operations, Conventional Commits, branch naming, destructive-command safety rails, `gh` CLI for issues/PRs/CI, and the merge/PR/keep/discard ship decision. (Consolidates the former `git-workflow`, `guard-git`, `github`, and `release-branch` skills.)
 
 ### Shell scripting
 
@@ -667,47 +684,22 @@ Load it with:
 - `/skill:devops` CI/CD, IaC, deployment, databases
 - `/skill:nginx` nginx configuration
 - `/skill:linux` Linux sysadmin
-- `/skill:smoke-test` post-deploy health-check against a live URL
-- `/skill:quick-fix` fast-path for trivial fixes
-- `/skill:reset-baseline` restore a known clean state
-- `/skill:setup-environment` pre-install deps and configure tools
-- `/skill:publish-package` publish to npm / crates.io / PyPI / Homebrew
-- `/skill:wire-ci` CI pipeline setup with pre-built templates
-- `/skill:sentry` Sentry API for issues, events, transactions, logs
-- `/skill:github` `gh` CLI for issues, PRs, runs, REST
-- `/skill:ghidra` Ghidra headless for binary reverse engineering
-- `/skill:dispatch-agents` parallel subagent dispatch
-- `/skill:delegate-task` sequential single-subagent delegation
-
-### Testing and code quality
-
-- `/skill:develop-tdd` TDD with red-green-refactor loop
-- `/skill:enforce-first` F.I.R.S.T test quality rubric
-- `/skill:verify-work` multi-phase UAT gate
-- `/skill:audit-code` self-review checklist (security, perf, tests, SOLID)
-- `/skill:security-review` security patterns and OWASP Top 10
-- `/skill:request-review` fresh-context reviewer agent
-- `/skill:respond-review` act on reviewer feedback systematically
-- `/skill:validate-contracts` assert data shape consistency across boundaries
-- `/skill:validate-fix` prove a fix works (re-run failing test + full suite)
-- `/skill:assess-impact` blast radius of a proposed change
-- `/skill:research-first` search prior art before implementing
-- `/skill:define-language` DDD ubiquitous-language glossary
-- `/skill:define-success` task statement into step/verify pairs
-- `/skill:plan-refactor` refactor plan with tiny commits
-- `/skill:edit-document` edit and improve documents
-- `/skill:write-document` write and sync technical documents
-- `/skill:update-changelog` changelog conventions
 
 ### Media
 
 - `/skill:ffmpeg` ffmpeg CLI for video, audio, image processing
 
+### Documentation
+
+- `/skill:markdown-guide` AI-friendly markdown formatting for documentation .md files (READMEs, SKILL.md, rules.md, AGENTS.md)
+
 ### Other
 
 - `/skill:pinescript` - Pine Script v6 (TradingView). Skill content targets v6 specifically; v5 has different syntax for some features.
-- `/skill:project-generation` project scaffolding workflow
 - `/skill:cache-audit` prompt-cache diagnostics workflow
+- `/skill:bulk-read` - concatenate many files into one markdown document. Triggers on "read all files", "analyze the project", "load every file", "concatenate files", "audit the code", and similar. The skill bundles a Node.js script that walks the tree, skips noise dirs and binary files, and emits a single markdown file with `FILE: <abs-path>` headers plus fenced code blocks. The agent then reads that one file instead of N separate `read` calls.
+
+> Previously bundled SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, and the former git skills git-workflow / guard-git / github / release-branch) have been archived as `.rar` files in `skills/` and removed from the live skill set to reduce per-turn context cost. The four git skills were merged into the single `/skill:git` above.
 
 ---
 ---
@@ -836,9 +828,12 @@ extensions/toolset/usage-report.ts      usage report generator
 extensions/toolset/usage-recording.ts   per-turn SQLite recording
 extensions/toolset/ssh.ts               SSH tools and commands
 extensions/toolset/response.ts          response divider + /aftc-response-divider
+extensions/toolset/theme.ts              /theme shortcut to pi's theme picker
 internal-python-gui/main.py             local SSH GUI/API
-skills/cache-audit/SKILL.md             bundled skill
-themes/cache-viz.json                   cache-oriented pi theme
+skills/cache-audit/SKILL.md             bundled cache-audit skill
+skills/bulk-read/SKILL.md               bundled bulk-read skill (Node.js script inline)
+themes/cache-viz.json                   cache-oriented pi theme (green/cyan)
+themes/aftc-orange-viz.json             orange-accented pi theme
 ```
 
 Each TS file has a sibling `<name>.readme.md` documenting its
@@ -856,6 +851,9 @@ node tests/parse-check/parse-check.mjs          # jiti parses usage-report.ts
 node tests/full-check/full-check.mjs            # DB + projections + HTML structure
 node tests/widget-render-check/widget-render-check.mjs  # orchestrator + footer widget + ticker
 node tests/stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
+node tests/bulk-read-check/bulk-read-check.mjs  # bulk-read skill: script extract + walk + manifest
+node tests/theme-check/theme-check.cjs        # /theme: register, pick, cancel, setTheme-fail, no-UI
+node tests/state-check/state-check.cjs        # state.json (defaults generation, get/set, persistence)
 node tests/load-test/load-test.cjs              # end-to-end: factory + events + commands + SQLite
 ```
 
@@ -865,7 +863,8 @@ Project-local runtime data is stored under `.pi-aftc-toolset/data/`:
 
 | File | Purpose |
 | --- | --- |
-| (in-memory only) | The context-window session start time is tracked in memory (set on first user `message_start`, cleared on `session_start` / `/cache-reset`). Not persisted. |
+| `state.json` | Cross-session user preferences (footer AVG timeframe, footer on/off, response divider on/off). Created with defaults on first access; only re-written when a preference actually changes. Persists across `/reload`, `/new`, and fresh pi startup. |
+| (in-memory only) | Cache accumulators, model info, per-turn timings, and the context-window clock start time. All per-session; reset on every `session_start`. Not persisted — there is no per-session resumption state anymore. |
 | `turns.db` | SQLite usage database |
 | `report.html` | Latest generated usage report |
 
@@ -885,16 +884,17 @@ All runtime data and logs are gitignored - they never get committed.
 | --- | --- | --- |
 | Extension orchestrator | `extensions/toolset/index.ts` | Loads the suite modules into pi and wires the footer data provider to the widget |
 | Cache / timing data | `extensions/toolset/core.ts` | Cache diagnostics, timer commands, `/cls` |
-| Cache footer widget | `extensions/toolset/footer-widget.ts` | Renders the three-line cache dashboard, owns `/aftc-footer` toggle |
+| Cache footer widget | `extensions/toolset/footer-widget.ts` | Renders the four-line cache dashboard, owns `/aftc-footer` toggle |
 | Usage DB + report | `extensions/toolset/db.ts`, `usage-recording.ts`, `usage-report.ts`, `types.ts` | SQLite recording, HTML report, usage clearing |
 | Installer | `extensions/toolset/install.ts` | `/aftc-install` |
 | Help | `extensions/toolset/help.ts` | `/aftc-help` command reference |
 | Response divider | `extensions/toolset/response.ts` | Full-width themed rule above each assistant reply, `/aftc-response-divider` |
 | Interrupt | `extensions/toolset/stfu.ts` | `/aftc-stop` and `/stfu` slash commands - emergency abort of current agent operation |
 | Input clear | `extensions/toolset/input-clear.ts` | `alt+c` editor clear shortcut |
+| Theme picker | `extensions/toolset/theme.ts` | `/theme` slash command - shortcut to pi's theme picker |
 | SSH | `extensions/toolset/ssh.ts`, `internal-python-gui/` | AI-callable SSH tools and visible terminal GUI |
-| Skill | `skills/cache-audit/` | Reusable cache audit workflow |
-| Theme | `themes/cache-viz.json` | Green/cyan cache-oriented pi theme |
+| Skill | `skills/` (31 live skills) | Reusable workflows: project flagship `cache-audit` and `bulk-read`, plus a consolidated `git` skill and language/runtime/domain skills (typescript, python, pinescript, ffmpeg, docker, etc.). See the Skills section above for the full list. |
+| Theme | `themes/cache-viz.json`, `themes/aftc-orange-viz.json` | Green/cyan and orange-themed pi themes |
 
 ---
 

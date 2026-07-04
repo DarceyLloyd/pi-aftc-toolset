@@ -52,9 +52,16 @@ widget actually reads:
 - `ModelView` - model name + reasoning + context window + thinking
   level.
 - `ToolCacheView` - `getCount()`, `getTotal()`, `getSkillCount()`,
-  `getSkillToks()`.
+  `getSkillToks()`. Count/total reflect the **active** tool set
+  (intersected with `pi.getActiveTools()`); `getSkillCount()` /
+  `getSkillToks()` are the **available** skills loaded into the
+  system prompt, fed from `systemPromptOptions.skills`.
 - `SessionView` - current context-window clock + cost rates
-  (already sampled).
+  (recomputed on each read so the displayed time stays fresh).
+- `TimeframeStatsView` - aggregates over the active timeframe
+  (Today / 3h / … / 28d) from the SQLite `turns` table: cost,
+  prompts/turns, average cache hit rate, average thinking +
+  response times. Drives footer line 4.
 
 The full interface:
 
@@ -65,10 +72,12 @@ interface FooterDataProvider {
     getModel(): ModelView;
     getToolCache(): ToolCacheView;
     getCachedSession(): SessionView | null;
+    getUsedSkillCount(): number;   // skills pulled into context this session
     getLastThinkingMs(): number;
     getAvgThinkingMs(): number;
     getLastResponseMs(): number;
     getAvgResponseMs(): number;
+    getTimeframeStats(): TimeframeStatsView;  // footer line 4 (10s-throttled)
     onTick(): void;   // 1Hz ticker callback
 }
 ```

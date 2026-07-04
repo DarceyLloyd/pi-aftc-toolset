@@ -1,15 +1,22 @@
 // Runtime verification for the orchestrator pattern:
 //   - core.ts returns a FooterDataProvider
-//   - footer-widget.ts renders 3 lines on session_start
+//   - footer-widget.ts renders 4 lines on session_start (3 in-memory + 1 daily DB aggregate)
 //   - render() / dispose() work end-to-end against the data provider
 //   - data.onTick() + ticker actually update the rendered output over time
 import { createJiti } from "file:///C:/Users/Darcey/AppData/Roaming/npm/node_modules/@earendil-works/pi-coding-agent/node_modules/jiti/lib/jiti.mjs";
 import { fileURLToPath } from "node:url";
 import * as path from "node:path";
+import * as fs from "node:fs";
 
 // Project root = two levels up from this script (tests/<name>/<script>).
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..").replace(/\\/g, "/");
 const jiti = createJiti(ROOT, { interopDefault: true });
+
+// Reset persisted preferences so a stale state.json left by another test
+// (e.g. load-test's /aftc-footer toggle writing footerEnabled=false)
+// doesn't suppress the widget here. The widget default is on.
+const _statePath = path.join(ROOT, ".pi-aftc-toolset", "data", "state.json");
+try { fs.unlinkSync(_statePath); } catch (_) { /* ignore if absent */ }
 
 const handlers = {};
 const commands = {};
@@ -60,7 +67,7 @@ if (typeof component.render !== "function") { console.error("FAIL: factory did n
 
 const lines = component.render(120);
 if (!Array.isArray(lines)) { console.error("FAIL: render did not return an array, got", typeof lines); process.exit(1); }
-if (lines.length !== 3) { console.error(`FAIL: expected 3 lines, got ${lines.length}`); process.exit(1); }
+if (lines.length !== 4) { console.error(`FAIL: expected 4 lines, got ${lines.length}`); process.exit(1); }
 for (const l of lines) if (typeof l !== "string") { console.error("FAIL: non-string line:", l); process.exit(1); }
 console.log(`OK render: ${lines.length} string lines, total ${lines.reduce((s, l) => s + l.length, 0)} chars`);
 
@@ -86,7 +93,7 @@ await handlers["message_start"]({ message: { role: "user", content: "hi" } }, ct
 // Re-prime so the first render reflects the just-set start time.
 footerData.onTick();
 const linesAtStart = component.render(120);
-const ctxMatchStart = linesAtStart[1].match(/Context Time (\S+)/);
+const ctxMatchStart = linesAtStart[1].match(/CTX Time (\S+)/);
 const ctxStart = ctxMatchStart ? ctxMatchStart[1] : null;
 
 // Wait 1.2s for ticker to recompute
@@ -95,7 +102,7 @@ await new Promise(r => setTimeout(r, 1200));
 // we trigger the render explicitly to read the latest cached value).
 footerData.onTick();
 const linesAfter = component.render(120);
-const ctxMatchAfter = linesAfter[1].match(/Context Time (\S+)/);
+const ctxMatchAfter = linesAfter[1].match(/CTX Time (\S+)/);
 const ctxAfter = ctxMatchAfter ? ctxMatchAfter[1] : null;
 
 console.log(`OK context time before wait: ${ctxStart}, after 1.2s + onTick: ${ctxAfter}`);

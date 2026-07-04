@@ -1,19 +1,31 @@
 # footer-widget.ts
 
-The three-line cache diagnostics bar rendered as a `setWidget` below
+The four-line cache diagnostics bar rendered as a `setWidget` below
 the editor. Owns the render path, the 1Hz ticker, and the
 `/aftc-footer` toggle.
 
 ## What it does
 
-Renders a 3-line bar showing:
+Renders a 4-line bar showing:
 - **Line 1**: model, thinking level, last-turn cache hit %, session
-  average cache hit %, trend arrow, context window size.
-- **Line 2**: input/output token totals, last-turn cache split
-  (cached / new), session cost, total turns vs user-prompted turns,
+  average cache hit %, trend arrow, context window size, IO token
+  totals, last-turn cache split (cached / new).
+- **Line 2**: last-turn cost, context-session total cost (sum of all
+  turn costs in this context), user-prompted turns vs total turns,
   context-window time, $/hr and $/min burn rates.
-- **Line 3**: active tool count + token estimate, skill/memory tool
-  cost, thinking time (last / avg), response time (last / avg).
+- **Line 3**: active tool count + token estimate, skills
+  `used/available` (skills pulled into context this session via a
+  `/skill:name` command or a successful `read` of a skill file, vs
+  the count in the system prompt's `<available_skills>` block),
+  thinking time (last / avg), response time (last / avg).
+- **Line 4**: aggregates from the SQLite `turns` table over a
+  configurable time window (default: Today, local 00:00 to now).
+  Shows cost, prompts/turns, **average** cache hit rate over the
+  window, average thinking time, average response time. The window
+  is set by `/aftc-footer-report-timeframe` (Today, 3h, 6h, 24h,
+  2d, 3d, 7d, 28d) and persists across `/resume` and `/reload`.
+  Refreshed at most every 10s by core.ts so the DB isn't hammered
+  on every render tick.
 
 The widget uses `setWidget` (not `setFooter`) so it composes with
 other footer/status extensions instead of replacing them. The
@@ -23,9 +35,9 @@ segment is intentionally omitted (see rules.md §10).
 ## How it stays current
 
 A 1Hz `setInterval` inside the component:
-1. Calls `data.onTick()` (which is `recomputeCachedSession` from
-   core.ts - re-reads `data.json` and updates the in-memory
-   `cachedSession`).
+1. Calls `data.onTick()` (which is the combined ticker from core.ts:
+   `recomputeCachedSession()` + `refreshTimeframeStats()` - the
+   timeframe stats refresh is throttled to every 10s).
 2. Calls `tui.requestRender()` to force a TUI re-render.
 
 The ticker is wrapped in try/catch - a single error logs but does
@@ -46,7 +58,9 @@ ticker cleanly. Without this, recreating the widget (theme change,
 ## Events subscribed
 
 - `session_start` - call `show(ctx)` if the widget was active when
-  the previous session ended.
+  the previous session ended. The active/inactive state is loaded
+  from `state.json` (a user preference) so it survives `/reload`,
+  `/new`, and fresh pi startup.
 - `session_shutdown` - dispose the active component.
 
 ## Public factory

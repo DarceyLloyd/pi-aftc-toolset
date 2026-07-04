@@ -47,6 +47,10 @@ The file exposes three top-of-file constants:
   dividers collapse on the next TUI paint (forced via
   `setStatus` which triggers `requestRender`).
 
+The toggle state is persisted to `state.json` as a user preference,
+so the divider stays in whatever state the user last chose across
+`/reload`, `/new`, and fresh pi startup.
+
 ## Events subscribed
 
 None directly - only `registerMessageRenderer` and

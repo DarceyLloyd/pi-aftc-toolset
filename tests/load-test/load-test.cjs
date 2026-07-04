@@ -13,6 +13,7 @@ const PI_ROOT = require("node:path").join(
 );
 // sanity check
 require("node:fs").statSync(PI_ROOT + "/package.json");
+const fs = require("node:fs");
 const { createJiti } = require(PI_ROOT + "/node_modules/jiti/lib/jiti.mjs");
 const path = require("node:path");
 
@@ -156,6 +157,18 @@ function makeCtx() {
 }
 
 (async () => {
+	// Clean up any persisted state files from previous test runs so
+	// the test starts from a known-clean baseline. state.json persists
+	// across runs; a leftover footerEnabled=false would mask the
+	// default-on behaviour the test expects. (Leftover session_state.json
+	// / data.json from the old per-session layout are also swept so they
+	// don't linger in the data dir.)
+	const dataDir = path.join(__dirname, "..", "..", ".pi-aftc-toolset", "data");
+	for (const f of ["state.json", "session_state.json", "data.json"]) {
+		const p = path.join(dataDir, f);
+		if (fs.existsSync(p)) fs.unlinkSync(p);
+	}
+
 	// Timestamp captured before any message_end fires, so we can filter
 	// rows to just THIS run (the shared DB has rows from previous test
 	// invocations and from real pi sessions).
@@ -473,6 +486,14 @@ function makeCtx() {
 		"OK all rows have correct model_name, thinking_level, user_prompt flag, cost signatures, and positive cost/cache tokens",
 	);
 	db.close();
+
+	// Clean up persisted state so this run's /aftc-footer toggle (which
+	// writes footerEnabled=false) doesn't suppress the widget in a later
+	// test run that reads the same state.json.
+	for (const f of ["state.json", "session_state.json", "data.json"]) {
+		const p = path.join(dataDir, f);
+		try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
+	}
 
 	console.log("\n=== ALL TESTS PASSED ===");
 })().catch((e) => {
