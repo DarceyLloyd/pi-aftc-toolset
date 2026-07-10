@@ -8,18 +8,8 @@ A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 `pi-aftc-toolset` is a collection of tools for pi - from my point of view, essentials to assist with what I do on a daily basis and to get the most out of AI models.
 
 ## Recent updates
-- Fixed skills in footer widget
-- Added new line of info to footer widget
-- Pruned skills: archived 18 SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, plus git-workflow / guard-git / github / release-branch) to `.rar` files in `skills/`. The four git skills were merged into a single lean `/skill:git`. Reduces per-turn context cost since every skill's `description` is injected into the system prompt on every turn.
-- **aftc-orange-viz** orange accented theme added (based on sea-shells theme)
-- **/skill:bulk-read** skill - concatenate many files into one markdown for fast project-wide reads
-- **/aftc-footer-report-timeframe** sets the footer's 4th-line time window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d)
-- **/theme** shortcut opens a theme picker
-- **/cd** command added (change dir with new conext window or not without closing pi)
-- **/stfu** or **/aftc-stop** (if the ML model goes into some repeat loop, just use /stfu to get out of it)
-- Footer became a **Widget**
-- Footer widget got some enhancements
-- Major refactor of all components
+- Fixed to work with latest version of pi
+- added /dir and /ls alias for quick dir listings
 
 ## Main Features
 

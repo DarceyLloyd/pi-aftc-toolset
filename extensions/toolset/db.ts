@@ -31,14 +31,9 @@ try {
     // synchronous pi event handlers.
     Database = require("better-sqlite3");
 } catch (err) {
-    console.clear();
     console.log(
-        `\n\x1b[33m################################################################\x1b[0m\n` +
-        `\x1b[33mAFTC PI UTILS - WARNING: better-sqlite3 not available\x1b[0m\n` +
-        `\x1b[33m################################################################\x1b[0m\n` +
-        `\x1b[36mRun /aftc-install in pi to install it automatically.\x1b[0m\n` +
-        `\x1b[33m################################################################\x1b[0m\n`
-        // `(${(err as Error).message})`,
+        `\n[aftc-toolset] better-sqlite3 not available — /usage-report and timeframe stats disabled. ` +
+        `Run /aftc-install to install it. (${(err as Error).message})`,
     );
 }
 

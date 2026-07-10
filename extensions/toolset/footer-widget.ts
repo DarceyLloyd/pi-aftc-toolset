@@ -110,19 +110,20 @@ function createFooterComponent(
     }, 1000);
 
     function line(text: string, width: number): string {
-        const truncated = truncateToWidth(text, width, "…", true);
-        const padded = truncated + " ".repeat(Math.max(0, width - truncated.length));
-        return theme.bg("customMessageBg", theme.fg("dim", padded));
+        // truncateToWidth with pad=true already pads to width visual columns.
+        const truncated = truncateToWidth(text, width, "\u2026", true);
+        return theme.bg("customMessageBg", theme.fg("dim", truncated));
     }
 
     return {
         dispose() { clearInterval(ticker); },
         invalidate() {},
         render(width: number): string[] {
-            const w = Math.max(1, width);
-            const a = data.getAccumulator();
-            const m = data.getModel();
-            const cache = data.getToolCache();
+            try {
+                const w = Math.max(1, width);
+                const a = data.getAccumulator();
+                const m = data.getModel();
+                const cache = data.getToolCache();
 
             const hasTurns = a.turns > 0;
             const turnHit = hasTurns ? hitRate(a.lastTurnCacheRead, a.lastTurnInput) : "0";
@@ -172,6 +173,12 @@ function createFooterComponent(
                 line(`▏ ${cache.getCount()} Tools ~${fmt(cache.getTotal())}t${skillInfo}${timingInfo}`, w),
                 line(tfStr, w),
             ];
+            } catch (err) {
+                console.log(`[aftc-toolset] footer render error: ${(err as Error).message}`);
+                return [
+                    theme.bg("customMessageBg", theme.fg("error", ` Footer error: ${(err as Error).message}`.padEnd(width, " "))),
+                ];
+            }
         },
     };
 }
@@ -201,22 +208,26 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
     function show(ctx: ExtensionContext): void {
         if (!ctx.hasUI) return;
         active = true;
-        // Prime the cached session so the first render shows the latest
-        // context time + cost rate instead of waiting up to 1s for the
-        // ticker. data.onTick() is recomputeCachedSession from core.ts —
-        // safe to call multiple times (pure in-memory computation).
-        data.onTick();
-        // Render as a widget below the editor instead of replacing pi's
-        // footer. See the file header for the setFooter vs setWidget
-        // trade-off (rules.md §7.1).
-        ctx.ui.setWidget("aftc-cache", (tui, theme) => {
-            // Dispose the previous component (if any) before creating
-            // a new one — stops the old 1Hz timer.
-            disposeCurrent();
-            const component = createFooterComponent(data, tui, theme);
-            currentComponent = component;
-            return component;
-        }, { placement: "belowEditor" });
+        try {
+            // Prime the cached session so the first render shows the latest
+            // context time + cost rate instead of waiting up to 1s for the
+            // ticker. data.onTick() is recomputeCachedSession from core.ts —
+            // safe to call multiple times (pure in-memory computation).
+            data.onTick();
+            // Render as a widget below the editor instead of replacing pi's
+            // footer. See the file header for the setFooter vs setWidget
+            // trade-off (rules.md §7.1).
+            ctx.ui.setWidget("aftc-cache", (tui, theme) => {
+                // Dispose the previous component (if any) before creating
+                // a new one — stops the old 1Hz timer.
+                disposeCurrent();
+                const component = createFooterComponent(data, tui, theme);
+                currentComponent = component;
+                return component;
+            }, { placement: "belowEditor" });
+        } catch (err) {
+            console.log(`[aftc-toolset] footer show error: ${(err as Error).message}`);
+        }
     }
 
     function hide(ctx: ExtensionContext): void {
@@ -250,6 +261,7 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
     // (loaded above) is the source of truth for "should this be
     // visible right now".
     pi.on("session_start", async (_event, ctx) => {
+        console.log(`[aftc-toolset] session_start — footer active=${active}, hasUI=${ctx.hasUI}`);
         if (active) show(ctx);
     });
 

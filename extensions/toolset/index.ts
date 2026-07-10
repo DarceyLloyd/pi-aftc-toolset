@@ -15,6 +15,7 @@
  *   - theme.ts        — /theme: shortcut to pi's theme picker
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
  *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
+ *   - dir.ts          — /dir /ls: list current directory contents (platform-native)
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -41,8 +42,10 @@ import { createSshModule } from "./ssh";
 import { createResponseDivider } from "./response";
 import { createStfu } from "./stfu";
 import { createCd } from "./cd";
+import { createDir } from "./dir";
 
 export default function (pi: ExtensionAPI): void {
+	try {
 	// Independent modules first (self-register commands/handlers).
 	const recorder = createUsageRecording(pi);
 	const usage = createUsageModule(pi);
@@ -54,6 +57,7 @@ export default function (pi: ExtensionAPI): void {
 	createResponseDivider(pi);
 	createStfu(pi);
 	createCd(pi);
+	createDir(pi);
 
 	// Core owns the data; the widget renders it. The orchestrator wires
 	// them so neither module imports the other (rules.md §1.5).
@@ -65,4 +69,8 @@ export default function (pi: ExtensionAPI): void {
 	// standalone.
 	void usage;
 	void help;
+	} catch (err) {
+		console.log(`[aftc-toolset] orchestrator error: ${(err as Error).message}`);
+		console.log(`[aftc-toolset] stack: ${(err as Error).stack}`);
+	}
 }
