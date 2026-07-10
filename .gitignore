@@ -26,6 +26,8 @@ lerna-debug.log*
 .old/
 test/
 rules.md
+dev.md
+skills/cache-audit/SKILL.old
 
 # pi package cache (global and project-local)
 .pi/
