@@ -10,6 +10,10 @@ A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 ## Recent updates
 - Fixed to work with latest version of pi
 - added /dir and /ls alias for quick dir listings
+- added /cwd to show the current working directory
+- updated /cd (removed menu for resume session yes/no, you can use pi's /session to restore a session)
+- updated /cd dir listing so that ./ is listed at the top, so you can select the current dir without having to go up 1 level and select it
+- update /cd so that when viewing long dir listings you are placed at the top of the dir list and not the bottom
 
 ## Main Features
 
@@ -195,11 +199,11 @@ stop." notification instead of a silent no-op.
 ## Quick Directory Navigation
 
 Pi is locked to one working directory per session. `/cd` switches
-to a different directory - interactively (preserve-or-fresh prompt,
-tree picker with `←`/`→` navigation, drive listings, page-key
-shortcuts, `/cd-set-max-depth [2-10]`) or via a direct path
-argument. See **Quick directory navigation** under Feature Guides
-for full usage.
+to a different directory - interactively (tree picker with `←`/`→`
+navigation, drive listings, page-key shortcuts,
+`/cd-set-max-depth [2-10]`) or via a direct path argument. Always
+starts a fresh session in the target directory. See **Quick
+directory navigation** under Feature Guides for full usage.
 
 ---
 
@@ -237,8 +241,10 @@ for full usage.
 
 ## Navigation
 
-- `/cd` - switch to a different directory. No args → interactive picker + preserve/fresh session prompt. With a path (`/cd ~/projects`, `/cd /abs/path`, `/cd ../foo`) → direct switch (always fresh).
+- `/cd` - switch to a different directory. No args → interactive picker. With a path (`/cd ~/projects`, `/cd /abs/path`, `/cd ../foo`) → direct switch. Always starts a fresh session in the target directory.
 - `/cd-set-max-depth [2-10]` - set the `/cd` picker listing depth (default 3). Pass a number, or run with no args to pick from 2–10.
+- `/dir` (alias `/ls`) - show the current directory name and a platform-native directory listing (`dir` on Windows, `ls -la` on macOS/Linux), rendered as an inline card.
+- `/cwd` - show the current working directory as an inline card (same style as `/dir`).
 
 ## Footer Widget, Cache, Costs, Stats +
 
@@ -388,24 +394,19 @@ appropriate:
 
 ## Quick directory navigation
 
-`/cd` switches the current Pi session to a different directory in
-two stages.
+`/cd` switches the current Pi session to a different directory,
+always starting a fresh session in the target directory.
 
-### Stage 1 - preserve or fresh session
+When invoked with no arguments, `/cd` opens a tree-style directory
+picker overlay rooted at the current working directory. On confirm,
+a new session is created in the picked directory and `switchSession`
+loads it. Cancelling the picker (Esc) leaves the current session
+untouched.
 
-When invoked with no arguments, `/cd` first asks whether to
-**preserve** the current session (resume the most recent session
-for the target directory - the existing session file is kept
-intact and not overwritten, so conversation history carries over)
-or to start **fresh** (a brand-new empty session in the target
-directory). The choice is held in memory and only applied once a
-target directory has been picked - cancelling the picker at stage
-2 leaves the current session untouched.
+### Directory listing and navigation
 
-### Stage 2 - directory listing and navigation
-
-After stage 1, the picker shows a tree-style directory listing
-rooted at the current working directory:
+The picker shows a tree-style directory listing rooted at the
+current working directory:
 
 - The header line shows the directory currently being browsed.
 - Direct children of that directory are listed first, with

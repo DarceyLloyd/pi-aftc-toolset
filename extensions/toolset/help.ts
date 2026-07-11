@@ -45,6 +45,8 @@ import type {
 //   - theme.ts              (theme)
 //   - stfu.ts               (aftc-stop, stfu)
 //   - cd.ts                 (cd)
+//   - dir.ts                (dir, ls)
+//   - cwd.ts                (cwd)
 //
 // Note: /show-thinking and /hide-thinking were removed — pi's built-in
 // Ctrl+T (app.thinking.toggle) and the hideThinkingBlock setting
@@ -79,12 +81,18 @@ const INTERRUPT_COMMANDS: Array<[string, string]> = [
 const NAVIGATION_COMMANDS: Array<[string, string]> = [
 	[
 		"/cd",
-		"Switch directory (interactive picker + preserve/fresh prompt, or one-shot path arg like /cd ~/projects)",
+		"Switch directory (interactive picker, or one-shot path arg like /cd ~/projects). Always starts a fresh session.",
 	],
 	[
 		"/cd-set-max-depth [2-10]",
 		"Set the /cd picker listing depth (default 3). Pass a number or run with no args for a picker.",
 	],
+	[
+		"/dir",
+		"Show the current directory name and a platform-native listing (dir on Windows, ls -la on macOS/Linux). Alias: /ls",
+	],
+	["/ls", "Alias for /dir — list the current directory contents."],
+	["/cwd", "Show the current working directory as an inline card (same style as /dir)."],
 ];
 
 const CACHE_COMMANDS: Array<[string, string]> = [

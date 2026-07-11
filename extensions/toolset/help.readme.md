@@ -10,7 +10,7 @@ Renders a `ctx.ui.select` dialog grouped by category:
 - **General** - `/aftc-help`, `/aftc-install`, `/cls`, `/theme`
 - **Response** - `/aftc-response-divider`
 - **Interrupt** - `/aftc-stop`, `/stfu`
-- **Navigation** - `/cd`, `/cd-set-max-depth`
+- **Navigation** - `/cd`, `/cd-set-max-depth`, `/dir`, `/ls`, `/cwd`
 - **Footer / cache / timing** - `/aftc-footer`,
   `/aftc-footer-report-timeframe`, `/cache-profile`, `/cache-stats`,
   `/cache-reset`
