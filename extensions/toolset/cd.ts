@@ -7,15 +7,8 @@
  * With an argument → one-shot switch (resolves `~`, absolute, relative;
  * creates missing directories after a confirm dialog).
  *
- * With no argument → two-step interactive flow:
- *   Step 1: "Preserve current session?" prompt. "Preserve" means
- *           resume the most recent session in the target directory
- *           via `SessionManager.continueRecent` (or fall back to a
- *           fresh session if none exists). "Fresh" means a brand-new
- *           empty session via `SessionManager.create`. The choice is
- *           remembered but NOT applied until a directory has been
- *           picked, so cancelling the picker cancels the whole flow.
- *   Step 2: directory-picker overlay.
+ * With no argument → single-step interactive flow:
+ *   Directory-picker overlay opens immediately.
  *     - Header shows the current browsing directory in cyan.
  *     - `..` at top of the listing navigates up one level. At the
  *       drive root, `..` switches to drive listing instead.
@@ -32,8 +25,8 @@
  *       entry needed).
  *     - Tab: autocompletes the highlighted entry into the input.
  *     - Esc: cancel without switching.
- *   Step 3 (after picker): create-or-resume the session in the picked
- *   directory using the choice from Step 1, then `ctx.switchSession`.
+ *   After the picker: a fresh session is created in the picked
+ *   directory via `SessionManager.create`, then `ctx.switchSession`.
  *
  * ---------------------------------------------------------------------------
  * SESSION CLEANUP
@@ -479,7 +472,10 @@ class CdOverlay implements Focusable {
 
 	// ---- entry-list operations ----
 
-	/** Refresh `entries` to reflect the current state of `currentDir` / `isShowingDrives` / `input`. */
+	/** Refresh `entries` to reflect the current state of `currentDir` / `isShowingDrives` / `input`.
+	 * Always resets `selectedIndex` to 0 (top of the listing). The current
+	 * folder is prepended as a synthetic "./" entry so the user can pick
+	 * it directly with Enter without navigating up a level. */
 	private refreshEntries(): void {
 		if (this.isShowingDrives) {
 			// Drive list. Each entry tagged with `kind: "drive"` so confirm
@@ -490,20 +486,24 @@ class CdOverlay implements Focusable {
 				label: d,
 				kind: "drive" as const,
 			}));
-			this.selectedIndex = Math.min(
-				this.selectedIndex,
-				Math.max(0, this.entries.length - 1),
-			);
+			this.selectedIndex = 0;
+			this.scrollOffset = 0;
 			return;
 		}
 
-		// Dir mode — no synthetic `..` row. Left-arrow is the only way up.
+		// Dir mode. The current folder is prepended as entry[0] ("./")
+		// so the user can select it with Enter without navigating up.
+		// Left-arrow remains the only way to go to the parent.
 		const found = findDirectoriesAtDepth(this.currentDir, this.input, this.maxDepth);
-		this.entries = found.map((e) => ({ ...e, kind: "dir" as const }));
-		if (this.selectedIndex >= this.entries.length) {
-			this.selectedIndex = Math.max(0, this.entries.length - 1);
-		}
-		// Clamp scroll so selection stays visible.
+		const foundDirs = found.map((e) => ({ ...e, kind: "dir" as const }));
+		const currentEntry: DirEntry = {
+			value: this.currentDir,
+			label: "./",
+			kind: "dir",
+		};
+		this.entries = [currentEntry, ...foundDirs];
+		this.selectedIndex = 0;
+		this.scrollOffset = 0;
 		this.clampScroll();
 	}
 
@@ -576,11 +576,12 @@ class CdOverlay implements Focusable {
 		this.input = "";
 		this.cursor = 0;
 		this.refreshEntries();
-		this.selectedIndex = 0;
 	}
 
 	/** Right-arrow / drill: open the highlighted entry as a directory.
-	 *  If the highlighted folder has no subdirectories, this is a no-op. */
+	 *  If the highlighted folder has no subdirectories, this is a no-op.
+	 *  Drilling into the synthetic "./" entry is a no-op (you're already
+	 *  in this folder). */
 	private drillIntoSelected(): void {
 		const entry = this.entries[this.selectedIndex];
 		if (!entry) return;
@@ -590,11 +591,12 @@ class CdOverlay implements Focusable {
 			this.isShowingDrives = false;
 			this.input = "";
 			this.cursor = 0;
-			this.scrollOffset = 0;
 			this.refreshEntries();
-			this.selectedIndex = 0;
 			return;
 		}
+		// Don't drill into the synthetic "./" — it would be a no-op since
+		// currentDir would not change.
+		if (entry.value === this.currentDir) return;
 		// Dir mode → only drill if the folder has children. Cheap peek via
 		// the two-level cache; treats empty folders as a no-op so the
 		// user can never enter a leaf folder via → (per spec).
@@ -603,9 +605,7 @@ class CdOverlay implements Focusable {
 		this.currentDir = entry.value;
 		this.input = "";
 		this.cursor = 0;
-		this.scrollOffset = 0;
 		this.refreshEntries();
-		this.selectedIndex = 0;
 	}
 
 	private showDrives(): void {
@@ -613,7 +613,6 @@ class CdOverlay implements Focusable {
 		this.input = "";
 		this.cursor = 0;
 		this.refreshEntries();
-		this.selectedIndex = 0;
 	}
 
 	/** Tab: complete the highlighted entry into the input field. */
@@ -639,28 +638,27 @@ class CdOverlay implements Focusable {
 			return;
 		}
 
-		// Dir mode. Three subcases:
-		//  (a) Highlighted entry is a real folder → pick it.
-		//  (b) No highlighted entry + no input → pick the current folder
-		//      (the user pressed Enter on an empty listing; the most
-		//      useful interpretation is "select where I am").
-		//  (c) No highlighted entry + input has text → fall back to the
-		//      CLI-arg resolve/create flow with the typed text.
+		// Dir mode. The synthetic "./" entry at index 0 represents the
+		// current folder. If the user typed something AND the only entry is
+		// "./" (i.e. no children matched the filter), fall through to the
+		// typed-resolution flow so the typed text isn't silently dropped.
+		const isCurrentEntry =
+			entry?.kind === "dir" && entry.value === this.currentDir;
+		if (
+			isCurrentEntry &&
+			this.input.trim().length > 0 &&
+			this.entries.length === 1
+		) {
+			this.done({ kind: "typed", text: this.input.trim() });
+			return;
+		}
+
 		if (entry?.kind === "dir") {
 			this.done({ kind: "picked", directory: entry.value });
 			return;
 		}
-		if (this.entries.length === 0) {
-			if (this.input.trim().length > 0) {
-				// (c) Typed a non-matching path; defer to handleCdCommand.
-				this.done({ kind: "typed", text: this.input.trim() });
-				return;
-			}
-			// (b) Empty folder, no input typed — pick the current folder.
-			this.done({ kind: "picked", directory: this.currentDir });
-			return;
-		}
-		// Defensive no-op (shouldn't reach here).
+		// Defensive no-op (shouldn't reach here — refreshEntries always
+		// produces at least the "./" entry in dir mode).
 	}
 
 	// ---- input editing (textbox cursor within `this.input`) ----
@@ -794,7 +792,7 @@ class CdOverlay implements Focusable {
 		}
 
 		lines.push(blank);
-		for (const helpLine of this.renderHelp(innerW, isEmpty)) {
+		for (const helpLine of this.renderHelp(innerW)) {
 			lines.push(cell(helpLine));
 		}
 		lines.push(border(`╰${"─".repeat(innerW)}╯`));
@@ -887,7 +885,7 @@ class CdOverlay implements Focusable {
 		return inner;
 	}
 
-	private renderHelp(innerW: number, isEmptyFolder: boolean): string[] {
+	private renderHelp(innerW: number): string[] {
 		const th = this.theme;
 		let controlsLine: string;
 		let extraLine: string | null = null;
@@ -897,16 +895,14 @@ class CdOverlay implements Focusable {
 			controlsLine =
 				"↑↓ = navigate | → = Enter | Enter = Select | Esc = cancel";
 			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom`;
-		} else if (isEmptyFolder) {
-			// Empty folder: no → (nothing to drill), no Tab. User can
-			// Enter to pick the current folder. Page keys no-op so we
-			// skip the extra line for cleanliness.
-			controlsLine =
-				"↑↓ = navigate | ← = Up level | Enter = Select this folder | Esc = cancel";
 		} else {
+			// Dir mode — "./" at the top is the current folder; press
+			// Enter on it to switch to a fresh session right here, or use
+			// ← to go up a level. Tab autocompletes the highlighted entry
+			// into the input.
 			controlsLine =
-				"↑↓ = navigate | ← = Up level | → = Enter | Enter = Select folder | Tab = Auto complete | Esc = cancel";
-			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom`;
+				"↑↓ = navigate | ← = Up level | → = Enter | Enter = Select | Tab = Auto complete | Esc = cancel";
+			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom | ./ = current folder`;
 		}
 		const lines: string[] = [
 			truncateToWidth(` ${th.fg("dim", controlsLine)}`, innerW, "", true),
@@ -919,130 +915,7 @@ class CdOverlay implements Focusable {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PreserveOverlay — Yes/No picker matching the dir-browser style
-// ─────────────────────────────────────────────────────────────────────────────
-
-type PreserveResult =
-	| { kind: "yes" }
-	| { kind: "no" }
-	| { kind: "cancelled" };
-
-/**
- * Modal Yes/No picker rendered in the same box-drawing style as
- * CdOverlay, so the preserve-session step visually matches the
- * directory picker that follows. Arrow keys to navigate,
- * Enter to confirm, Esc to cancel. No timeout / countdown.
- */
-class PreserveOverlay implements Focusable {
-	focused = false;
-	private selectedIndex = 0;
-	private readonly options = ["Yes", "No"] as const;
-
-	private cachedWidth?: number;
-	private cachedLines?: string[];
-
-	constructor(
-		private theme: Theme,
-		private done: (result: PreserveResult) => void,
-	) {}
-
-	handleInput(data: string): void {
-		this.invalidateCache();
-		if (matchesKey(data, "escape")) {
-			this.done({ kind: "cancelled" });
-			return;
-		}
-		if (matchesKey(data, "up")) {
-			this.selectedIndex = 0;
-			return;
-		}
-		if (matchesKey(data, "down")) {
-			this.selectedIndex = 1;
-			return;
-		}
-		if (matchesKey(data, "return") || matchesKey(data, "enter")) {
-			const kind = this.options[this.selectedIndex] === "Yes" ? "yes" : "no";
-			this.done({ kind });
-			return;
-		}
-	}
-
-	render(termWidth: number): string[] {
-		const w = Math.max(40, Math.min(64, termWidth));
-		if (this.cachedLines && this.cachedWidth === w) return this.cachedLines;
-
-		const th = this.theme;
-		const innerW = w - 2;
-		const lines: string[] = [];
-
-		const border = (s: string) => th.fg("border", s);
-		const cell = (inner: string) => border("│") + inner + border("│");
-		const blank = cell(" ".repeat(innerW));
-
-		lines.push(this.renderTopBorder(innerW));
-		lines.push(blank);
-
-		// Render the two options centered, one per row, with a ❯ highlight.
-		for (let i = 0; i < this.options.length; i++) {
-			const label = this.options[i];
-			const isSelected = i === this.selectedIndex;
-			const prefix = isSelected ? "❯ " : "  ";
-			const text = `${prefix}${label}`;
-			const row = isSelected
-				? th.bg("selectedBg", truncateToWidth(text, innerW, "", true))
-				: truncateToWidth(`${prefix}${th.fg("text", label)}`, innerW, "", true);
-			lines.push(cell(row));
-		}
-
-		lines.push(blank);
-		lines.push(cell(this.renderHelp(innerW)));
-		lines.push(border(`╰${"─".repeat(innerW)}╯`));
-
-		this.cachedWidth = w;
-		this.cachedLines = lines;
-		return lines;
-	}
-
-	invalidate(): void {
-		this.invalidateCache();
-	}
-
-	dispose(): void {
-		this.invalidateCache();
-	}
-
-	private invalidateCache(): void {
-		this.cachedWidth = undefined;
-		this.cachedLines = undefined;
-	}
-
-	private renderTopBorder(innerW: number): string {
-		const th = this.theme;
-		const title = " 📂 Preserve current session? ";
-		const titleW = visibleWidth(title);
-		const leadDashW = 1;
-		const tailDashCount = Math.max(1, innerW - leadDashW - titleW);
-		return (
-			th.fg("border", "╭") +
-			th.fg("border", "─") +
-			th.fg("accent", title) +
-			th.fg("border", "─".repeat(tailDashCount)) +
-			th.fg("border", "╮")
-		);
-	}
-
-	private renderHelp(innerW: number): string {
-		const th = this.theme;
-		const content = ` ${th.fg(
-			"dim",
-			"↑↓ = navigate | Enter = Select | Esc = cancel",
-		)}`;
-		return truncateToWidth(content, innerW, "", true);
-	}
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Command handler — preserve-session prompt + picker overlay
+// Command handler — picker overlay + session switch
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function handleCdCommand(
@@ -1053,10 +926,9 @@ async function handleCdCommand(
 	const trimmedArg = args.trim();
 
 	if (trimmedArg.length > 0) {
-		// One-shot path: resolve + confirm + switch. Always fresh (preserve=false).
+		// One-shot path: resolve + confirm + switch. Always fresh.
 		const target = await resolveOrCreateDirectory(trimmedArg, ctx);
-		if (target !== null)
-			await switchToNewSession(target, /* preserve */ false, ctx);
+		if (target !== null) await switchToNewSession(target, ctx);
 		return;
 	}
 
@@ -1068,18 +940,7 @@ async function handleCdCommand(
 		return;
 	}
 
-	// Step 1: ask whether to preserve or fresh-start.
-	const preserveChoice = await ctx.ui.custom<PreserveResult>(
-		(_tui, theme, _keybindings, done) => new PreserveOverlay(theme, done),
-		{ overlay: true },
-	);
-	if (!preserveChoice || preserveChoice.kind === "cancelled") {
-		// User dismissed the dialog — cancel the whole flow.
-		return;
-	}
-	const preserve = preserveChoice.kind === "yes";
-
-	// Step 2: directory-picker overlay.
+	// Directory-picker overlay.
 	const result = await ctx.ui.custom<PickerResult>(
 		(_tui, theme, _keybindings, done) =>
 			new CdOverlay(theme, ctx.cwd, maxDepth, done),
@@ -1087,16 +948,17 @@ async function handleCdCommand(
 	);
 	if (!result || result.kind === "cancelled") return;
 
-	// Step 3: switch session in the picked directory.
+	// Switch session in the picked directory. Always fresh — `/cd` no
+	// longer offers the option to resume a previous session in the
+	// target dir.
 	if (result.kind === "typed") {
 		// User typed a non-matching path in the overlay — run it through
-		// the same resolve/create flow as a CLI arg, preserving the
-		// preserve/fresh choice.
+		// the same resolve/create flow as a CLI arg.
 		const target = await resolveOrCreateDirectory(result.text, ctx);
-		if (target !== null) await switchToNewSession(target, preserve, ctx);
+		if (target !== null) await switchToNewSession(target, ctx);
 		return;
 	}
-	await switchToNewSession(result.directory, preserve, ctx);
+	await switchToNewSession(result.directory, ctx);
 }
 
 async function resolveOrCreateDirectory(
@@ -1145,77 +1007,49 @@ async function resolveOrCreateDirectory(
 
 async function switchToNewSession(
 	targetDir: string,
-	preserve: boolean,
 	ctx: ExtensionCommandContext,
 ): Promise<void> {
-	const action = preserve ? "Resuming session in" : "Moving to";
-	ctx.ui.notify(`${action} ${targetDir}...`, "info");
+	ctx.ui.notify(`Moving to ${targetDir}...`, "info");
 
 	try {
 		let newSession: SessionManager;
 		try {
-			newSession = preserve
-				? SessionManager.continueRecent(targetDir)
-				: SessionManager.create(targetDir);
+			newSession = SessionManager.create(targetDir);
 		} catch (err) {
 			ctx.ui.notify(
-				`Failed to ${preserve ? "locate a recent session in" : "create session in"} ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
+				`Failed to create session in ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
 				"error",
 			);
 			return;
 		}
 
 		const sessionFile = newSession.getSessionFile();
-
-		// sessionFile is undefined only for in-memory sessions that have
-		// no persistent file. In that case (preserve=true but no recent
-		// session found), fall back to creating one.
-		let activeFile: string | undefined = sessionFile;
-		let activeId: string;
-
-		if (!activeFile) {
-			// Fallback path: continueRecent found nothing → make a fresh
-			// session and persist it.
-			try {
-				newSession = SessionManager.create(targetDir);
-				activeFile = newSession.getSessionFile();
-				if (!activeFile) {
-					ctx.ui.notify(
-						"Failed to create new session (no session file path)",
-						"error",
-					);
-					return;
-				}
-			} catch (err) {
-				ctx.ui.notify(
-					`Failed to create fallback session in ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
-					"error",
-				);
-				return;
-			}
+		if (!sessionFile) {
+			ctx.ui.notify(
+				"Failed to create new session (no session file path)",
+				"error",
+			);
+			return;
 		}
 
-		activeId = newSession.getSessionId();
-
-		// Critical: DO NOT overwrite an existing session file (preserve
-		// mode may have found a recent session). Only write a fresh
-		// header when the target file does not already exist.
-		if (!fs.existsSync(activeFile)) {
-			const header = {
-				type: "session",
-				version: 3,
-				id: activeId,
-				timestamp: new Date().toISOString(),
-				cwd: targetDir,
-			};
-			const sessionDir = newSession.getSessionDir();
-			if (!fs.existsSync(sessionDir)) {
-				fs.mkdirSync(sessionDir, { recursive: true });
-			}
-			fs.writeFileSync(activeFile, JSON.stringify(header) + "\n", "utf-8");
+		// Always write a fresh session header for the new directory — `/cd`
+		// now always starts a fresh session. `fs.writeFileSync` overwrites
+		// any existing file at this path; the `session_shutdown` handler
+		// cleans up empty sessions later.
+		const header = {
+			type: "session",
+			version: 3,
+			id: newSession.getSessionId(),
+			timestamp: new Date().toISOString(),
+			cwd: targetDir,
+		};
+		const sessionDir = newSession.getSessionDir();
+		if (!fs.existsSync(sessionDir)) {
+			fs.mkdirSync(sessionDir, { recursive: true });
 		}
+		fs.writeFileSync(sessionFile, JSON.stringify(header) + "\n", "utf-8");
 
-		await ctx.switchSession(activeFile);
+		await ctx.switchSession(sessionFile);
 	} catch (err) {
 		ctx.ui.notify(
 			`Failed to move: ${err instanceof Error ? err.message : String(err)}`,
@@ -1259,7 +1093,7 @@ export function createCd(pi: ExtensionAPI): void {
 
 	pi.registerCommand("cd", {
 		description:
-			"Switch to a different directory. No args → interactive picker + preserve/fresh session prompt. With a path → direct switch (always fresh).",
+			"Switch to a different directory. No args → interactive picker (always fresh session). With a path → direct switch (always fresh).",
 		getArgumentCompletions: (): null => null,
 		handler: async (args, ctx) => {
 			await handleCdCommand(args, maxDepth, ctx);

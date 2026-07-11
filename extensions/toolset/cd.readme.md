@@ -1,8 +1,9 @@
 # cd.ts
 
 Directory-navigation slash command. Switches the current Pi session to
-a different directory - interactively (preserve-or-fresh picker +
-tree-style overlay) or by path argument.
+a different directory - interactively (tree-style overlay) or by path
+argument. **Always starts a fresh session** in the target directory;
+there is no option to resume a previous session there.
 
 ## Slash commands (2)
 
@@ -15,43 +16,23 @@ tree-style overlay) or by path argument.
 
 | Invocation | Headless / RPC / `-p` | Interactive TUI |
 |---|---|---|
-| `/cd` (no args) | `ui.notify` error suggesting a path argument | Two-step: (1) PreserveOverlay Yes/No, (2) CdOverlay tree picker |
+| `/cd` (no args) | `ui.notify` error suggesting a path argument | Opens the CdOverlay tree picker; on Enter, switches to a fresh session in the picked dir |
 | `/cd existing-dir` | switches directly (fresh session) | switches directly (fresh session) |
 | `/cd missing-dir` (parent exists) | prompts `ctx.ui.confirm`, then creates + switches (fresh) | prompts, then creates + switches (fresh) |
 | `/cd missing-dir` (parent missing) | `ui.notify` error, aborts | `ui.notify` error, aborts |
-| `Esc` from preserve Yes/No | n/a | cancels the entire flow (no session touched) |
-| `Esc` from picker | n/a | cancels the entire flow |
+| `Esc` from picker | n/a | cancels the entire flow (no session touched) |
 | `/cd-set-max-depth N` | sets depth to N (or error if out of range) | sets depth to N (or error if out of range) |
 | `/cd-set-max-depth` (no args) | notify current value | opens 2–10 picker |
 
-## Two-step interactive flow (no arguments)
+## Interactive flow (no arguments)
 
-### Step 1 - preserve vs fresh (PreserveOverlay)
+A single step: the directory-picker overlay (`CdOverlay`) opens
+immediately. On confirm, a fresh session is created in the picked
+directory via `SessionManager.create` and `ctx.switchSession` is called.
+**There is no preserve-vs-fresh prompt** - `/cd` always starts a fresh
+session.
 
-A custom modal matching the dir-browser visual style. Arrow keys to
-navigate (↑↓), Enter to confirm, Esc to cancel. **No timeout /
-countdown** - only Esc cancels.
-
-```text
-╭─ 📂 Preserve current session? ──────────────╮
-│                                            │
-│   ❯ Yes                                    │
-│     No                                     │
-│                                            │
-│   ↑↓ = navigate | Enter = Select | Esc …   │
-╰────────────────────────────────────────────╯
-```
-
-- **Yes** → `SessionManager.continueRecent(targetDir)`. If a recent
-  session file already exists for the target directory, pi resumes
-  from it (no overwrite). If none exists, a fresh session is created.
-- **No** → `SessionManager.create(targetDir)`. A brand-new empty
-  session is always written.
-
-The choice is held in closure until a target directory is picked -
-cancelling the picker cancels the whole flow.
-
-### Step 2 - directory picker (CdOverlay)
+### Directory picker (CdOverlay)
 
 A wider, scrollable tree-style overlay (width 72–160, defaults to 110).
 Cyan header line shows `Current Path: <path>` (or just `Drives` in
@@ -64,7 +45,8 @@ drive-listing mode). **No `..` row** - left-arrow is the only way up.
 │                                                                            │
 │   Current Path: W:\Dev\pi-aftc-toolset                                     │
 │                                                                            │
-│   ❯ .bak/                                                                 │
+│   ❯ ./                              ← current folder (Enter to pick)      │
+│     .bak/                                                                 │
 │     docs/                                                                 │
 │     extensions/                                                           │
 │       extensions/toolset/             ← depth-2 with full path            │
@@ -81,6 +63,15 @@ drive-listing mode). **No `..` row** - left-arrow is the only way up.
 
 #### Listing rules
 
+- **Selection always starts at the top** (`selectedIndex === 0`). On
+  open, after navigating up (←), after drilling in (→), after typing
+  to filter, or after Tab-autocompleting, the viewport resets to the
+  top entry.
+- **Synthetic `./` entry at the top.** The current folder is always
+  prepended as entry 0, so the user can pick it with Enter without
+  having to navigate up a level first. Pressing Enter on `./` switches
+  to a fresh session in the current directory. `→` on `./` is a
+  no-op (you’re already there).
 - **No `..` row.** Up-navigation is exclusively via the **←** key.
 - Direct children shown first, depth-N grandchildren shown next (N
   = current max-depth setting, default 3). Depth-2+ entries use full
@@ -119,45 +110,33 @@ No `..` row - you're at the top.
 `drillIntoSelected` checks the entry's children via the readdir cache
 and is a **no-op** when the folder is empty. The user cannot enter
 a leaf folder via → (per the spec). They must use ← to leave, type
-a path + Enter, or pick a different folder.
-
-#### Initial open at an empty folder
-
-If `currentDir` happens to be empty when the picker opens, the
-listing shows "No subdirectories". Pressing Enter with no input
-and no highlighted entry selects the current folder (most useful
-interpretation: "I want to be right here"). Pressing ← navigates up.
+a path + Enter, or pick a different folder. Even in an empty folder
+the synthetic `./` entry is still present and selectable.
 
 #### Typed-input fallback
 
 If the user types a path in the input field that doesn't match any
-listing result, Enter falls through to the same resolve/create flow
-that `/cd <path>` uses. Tab autocompletes the highlighted entry into
-the input.
+child directory, the listing collapses to just `./`. Pressing Enter
+in that state **does not** silently pick the current folder - it
+falls through to the same resolve/create flow that `/cd <path>`
+uses, so the typed text isn't dropped. Tab autocompletes the
+highlighted entry into the input.
 
 ## Keyboard reference (CdOverlay)
 
 | Key | Action |
 |---|---|
 | `↑` / `↓` | Move selection. The viewport follows so the selected row is always visible. |
-| `←` | Navigate up one level. At drive root → switch to drives-listing. |
-| `→` | Drill into the highlighted entry (refresh listing). **No-op on empty folders.** |
-| `Enter` | Confirm: select the highlighted entry, or pick currentDir on empty listing. |
-| `Tab` | Autocomplete the highlighted entry into the input. |
+| `←` | Navigate up one level. At drive root → switch to drives-listing. Selection resets to the top after refresh. |
+| `→` | Drill into the highlighted entry (refresh listing). **No-op on empty folders or on the `./` current-folder entry.** Selection resets to the top after refresh. |
+| `Enter` | Confirm the highlighted entry. On the `./` current-folder entry, switches to a fresh session right here. If `./` is the only entry left after typing a non-matching path, falls through to typed-resolution. |
+| `Tab` | Autocomplete the highlighted entry into the input. Selection resets to the top after the listing rebuilds. |
 | `Esc` | Cancel - no session change. |
 | `PgUp` / `PgDn` | Jump up / down by the **visible viewport size** (tracked automatically - each page step equals the number of rows the overlay actually paints, so terminal size / overlay height changes the step automatically). Clamped at row 0 / last; no wrap-around. |
 | `Ctrl+PgUp` / `Ctrl+PgDn` | Jump to first / last entry. |
 | `Backspace` / `Delete` / `Ctrl+U` / `Ctrl+K` / `Ctrl+W` | Edit the input. |
 | `Home` / `End` (or `Ctrl+A` / `Ctrl+E`) | Move input cursor. |
-| Plain characters | Insert into input (refreshes listing by fuzzy match). |
-
-## Keyboard reference (PreserveOverlay)
-
-| Key | Action |
-|---|---|
-| `↑` / `↓` | Move between Yes and No. |
-| `Enter` | Confirm the highlighted option. |
-| `Esc` | Cancel the whole `/cd` flow. |
+| Plain characters | Insert into input (refreshes listing by fuzzy match; selection resets to top). |
 
 ## Cross-platform path handling
 
@@ -199,13 +178,12 @@ Self-contained, no cross-module state. The orchestrator
 ## Failure modes
 
 - `/cd` invoked headless with no args → `ui.notify` error.
-- `PreserveOverlay` cancelled → entire flow aborts silently.
-- `CdOverlay` cancelled → entire flow aborts silently.
+- `CdOverlay` cancelled (Esc) → entire flow aborts silently.
 - Target directory missing **and** parent dir missing → `ui.notify` error.
 - `ctx.ui.confirm` declined → operation aborts silently.
 - `mkdirSync` throws (permissions, etc.) → `ui.notify` error.
-- `SessionManager.create` / `continueRecent` returns no session file → `ui.notify` error.
-- `SessionManager.continueRecent` finds an existing session file → preserved 1:1, NOT overwritten.
+- `SessionManager.create` returns no session file → `ui.notify` error.
+- `/cd` into a directory that has an existing session file → fresh session written, **existing session history in that dir is overwritten** (there is no longer a preserve option).
 - `ctx.switchSession` rejects → caught and surfaced via `ui.notify`.
 - `/cd-set-max-depth <n>` with out-of-range n → `ui.notify` error; current value unchanged.
 - `/cd-set-max-depth` (no args) cancelled → no change.
