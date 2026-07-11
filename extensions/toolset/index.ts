@@ -16,6 +16,7 @@
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
  *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
  *   - dir.ts          — /dir /ls: list current directory contents (platform-native)
+ *   - cwd.ts          — /cwd: show the current working directory (inline card)
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -43,6 +44,7 @@ import { createResponseDivider } from "./response";
 import { createStfu } from "./stfu";
 import { createCd } from "./cd";
 import { createDir } from "./dir";
+import { createCwd } from "./cwd";
 
 export default function (pi: ExtensionAPI): void {
 	try {
@@ -58,6 +60,7 @@ export default function (pi: ExtensionAPI): void {
 	createStfu(pi);
 	createCd(pi);
 	createDir(pi);
+	createCwd(pi);
 
 	// Core owns the data; the widget renders it. The orchestrator wires
 	// them so neither module imports the other (rules.md §1.5).
