@@ -119,7 +119,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 ### Bundled themes
 
 - **cache-viz** - cache-focused green/cyan colour scheme.
-- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default).
+- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default, recommended).
 - **aftc-black-n-blue** - dark blue accents on black, optimised for long sessions.
 
 Switch themes with `/theme`.
