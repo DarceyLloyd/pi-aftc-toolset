@@ -1,342 +1,163 @@
 # pi-aftc-toolset
 
 [![GitHub release](https://img.shields.io/github/v/release/DarceyLloyd/pi-aftc-toolset)](https://github.com/DarceyLloyd/pi-aftc-toolset/releases/latest)
+[![npm](https://img.shields.io/npm/v/pi-aftc-toolset)](https://www.npmjs.com/package/pi-aftc-toolset)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
 `pi-aftc-toolset` is a collection of tools for pi - from my point of view, essentials to assist with what I do on a daily basis and to get the most out of AI models.
 
-## Recent updates
-- Fixed to work with latest version of pi
-- added /dir and /ls alias for quick dir listings
-- added /cwd to show the current working directory
-- updated /cd (removed menu for resume session yes/no, you can use pi's /session to restore a session)
-- updated /cd dir listing so that ./ is listed at the top, so you can select the current dir without having to go up 1 level and select it
-- update /cd so that when viewing long dir listings you are placed at the top of the dir list and not the bottom
+---
 
-## Main Features
+## What's new in v1.6.0
 
-- Live footer widget which displays cache hit rate, cache efficiency, context time and live cost tracking.
-- Secure SSH GUI that keeps server credentials away from the AI.
-- Usage reports with model rankings, trends and spending insights (ALPHA, in development).
-- Cache diagnostics and profiling tools.
-- Themed response divider above every assistant reply.
-- Built-in cache-oriented theme.
-- Keyboard shortcuts and productivity commands.
-- Quick directory switching - jump to a fresh Pi session (or not) in another directory with `/cd`, no quit-and-relaunch needed.
+- **`/cwd`** - new slash command that prints the current working directory as an inline card in the conversation transcript (same style as `/dir`).
+- **`/cd` picker rewrite** - synthetic `./` current-folder entry at the top of the listing, selection always resets to the top, and the preserve-vs-fresh prompt is gone (`/cd` always starts a fresh session; resume via pi's built-in `/session`).
+- **`/dir`, `/ls`** now registered in the `/aftc-help` output.
+- Two new behavioural test harnesses (`cd-no-preserve`, `cd-picker-top`), 51 new assertions.
 
 ---
 
-# Installation
+## Install
 
-## Quick Install
-
-**GitHub**
-
-```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset
-```
-
-**npm**
+### Option 1 - npm (recommended)
 
 ```bash
 pi install npm:pi-aftc-toolset
 ```
 
-Start pi:
-
-```bash
-pi
-```
-
-Install runtime dependencies:
-
-**Note:** `pi install` typically doesn't install native runtime dependencies.
-If features such as SQLite or SSH are unavailable, run `/aftc-install`.
-
-```text
-/aftc-install
-```
-
-Restart pi or run:
+Then in pi:
 
 ```text
 /reload
 ```
 
-> **First run note:** `pi install` does not always run a package's
-> runtime installers. This toolset uses a native SQLite dependency
-> plus Python GUI dependencies for SSH. If pi reports missing
-> dependencies, run `/aftc-install` (see
-> [Dependency installer](#dependency-installer)).
+> **Runtime dependencies:** `pi install` does not always install native runtime deps. If SQLite or SSH features are unavailable, run `/aftc-install` (see [Dependency installer](#dependency-installer)).
 
----
-
-# Uninstall
+### Option 2 - GitHub
 
 ```bash
-pi remove npm:pi-aftc-toolset
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset
 ```
 
-Project-local:
+Then in pi:
 
-```bash
-pi remove npm:pi-aftc-toolset -l
+```text
+/aftc-install     # installs better-sqlite3 + Python GUI deps
+/reload
 ```
 
-or via GitHub:
-
-```bash
-pi remove git:github.com/DarceyLloyd/pi-aftc-toolset
-```
-
-Then reload or restart pi.
+> **GitHub installs require `/aftc-install`.** GitHub installs skip the npm post-install hook, so native dependencies (better-sqlite3, the bundled Python SSH GUI) are not installed automatically. Run `/aftc-install` once after the first install, then `/reload`.
 
 ---
 
-# Included Features
+## Slash Commands
 
-## Caching features
+Run `/aftc-help` inside pi for the same list grouped by category.
 
-This extension does not change pi's caching - providers already
-cache the prompt prefix automatically. What it adds is
-**visibility and analytical tooling on top of caching**, so you
-can see when the cache is helping, when it isn't, and why.
+### General
 
-Specifically: a live hit-rate readout, prefix-shape hashing that
-detects cache invalidations mid-session, a cache-write ROI
-calculation, a per-tool token-cost breakdown that surfaces prefix
-bloat, and a `cache-audit` skill that walks the model through
-diagnosis. The `cache-viz` theme reinforces the cache metrics
-visually. None of this exists in stock pi - these are diagnostics
-the user would otherwise have to assemble from raw session JSONL.
+| Command | What it does |
+| --- | --- |
+| `/aftc-help` | Grouped command/shortcut reference |
+| `/aftc-install` | Install runtime deps (SQLite + Python SSH GUI) |
+| `/aftc-response-divider` | Toggle the themed divider above each assistant reply |
+| `/cls` | Clear the terminal |
+| `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
 
----
+### Interrupt
 
-## Footer Widget
+| Command | What it does |
+| --- | --- |
+| `/aftc-stop` | Abort the current agent operation |
+| `/stfu` | Short alias for `/aftc-stop` |
 
-A live diagnostics widget showing:
+### Navigation
 
-- Current model and thinking level
-- Cache hit rate (turn + session)
-- Context time
-- Cost per minute/hour
-- Token usage
-- Tool and skill usage
-- Thinking and response times
-- AVG-window aggregates from the SQLite `turns` table
-  (configurable time window via `/aftc-footer-report-timeframe`,
-  default Today)
+| Command | What it does |
+| --- | --- |
+| `/cd [path]` | Switch directory (interactive picker or one-shot path). Always starts a fresh session. |
+| `/cd-set-max-depth [2-10]` | Set the `/cd` picker listing depth (default 3) |
+| `/dir` (alias `/ls`) | Show the current directory name + platform-native listing |
+| `/cwd` | Show the current working directory as an inline card |
 
----
+### Footer, cache, timing
 
-## Secure SSH
+| Command | What it does |
+| --- | --- |
+| `/aftc-footer` | Toggle the four-line cache/timing/cost footer widget |
+| `/aftc-footer-report-timeframe` | Set the footer AVG-window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d) |
+| `/cache-profile` | Per-tool token costs, prefix shape, churn analysis |
+| `/cache-stats` | Current-context cache diagnostics + cost rate |
+| `/cache-reset` | Zero accumulators and timer (debugging) |
 
-A local Python GUI provides persistent SSH sessions while ensuring
-usernames, passwords and server addresses never enter the model
-context.
+### SSH
 
-Features include:
+| Command | What it does |
+| --- | --- |
+| `/ssh-gui` | Launch the local PyQt6 SSH GUI |
+| `/ssh-connect` | Connect to `user@host[:port]` (use the GUI for credentials) |
+| `/ssh-run` | Run a one-shot command on the connected server |
+| `/ssh-status` | Show GUI running state + connection status |
+| `/ssh-disconnect` | Disconnect the active SSH session (use the GUI) |
 
-- Persistent SSH sessions
-- AI-callable SSH tools
-- Local GUI
-- Secure credential isolation
-- Session logging
+### Usage
 
-See **SSH Remote Terminal** below.
+| Command | What it does |
+| --- | --- |
+| `/usage-report` | Write + open `report.html` (ALPHA) |
+| `/usage-clear` | Delete all SQLite rows (with confirmation) |
 
----
+### Keyboard shortcuts
 
-## Usage Reports
+| Shortcut | Action |
+| --- | --- |
+| `Alt+C` | Clear the input editor |
+| `Ctrl+T` | Toggle thinking blocks (pi built-in) |
 
-ALPHA - in development. The feature works but the output, schema, and
-defaults may change before the first stable release.
-
-Generate a self-contained HTML report containing:
-
-- Lifetime statistics
-- Model leaderboards
-- Cost breakdowns
-- Cache efficiency
-- Trend charts
-- Cost projections
-
----
-
-## Cache Diagnostics
-
-Built-in commands help diagnose cache behaviour.
-
-- `/cache-profile`
-- `/cache-stats`
-- `/cache-reset`
-- `cache-audit` skill
-
----
-
-## Response Divider
-
-A full-width themed rule rendered above every assistant reply, making
-it easier to scan a long conversation. Toggle it with
-`/aftc-response-divider`.
-
----
-
-## Interrupt
-
-When a reasoning model gets stuck in a long internal monologue or a
-runaway tool-call loop, hit `/aftc-stop` (or `/stfu`) to abort the
-current agent operation and return to the editor. Both commands call
-`ctx.abort()` under the hood and behave identically - `/stfu` is just
-a short alias you can type in a hurry. When the agent is already
-idle, you'll get a friendly "Agent is already idle - nothing to
-stop." notification instead of a silent no-op.
-
----
-
-## Quick Directory Navigation
-
-Pi is locked to one working directory per session. `/cd` switches
-to a different directory - interactively (tree picker with `←`/`→`
-navigation, drive listings, page-key shortcuts,
-`/cd-set-max-depth [2-10]`) or via a direct path argument. Always
-starts a fresh session in the target directory. See **Quick
-directory navigation** under Feature Guides for full usage.
-
----
-
-## Included Themes
+### Bundled themes
 
 - **cache-viz** - cache-focused green/cyan colour scheme.
 - **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default).
 
----
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| `Alt+C` | Clear editor |
-| `Ctrl+T` | Toggle thinking blocks |
-| `/cls` | Clear terminal |
+Switch themes with `/theme`.
 
 ---
 
-# Commands
+## Feature Guides
 
-## General
+Detailed how-tos for each feature. See [Slash Commands](#slash-commands) above for the command list itself.
 
-- `/aftc-help`
-- `/aftc-install`
-- `/aftc-response-divider`
-- `/cls`
-- `/theme` - open a theme picker. Pre-selects the active theme, supports arrow keys, PageUp / PageDown for page jumps, Ctrl+PageUp / Ctrl+PageDown for top / bottom, Enter to switch, Esc to cancel. Handles 100s of themes without losing place.
+### Footer widget
 
-## Interrupt
+A four-line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler.
 
-- `/aftc-stop` - stop the current agent operation (escape a runaway thinking loop or stalled tool call).
-- `/stfu` - short alias for `/aftc-stop`. Same action, fewer keystrokes.
-
-## Navigation
-
-- `/cd` - switch to a different directory. No args → interactive picker. With a path (`/cd ~/projects`, `/cd /abs/path`, `/cd ../foo`) → direct switch. Always starts a fresh session in the target directory.
-- `/cd-set-max-depth [2-10]` - set the `/cd` picker listing depth (default 3). Pass a number, or run with no args to pick from 2–10.
-- `/dir` (alias `/ls`) - show the current directory name and a platform-native directory listing (`dir` on Windows, `ls -la` on macOS/Linux), rendered as an inline card.
-- `/cwd` - show the current working directory as an inline card (same style as `/dir`).
-
-## Footer Widget, Cache, Costs, Stats +
-
-- `/aftc-footer`
-- `/aftc-footer-report-timeframe` - set the footer 4th-line time window: Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d (default: Today)
-- `/cache-profile`
-- `/cache-stats`
-- `/cache-reset`
-
-## SSH
-
-- `/ssh-gui`
-- `/ssh-connect` (best to use the GUI for this, scheduled for removal)
-- `/ssh-run`
-- `/ssh-status`
-- `/ssh-disconnect` (best to use the GUI for this, scheduled for removal)
-
-## Usage
-
-- `/usage-report` (ALPHA in development)
-- `/usage-clear`
-
----
----
----
-
-# Feature Guides
-
-## Model, Cache, Costs and usage Footer Widget
-
-The footer widget is a four-line diagnostic panel (not pi's
-footer), so it composes alongside other footer/status-bar extensions
-(e.g. pi-bar) instead of replacing them. It updates live from pi
-events and a 1Hz session sampler. Toggle it with `/aftc-footer`.
-
-What each line shows:
+**Line layout:**
 
 | Line | Shows |
 | --- | --- |
 | 1 | Model, thinking level, latest-turn cache hit rate, session-average hit rate, trend arrow, context window, IO token totals, last-turn cache split |
-| 2 | Last-turn cost, context-session total cost, user-prompt count, total model calls, context time, burn rate |
-| 3 | Active tool count/token estimate, skills `used/available` (pulled into context this session vs loaded in `<available_skills>`), thinking time, response time |
-| 4 | AVG-window aggregates from the SQLite `turns` table over a configurable time window: cost, prompts/turns, **average** cache hit rate, average thinking time, average response time |
+| 2 | Last-turn cost, session total cost, user-prompt count, total model calls, context time, burn rate |
+| 3 | Active tool count / token estimate, skills `used/available`, thinking time, response time |
+| 4 | AVG-window aggregates from SQLite (cost, prompts/turns, average cache hit rate, average thinking / response time) |
 
-Line 4's time window is configurable via `/aftc-footer-report-timeframe`.
-Options: Today (default, local 00:00 to now), 3h, 6h, 24h, 2d, 3d,
-7d, 28d. The selection persists across `/reload`, `/new`, and
-fresh pi startup (stored as a user preference in
-`.pi-aftc-toolset/data/state.json`). The label is shown in the
-footer as `AVG <label>: ...`. Refreshed at most every 10s from
-SQLite so the DB isn't hammered on every render tick.
+Line 4's time window is configurable - see `/aftc-footer-report-timeframe`. Defaults to Today; persisted across `/reload`, `/new`, and fresh pi startup (stored in `.pi-aftc-toolset/data/state.json`). Refreshed at most every 10 s from SQLite.
 
-### How cache hit rate is calculated
+**Cache hit rate:** `cacheRead / (cacheRead + input)`.
 
-pi reports `input` as **new prompt tokens** only. `cacheRead` is
-the cached prefix served by the provider. The hit rate is:
+- `Cache Turn` - latest assistant turn only.
+- `AVG` - whole-session average.
 
-```text
-cacheRead / (cacheRead + input)
-```
+**Prefix churn** is tracked in `core.ts` and surfaced by `/cache-profile` and `/cache-stats`. When the system prompt or tool schema changes between turns, `/cache-stats` shows the churn reason in the *Cache prefix shape* section.
 
-| Rate | Meaning |
-| --- | --- |
-| `Cache Turn` | Latest assistant turn only - useful for spotting immediate cache misses |
-| `AVG` | Whole-session average - better for long-term cache health |
-
-### Prefix churn
-
-Prefix shape churn is tracked in core.ts and surfaced by the
-`/cache-profile` and `/cache-stats` commands (not the footer, which
-intentionally stays focused on per-turn metrics). When the system
-prompt or tool schema changes between turns, `/cache-stats` shows
-the churn reason in the "Cache prefix shape" section, helping
-explain sudden cache drops.
-
-### Session timer modes
-
-The footer's session clock is wall-clock elapsed since the first
-user prompt of the current session. It's tracked in memory only
-(set on the first `message_start` for user, cleared on every
-`session_start` / `/cache-reset` / `/reload`). No file I/O. The
-cost rate is `acc.cost / sessionMinutes`, displayed as
-`$X.XX/hr · $X.XXX/min`.
+**Session clock:** wall-clock elapsed since the first user prompt of the current session. In-memory only; cleared on every `session_start`, `/cache-reset`, `/reload`. Cost rate displayed as `$X.XX/hr · $X.XXX/min`.
 
 ---
 
-## SSH Remote Terminal
+### SSH remote terminal
 
-The SSH feature gives the model a persistent remote terminal
-through a **visible local GUI**. The model asks the SSH tools to
-run commands; the tools talk to a local Python GUI that holds
-the real SSH connection.
+Persistent remote terminal through a **visible local GUI**. The model asks the SSH tools to run commands; the tools talk to a local Python GUI that holds the real SSH connection.
 
 ```text
 pi extension (Node.js)
@@ -347,439 +168,135 @@ pi extension (Node.js)
           └─ std/out.txt session log
 ```
 
-### How it keeps your SSH credentials away from the AI
+**Credential isolation** - the key safety design:
 
-This is the key safety design of the SSH feature:
+- Username, server address, and password are entered in the local Python GUI only - never in the pi editor, never in a prompt, never sent to the model.
+- The model only calls `ssh_run` with a **command to execute**. It never sees the connection details.
+- The Flask API binds to loopback only (`127.0.0.85:8564`).
+- The model receives command output, not credentials.
 
-- The **username, server IP/address, and password are entered in
-  the local Python GUI only** - never in the pi editor, never in a
-  prompt, and never sent to the model.
-- The model only ever calls tools like `ssh_run` with a **command
-  to execute**. It never sees the connection details.
-- The GUI holds the SSH connection and runs the command locally,
-  then returns **only the command output** to the model.
-- The Flask API that bridges the extension and the GUI binds to
-  **loopback only** (`127.0.0.85:8564`), so no other machine on
-  your network can reach it.
-- Everything you type into the GUI stays on your machine. The
-  model receives command output, not credentials.
-
-In short: **the AI gets the results of commands, never the keys to
-the server.**
-
-### AI-callable tools
-
-These tools are registered with pi so the model can use them when
-appropriate:
+**AI-callable tools:**
 
 | Tool | Description |
 | --- | --- |
 | `ssh_status` | Check whether the GUI is reachable and connected |
 | `ssh_connect` | Launch GUI, connect to `user@host[:port]`, optionally run an initial command |
 | `ssh_run` | Execute a non-interactive shell command on the connected server |
-| `ssh_peek` | Read recent output from the API buffer or the full `std/out.txt` log |
-| `ssh_interrupt` | Send repeated Ctrl+C/Ctrl+D to break hung commands |
+| `ssh_peek` | Read recent output from the API buffer or full `std/out.txt` log |
+| `ssh_interrupt` | Send repeated Ctrl+C / Ctrl+D to break hung commands |
 
-### SSH safety notes
+**Safety notes:**
 
-- Avoid interactive commands such as `vim`, `nano`, `top`, or
-  anything that waits for keystrokes through `ssh_run` - they
-  will hang. Use non-interactive alternatives.
-- Use `ssh_peek` with `mode: "file"` to inspect the full session
-  history.
-- SSH logs and std files live under `internal-python-gui/std/`
-  and are gitignored - they never get committed.
+- Avoid interactive commands (`vim`, `nano`, `top`) in `ssh_run` - they will hang.
+- Use `ssh_peek` with `mode: "file"` to inspect the full session history.
+- SSH logs under `internal-python-gui/std/` are gitignored.
 
 ---
 
-## Quick directory navigation
+### Quick directory navigation
 
-`/cd` switches the current Pi session to a different directory,
-always starting a fresh session in the target directory.
+`/cd` switches the current Pi session to a different directory, always starting a fresh session in the target directory.
 
-When invoked with no arguments, `/cd` opens a tree-style directory
-picker overlay rooted at the current working directory. On confirm,
-a new session is created in the picked directory and `switchSession`
-loads it. Cancelling the picker (Esc) leaves the current session
-untouched.
+With no arguments, `/cd` opens a tree-style directory picker overlay rooted at the current working directory. On confirm, a new session is created in the picked directory and `switchSession` loads it. Cancelling with Esc leaves the current session untouched.
 
-### Directory listing and navigation
+**Listing rules:**
 
-The picker shows a tree-style directory listing rooted at the
-current working directory:
+- A synthetic `./` entry is always at index 0 - press Enter on it to switch to a fresh session right here, without navigating up.
+- `↑ / ↓` move selection.
+- `←` navigate up one level (or to drive listing at the root).
+- `→` drill into the highlighted folder. No-op on empty folders and on `./`.
+- `Enter` confirm the highlighted entry.
+- `PgUp / PgDn` jump by the visible viewport size.
+- `Ctrl+PgUp / Ctrl+PgDn` jump to the first / last entry.
+- `Tab` autocomplete the highlighted entry into the path input.
+- `Esc` cancel without switching.
+- Selection always resets to the top after any refresh.
+- Listing is unbounded; the viewport scrolls so the selected row is always visible.
+- Typing filters the listing by fuzzy match; if no children match, Enter falls through to `/cd <typed>` resolution.
 
-- The header line shows the directory currently being browsed.
-- Direct children of that directory are listed first, with
-  descendants up to a configurable max-depth (default 3, settable
-  via `/cd-set-max-depth [2-10]`).
-- There is no `..` row - up-navigation is exclusively via the
-  **←** key. At the drive root, **←** switches to a drives
-  listing (Windows: A–Z; POSIX: `/`).
-- The listing is **unbounded** (no entry-count cap). The viewport
-  scrolls so the selected row is always visible.
+**One-shot path argument** skips the picker:
 
-#### Controls:
+- `/cd ~/projects` - home-relative.
+- `/cd /d/dev/myproject` - absolute (Windows or POSIX).
+- `/cd ../sibling-project` - relative to current cwd.
+- `/cd brand-new-project` - creates the directory after a confirm dialog if missing.
 
-- **↑ / ↓** move selection.
-- **←** navigate up one level (or to drive listing at root).
-- **→** drill into the highlighted folder (refreshes the
-  listing). No-op on empty folders.
-- **Enter** confirm the highlighted entry. On an empty listing,
-  selects the current folder.
-- **PgUp / PgDn** jump by the visible viewport size.
-- **Ctrl+PgUp / Ctrl+PgDn** jump to the first / last entry.
-- **Tab** autocomplete the highlighted entry into the path
-  input.
-- **Esc** cancel without switching.
-- **Type + Enter** if the typed text doesn't match any result,
-  treated as `/cd <text>` (resolves `~`, absolute, relative, or
-  prompts to create + switch if missing).
-
-### One-shot path argument
-
-`/cd <path>` skips both stages. Supported forms:
-
-- `/cd ~/projects` home-relative.
-- `/cd /d/dev/myproject` absolute (Windows or POSIX).
-- `/cd ../sibling-project` relative to current cwd.
-- `/cd brand-new-project` creates the directory after a confirm
-  dialog if it doesn't exist.
-
-The one-shot form always starts a fresh session.
-
-### Cross-platform
-
-- **Windows** drive listing probes A→Z via `fs.readdirSync`.
-- **POSIX** (Linux/macOS) drive listing returns `["/"]`.
-- Path joining, dirname, and basename go through Node's `path`
-  module, so separators are OS-correct (`\` on Windows, `/` on
-  POSIX). The header line is shortened with `~` on POSIX.
-
-Adapted from the MIT-licensed `pi-move` extension by k3-2o.
+**Cross-platform:** Windows drive listing probes A-Z via `fs.readdirSync`; POSIX drive listing returns `["/"]`. Path joining / dirname / basename go through Node's `path` so separators are OS-correct. Header line is shortened with `~` on POSIX.
 
 ---
 
-## Usage Report
+### Cache diagnostics
 
-ALPHA - in development. Output, schema, and defaults may change before
-the first stable release.
+A live hit-rate readout, prefix-shape hashing that detects cache invalidations mid-session, a cache-write ROI calculation, a per-tool token-cost breakdown that surfaces prefix bloat, and a `cache-audit` skill that walks the model through diagnosis. The `cache-viz` theme reinforces the cache metrics visually. None of this exists in stock pi.
 
-Every completed assistant response that includes usage data is
-recorded to a local SQLite database at
-`.pi-aftc-toolset/data/turns.db`. Generate a report from it with:
-
-```text
-/usage-report
-```
-
-This writes a single self-contained HTML file to
-`.pi-aftc-toolset/data/report.html` and opens it in your browser.
-No server, no external assets, no build step.
-
-The report is organised into six sections:
-
-- **Section 1 - Daily totals (last 24 hours)** - four cards:
-  most used (derived from base prompts), most inefficient (derived
-  from turns/self-prompting), highest avg cost (derived from base +
-  sub prompts), lowest avg cost (derived from base + sub prompts).
-
-- **Section 2 - Weekly totals (last 7 days)** - same four cards,
-  with a **weekend toggle** to include/exclude Sat/Sun.
-
-- **Section 3 - Monthly totals (last 28 days)** - same four cards,
-  with a weekend toggle.
-
-- **Section 4 - Per-model cost report** - sortable table with a
-  period selector (Daily / Weekly / Monthly / All time, default
-  All time).
-
-- **Section 5 - Per-model × thinking level** - same shape as
-  Section 4 but keyed by model + thinking level, so a single model
-  has one row per thinking level used.
-
-- **Section 6 - Cost projections** - per model × thinking level:
-  `$`/hr, `$`/day, `$`/week, `$`/month, `$`/year derived from total
-  spend ÷ active hours. When fewer than ~14 calendar days are
-  recorded, projections are flagged as estimates with a note:
-  *"Not enough data available for calculation, averages have been
-  used."*
-
-### What gets recorded per turn
-
-The database records per-turn metrics and prompt-type metadata so
-the report can tell apart normal prompts, mid-stream
-steering/follow-ups, and automated tool-call continuations. **The
-actual text of the user's prompt and sub-prompts is never
-recorded** - only classification flags. This keeps the DB small
-(one row ≈ ~100 bytes) and avoids storing anything sensitive.
-
-### Thin-data handling
-
-The tool may have only a few minutes or hours of recorded data.
-Projections use `max(0.5h, active hours)` as the denominator so a
-single turn never produces a divide-by-zero, and any projection
-based on fewer than ~14 calendar days is flagged as an estimate.
-
-#### Per-row columns
-
-| Column | Type | Meaning |
-| --- | --- | --- |
-| `id` | int PK | Auto-increment row id |
-| `turn` | int | Session-scoped turn counter |
-| `timestamp` | int | ms since epoch at `message_end` |
-| `model_name` | text | e.g. `MiniMax-M3` |
-| `thinking_level` | text | e.g. `high`, `low`, `off` |
-| `thinking_ms` | int | Time to first non-thinking output |
-| `response_ms` | int | Total turn duration (request-sent → message end) |
-| `cost_usd` | real | Cost of this turn |
-| `input_tokens` | int | New prompt tokens |
-| `output_tokens` | int | Output tokens |
-| `cache_read` | int | Cached prefix tokens served |
-| `cache_write` | int | Tokens written to cache this turn |
-| `session_id` | text | Stable per-runtime-session id |
-| `prompt_index` | int | 1-based user-prompt number; all automated continuations share the same index as the user prompt that caused them |
-
-#### Prompt-classification columns
-
-These flag the *kind of trigger* for the assistant turn - **not
-the content of the prompt**. They're either `0` (false) or `1`
-(true) unless noted.
-
-| Column | Meaning |
-| --- | --- |
-| `user_prompt` | `1` if this assistant turn is a direct response to a user message. `0` for automated tool-call continuation rounds. |
-| `base_prompt` | `1` if this is the first user prompt of a task (top-level, drives projections). Always `0` when `user_prompt = 0`. |
-| `sub_prompt` | `1` if this is any follow-up / refinement under the current task. Always `0` when `user_prompt = 0`. |
-| `steering_prompt` | `1` if the user sent this sub-prompt while the agent was still actively processing the previous one (pi's `steer()`). |
-| `followup_prompt` | `1` if the user queued this sub-prompt to be delivered after the agent finished (pi's `followUp()`). |
-| `continuation_prompt` | `1` if this is an idle follow-up / refinement sent in the same task thread. |
-| `prompt_kind` | text - see table below. |
-
-#### `prompt_kind` values
-
-The `prompt_kind` column carries a single human-readable label
-for the trigger. It's redundant with the `*_prompt` flag columns
-(those flags are derived from the same source) but it's a useful
-denormalised index for sorting and grouping in the report.
-
-| `user_prompt` | `prompt_kind` | Meaning |
-| --- | --- | --- |
-| 1 | `base` | First user prompt of a task (top-level, drives projections). |
-| 1 | `continuation` | Idle follow-up / refinement in the same task thread. |
-| 1 | `steer` | Sub-prompt sent while the agent was still actively processing the previous one. |
-| 1 | `followup` | Sub-prompt queued in the editor and delivered after the agent finished. |
-| 0 | `auto` | Automated tool-call continuation round - no new user input between this and the prior turn. |
-
-#### What is NOT recorded
-
-- The actual **text** of user prompts, sub-prompts, or assistant
-  responses. (The model call content lives in pi's session
-  JSONL; this DB only stores metrics.)
-- File paths, tool names, or arguments the assistant invoked
-  tools with.
-- Reasoning or thinking-block content (only `thinking_ms` is
-  recorded).
-
-This matters because a single user prompt can produce many
-model calls when the assistant performs tool calls. `Model calls
-/ prompt` is the average number of model responses caused by
-each user prompt - lower is better (`1.0` means one prompt
-produced one call; high values mean tool-call loops).
-
-Clear all recorded usage with:
-
-```text
-/usage-clear
-```
-
----
-
-## Cache Diagnostics
-
-Two commands give you deeper cache insight than the footer alone:
-
-- `/cache-profile` - per-tool token costs, prefix shape hashes,
-  system prompt size, and churn analysis. Shows which tools are
-  expensive and whether the prefix is stable.
-- `/cache-stats` - session cache stats, cache-write ROI,
-  SQLite-backed projections, model spend, and prefix details.
-- `/cache-reset` - zeroes in-memory accumulators (tokens, cost,
-  turns, churn) for benchmarking or debugging.
-
-### `cache-audit` skill
-
-The bundled skill guides the model through a cache diagnostics
-workflow:
-
-- run `/cache-stats`
-- inspect `/cache-profile`
-- diagnose low hit rates
-- explain prefix churn
-- suggest cache-stability improvements
-
-Load it with:
+The bundled `cache-audit` skill guides the model through a cache diagnostics workflow:
 
 ```text
 /skill:cache-audit
 ```
 
----
----
----
-
-
-
-
-# Skills
-
-### Version control
-
-- `/skill:git` git operations, Conventional Commits, branch naming, destructive-command safety rails, `gh` CLI for issues/PRs/CI, and the merge/PR/keep/discard ship decision. (Consolidates the former `git-workflow`, `guard-git`, `github`, and `release-branch` skills.)
-
-### Shell scripting
-
-- `/skill:bash` bash scripting conventions
-- `/skill:ps1` PowerShell scripting
-- `/skill:bat` Windows batch scripting
-- `/skill:tmux` remote control tmux sessions for interactive CLIs
-
-### Web frontend
-
-- `/skill:html` HTML5 markup, accessibility, ARIA
-- `/skill:css` CSS3 conventions, responsive design
-- `/skill:scss` SCSS / Sass preprocessing
-- `/skill:web-frontend` HTML / CSS / JS / a11y / perf workflows
-- `/skill:react` React with hooks, Vite, Next.js
-- `/skill:vue` Vue 3 Composition API, Pinia
-- `/skill:angular` Angular standalone components, signals
-
-### JavaScript / TypeScript
-
-- `/skill:nodejs` Node.js scripts, npm, stdlib-first
-- `/skill:javascript-mjs` ES modules (.mjs)
-- `/skill:javascript-transpiled` transpiled JS output
-- `/skill:typescript` TypeScript strict mode, ESM, MVC patterns
-- `/skill:bun` Bun runtime
-- `/skill:deno` Deno runtime
-
-### Backend languages
-
-- `/skill:python` Python with uv, stdlib-first
-- `/skill:go` Go programming
-- `/skill:csharp` C# / .NET with dotnet CLI
-- `/skill:php` PHP 8.2+ with Composer
-
-### Infrastructure and ops
-
-- `/skill:docker` Docker, docker-compose, Dockerfiles
-- `/skill:devops` CI/CD, IaC, deployment, databases
-- `/skill:nginx` nginx configuration
-- `/skill:linux` Linux sysadmin
-
-### Media
-
-- `/skill:ffmpeg` ffmpeg CLI for video, audio, image processing
-
-### Documentation
-
-- `/skill:markdown-guide` AI-friendly markdown formatting for documentation .md files (READMEs, SKILL.md, rules.md, AGENTS.md)
-
-### Other
-
-- `/skill:pinescript` - Pine Script v6 (TradingView). Skill content targets v6 specifically; v5 has different syntax for some features.
-- `/skill:cache-audit` prompt-cache diagnostics workflow
-- `/skill:bulk-read` - concatenate many files into one markdown document. Triggers on "read all files", "analyze the project", "load every file", "concatenate files", "audit the code", and similar. The skill bundles a Node.js script that walks the tree, skips noise dirs and binary files, and emits a single markdown file with `FILE: <abs-path>` headers plus fenced code blocks. The agent then reads that one file instead of N separate `read` calls.
-
-> Previously bundled SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, and the former git skills git-workflow / guard-git / github / release-branch) have been archived as `.rar` files in `skills/` and removed from the live skill set to reduce per-turn context cost. The four git skills were merged into the single `/skill:git` above.
-
----
----
----
-
-
-
-
-
-# Additional Installation Options
-
-## npm
-
-Global:
-
-```bash
-pi install npm:pi-aftc-toolset
-```
-
-Project:
-
-```bash
-pi install npm:pi-aftc-toolset -l
-```
-
-Temporary:
-
-```bash
-pi -e npm:pi-aftc-toolset
-```
-
-## GitHub
-
-```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset
-```
-
-Project local:
-
-```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset -l
-```
-
-Pinned release:
-
-```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
-```
-
-## Local Clone
-
-```bash
-pi install /path/to/pi-aftc-toolset -l
-```
-
-## Dependency Installer
-
-Run:
-
-```text
-/aftc-install
-```
-
-Installs:
-
-- `better-sqlite3` via `npm install`
-- Python GUI dependencies via `uv sync` inside `internal-python-gui/`
-- a bundled `uv.exe` automatically if required
-
-Reload pi afterwards. The footer works without SQLite, but usage
-recording/reporting and SSH require `/aftc-install`.
+It runs `/cache-stats` and `/cache-profile`, diagnoses low hit rates, explains prefix churn, and suggests cache-stability improvements.
 
 ---
 
-# Requirements
+### Usage report
 
-- pi CLI
-- Node.js / npm
-- Providers exposing token usage for best cache metrics
-- Python dependencies installed through `/aftc-install` for SSH
+**ALPHA** - in development. Output, schema, and defaults may change before the first stable release.
 
-Cache metrics are most useful with providers that expose
-`usage.cacheRead` and `usage.cacheWrite`. If a provider does not
-report cache data, cache-specific fields may show zero or
-incomplete values.
+Every completed assistant response with usage data is recorded to a local SQLite database at `.pi-aftc-toolset/data/turns.db`. Generate a report with `/usage-report` - a single self-contained HTML file at `.pi-aftc-toolset/data/report.html`, opened in your browser. No server, no external assets, no build step.
+
+**Report sections:**
+
+| Section | Content |
+| --- | --- |
+| 1 | Daily totals (last 24 h): most used / most inefficient / highest avg cost / lowest avg cost |
+| 2 | Weekly totals (last 7 days), with weekend toggle |
+| 3 | Monthly totals (last 28 days), with weekend toggle |
+| 4 | Per-model cost report - sortable, period selector (Daily / Weekly / Monthly / All) |
+| 5 | Per-model x thinking level - one row per thinking level per model |
+| 6 | Cost projections per model x thinking level: $/hr, $/day, $/week, $/month, $/year |
+
+Projections with fewer than ~14 calendar days of data are flagged as estimates. Single-turn handling: denominator is `max(0.5h, active hours)`.
+
+**What gets recorded per turn:** per-turn metrics + prompt-type classification flags. The actual text of prompts and responses is **never** recorded - only flags. This keeps the DB small (~100 bytes / row) and avoids storing sensitive content.
+
+**Prompt classification flags** (`0`/`1`):
+
+| Column | Meaning |
+| --- | --- |
+| `user_prompt` | Direct response to a user message (`0` for automated continuations) |
+| `base_prompt` | First user prompt of a task (drives projections) |
+| `sub_prompt` | Follow-up / refinement under the current task |
+| `steering_prompt` | Sub-prompt sent while the agent was still processing the previous one |
+| `followup_prompt` | Sub-prompt queued in the editor and delivered after the agent finished |
+| `continuation_prompt` | Idle follow-up / refinement in the same task thread |
+| `prompt_kind` | Human-readable label: `base` / `continuation` / `steer` / `followup` / `auto` |
 
 ---
 
-# Updating
+## Bundled skills
+
+Load with `/skill:<name>`. The toolset ships with 31 live skills:
+
+| Skill | Use for |
+| --- | --- |
+| `git` | Git + GitHub CLI workflow, Conventional Commits, safety rails |
+| `bash` / `ps1` / `bat` / `tmux` | Shell scripting and terminal control |
+| `html` / `css` / `scss` / `web-frontend` / `react` / `vue` / `angular` | Web frontend |
+| `nodejs` / `javascript-mjs` / `javascript-transpiled` / `typescript` / `bun` / `deno` | JS / TS runtimes |
+| `python` / `go` / `csharp` / `php` | Backend languages |
+| `docker` / `devops` / `nginx` / `linux` | Infra and ops |
+| `ffmpeg` | Video / audio / image CLI |
+| `markdown-guide` | AI-friendly markdown for READMEs, SKILL.md, rules.md |
+| `pinescript` | Pine Script v6 for TradingView |
+| `cache-audit` | Prompt-cache diagnostics workflow |
+| `bulk-read` | Concatenate many files into one markdown document |
+
+> Previously bundled SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, and the former git skills git-workflow / guard-git / github / release-branch) have been archived as `.rar` files in `skills/` to reduce per-turn context cost. The four git skills were merged into the single `/skill:git` above.
+
+---
+
+## Updating
 
 ```bash
 pi update npm:pi-aftc-toolset
@@ -791,25 +308,88 @@ or install a pinned GitHub release:
 pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
 ```
 
-Then run `/reload` in pi.
+Then `/reload` in pi.
 
 ---
 
-# Development
+## Uninstall
 
-Install locally from a clone:
+```bash
+pi remove npm:pi-aftc-toolset          # global
+pi remove npm:pi-aftc-toolset -l       # project-local
+```
+
+or via GitHub:
+
+```bash
+pi remove git:github.com/DarceyLloyd/pi-aftc-toolset
+```
+
+Then `/reload` or restart pi.
+
+---
+
+## Advanced installation
+
+### npm variants
+
+```bash
+pi install npm:pi-aftc-toolset          # global
+pi install npm:pi-aftc-toolset -l       # project-local
+pi -e npm:pi-aftc-toolset               # ephemeral (current session only)
+```
+
+### GitHub variants
+
+```bash
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset         # latest main
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v1.6.0  # pinned release
+pi install git:github.com/DarceyLloyd/pi-aftc-toolset -l      # project-local
+```
+
+> GitHub installs skip npm post-install hooks - run `/aftc-install` once after the first install.
+
+### Local clone
+
+```bash
+git clone https://github.com/DarceyLloyd/pi-aftc-toolset.git
+pi install /path/to/pi-aftc-toolset -l
+```
+
+---
+
+## Dependency installer
+
+`/aftc-install` (see [Slash Commands](#slash-commands)) installs:
+
+- `better-sqlite3` via `npm install`
+- Python GUI dependencies via `uv sync` inside `internal-python-gui/`
+- A bundled `uv.exe` automatically if required
+
+Reload pi afterwards. The footer works without SQLite, but usage recording / reporting and SSH require `/aftc-install`.
+
+---
+
+## Requirements
+
+- pi CLI
+- Node.js / npm
+- Providers that expose `usage.cacheRead` and `usage.cacheWrite` for full cache metrics (other providers may show zero / incomplete cache values)
+- Python (installed automatically by `/aftc-install` via bundled `uv.exe`) for the SSH GUI
+
+---
+
+## Development
+
+Install from a clone:
 
 ```bash
 pi install /path/to/pi-aftc-toolset -l
 ```
 
-After edits, reload pi:
+After edits, reload pi with `/reload`.
 
-```text
-/reload
-```
-
-## Key files
+### Key files
 
 ```text
 extensions/toolset/index.ts             extension entry point + orchestrator
@@ -820,75 +400,55 @@ extensions/toolset/usage-recording.ts   per-turn SQLite recording
 extensions/toolset/ssh.ts               SSH tools and commands
 extensions/toolset/response.ts          response divider + /aftc-response-divider
 extensions/toolset/theme.ts              /theme shortcut to pi's theme picker
+extensions/toolset/cd.ts                /cd directory picker
+extensions/toolset/cwd.ts               /cwd current-directory display
+extensions/toolset/dir.ts               /dir + /ls listing
+extensions/toolset/help.ts              /aftc-help command reference
 internal-python-gui/main.py             local SSH GUI/API
-skills/cache-audit/SKILL.md             bundled cache-audit skill
-skills/bulk-read/SKILL.md               bundled bulk-read skill (Node.js script inline)
+skills/                                 31 live skills (see Bundled skills above)
 themes/cache-viz.json                   cache-oriented pi theme (green/cyan)
 themes/aftc-orange-viz.json             orange-accented pi theme
 ```
 
-Each TS file has a sibling `<name>.readme.md` documenting its
-contract (events, commands, factory signature, failure modes). See
-`extensions/toolset/readme.md` for the folder-level overview, and
-`rules.md` for the source-of-truth development conventions.
+Each TS file has a sibling `<name>.readme.md` documenting its contract (events, commands, factory signature, failure modes). See `extensions/toolset/readme.md` for the folder-level overview, and `rules.md` for source-of-truth development conventions.
 
-## Tests
+### Tests
 
-Tests live under `tests/` (one subfolder per test, dependency-free -
-`node` + pi's bundled jiti + `better-sqlite3` only):
+Each test has its own subfolder under `tests/` (dependency-free - `node` + pi's bundled jiti + `better-sqlite3` only):
 
 ```bash
-node tests/parse-check/parse-check.mjs          # jiti parses usage-report.ts
-node tests/full-check/full-check.mjs            # DB + projections + HTML structure
-node tests/widget-render-check/widget-render-check.mjs  # orchestrator + footer widget + ticker
-node tests/stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
-node tests/bulk-read-check/bulk-read-check.mjs  # bulk-read skill: script extract + walk + manifest
-node tests/theme-check/theme-check.cjs        # /theme: register, pick, cancel, setTheme-fail, no-UI
-node tests/state-check/state-check.cjs        # state.json (defaults generation, get/set, persistence)
-node tests/load-test/load-test.cjs              # end-to-end: factory + events + commands + SQLite
+node tests/parse-check/parse-check.mjs
+node tests/full-check/full-check.mjs
+node tests/widget-render-check/widget-render-check.mjs
+node tests/stfu-check/stfu-check.cjs
+node tests/bulk-read-check/bulk-read-check.mjs
+node tests/theme-check/theme-check.cjs
+node tests/state-check/state-check.cjs
+node tests/cd-no-preserve/cd-no-preserve.cjs
+node tests/cd-picker-top/cd-picker-top.cjs
+node tests/load-test/load-test.cjs
 ```
 
-## Persistent files
-
-Project-local runtime data is stored under `.pi-aftc-toolset/data/`:
-
-| File | Purpose |
-| --- | --- |
-| `state.json` | Cross-session user preferences (footer AVG timeframe, footer on/off, response divider on/off). Created with defaults on first access; only re-written when a preference actually changes. Persists across `/reload`, `/new`, and fresh pi startup. |
-| (in-memory only) | Cache accumulators, model info, per-turn timings, and the context-window clock start time. All per-session; reset on every `session_start`. Not persisted — there is no per-session resumption state anymore. |
-| `turns.db` | SQLite usage database |
-| `report.html` | Latest generated usage report |
-
-SSH GUI runtime files are stored under `internal-python-gui/std/`:
-
-| File | Purpose |
-| --- | --- |
-| `out.txt` | ANSI-stripped terminal output / session log |
-| `in.txt` | Command input log |
-| `err.txt` | Error output / logs |
-
-All runtime data and logs are gitignored - they never get committed.
-
-## What is included?
-
-| Area | Files | What it provides |
-| --- | --- | --- |
-| Extension orchestrator | `extensions/toolset/index.ts` | Loads the suite modules into pi and wires the footer data provider to the widget |
-| Cache / timing data | `extensions/toolset/core.ts` | Cache diagnostics, timer commands, `/cls` |
-| Cache footer widget | `extensions/toolset/footer-widget.ts` | Renders the four-line cache dashboard, owns `/aftc-footer` toggle |
-| Usage DB + report | `extensions/toolset/db.ts`, `usage-recording.ts`, `usage-report.ts`, `types.ts` | SQLite recording, HTML report, usage clearing |
-| Installer | `extensions/toolset/install.ts` | `/aftc-install` |
-| Help | `extensions/toolset/help.ts` | `/aftc-help` command reference |
-| Response divider | `extensions/toolset/response.ts` | Full-width themed rule above each assistant reply, `/aftc-response-divider` |
-| Interrupt | `extensions/toolset/stfu.ts` | `/aftc-stop` and `/stfu` slash commands - emergency abort of current agent operation |
-| Input clear | `extensions/toolset/input-clear.ts` | `alt+c` editor clear shortcut |
-| Theme picker | `extensions/toolset/theme.ts` | `/theme` slash command - shortcut to pi's theme picker |
-| SSH | `extensions/toolset/ssh.ts`, `internal-python-gui/` | AI-callable SSH tools and visible terminal GUI |
-| Skill | `skills/` (31 live skills) | Reusable workflows: project flagship `cache-audit` and `bulk-read`, plus a consolidated `git` skill and language/runtime/domain skills (typescript, python, pinescript, ffmpeg, docker, etc.). See the Skills section above for the full list. |
-| Theme | `themes/cache-viz.json`, `themes/aftc-orange-viz.json` | Green/cyan and orange-themed pi themes |
+See `tests/README.md` for the full layout and conventions.
 
 ---
 
-# License
+## Persistent files
 
-[MIT](./LICENSE) · Author <Darcey.Lloyd@gmail.com>
+Project-local runtime data lives under `.pi-aftc-toolset/data/`:
+
+| File | Purpose |
+| --- | --- |
+| `state.json` | Cross-session user preferences (footer AVG timeframe, footer on/off, response divider on/off). Created with defaults on first access; only re-written when a preference actually changes. |
+| `turns.db` | SQLite usage database |
+| `report.html` | Latest generated usage report |
+
+In-memory only (per-session, not persisted): cache accumulators, model info, per-turn timings, context-window clock start time.
+
+SSH GUI runtime files live under `internal-python-gui/std/` and are gitignored.
+
+---
+
+## License
+
+[MIT](./LICENSE) - Author <Darcey.Lloyd@gmail.com>
