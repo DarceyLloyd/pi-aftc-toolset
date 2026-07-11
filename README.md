@@ -120,6 +120,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 - **cache-viz** - cache-focused green/cyan colour scheme.
 - **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default).
+- **aftc-black-n-blue** - dark blue accents on black, optimised for long sessions.
 
 Switch themes with `/theme`.
 
@@ -289,8 +290,11 @@ Load with `/skill:<name>`. The toolset ships with 31 live skills:
 | `ffmpeg` | Video / audio / image CLI |
 | `markdown-guide` | AI-friendly markdown for READMEs, SKILL.md, rules.md |
 | `pinescript` | Pine Script v6 for TradingView |
+| `godot` | Godot 4.x engine with GDScript 2.0, MVC architecture, headless compile checks |
 | `cache-audit` | Prompt-cache diagnostics workflow |
 | `bulk-read` | Concatenate many files into one markdown document |
+
+32 live skills total. 27 archived as `.rar` files in `skills/` to reduce per-turn context cost:
 
 > Previously bundled SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, and the former git skills git-workflow / guard-git / github / release-branch) have been archived as `.rar` files in `skills/` to reduce per-turn context cost. The four git skills were merged into the single `/skill:git` above.
 
@@ -408,6 +412,7 @@ internal-python-gui/main.py             local SSH GUI/API
 skills/                                 31 live skills (see Bundled skills above)
 themes/cache-viz.json                   cache-oriented pi theme (green/cyan)
 themes/aftc-orange-viz.json             orange-accented pi theme
+themes/aftc-black-n-blue.json           dark blue accents on black theme
 ```
 
 Each TS file has a sibling `<name>.readme.md` documenting its contract (events, commands, factory signature, failure modes). See `extensions/toolset/readme.md` for the folder-level overview, and `rules.md` for source-of-truth development conventions.
