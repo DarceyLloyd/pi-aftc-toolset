@@ -22,6 +22,12 @@ tests/
 │   └── bulk-read-check.mjs
 ├── theme-check/theme-check.cjs          # /theme: pre-select, page-nav, overlay
 ├── state-check/state-check.cjs          # state.json (defaults generation, get/set, persistence)
+├── cd-no-preserve/                      # /cd always creates fresh session (PreserveOverlay removed)
+│   ├── cd-no-preserve.cjs               # behavioural test
+│   └── _pi-stub.cjs                     # SessionManager stub via jiti alias
+├── cd-picker-top/                       # CdOverlay: "./" first, selection always at top
+│   ├── cd-picker-top.cjs                # drives picker via ui.custom factory capture
+│   └── _pi-stub.cjs                     # SessionManager stub via jiti alias
 └── load-test/load-test.cjs              # end-to-end: factory + events + commands + widget
 ```
 
@@ -47,6 +53,8 @@ node tests/stfu-check/stfu-check.cjs
 node tests/bulk-read-check/bulk-read-check.mjs
 node tests/theme-check/theme-check.cjs
 node tests/state-check/state-check.cjs
+node tests/cd-no-preserve/cd-no-preserve.cjs
+node tests/cd-picker-top/cd-picker-top.cjs
 node tests/load-test/load-test.cjs
 ```
 
