@@ -47,6 +47,7 @@ import type {
 //   - cd.ts                 (cd)
 //   - dir.ts                (dir, ls)
 //   - cwd.ts                (cwd)
+//   - replay.ts             (save-replay-prompt, replay, r)
 //
 // Note: /show-thinking and /hide-thinking were removed — pi's built-in
 // Ctrl+T (app.thinking.toggle) and the hideThinkingBlock setting
@@ -137,6 +138,21 @@ const SSH_COMMANDS: Array<[string, string]> = [
 	["/ssh-disconnect", "Disconnect from the current SSH session"],
 ];
 
+const REPLAY_COMMANDS: Array<[string, string]> = [
+	[
+		"/save-replay-prompt <text>",
+		"Save <text> as a replay prompt (persists across reload/sessions). Run /replay (or /r) to re-send it.",
+	],
+	[
+		"/replay",
+		"Re-execute the saved /save-replay-prompt string as a fresh user message. Queued as follow-up when the agent is busy.",
+	],
+	[
+		"/r",
+		"Short alias for /replay — same action, fewer keystrokes.",
+	],
+];
+
 const SKILL_COMMANDS: Array<[string, string]> = [
 	[
 		"/skill:cache-audit",
@@ -218,6 +234,8 @@ class HelpModule {
 		lines.push(...renderSection("Usage report", USAGE_COMMANDS));
 		lines.push("");
 		lines.push(...renderSection("SSH", SSH_COMMANDS));
+		lines.push("");
+		lines.push(...renderSection("Replay", REPLAY_COMMANDS));
 		lines.push("");
 		lines.push(...renderSection("Skills", SKILL_COMMANDS));
 		lines.push("");

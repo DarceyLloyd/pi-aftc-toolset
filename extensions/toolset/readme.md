@@ -26,6 +26,7 @@ commands/shortcuts/tools it registers. See `rules.md` §12.
 | `cd.ts` | `/cd` slash command - switch to a fresh Pi session in another directory. Interactive directory-picker overlay, or one-shot path arg (`~`, absolute, relative). Cleans up empty sessions on shutdown. |
 | `dir.ts` | `/dir` and `/ls` slash commands - print the current directory name and run a platform-native directory listing (`dir` on Windows, `ls -la` on macOS/Linux). |
 | `cwd.ts` | `/cwd` slash command - show the current working directory as an inline card (same style as `/dir`). |
+| `replay.ts` | `/save-replay-prompt` and `/replay` slash commands - save a prompt string to `replay.json` and re-send it as a fresh user message (queued as follow-up when busy). |
 | `db.ts` | Shared better-sqlite3 connection. Lazy-opens the DB; returns `null` if the native binding isn't installed. |
 | `state.ts` | Persistent state module. Owns `state.json` (cross-session user preferences: footer timeframe, footer on/off, response divider on/off). Creates the file with defaults on first write; only updates it when a preference actually changes. No per-session resumption state. |
 | `paths.ts` | Resolves the package root, runtime data dir, and the bundled Python GUI dir. |

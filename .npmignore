@@ -1,0 +1,72 @@
+# ── Dependencies ──────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.js
+package-lock.json
+
+# ── Build artifacts ───────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+
+# ── Logs ──────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Environment & credentials ─────────────────────────────
+.env
+.env.local
+.env.*.local
+auth.json
+models.json
+keybindings.json
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*credentials*.yaml
+*credentials*.yml
+*credentials*.toml
+*secrets*.json
+*secrets*.yaml
+*secrets*.yml
+*secrets*.toml
+
+# ── Repo-only files (not shipped to npm) ──────────────────
+.gitignore
+.npmignore
+backup.ps1
+dev.md
+rules.md
+docs/
+images/
+tests/
+internal-python-gui/
+
+# ── Stale / backup ────────────────────────────────────────
+.bak/
+.old/
+test/
+
+# ── pi caches (per-user, never publish) ───────────────────
+.pi/
+.pi-aftc-toolset/
+
+# ── IDE / editor ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

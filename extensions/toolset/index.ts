@@ -17,6 +17,7 @@
  *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
  *   - dir.ts          — /dir /ls: list current directory contents (platform-native)
  *   - cwd.ts          — /cwd: show the current working directory (inline card)
+ *   - replay.ts       — /save-replay-prompt + /replay: save a prompt string and re-send it
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -46,6 +47,7 @@ import { createStfu } from "./stfu";
 import { createCd } from "./cd";
 import { createDir } from "./dir";
 import { createCwd } from "./cwd";
+import { createReplay } from "./replay";
 
 export default function (pi: ExtensionAPI): void {
 	try {
@@ -63,6 +65,7 @@ export default function (pi: ExtensionAPI): void {
 	createCd(pi);
 	createDir(pi);
 	createCwd(pi);
+	createReplay(pi);
 
 	// Core owns the data; the widget renders it. The orchestrator wires
 	// them so neither module imports the other (rules.md §1.5). allowance

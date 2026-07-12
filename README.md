@@ -1,12 +1,22 @@
 # pi-aftc-toolset
 
 [![GitHub release](https://img.shields.io/github/v/release/DarceyLloyd/pi-aftc-toolset)](https://github.com/DarceyLloyd/pi-aftc-toolset/releases/latest)
-[![npm](https://img.shields.io/npm/v/pi-aftc-toolset)](https://www.npmjs.com/package/pi-aftc-toolset)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
 `pi-aftc-toolset` is a collection of tools for pi - from my point of view, essentials to assist with what I do on a daily basis and to get the most out of AI models.
+
+## Footer widget preview
+![Footer Widget](images/FooterWidget-v1.7.1.jpg)
+
+---
+
+## Latest updates to v1.7.1
+
+- **New slash commands**: `/save-replay-prompt <text>` saves a prompt string to `.pi-aftc-toolset/data/replay.json` (persists across reload/sessions). `/replay` (or its short alias `/r`) re-sends the saved prompt as a fresh user message via `pi.sendUserMessage(...)` — fires immediately when the agent is idle, queues as a follow-up when busy.
+- New "Replay" section in `/aftc-help` and the Slash Commands listing below.
+- Bundled test `tests/replay-check/replay-check.cjs` covers save, persistence, idle/busy delivery, headless fallback, and the `/r` alias.
 
 ---
 
@@ -108,6 +118,14 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/usage-report` | Write + open `report.html` (ALPHA) |
 | `/usage-clear` | Delete all SQLite rows (with confirmation) |
 
+### Replay
+
+| Command | What it does |
+| --- | --- |
+| `/save-replay-prompt <text>` | Save `<text>` as a replay prompt (persists across reload/sessions) |
+| `/replay` | Re-execute the saved prompt as a fresh user message (queued as follow-up when busy) |
+| `/r` | Short alias for `/replay` — same action, fewer keystrokes |
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |
@@ -119,17 +137,17 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 - **cache-viz** - cache-focused green/cyan colour scheme.
 - **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default, recommended).
-- **aftc-black-n-blue** - dark blue accents on black, optimised for long sessions.
+- **aftc-black-n-blue** - dark blue accents on black.
 
 Switch themes with `/theme`.
 
 ---
 
-## Feature Guides
 
-Detailed how-tos for each feature. See [Slash Commands](#slash-commands) above for the command list itself.
 
-### Footer widget
+## Footer widget
+
+![Footer Widget](images/FooterWidget-v1.7.1.jpg)
 
 A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler. Line 5 (subscription allowance) only appears for providers that expose usage data.
 
@@ -145,13 +163,7 @@ A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other fo
 
 **Example (rendered live below the editor):**
 
-```text
-▏ MiniMax-M3 · medium │ Cache Turn 99.6% / Avg 99.3% │ 1.0M CTX Window │ I/O ↑8.3K ↓2.4K │ 108K Cached / 0 New
-▏ Turn $0.00688 · CTX Total $0.08 (3 User / 12 Turns) | CTX Time 7m 58s · $0.61/hr · $0.010/min
-▏ 20 Tools ~2.8Kt │ Skills 0/32 │ Thinking time 0.0s Last / 0.0s Avg │ Response time: 1.8s Last / 1.4s Avg
-▏ Avg Today: Cost $18.96 | Prompts/Turns 69/1861 | Cache 96.9% | Think time 2s | Response time 5s
-▏ MiniMax: 5h allowance used: 2% Resets in: 02h 47m │ Weekly allowance used: 59% Resets in: 06h 47m
-```
+![Footer Widget](images/FooterWidget-v1.7.1.jpg)
 
 Line 4's time window is configurable - see `/aftc-footer-report-timeframe`. Defaults to Today; persisted across `/reload`, `/new`, and fresh pi startup (stored in `.pi-aftc-toolset/data/state.json`). Refreshed at most every 10 s from SQLite.
 
@@ -166,7 +178,9 @@ Line 4's time window is configurable - see `/aftc-footer-report-timeframe`. Defa
 
 ---
 
-### SSH remote terminal
+## SSH remote terminal
+
+![Footer Widget](images/SSH-GUI.jpg)
 
 Persistent remote terminal through a **visible local GUI**. The model asks the SSH tools to run commands; the tools talk to a local Python GUI that holds the real SSH connection.
 
@@ -204,7 +218,7 @@ pi extension (Node.js)
 
 ---
 
-### Quick directory navigation
+## /cd directory navigation
 
 `/cd` switches the current Pi session to a different directory, always starting a fresh session in the target directory.
 
@@ -236,7 +250,7 @@ With no arguments, `/cd` opens a tree-style directory picker overlay rooted at t
 
 ---
 
-### Cache diagnostics
+## Cache diagnostics
 
 A live hit-rate readout, prefix-shape hashing that detects cache invalidations mid-session, a cache-write ROI calculation, a per-tool token-cost breakdown that surfaces prefix bloat, and a `cache-audit` skill that walks the model through diagnosis. The `cache-viz` theme reinforces the cache metrics visually. None of this exists in stock pi.
 
@@ -250,7 +264,7 @@ It runs `/cache-stats` and `/cache-profile`, diagnoses low hit rates, explains p
 
 ---
 
-### Usage report
+## Usage report
 
 **ALPHA** - in development. Output, schema, and defaults may change before the first stable release.
 
@@ -333,7 +347,7 @@ pi remove npm:pi-aftc-toolset          # global
 pi remove npm:pi-aftc-toolset -l       # project-local
 ```
 
-or via GitHub:
+or if you installed via GitHub:
 
 ```bash
 pi remove git:github.com/DarceyLloyd/pi-aftc-toolset
