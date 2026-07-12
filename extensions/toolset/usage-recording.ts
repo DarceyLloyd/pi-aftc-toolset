@@ -18,6 +18,13 @@
  * metrics + classification. Keeps the DB small (~100 bytes per row)
  * and avoids storing anything sensitive.
  *
+ * Zero-cost turns (and defensively, any non-positive cost) are NOT
+ * recorded. Free turns (some subscription plans report $0) would
+ * taint the averages, totals, burn-rate, and projection maths in
+ * /usage-report. The in-memory footer accumulator still updates so
+ * the live footer shows the real last-turn cost; only the historical
+ * DB row is skipped.
+ *
  * The 20 columns written per row are:
  *
  *   Metrics (one row per assistant turn):
@@ -81,6 +88,13 @@ class UsageRecorder implements TurnRecorder {
     recordTurn(record: TurnRecord): void {
         const db = getDb();
         if (!db) return;
+        // Skip zero-cost turns. Free turns (e.g. some subscription plans
+        // report $0) would taint the averages, totals, cost-per-hour, and
+        // projection maths in /usage-report. We also defensively skip
+        // negative cost (impossible in practice but would corrupt the
+        // same aggregates). The in-memory accumulator in core.ts still
+        // updates so the footer keeps showing the real last-turn cost.
+        if (record.costUsd <= 0) return;
         try {
             db.prepare(
                 `INSERT INTO turns (

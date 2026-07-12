@@ -76,6 +76,48 @@ export interface TurnRecorder {
 }
 
 // ──────────────────────────────────────────────────────────────────────
+// Subscription allowance (allowance.ts → core.ts → footer-widget.ts)
+//
+// Line 5 of the footer. Only the subscription providers that expose a
+// usable usage endpoint are supported: `openai-codex` (ChatGPT) and
+// `minimax` / `minimax-cn` (Token Plan). Z.ai / Z.ai-CN expose no usage
+// endpoint and no quota headers, so they return null (line 5 hidden), as
+// do all other providers. See `allowance.ts` for the fetch + parse logic.
+// ──────────────────────────────────────────────────────────────────────
+
+/** One rolling allowance window (5-hour or weekly).
+ *  `usedPercent` is normalized to 0..100 USED (MiniMax reports remaining
+ *  and is converted; Codex reports used directly). Reset fields are null
+ *  when the provider did not return them. */
+export interface AllowanceWindow {
+    usedPercent: number;            // 0..100 used
+    resetSeconds: number | null;    // seconds until the window resets
+    resetAt: number | null;         // epoch ms at which the window resets
+}
+
+/** Snapshot of subscription allowance for the active model's provider.
+ *  `providerLabel` is a short human label (e.g. "ChatGPT Plus", "MiniMax").
+ *  Either window may be null when the provider omits it. The footer builds
+ *  line 5 from whichever windows are present; if both are null the line is
+ *  hidden. */
+export interface AllowanceView {
+    providerLabel: string;
+    fiveHour: AllowanceWindow | null;
+    weekly: AllowanceWindow | null;
+    /** Epoch ms of the last successful fetch (for staleness display). */
+    fetchedAt: number;
+}
+
+/** Surface that core.ts exposes to footer-widget.ts, implemented by
+ *  allowance.ts. Returns the cached snapshot — the fetch happens
+ *  asynchronously on session_start / model_select / agent_end. */
+export interface AllowanceProvider {
+    /** Current cached allowance snapshot, or null when the active provider
+     *  is unsupported or no successful fetch has happened yet. */
+    getAllowance(): AllowanceView | null;
+}
+
+// ──────────────────────────────────────────────────────────────────────
 // Footer widget data (core.ts → footer-widget.ts)
 // ──────────────────────────────────────────────────────────────────────
 
@@ -171,6 +213,11 @@ export interface FooterDataProvider {
      * Cached and refreshed at most every 10s, or immediately on
      * timeframe change. */
     getTimeframeStats(): TimeframeStatsView;
+    /** Subscription allowance snapshot for line 5 (5h + weekly used %
+     *  + reset countdown). Null for unsupported providers (everything
+     *  except openai-codex / minimax / minimax-cn) or before the first
+     *  successful fetch. Backed by allowance.ts via the orchestrator. */
+    getAllowance(): AllowanceView | null;
     /** Called from the footer's 1Hz ticker; recomputes the session
      * clock + cost rates and lets the widget render them. */
     onTick(): void;

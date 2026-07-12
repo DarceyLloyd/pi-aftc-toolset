@@ -29,12 +29,16 @@ const pi = {
     getThinkingLevel: () => "off",
 };
 const turnRecorder = { recordTurn: () => {} };
+// Minimal allowance stub — widget-render-check focuses on the cache widget,
+// not line 5. Returns null so line 5 stays hidden (the real allowance
+// module is exercised by tests/allowance-check/).
+const allowanceStub = { getAllowance: () => null };
 
 const { createCore } = jiti(`${ROOT}/extensions/toolset/core.ts`);
 const { createFooterWidget } = jiti(`${ROOT}/extensions/toolset/footer-widget.ts`);
 
 // Wire core → footer the same way the orchestrator (index.ts) does.
-const footerData = createCore(pi, turnRecorder);
+const footerData = createCore(pi, turnRecorder, allowanceStub);
 createFooterWidget(pi, footerData);
 
 if (!commands["aftc-footer"]) { console.error("FAIL: /aftc-footer not registered by footer-widget"); process.exit(1); }
@@ -61,7 +65,7 @@ console.log("OK placement:", capturedOpts?.placement);
 // Track requestRender calls so we can verify the ticker fires it.
 let requestRenderCalls = 0;
 const tui = { requestRender: () => { requestRenderCalls++; } };
-const theme = { bg: (_k, s) => s, fg: (_k, s) => s };
+const theme = { bg: (_k, s) => s, fg: (_k, s) => s, bold: (s) => s };
 const component = capturedFactory(tui, theme);
 if (typeof component.render !== "function") { console.error("FAIL: factory did not return a renderable component"); process.exit(1); }
 

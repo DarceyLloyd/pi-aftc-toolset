@@ -32,7 +32,8 @@
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import type { FooterDataProvider } from "./types";
+import type { AllowanceView, FooterDataProvider, AllowanceWindow } from "./types";
+import { formatAdaptiveDuration } from "./allowance";
 import { getPreference, setPreference } from "./state";
 
 // ──────────────────────────────────────────────────────────────────────
@@ -81,6 +82,66 @@ function trendArrow(recent: number, session: number): string {
     return "";
 }
 
+// ──────────────────────────────────────────────────────────────────
+// Line 5 — subscription allowance (5h + weekly)
+// ──────────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────────────
+// Footer colour scheme (theme-aware)
+//
+// Three logical colours used across every footer line, each mapped to a
+// theme token so the whole bar retones automatically when the user
+// switches themes (e.g. aftc-orange-viz → cache-viz):
+//   c1 — highlights: model name, thinking level, trend arrows   (accent)
+//   c2 — words / labels / units                                  (text)
+//   c3 — values / costs / dividers                               (dim)
+//
+// `Theme.fg` always closes with a foreground reset (\x1b[39m), so every
+// span returns to the default foreground afterwards. We therefore wrap
+// every segment explicitly instead of relying on the outer `line()` dim
+// wrapper — otherwise a label's colour would depend on whether it sat
+// before or after another coloured span. `truncateToWidth` is ANSI-aware,
+// so loading the lines with escape codes is safe.
+// ──────────────────────────────────────────────────────────────────────
+function footerColors(theme: Theme) {
+    return {
+        c1: (s: string) => theme.fg("accent", theme.bold(s)),
+        c2: (s: string) => theme.fg("text", s),
+        c3: (s: string) => theme.fg("dim", s),
+    };
+}
+
+/** Build the 5th footer line from an allowance snapshot, or return null
+ *  to signal "hide line 5" (unsupported provider, or no windows at all).
+ *  Returned text already contains ANSI styling for the percentages; the
+ *  caller passes it through `line()` which wraps it in the footer bg.
+ *  Exported for unit testing (tests/allowance-check/). */
+export function buildAllowanceLine(v: AllowanceView, theme: Theme): string | null {
+    const { c1, c3 } = footerColors(theme);
+    const seg = (label: string, w: AllowanceWindow | null): string => {
+        if (!w) return "";
+        let s = `${label} Allowance used: ${c1(`${w.usedPercent}%`)}`;
+        // Prefer the precomputed resetSeconds; fall back to deriving from
+        // resetAt so the line ticks live even if the caller passed the raw
+        // stored view (resetSeconds null) instead of the post-liveView one.
+        let secs = w.resetSeconds;
+        if ((secs === null || secs === undefined) && w.resetAt !== null && Number.isFinite(w.resetAt)) {
+            secs = Math.max(0, Math.floor((w.resetAt - Date.now()) / 1000));
+        }
+        const dur = formatAdaptiveDuration(secs ?? -1);
+        if (dur) s += ` Resets in: ${c1(dur)}`;
+        return s;
+    };
+    const fiveHour = seg("5h", v.fiveHour);
+    const weekly = seg("Weekly", v.weekly);
+    if (!fiveHour && !weekly) return null; // nothing to show → hide line
+    const label = c1(`${v.providerLabel}:`);
+    // The 5h │ Weekly divider is colour 3 (a divider), like every other
+    // separator on the bar.
+    const parts = [fiveHour, weekly].filter(Boolean).join(` ${c3("\u2502")} `);
+    return `${label} ${parts}`;
+}
+
 // ──────────────────────────────────────────────────────────────────────
 // Component factory
 // ──────────────────────────────────────────────────────────────────────
@@ -125,54 +186,94 @@ function createFooterComponent(
                 const m = data.getModel();
                 const cache = data.getToolCache();
 
-            const hasTurns = a.turns > 0;
-            const turnHit = hasTurns ? hitRate(a.lastTurnCacheRead, a.lastTurnInput) : "0";
-            const aggHit = hasTurns ? hitRate(a.cacheRead, a.input) : "0";
-            const trend = hasTurns ? trendArrow(data.getRecentAvg(), a.cacheRead / Math.max(1, a.cacheRead + a.input)) : "";
-            const modelName = m.name || "no model";
-            const thinkSuffix = m.reasoning && m.thinkingLevel && m.thinkingLevel !== "off" ? ` · ${m.thinkingLevel}` : "";
-            const ctxStr = m.contextWindow > 0 ? `${fmt(m.contextWindow)} CTX Window` : "0";
+            // ═══ Footer colour scheme ══════════════════════════════
+            // Three logical colours, each mapped to a theme token (see
+            // footerColors()). Switching themes retones the whole bar.
+            //   c1 = highlights (accent): model, thinking, ↑/↓, trend
+            //   c2 = words / labels / units          (text  = white)
+            //   c3 = values / costs / dividers        (dim   = gray)
+            const { c1, c2, c3 } = footerColors(theme);
 
-            const splitStr = a.lastTurnInput > 0
-                ? `${fmt(a.lastTurnCacheRead)} Cached / ${fmt(Math.max(0, a.lastTurnInput - a.lastTurnCacheRead))} new`
-                : "";
-            const turnCostStr = `$${a.lastTurnCost.toFixed(5)}`;
-            const ctxTotalStr = `$${a.cost.toFixed(2)}`;
-
+            // ──────────────────────────────────────────────────────────
+            // VALUES — plain strings, no styling.
+            // Edit numbers / labels / formatting here.
+            // ──────────────────────────────────────────────────────────
             const cached = data.getCachedSession();
-            const projPart = cached
-                ? `CTX Time ${cached.sessionStr} · $${cached.costPerHour.toFixed(2)}/hr · $${cached.costPerMinute.toFixed(3)}/min`
-                : `CTX Time 0s · $0.00/hr · $0.000/min`;
+            const tf = data.getTimeframeStats();
 
+            const hasTurns = a.turns > 0;
+
+            // line 1 — model · cache · context · I/O
+            const modelName = m.name || "no model";
+            const thinking = (m.reasoning && m.thinkingLevel && m.thinkingLevel !== "off") ? m.thinkingLevel : "";
+            const turnHit = hasTurns ? hitRate(a.lastTurnCacheRead, a.lastTurnInput) : "0";
+            const avgHit = hasTurns ? hitRate(a.cacheRead, a.input) : "0";
+            const trend = hasTurns ? trendArrow(data.getRecentAvg(), a.cacheRead / Math.max(1, a.cacheRead + a.input)) : "";
+            const hasCtxWin = m.contextWindow > 0;
+            const ctxTokens = hasCtxWin ? fmt(m.contextWindow) : "0";
+            const inputTok = fmt(a.input);
+            const outputTok = fmt(a.output);
+            const hasSplit = a.lastTurnInput > 0;
+            const cachedTok = fmt(a.lastTurnCacheRead);
+            const newTok = fmt(Math.max(0, a.lastTurnInput - a.lastTurnCacheRead));
+
+            // line 2 — cost · burn rate
+            const turnCost = `$${a.lastTurnCost.toFixed(5)}`;
+            const ctxTotal = `$${a.cost.toFixed(2)}`;
+            const userTurns = String(a.userTurns);
+            const totalTurns = String(a.turns);
+            const ctxTime = cached ? cached.sessionStr : "0s";
+            const perHour = cached ? `$${cached.costPerHour.toFixed(2)}` : "$0.00";
+            const perMin = cached ? `$${cached.costPerMinute.toFixed(3)}` : "$0.000";
+
+            // line 3 — tools · skills · timing
+            const toolCount = String(cache.getCount());
+            const toolTokens = `~${fmt(cache.getTotal())}`;
             const skillAvail = cache.getSkillCount();
-            const skillInfo = skillAvail > 0 || data.getUsedSkillCount() > 0
-                ? ` │ Skills ${data.getUsedSkillCount()}/${skillAvail}`
-                : "";
+            const usedSkills = String(data.getUsedSkillCount());
+            const showSkills = skillAvail > 0 || data.getUsedSkillCount() > 0;
             const thinkLast = fmtDurationShort(data.getLastThinkingMs());
             const thinkAvg = fmtDurationShort(data.getAvgThinkingMs());
             const respLast = fmtDurationShort(data.getLastResponseMs());
             const respAvg = fmtDurationShort(data.getAvgResponseMs());
-            const timingInfo = ` │ Thinking time ${thinkLast} Last / ${thinkAvg} Avg │ Response time: ${respLast} Last / ${respAvg} Avg`;
 
-            // 4th line: aggregates from the SQLite `turns` table over a
-            // configurable time window (Today / 3h / 6h / 24h / 2d / 3d /
-            // 7d / 28d, set via /aftc-footer-report-timeframe). Refresh is
-            // throttled to 10s by core.ts; this just reads the cached
-            // snapshot, so it's cheap on every render.
-            const tf = data.getTimeframeStats();
-            const tfStr =
-                `▏ Avg ${tf.timeframeLabel}: Cost $${tf.costUsd.toFixed(2)} | ` +
-                `Prompts/Turns ${tf.userPrompts}/${tf.totalTurns} | ` +
-                `Cache ${(tf.avgCacheHit * 100).toFixed(1)}% | ` +
-                `Think time ${fmtDurationHMS(tf.avgThinkingMs)} | ` +
-                `Response time ${fmtDurationHMS(tf.avgResponseMs)}`;
+            // line 4 — timeframe aggregates (Today / 3h / 6h / 24h / 2d /
+            //          3d / 7d / 28d via /aftc-footer-report-timeframe)
+            const tfLabel = tf.timeframeLabel;
+            const tfCost = `$${tf.costUsd.toFixed(2)}`;
+            const tfPrompts = String(tf.userPrompts);
+            const tfTurns = String(tf.totalTurns);
+            const tfCacheHit = `${(tf.avgCacheHit * 100).toFixed(1)}%`;
+            const tfThink = fmtDurationHMS(tf.avgThinkingMs);
+            const tfResp = fmtDurationHMS(tf.avgResponseMs);
 
-            return [
-                line(`▏ ${modelName}${thinkSuffix} │ Cache Turn ${turnHit} / Avg ${aggHit} ${trend} │ ${ctxStr} │ IO ↑${fmt(a.input)} ↓${fmt(a.output)} │ ${splitStr}`, w),
-                line(`▏ Turn ${turnCostStr} · CTX Total ${ctxTotalStr} (${a.userTurns} User / ${a.turns} Turns) | ${projPart}`, w),
-                line(`▏ ${cache.getCount()} Tools ~${fmt(cache.getTotal())}t${skillInfo}${timingInfo}`, w),
-                line(tfStr, w),
+            // line 5 — subscription allowance (conditional)
+            const allowance = data.getAllowance();
+            const allowanceLine = allowance ? buildAllowanceLine(allowance, theme) : null;
+
+            // ──────────────────────────────────────────────────────────
+            // CONSTRUCTION — pure assembly.
+            // Recolour a field by swapping its wrapper: c1(x) / c2(x) / c3(x).
+            // ──────────────────────────────────────────────────────────
+            const raw = [
+                // 1 — model · cache · context · I/O
+                `▏ ${c1(modelName)}${thinking ? ` ${c3("·")} ${c1(thinking.toUpperCase())}` : ""} ${c3("│")} ${c2("Cache Turn")} ${c1(turnHit)} / ${c2("Avg")} ${c1(avgHit)}${trend ? " " + c2(trend) : ""} ${c3("│")} ${hasCtxWin ? `${c1(ctxTokens)} ${c2("CTX Window")}` : c1(ctxTokens)} ${c3("│")} ${c2("I/O")} ${c2("↑")}${c1(inputTok)} ${c2("↓")}${c1(outputTok)} ${c3("│")}${hasSplit ? ` ${c1(cachedTok)} ${c2("Cached")} / ${c1(newTok)} ${c2("New")}` : ""}`,
+
+                // 2 — cost · burn rate
+                `▏ ${c2("Turn")} ${c1(turnCost)} ${c3("·")} ${c2("CTX Total")} ${c1(ctxTotal)} (${c1(userTurns)} ${c2("User")} / ${c1(totalTurns)} ${c2("Turns")}) ${c3("|")} ${c2("CTX Time")} ${c1(ctxTime)} ${c3("·")} ${c1(perHour)}${c2("/hr")} ${c3("·")} ${c1(perMin)}${c2("/min")}`,
+
+                // 3 — tools · skills · timing
+                `▏ ${c1(toolCount)} ${c2("Tools")} ${c1(toolTokens)}${c2("t")}${showSkills ? ` ${c3("│")} ${c2("Skills")} ${c1(usedSkills)}/${c1(String(skillAvail))}` : ""} ${c3("│")} ${c2("Thinking time")} ${c1(thinkLast)} ${c2("Last")} / ${c1(thinkAvg)} ${c2("Avg")} ${c3("│")} ${c2("Response time:")} ${c1(respLast)} ${c2("Last")} / ${c1(respAvg)} ${c2("Avg")}`,
+
+                // 4 — timeframe aggregates
+                `▏ ${c2(`Avg ${tfLabel}: Cost`)} ${c1(tfCost)} ${c3("|")} ${c2("Prompts/Turns")} ${c1(tfPrompts)}/${c1(tfTurns)} ${c3("|")} ${c2("Cache")} ${c1(tfCacheHit)} ${c3("|")} ${c2("Think time")} ${c1(tfThink)} ${c3("|")} ${c2("Response time")} ${c1(tfResp)}`,
             ];
+
+            // 5 — subscription allowance (only for supported providers)
+            if (allowanceLine) raw.push(`▏ ${allowanceLine}`);
+
+            // Wrap every line in the footer bg + dim fallback; truncate to width.
+            return raw.map((l) => line(l, w));
             } catch (err) {
                 console.log(`[aftc-toolset] footer render error: ${(err as Error).message}`);
                 return [

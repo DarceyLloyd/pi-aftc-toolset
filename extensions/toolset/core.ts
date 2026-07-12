@@ -54,6 +54,7 @@
 import type { ExtensionAPI, ExtensionCommandContext, ToolInfo } from "@earendil-works/pi-coding-agent";
 import type {
     AccumulatorView,
+    AllowanceProvider,
     TimeframeStatsView,
     FooterDataProvider,
     ModelView,
@@ -300,7 +301,7 @@ class ShapeTracker {
 // Returns a FooterDataProvider that footer-widget.ts reads from.
 // ---------------------------------------------------------------------------
 
-export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): FooterDataProvider {
+export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowance: AllowanceProvider): FooterDataProvider {
     const RECENT_TURNS = 10;
 
     const acc: CacheAccumulator = {
@@ -1097,6 +1098,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder): Footer
         getToolCache: () => toolCacheView,
         getCachedSession,
         getTimeframeStats,
+        getAllowance: () => allowance.getAllowance(),
         getUsedSkillCount: () => usedSkills.size,
         getLastThinkingMs: () => lastThinkingMs,
         getAvgThinkingMs: () => avgMs(thinkingTimes),

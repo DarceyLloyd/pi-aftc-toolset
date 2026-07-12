@@ -31,6 +31,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createAllowance } from "./allowance";
 import { createCore } from "./core";
 import { createFooterWidget } from "./footer-widget";
 import { createInputClear } from "./input-clear";
@@ -49,6 +50,7 @@ import { createCwd } from "./cwd";
 export default function (pi: ExtensionAPI): void {
 	try {
 	// Independent modules first (self-register commands/handlers).
+	const allowance = createAllowance(pi);
 	const recorder = createUsageRecording(pi);
 	const usage = createUsageModule(pi);
 	const help = createHelpModule(pi);
@@ -63,8 +65,11 @@ export default function (pi: ExtensionAPI): void {
 	createCwd(pi);
 
 	// Core owns the data; the widget renders it. The orchestrator wires
-	// them so neither module imports the other (rules.md §1.5).
-	const footerData = createCore(pi, recorder);
+	// them so neither module imports the other (rules.md §1.5). allowance
+	// is passed into core exactly like recorder, and re-exposed on the
+	// FooterDataProvider so the widget can render line 5 without importing
+	// allowance.ts.
+	const footerData = createCore(pi, recorder, allowance);
 	createFooterWidget(pi, footerData);
 
 	// usage and help are intentionally not passed to anyone — they

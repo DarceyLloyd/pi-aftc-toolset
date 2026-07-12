@@ -230,6 +230,59 @@ class SSHClient(QThread):
         except Exception:
             pass
 
+    def send_raw(self, data):
+        """Send raw bytes to the SSH channel WITHOUT appending a newline.
+
+        Used by the PythonGuiCarrier to drive interactive TUIs (nano/vim/htop)
+        and bracketed paste — sends the exact bytes the caller encoded
+        (KeyEncoder sequences), so control codes survive intact.
+        Returns True if sent, False if not connected.
+        """
+        if not self.channel or not self.is_connected:
+            return False
+        try:
+            self.channel.send(data)
+            self._file_log_in(repr(data), source="raw")
+            return True
+        except Exception:
+            return False
+
+    def upload_file(self, local_path, remote_path):
+        """Upload a local file to the remote host via SFTP (paramiko)."""
+        if not self.client or not self.is_connected:
+            return False, "not connected"
+        sftp = None
+        try:
+            sftp = self.client.open_sftp()
+            sftp.put(local_path, remote_path)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+        finally:
+            if sftp:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+
+    def download_file(self, remote_path, local_path):
+        """Download a remote file to a local path via SFTP (paramiko)."""
+        if not self.client or not self.is_connected:
+            return False, "not connected"
+        sftp = None
+        try:
+            sftp = self.client.open_sftp()
+            sftp.get(remote_path, local_path)
+            return True, None
+        except Exception as e:
+            return False, str(e)
+        finally:
+            if sftp:
+                try:
+                    sftp.close()
+                except Exception:
+                    pass
+
     def send_api_command(self, cmd):
         """From the Flask API — queues into the SSH session."""
         if self.is_connected:
@@ -355,6 +408,66 @@ class ApiServer(threading.Thread):
             if not self.ssh.is_connected:
                 return jsonify({'error': 'Not connected'}), 409
             self.ssh.disconnect()
+            return jsonify({'ok': True})
+
+        @self.app.route('/api/v1/send_raw', methods=['POST'])
+        def send_raw():
+            """Send raw bytes (base64-encoded UTF-8) directly to the SSH
+            channel WITHOUT a trailing newline.
+
+            Used by the PythonGuiCarrier for interactive TUI driving
+            (nano/vim/htop via KeyEncoder sequences) and bracketed paste,
+            which need exact control codes that /api/v1/send would corrupt
+            by appending a newline.
+            """
+            if not self.ssh.is_connected:
+                return jsonify({'error': 'Not connected'}), 503
+            data = request.get_json(force=True)
+            b64 = data.get('data', '')
+            if not b64:
+                return jsonify({'error': 'No data provided'}), 400
+            import base64 as _b64
+            try:
+                raw = _b64.b64decode(b64).decode('utf-8', errors='surrogateescape')
+            except Exception as e:
+                return jsonify({'error': f'Invalid base64: {e}'}), 400
+            ok = self.ssh.send_raw(raw)
+            return jsonify({'ok': ok, 'connected': self.ssh.is_connected})
+
+        @self.app.route('/api/v1/upload', methods=['POST'])
+        def upload():
+            """Upload a local file to the remote host via SFTP (paramiko).
+
+            Body: {"local_path": "...", "remote_path": "..."}
+            """
+            if not self.ssh.is_connected:
+                return jsonify({'error': 'Not connected'}), 503
+            data = request.get_json(force=True)
+            local_path = data.get('local_path', '').strip()
+            remote_path = data.get('remote_path', '').strip()
+            if not local_path or not remote_path:
+                return jsonify({'error': 'local_path and remote_path required'}), 400
+            ok, err = self.ssh.upload_file(local_path, remote_path)
+            if not ok:
+                return jsonify({'error': err or 'upload failed'}), 500
+            return jsonify({'ok': True})
+
+        @self.app.route('/api/v1/download', methods=['POST'])
+        def download():
+            """Download a remote file to a local path via SFTP (paramiko).
+
+            Body: {"remote_path": "...", "local_path": "..."}
+            """
+            if not self.ssh.is_connected:
+                return jsonify({'error': 'Not connected'}), 503
+            data = request.get_json(force=True)
+            remote_path = data.get('remote_path', '').strip()
+            local_path = data.get('local_path', '').strip()
+            if not remote_path or not local_path:
+                return jsonify({'error': 'remote_path and local_path required'}), 400
+            ok, err = self.ssh.download_file(remote_path, local_path)
+            if not ok:
+                return jsonify({'error': err or 'download failed'}), 500
             return jsonify({'ok': True})
 
     def run(self):
@@ -751,7 +864,50 @@ class SSHApp(QMainWindow):
 
 if __name__ == "__main__":
     import sys
+    import argparse
+
+    parser = argparse.ArgumentParser(description="AFTC PI SSH Tool")
+    parser.add_argument("--host", default=None,
+                        help="SSH destination: 'host', 'user@host', or 'user@host:port'. "
+                             "When set, the GUI auto-connects on launch.")
+    parser.add_argument("--username", default=None, help="SSH username (overrides user in --host).")
+    parser.add_argument("--password", default=None, help="SSH password.")
+    parser.add_argument("--port", type=int, default=None, help="SSH port (overrides port in --host).")
+    args = parser.parse_args()
+
     app = QApplication(sys.argv)
     window = SSHApp()
     window.show()
+
+    # Auto-connect when credentials were provided via CLI. Deferred briefly so
+    # the PyQt event loop + Flask API are fully up before the connect fires.
+    if args.host:
+        host = args.host
+        username = args.username
+        port = args.port
+        if '@' in host and not username:
+            parts = host.split('@')
+            username = parts[0]
+            host = parts[1]
+        if not username:
+            username = "root"
+        if not port and ':' in host:
+            host_parts = host.split(':')
+            host = host_parts[0]
+            try:
+                port = int(host_parts[1])
+            except Exception:
+                port = None
+        if not port:
+            port = 22
+        password = args.password or ""
+
+        def _auto_connect():
+            display = f"{username}@{host}" if port == 22 else f"{username}@{host}:{port}"
+            window.host_input.setText(display)
+            window.password_input.setText(password)
+            window.on_connect_clicked()
+
+        QTimer.singleShot(1000, _auto_connect)
+
     sys.exit(app.exec())

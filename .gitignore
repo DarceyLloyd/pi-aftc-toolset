@@ -16,10 +16,36 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Environment
+# Environment + credentials
+# .env variants
 .env
 .env.local
 .env.*.local
+
+# pi auth + credential stores (in case any are ever copied into the repo)
+# User-global: ~/.pi/agent/auth.json (API keys + OAuth tokens)
+# Models config that may include inline keys: ~/.pi/agent/models.json
+# Keybindings: ~/.pi/agent/keybindings.json (no creds, but per-user)
+auth.json
+models.json
+keybindings.json
+credentials.json
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Catch-all for any JSON/YAML/ENV files that look like they hold secrets
+# (only the basename, not arbitrary *.json — many of those are legitimate)
+*credentials*.json
+*credentials*.yaml
+*credentials*.yml
+*credentials*.toml
+*secrets*.json
+*secrets*.yaml
+*secrets*.yml
+*secrets*.toml
 
 # Misc
 .bak/

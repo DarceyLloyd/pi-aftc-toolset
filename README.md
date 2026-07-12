@@ -10,12 +10,11 @@ A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
 ---
 
-## What's new in v1.6.0
+## What's new in v1.7.0
 
-- **`/cwd`** - new slash command that prints the current working directory as an inline card in the conversation transcript (same style as `/dir`).
-- **`/cd` picker rewrite** - synthetic `./` current-folder entry at the top of the listing, selection always resets to the top, and the preserve-vs-fresh prompt is gone (`/cd` always starts a fresh session; resume via pi's built-in `/session`).
-- **`/dir`, `/ls`** now registered in the `/aftc-help` output.
-- Two new behavioural test harnesses (`cd-no-preserve`, `cd-picker-top`), 51 new assertions.
+- New line added to footer widget for those who use subscriptions, you can now see 5h allowance and weekly allowance quotas and when they reset (if appears different for different gateways, as each doesn't reveal or give the same information, some not at all, so if you don't see it, then the info is not available. I've tested it for minimax, z.ai and openai 5.6 terra)
+- New footer coloring (I programmed it using the theme included in this extension 'aftc-orange-viz')
+- Disabled local sqlite saving of prompts that cost $0, as that information will taint reports (this is still in alpha, and may be re-introduced as it still could give good information on model response & thinking times etc)
 
 ---
 
@@ -86,7 +85,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 | Command | What it does |
 | --- | --- |
-| `/aftc-footer` | Toggle the four-line cache/timing/cost footer widget |
+| `/aftc-footer` | Toggle the cache/timing/cost/allowance footer widget |
 | `/aftc-footer-report-timeframe` | Set the footer AVG-window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d) |
 | `/cache-profile` | Per-tool token costs, prefix shape, churn analysis |
 | `/cache-stats` | Current-context cache diagnostics + cost rate |
@@ -132,7 +131,7 @@ Detailed how-tos for each feature. See [Slash Commands](#slash-commands) above f
 
 ### Footer widget
 
-A four-line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler.
+A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler. Line 5 (subscription allowance) only appears for providers that expose usage data.
 
 **Line layout:**
 
@@ -142,6 +141,17 @@ A four-line diagnostic panel (not pi's footer), so it composes alongside other f
 | 2 | Last-turn cost, session total cost, user-prompt count, total model calls, context time, burn rate |
 | 3 | Active tool count / token estimate, skills `used/available`, thinking time, response time |
 | 4 | AVG-window aggregates from SQLite (cost, prompts/turns, average cache hit rate, average thinking / response time) |
+| 5 | Subscription allowance: 5h + weekly used % with reset countdowns (only for providers that expose a usable endpoint: openai-codex, MiniMax, Z.ai, Anthropic OAuth; hidden otherwise) |
+
+**Example (rendered live below the editor):**
+
+```text
+▏ MiniMax-M3 · medium │ Cache Turn 99.6% / Avg 99.3% │ 1.0M CTX Window │ I/O ↑8.3K ↓2.4K │ 108K Cached / 0 New
+▏ Turn $0.00688 · CTX Total $0.08 (3 User / 12 Turns) | CTX Time 7m 58s · $0.61/hr · $0.010/min
+▏ 20 Tools ~2.8Kt │ Skills 0/32 │ Thinking time 0.0s Last / 0.0s Avg │ Response time: 1.8s Last / 1.4s Avg
+▏ Avg Today: Cost $18.96 | Prompts/Turns 69/1861 | Cache 96.9% | Think time 2s | Response time 5s
+▏ MiniMax: 5h allowance used: 2% Resets in: 02h 47m │ Weekly allowance used: 59% Resets in: 06h 47m
+```
 
 Line 4's time window is configurable - see `/aftc-footer-report-timeframe`. Defaults to Today; persisted across `/reload`, `/new`, and fresh pi startup (stored in `.pi-aftc-toolset/data/state.json`). Refreshed at most every 10 s from SQLite.
 

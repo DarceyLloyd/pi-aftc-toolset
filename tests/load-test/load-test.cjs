@@ -90,6 +90,7 @@ const pi = {
 	},
 	registerTool() {},
 	registerMessageRenderer() {},
+	registerEntryRenderer() {},
 	getAllTools() {
 		return tools;
 	},

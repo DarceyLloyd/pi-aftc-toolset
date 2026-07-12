@@ -12,7 +12,8 @@ commands/shortcuts/tools it registers. See `rules.md` §12.
 | --- | --- |
 | `index.ts` | Default-export orchestrator. Instantiates every module and wires core.ts's data provider into footer-widget.ts. |
 | `core.ts` | Cache / token / cost accumulators, prefix-shape tracker, context-window timer, and the cache + timer commands. Returns a `FooterDataProvider` for the widget. |
-| `footer-widget.ts` | The four-line cache dashboard rendered as a `setWidget` below the editor. Owns the 1Hz ticker, show/hide lifecycle, and `/aftc-footer` toggle. |
+| `footer-widget.ts` | The cache dashboard rendered as a `setWidget` below the editor (4 base lines + a conditional 5th allowance line). Owns the 1Hz ticker, show/hide lifecycle, and `/aftc-footer` toggle. |
+| `allowance.ts` | Subscription allowance data for the footer's 5th line (5h + weekly used % + reset). Fetches `openai-codex` / `minimax` / `zai` usage endpoints and reads `anthropic` subscription headers; returns an `AllowanceProvider`. See `allowance.readme.md`. |
 | `usage-report.ts` | `/usage-report` (writes + opens `report.html`) and `/usage-clear`. Reads from the SQLite DB. |
 | `usage-recording.ts` | Per-turn SQLite recording. Implements the `TurnRecorder` interface that core.ts calls on every `message_end`. |
 | `install.ts` | `/aftc-install` - runs `npm install` for `better-sqlite3` and `uv sync` for the Python SSH GUI. |

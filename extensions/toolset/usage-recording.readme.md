@@ -17,12 +17,14 @@ to import this file.
 
 ## What is recorded (and what is NOT)
 
-This module records **metrics and prompt-type classification
-flags only** - never the actual text of user prompts, sub-prompts,
-or assistant responses. That keeps the DB small (one row ≈
-100 bytes) and avoids storing anything sensitive. The model call
-content lives in pi's own session JSONL; this DB only stores
-metrics + classification.
+Every **chargeable** completed assistant turn is inserted into the
+shared `turns` table. Turns whose cost is `$0` (or, defensively, any
+non-positive cost) are **skipped** — free turns (some subscription
+plans report $0) would taint the averages, totals, burn-rate, and
+projection maths in `/usage-report`. The in-memory footer
+accumulator in `core.ts` still updates, so the live footer keeps
+showing the real last-turn cost; only the historical DB row is
+skipped.
 
 If you want to know *what the user asked*, read the session
 JSONL. If you want to know *how much that cost and how the
@@ -117,7 +119,8 @@ directly - go through the orchestrator.
 ## Failure mode
 
 If better-sqlite3 isn't installed (user hasn't run `/aftc-install`),
-`getDb()` returns `null` and `recordTurn` is a silent no-op. The
+`getDb()` returns `null` and `recordTurn` is a silent no-op. A turn
+whose `costUsd` is `<= 0` is also a silent no-op (see above). The
 SQLite insert itself is wrapped in try/catch - any other error is
 logged via `console.log` and swallowed. Per-turn failures never break
 the agent loop.

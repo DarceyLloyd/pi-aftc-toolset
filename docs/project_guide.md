@@ -16,7 +16,9 @@ adds a set of productivity tools to the pi coding agent:
 
 - A **live cache-dashboard widget** rendered below the editor,
   showing model, thinking level, cache hit rate, cost rate, context
-  window clock, tool costs, and thinking/response times.
+  window clock, tool costs, thinking/response times, and (for supported
+  subscription providers) a 5th line with 5-hour + weekly allowance
+  used % and reset countdowns.
 - **SQLite-backed per-turn usage recording** with an HTML report
   generator (lifetime totals, model leaderboards, summary cards,
   trend chart, per-model cost tables, cost projections).
@@ -52,6 +54,7 @@ pi-aftc-toolset/
 │   ├── index.ts                       ← orchestrator (entry point)
 │   ├── core.ts                        ← data + events + commands
 │   ├── footer-widget.ts               ← widget rendering + /aftc-footer
+│   ├── allowance.ts                   ← footer line 5: subscription allowance (codex / minimax / zai / anthropic)
 │   ├── usage-recording.ts             ← per-turn SQLite recording
 │   ├── usage-report.ts                ← /usage-report + /usage-clear
 │   ├── install.ts                     ← /aftc-install
@@ -131,6 +134,7 @@ about every module and wires them together.
 ```
 index.ts (orchestrator)
   ├─→ usage-recording.ts → UsageRecorder (TurnRecorder impl)
+  ├─→ allowance.ts → AllowanceProvider (5h/weekly usage for codex/minimax)
   ├─→ usage-report.ts → UsageModule
   ├─→ help.ts → HelpModule
   ├─→ install.ts → InstallModule
@@ -140,18 +144,22 @@ index.ts (orchestrator)
   ├─→ response.ts (no return)
   ├─→ stfu.ts (no return)
   ├─→ cd.ts (no return)
-  ├─→ core.ts(pi, recorder) → FooterDataProvider
+  ├─→ core.ts(pi, recorder, allowance) → FooterDataProvider
   └─→ footer-widget.ts(pi, dataProvider)
 ```
 
-Two cross-module data flows:
+Three cross-module data flows:
 1. `core.ts(pi, recorder)` - orchestrator passes the
    `UsageRecorder` instance into `createCore` so core can call
    `recordTurn(...)` on every `message_end`.
-2. `footer-widget.ts(pi, footerData)` - orchestrator passes the
+2. `core.ts(pi, recorder, allowance)` - orchestrator passes the
+   `AllowanceProvider` (from `allowance.ts`) into `createCore`, which
+   re-exposes it as `FooterDataProvider.getAllowance()` so the widget
+   can render line 5 without importing `allowance.ts`.
+3. `footer-widget.ts(pi, dataProvider)` - orchestrator passes the
    `FooterDataProvider` returned by `createCore` into
-   `createFooterWidget` so the widget reads cache/timing state
-   without importing core.
+   `createFooterWidget` so the widget reads cache/timing/allowance
+   state without importing core.
 
 Cross-module types live in `types.ts` (`TurnRecord`, `TurnRecorder`,
 `FooterDataProvider` and the view types).
@@ -423,6 +431,7 @@ All tests are under `tests/`, each in its own subfolder.
 
 ```bash
 node tests/parse-check/parse-check.mjs          # jiti parses usage-report.ts
+node tests/allowance-check/allowance-check.mjs    # allowance formatter + parsers + line 5
 node tests/full-check/full-check.mjs            # DB + projections + HTML structure
 node tests/widget-render-check/widget-render-check.mjs  # orchestrator + widget + ticker
 node tests/stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
