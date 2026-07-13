@@ -18,6 +18,10 @@
  *   - dir.ts          — /dir /ls: list current directory contents (platform-native)
  *   - cwd.ts          — /cwd: show the current working directory (inline card)
  *   - replay.ts       — /save-replay-prompt + /replay: save a prompt string and re-send it
+ *   - keep-it-short.ts — /keep-it-short + /kis: send a fixed "be concise" prompt to the active model
+ *   - think-parser.ts — message_end hook that converts inline <think>…</think>
+ *                        tags in assistant text into pi's native ThinkingContent
+ *                        blocks (no commands, no UI — pure message-content transform)
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -48,6 +52,8 @@ import { createCd } from "./cd";
 import { createDir } from "./dir";
 import { createCwd } from "./cwd";
 import { createReplay } from "./replay";
+import { createKeepItShort } from "./keep-it-short";
+import { createThinkParser } from "./think-parser";
 
 export default function (pi: ExtensionAPI): void {
 	try {
@@ -66,6 +72,8 @@ export default function (pi: ExtensionAPI): void {
 	createDir(pi);
 	createCwd(pi);
 	createReplay(pi);
+	createKeepItShort(pi);
+	createThinkParser(pi);
 
 	// Core owns the data; the widget renders it. The orchestrator wires
 	// them so neither module imports the other (rules.md §1.5). allowance

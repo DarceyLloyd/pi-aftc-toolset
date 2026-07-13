@@ -127,6 +127,20 @@ export interface AllowanceProvider {
  * Mirrors the private `CacheAccumulator` interface in core.ts but only
  * exposes the fields the footer actually renders. Returning a fresh
  * view each call is fine — the widget caches the rendered string.
+ *
+ * Turn-count fields split cleanly into three buckets so the footer can
+ * report "User prompts" and "AI prompts" without confusing them:
+ *   - `userTurns` - assistant turns that were the FIRST reply to a
+ *     user message (i.e. prompted directly by the human). Always 0
+ *     for automated tool-call continuations.
+ *   - `aiTurns`   - assistant turns the model itself initiated (i.e.
+ *     tool-call continuations: it received a tool result and decided
+ *     to keep talking). Increments every time the agent loop calls
+ *     the model after a tool returns.
+ *   - `turns`     - total assistant turns (`userTurns + aiTurns`).
+ *     Used by `/cache-stats` and `/cache-profile` for "total turns";
+ *     the footer reads the split fields instead so a single user
+ *     prompt shows as "User 1 / AI 0" even though the model responded.
  */
 export interface AccumulatorView {
     cacheRead: number;
@@ -136,6 +150,7 @@ export interface AccumulatorView {
     cost: number;
     turns: number;
     userTurns: number;
+    aiTurns: number;
     lastTurnCacheRead: number;
     lastTurnInput: number;
     lastTurnOutput: number;
@@ -169,8 +184,11 @@ export interface SessionView {
  * Aggregate stats over a configurable timeframe, computed from the
  * SQLite `turns` table for the footer widget's 4th line.
  *
- * `timeframeLabel` is a short display label like "Today", "3h", "24h",
- * "7d". Cache hit rates are 0..1 (0..100%). Default fields are 0 when
+ * `timeframeLabel` is a long-form display label matching the
+ * /aftc-set-costs-timeframe slash command vocabulary: "Today",
+ * "Last 3 Hours", "Last 6 Hours", "Last 24 Hours", "Last 2 Days",
+ * "Last 3 Days", "Last 7 Days", "Last 28 Days". Cache hit rates are
+ * 0..1 (0..100%). Default fields are 0 when
  * the database is unavailable or no turns fall in the timeframe.
  */
 export interface TimeframeStatsView {
@@ -221,4 +239,15 @@ export interface FooterDataProvider {
     /** Called from the footer's 1Hz ticker; recomputes the session
      * clock + cost rates and lets the widget render them. */
     onTick(): void;
+    /** Pi's own context-usage estimate (same number shown in the
+     *  native status bar). Refreshed on every message_end and on the
+     *  1Hz ticker. Null when pi hasn't computed one yet (e.g. before
+     *  the first LLM response). */
+    getContextUsage(): ContextUsageView | null;
+}
+
+export interface ContextUsageView {
+    tokens: number | null;
+    contextWindow: number;
+    percent: number | null;
 }

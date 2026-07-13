@@ -84,8 +84,9 @@ interface CacheAccumulator {
     input: number;       // total new prompt tokens across the session
     output: number;      // total output tokens across the session
     cost: number;
-    turns: number;       // total assistant turns (includes automated tool-call continuations)
+    turns: number;       // total assistant turns (userTurns + aiTurns)
     userTurns: number;   // user-prompted turns only (first assistant turn after each user message)
+    aiTurns: number;     // AI-initiated turns (tool-call continuations): the model decided to keep talking after a tool returned. Stays 0 for a single user prompt that produces a final answer with no tool calls.
     lastTurnCacheRead: number;
     lastTurnCacheWrite: number;
     lastTurnInput: number;   // last turn only — total prompt tokens (new + cached)
@@ -305,7 +306,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     const RECENT_TURNS = 10;
 
     const acc: CacheAccumulator = {
-        cacheRead: 0, cacheWrite: 0, input: 0, output: 0, cost: 0, turns: 0, userTurns: 0,
+        cacheRead: 0, cacheWrite: 0, input: 0, output: 0, cost: 0, turns: 0, userTurns: 0, aiTurns: 0,
         lastTurnCacheRead: 0, lastTurnCacheWrite: 0, lastTurnInput: 0, lastTurnOutput: 0, lastTurnCost: 0,
     };
     const recentHits: number[] = [];   // last N turn hit rates (0..1)
@@ -336,6 +337,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     let lastResponseMs = 0;
     const thinkingTimes: number[] = [];
     const responseTimes: number[] = [];
+
+    // Pi's own context-usage snapshot. Captured on every message_end
+    // (after the new turn is added) and on every 1Hz ticker pulse so
+    // the footer widget can show the same % that pi's native status
+    // bar shows. Null until the first capture (before first LLM resp).
+    let contextUsage: { tokens: number | null; contextWindow: number; percent: number | null } | null = null;
 
     /**
      * Reset the per-prompt tracking flags + the in-progress turn
@@ -369,7 +376,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
      * (state.json holds only user preferences).
      */
     function resetAccumulators(): void {
-        acc.cacheRead = acc.cacheWrite = acc.input = acc.output = acc.cost = acc.turns = acc.userTurns = 0;
+        acc.cacheRead = acc.cacheWrite = acc.input = acc.output = acc.cost = acc.turns = acc.userTurns = acc.aiTurns = 0;
         acc.lastTurnCacheRead = acc.lastTurnCacheWrite = acc.lastTurnInput = acc.lastTurnOutput = acc.lastTurnCost = 0;
         recentHits.length = 0;
         shape.reset("");
@@ -420,25 +427,29 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
 
     // ------------------------------------------------------------------------
     // Timeframe stats (4th footer line) — aggregates from the SQLite
-    // `turns` table for a configurable time window (Today / 3h / 6h / 24h
-    // / 2d / 3d / 7d / 28d). Cached and refreshed on the 1Hz ticker,
-    // throttled to every 10s, OR refreshed immediately on timeframe
-    // change. DB unavailable / query failure → all zeros.
+    // `turns` table for a configurable time window. Labels use the
+    // same long form as the /aftc-footer-report-timeframe slash
+    // command (Today, Last 3 Hours, Last 6 Hours, Last 24 Hours,
+    // Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days) so the
+    // footer matches what the user typed to set it. Cached and
+    // refreshed on the 1Hz ticker, throttled to every 10s, OR
+    // refreshed immediately on timeframe change. DB unavailable /
+    // query failure → all zeros.
     // ------------------------------------------------------------------------
     type TimeframeKey = "today" | "3h" | "6h" | "24h" | "2d" | "3d" | "7d" | "28d";
     const TIMEFRAMES: Record<TimeframeKey, { label: string; cut: () => number }> = {
-        today: { label: "Today", cut: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); } },
-        "3h":   { label: "3h",     cut: () => Date.now() - 3 * 3_600_000 },
-        "6h":   { label: "6h",     cut: () => Date.now() - 6 * 3_600_000 },
-        "24h":  { label: "24h",    cut: () => Date.now() - 24 * 3_600_000 },
-        "2d":   { label: "2d",     cut: () => Date.now() - 2 * 86_400_000 },
-        "3d":   { label: "3d",     cut: () => Date.now() - 3 * 86_400_000 },
-        "7d":   { label: "7d",     cut: () => Date.now() - 7 * 86_400_000 },
-        "28d":  { label: "28d",    cut: () => Date.now() - 28 * 86_400_000 },
+        today: { label: "Today",          cut: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); } },
+        "3h":  { label: "Last 3 Hours",   cut: () => Date.now() - 3 * 3_600_000 },
+        "6h":  { label: "Last 6 Hours",   cut: () => Date.now() - 6 * 3_600_000 },
+        "24h": { label: "Last 24 Hours",  cut: () => Date.now() - 24 * 3_600_000 },
+        "2d":  { label: "Last 2 Days",    cut: () => Date.now() - 2 * 86_400_000 },
+        "3d":  { label: "Last 3 Days",    cut: () => Date.now() - 3 * 86_400_000 },
+        "7d":  { label: "Last 7 Days",    cut: () => Date.now() - 7 * 86_400_000 },
+        "28d": { label: "Last 28 Days",   cut: () => Date.now() - 28 * 86_400_000 },
     };
-    let _timeframe: TimeframeKey = "today";
+    let _timeframe: TimeframeKey = "3d";
     let cachedTimeframeStats: TimeframeStatsView = {
-        timeframeLabel: "Today",
+        timeframeLabel: "Last 3 Days",
         costUsd: 0,
         userPrompts: 0,
         totalTurns: 0,
@@ -805,6 +816,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             _pendingContinuationPrompt = false;
             _pendingPromptKind = "auto";
             _pendingStreamingBehavior = undefined;
+        } else {
+            // AI-initiated turn: the model decided to keep talking after
+            // a tool returned (continuation). This is what makes the
+            // footer "AI" counter go up; a single user prompt that
+            // produces a final answer with no tool calls leaves it at 0.
+            acc.aiTurns++;
         }
 
         // Snapshot last turn
@@ -864,6 +881,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                 (_ctx as any)?.ui?.notify?.(`Cache prefix changed: ${cmp.reasons.join("+")}`, "warning");
             }
         }
+
+        // Capture pi's own context-usage snapshot (same number shown in
+        // the native status bar). The widget reads this via
+        // data.getContextUsage() on the next render frame.
+        const u = _ctx?.getContextUsage?.();
+        if (u) contextUsage = { tokens: u.tokens, contextWindow: u.contextWindow, percent: u.percent };
     });
 
     pi.on("session_compact", async () => {
@@ -999,52 +1022,64 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     });
 
     // Pick the time window the 4th footer line aggregates over.
-    // Default is "Today" (local 00:00 → now). The choice is persisted
-    // to state.json (a USER PREFERENCE that survives /new, /reload,
-    // and fresh pi startup).
+    // Default is "Last 3 Days". The choice is persisted to state.json
+    // (a USER PREFERENCE that survives /new, /reload, and fresh pi
+    // startup). Registered under both /aftc-set-costs-timeframe
+    // (preferred) and /aftc-footer-report-timeframe (legacy alias).
+    async function handleCostsTimeframe(
+        _a: string,
+        ctx: ExtensionCommandContext,
+    ): Promise<void> {
+        const options = [
+            "Today",
+            "Last 3 Hours",
+            "Last 6 Hours",
+            "Last 24 Hours",
+            "Last 2 Days",
+            "Last 3 Days",
+            "Last 7 Days",
+            "Last 28 Days",
+        ];
+        const labelToKey: Record<string, string> = {
+            "Today": "today",
+            "Last 3 Hours": "3h",
+            "Last 6 Hours": "6h",
+            "Last 24 Hours": "24h",
+            "Last 2 Days": "2d",
+            "Last 3 Days": "3d",
+            "Last 7 Days": "7d",
+            "Last 28 Days": "28d",
+        };
+        const chosen = await ctx.ui.select(
+            "Footer 4th-line timeframe",
+            options,
+            { timeout: 0 },
+        );
+        if (chosen === undefined) return;
+        const key = labelToKey[chosen];
+        if (!key || !setTimeframe(key)) {
+            ctx.ui.notify?.("Invalid timeframe selection", "error");
+            return;
+        }
+        // setTimeframe already calls setPreference internally, so
+        // no separate save is needed here.
+        const stats = getTimeframeStats();
+        ctx.ui.notify?.(
+            `Footer timeframe set to ${stats.timeframeLabel}` +
+                ` (cost=$${stats.costUsd.toFixed(2)}, ${stats.totalTurns} turns)`,
+            "info",
+        );
+    }
+
+    pi.registerCommand("aftc-set-costs-timeframe", {
+        description: "Set the time window the footer 4th line aggregates over (default: Last 3 Days)",
+        handler: handleCostsTimeframe,
+    });
+
+    // Legacy alias — kept so muscle memory / old scripts keep working.
     pi.registerCommand("aftc-footer-report-timeframe", {
-        description: "Set the time window the footer 4th line aggregates over (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d)",
-        handler: async (_a: string, ctx: ExtensionCommandContext) => {
-            const options = [
-                "Today",
-                "3 Hours",
-                "6 Hours",
-                "24 Hours",
-                "2 Days",
-                "3 Days",
-                "7 Days",
-                "28 Days",
-            ];
-            const labelToKey: Record<string, string> = {
-                "Today": "today",
-                "3 Hours": "3h",
-                "6 Hours": "6h",
-                "24 Hours": "24h",
-                "2 Days": "2d",
-                "3 Days": "3d",
-                "7 Days": "7d",
-                "28 Days": "28d",
-            };
-            const chosen = await ctx.ui.select(
-                "Footer 4th-line timeframe",
-                options,
-                { timeout: 0 },
-            );
-            if (chosen === undefined) return;
-            const key = labelToKey[chosen];
-            if (!key || !setTimeframe(key)) {
-                ctx.ui.notify?.("Invalid timeframe selection", "error");
-                return;
-            }
-            // setTimeframe already calls setPreference internally, so
-            // no separate save is needed here.
-            const stats = getTimeframeStats();
-            ctx.ui.notify?.(
-                `Footer timeframe set to ${stats.timeframeLabel}` +
-                    ` (cost=$${stats.costUsd.toFixed(2)}, ${stats.totalTurns} turns)`,
-                "info",
-            );
-        },
+        description: "Alias for /aftc-set-costs-timeframe — same action, old name.",
+        handler: handleCostsTimeframe,
     });
 
     // -- Miscellaneous commands -----------------------------------------------
@@ -1086,6 +1121,8 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
 
     // Combined ticker callback: refreshes the session clock/cost rates
     // every tick, and the timeframe-stats aggregate at most every 10s.
+    // Context-usage snapshot is captured separately on message_end
+    // (only event handlers have access to ctx.getContextUsage()).
     function onTickFull(): void {
         recomputeCachedSession();
         refreshTimeframeStats();
@@ -1105,5 +1142,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         getLastResponseMs: () => lastResponseMs,
         getAvgResponseMs: () => avgMs(responseTimes),
         onTick: onTickFull,
+        getContextUsage: () => contextUsage,
     };
 }

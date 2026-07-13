@@ -33,7 +33,9 @@ import type {
 // Static command + shortcut tables. Keep these in sync with the actual
 // `registerCommand` / `registerShortcut` calls in:
 //   - core.ts               (cache-profile, cache-stats, cache-reset,
-//                            aftc-footer-report-timeframe, cls)
+//                            aftc-set-costs-timeframe, cls)
+//   - think-parser.ts       (aftc-enable-think-processing,
+//                            aftc-disable-think-processing)
 //   - footer-widget.ts      (aftc-footer)
 //   - usage-report.ts       (usage-report, usage-clear)
 //   - install.ts            (aftc-install)
@@ -48,6 +50,7 @@ import type {
 //   - dir.ts                (dir, ls)
 //   - cwd.ts                (cwd)
 //   - replay.ts             (save-replay-prompt, replay, r)
+//   - keep-it-short.ts      (keep-it-short, kis)
 //
 // Note: /show-thinking and /hide-thinking were removed — pi's built-in
 // Ctrl+T (app.thinking.toggle) and the hideThinkingBlock setting
@@ -56,120 +59,73 @@ import type {
 
 const GENERAL_COMMANDS: Array<[string, string]> = [
 	["/aftc-help", "Show this help screen"],
-	[
-		"/aftc-install",
-		"Install missing runtime dependencies: better-sqlite3 plus Python SSH GUI deps",
-	],
+	["/aftc-install", "Install runtime deps (SQLite + SSH GUI)"],
 	["/cls", "Clear the terminal screen"],
-	["/theme", "Open a theme picker (PgUp/PgDn, Ctrl+PgUp/PgDn, Enter to switch)"],
+	["/theme", "Open the theme picker"],
 ];
 
 const RESPONSE_COMMANDS: Array<[string, string]> = [
-	[
-		"/aftc-response-divider",
-		"Toggle the full-width themed divider above each assistant reply (default: on)",
-	],
+	["/aftc-response-divider", "Toggle the divider above each reply"],
 ];
 
 const INTERRUPT_COMMANDS: Array<[string, string]> = [
-	[
-		"/aftc-stop",
-		"Stop the current agent operation (escape a runaway thinking loop or stalled tool call). Alias for /stfu.",
-	],
-	["/stfu", "Short alias for /aftc-stop — same action, fewer keystrokes."],
+	["/aftc-stop", "Stop the current agent operation"],
+	["/stfu", "Short alias for /aftc-stop"],
 ];
 
 const NAVIGATION_COMMANDS: Array<[string, string]> = [
-	[
-		"/cd",
-		"Switch directory (interactive picker, or one-shot path arg like /cd ~/projects). Always starts a fresh session.",
-	],
-	[
-		"/cd-set-max-depth [2-10]",
-		"Set the /cd picker listing depth (default 3). Pass a number or run with no args for a picker.",
-	],
-	[
-		"/dir",
-		"Show the current directory name and a platform-native listing (dir on Windows, ls -la on macOS/Linux). Alias: /ls",
-	],
-	["/ls", "Alias for /dir — list the current directory contents."],
-	["/cwd", "Show the current working directory as an inline card (same style as /dir)."],
+	["/cd [path]", "Switch directory (picker or one-shot path)"],
+	["/cd-set-max-depth [2-10]", "Set /cd picker depth (default 3)"],
+	["/dir", "List the current directory (alias /ls)"],
+	["/ls", "Alias for /dir"],
+	["/cwd", "Show the current working directory"],
 ];
 
 const CACHE_COMMANDS: Array<[string, string]> = [
-	["/aftc-footer", "Show or hide the footer dashboard"],
-	[
-		"/aftc-footer-report-timeframe",
-		"Set the footer 4th-line time window: Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d (default: Today)",
-	],
-	[
-		"/cache-profile",
-		"Per-tool token costs, prefix shape hashes, system prompt size, churn analysis",
-	],
-	[
-		"/cache-stats",
-		"Session cache stats, cache-write ROI, SQLite-backed projections, model spend, prefix hashes",
-	],
-	[
-		"/cache-reset",
-		"Zero in-memory accumulators (tokens, cost, turns, churn) for benchmarking/debugging",
-	],
+	["/aftc-footer", "Toggle the footer dashboard"],
+	["/aftc-set-costs-timeframe", "Set the footer 4th-line time window (default: Last 3 Days)"],
+	["/cache-profile", "Per-tool token costs + prefix churn analysis"],
+	["/cache-stats", "Session cache stats + spend"],
+	["/cache-reset", "Zero accumulators (debugging)"],
 ];
 
 const USAGE_COMMANDS: Array<[string, string]> = [
-	["/usage-report", "Generate and open .pi-aftc-toolset/data/report.html"],
-	[
-		"/usage-clear",
-		"Permanently delete all recorded SQLite usage rows after confirmation",
-	],
+	["/usage-report", "Open the usage HTML report (ALPHA)"],
+	["/usage-clear", "Delete all recorded usage rows"],
 ];
 
 const SSH_COMMANDS: Array<[string, string]> = [
 	["/ssh-gui", "Launch the local PyQt6 SSH GUI"],
-	[
-		"/ssh-connect",
-		"Connect to a remote server: /ssh-connect user@host [password]",
-	],
-	[
-		"/ssh-run",
-		"Run a one-shot command on the connected server: /ssh-run <command>",
-	],
-	["/ssh-status", "Show SSH GUI running state and connection status"],
-	["/ssh-disconnect", "Disconnect from the current SSH session"],
+	["/ssh-connect", "Connect to user@host"],
+	["/ssh-run <cmd>", "Run a command on the connected server"],
+	["/ssh-status", "Show GUI + connection status"],
+	["/ssh-disconnect", "Disconnect the SSH session"],
 ];
 
 const REPLAY_COMMANDS: Array<[string, string]> = [
-	[
-		"/save-replay-prompt <text>",
-		"Save <text> as a replay prompt (persists across reload/sessions). Run /replay (or /r) to re-send it.",
-	],
-	[
-		"/replay",
-		"Re-execute the saved /save-replay-prompt string as a fresh user message. Queued as follow-up when the agent is busy.",
-	],
-	[
-		"/r",
-		"Short alias for /replay — same action, fewer keystrokes.",
-	],
+	["/save-replay-prompt <text>", "Save a prompt string for later replay"],
+	["/replay", "Re-send the saved prompt (alias /r)"],
+	["/r", "Short alias for /replay"],
+];
+
+const KEEP_SHORT_COMMANDS: Array<[string, string]> = [
+	["/keep-it-short", "Tell the model to be terse (alias /kis)"],
+	["/kis", "Short alias for /keep-it-short"],
 ];
 
 const SKILL_COMMANDS: Array<[string, string]> = [
-	[
-		"/skill:cache-audit",
-		"Load the bundled workflow for cache-hit and prefix diagnostics",
-	],
-	[
-		"/skill:bulk-read",
-		"Concatenate many files in a folder into one markdown doc (read all files, analyze the project, audit code)",
-	],
+	["/skill:cache-audit", "Cache diagnostics workflow"],
+	["/skill:bulk-read", "Concatenate many files into one doc"],
+];
+
+const THINKING_COMMANDS: Array<[string, string]> = [
+	["/aftc-enable-think-processing", "Enable <think>…</think> tag parsing"],
+	["/aftc-disable-think-processing", "Disable <think>…</think> tag parsing"],
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-	["alt+c", "Clear the text in pi's input editor — start typing fresh"],
-	[
-		"Ctrl+T",
-		"Built-in pi shortcut — toggle visibility of model <thinking> blocks in the main output",
-	],
+	["alt+c", "Clear the input editor"],
+	["Ctrl+T", "Toggle thinking block visibility (pi built-in)"],
 ];
 
 // -----------------------------------------------------------------------------
@@ -237,7 +193,11 @@ class HelpModule {
 		lines.push("");
 		lines.push(...renderSection("Replay", REPLAY_COMMANDS));
 		lines.push("");
+		lines.push(...renderSection("Keep it short", KEEP_SHORT_COMMANDS));
+		lines.push("");
 		lines.push(...renderSection("Skills", SKILL_COMMANDS));
+		lines.push("");
+		lines.push(...renderSection("Thinking", THINKING_COMMANDS));
 		lines.push("");
 		lines.push(...renderSection("Shortcuts", SHORTCUTS));
 		return lines;

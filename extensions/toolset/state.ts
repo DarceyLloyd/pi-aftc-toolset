@@ -10,6 +10,7 @@
  *   - footerTimeframe        (Today / 3h / 6h / 24h / 2d / 3d / 7d / 28d)
  *   - footerEnabled          (footer widget on/off)
  *   - responseDividerEnabled (response divider on/off)
+ *   - thinkProcessingEnabled (inline <think>…</think> → ThinkingContent block)
  *
  * `state.json` is created with `DEFAULT_PREFERENCES` on first access
  * if it doesn't already exist. It is ONLY re-written when one of those
@@ -45,21 +46,22 @@ import { getDataDir, getStateJson } from "./paths";
  * defaults-merge in `loadPreferencesInternal`.
  */
 export interface Preferences {
-    /** Schema version - bump when changing the shape. */
-    version: number;
     /** Footer 4th-line time window: today | 3h | 6h | 24h | 2d | 3d | 7d | 28d. */
     footerTimeframe?: string;
     /** Whether the footer widget is currently shown. */
     footerEnabled?: boolean;
     /** Whether the response divider is currently shown. */
     responseDividerEnabled?: boolean;
+    /** Whether the think-parser hook converts inline <think>…</think>
+     *  text tags in assistant messages into proper ThinkingContent
+     *  blocks. Off by default — users opt in via
+     *  /aftc-enable-think-processing. */
+    thinkProcessingEnabled?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Defaults — the single source of truth for a fresh state.json
 // ─────────────────────────────────────────────────────────────────────────────
-
-const PREFERENCES_VERSION = 1;
 
 /**
  * Default preferences. Used to:
@@ -68,15 +70,19 @@ const PREFERENCES_VERSION = 1;
  *   - merge against a partial / older state.json so missing keys
  *     always get their default value.
  *
+ * No schema version is tracked. Adding new preference fields just
+ * means users on older files get the new field's default until they
+ * change it; existing saved values are never discarded.
+ *
  * Keep this object in sync with the `Preferences` interface above
  * and with the three setPreference call sites in the extension
  * (footer-widget.ts, response.ts, core.ts).
  */
 export const DEFAULT_PREFERENCES: Preferences = {
-    version: PREFERENCES_VERSION,
-    footerTimeframe: "today",
+    footerTimeframe: "3d",
     footerEnabled: true,
     responseDividerEnabled: true,
+    thinkProcessingEnabled: false,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -118,14 +124,10 @@ function loadPreferencesInternal(): Preferences {
             cachedPreferences = { ...DEFAULT_PREFERENCES };
             return cachedPreferences;
         }
-        if (parsed.version !== PREFERENCES_VERSION) {
-            console.log(
-                `[aftc-toolset] state.json version mismatch (got ${parsed.version}, expected ${PREFERENCES_VERSION}) - discarding`,
-            );
-            cachedPreferences = { ...DEFAULT_PREFERENCES };
-            return cachedPreferences;
-        }
-        // Merge so missing keys still get their defaults.
+        // Merge so missing keys still get their defaults. Existing
+        // saved values are preserved even if the file has extra
+        // unknown fields (e.g. a leftover `version` from an earlier
+        // release is silently ignored).
         cachedPreferences = { ...DEFAULT_PREFERENCES, ...parsed };
         return cachedPreferences;
     } catch (err) {

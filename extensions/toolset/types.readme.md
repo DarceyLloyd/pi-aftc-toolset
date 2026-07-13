@@ -48,7 +48,11 @@ importing core.ts. The view types are the minimal fields the
 widget actually reads:
 
 - `AccumulatorView` - snapshot of the cache accumulator (no
-  methods, just fields).
+  methods, just fields). Three turn-count fields split the totals:
+  `userTurns` (first reply to a user prompt), `aiTurns` (tool-call
+  continuations the model itself initiated), and `turns` (their
+  sum). The footer reads the split fields so the "AI" counter stays
+  at 0 for a single user prompt with no tool calls.
 - `ModelView` - model name + reasoning + context window + thinking
   level.
 - `ToolCacheView` - `getCount()`, `getTotal()`, `getSkillCount()`,

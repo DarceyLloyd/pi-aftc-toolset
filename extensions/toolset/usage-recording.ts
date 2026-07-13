@@ -88,13 +88,15 @@ class UsageRecorder implements TurnRecorder {
     recordTurn(record: TurnRecord): void {
         const db = getDb();
         if (!db) return;
-        // Skip zero-cost turns. Free turns (e.g. some subscription plans
-        // report $0) would taint the averages, totals, cost-per-hour, and
-        // projection maths in /usage-report. We also defensively skip
-        // negative cost (impossible in practice but would corrupt the
-        // same aggregates). The in-memory accumulator in core.ts still
-        // updates so the footer keeps showing the real last-turn cost.
-        if (record.costUsd <= 0) return;
+        // Record EVERY turn so SQLite aggregates (line 4 of the footer:
+        // cost today, user prompts, AI continuations, total turns, average
+        // cache hit / thinking / response) reflect the full truth of what
+        // happened in pi. Previously we skipped cost <= 0 to keep averages
+        // clean, but that under-counted turns on free / subscription plans
+        // and made line 4 disagree with the in-memory counters.
+        // Defensive only: negative cost is impossible from a real provider
+        // and would corrupt aggregates if it leaked through.
+        if (!Number.isFinite(record.costUsd) || record.costUsd < 0) return;
         try {
             db.prepare(
                 `INSERT INTO turns (

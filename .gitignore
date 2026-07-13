@@ -55,6 +55,9 @@ rules.md
 dev.md
 skills/cache-audit/SKILL.old
 
+# Archived skills
+skills/*.rar
+
 # pi package cache (global and project-local)
 .pi/
 

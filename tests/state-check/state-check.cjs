@@ -74,17 +74,18 @@ function assertEq(a, b, msg) {
 	//    file with DEFAULT_PREFERENCES on first access.
 	// =========================================================================
 	let st = freshState();
-	assertEq(st.getPreference("footerTimeframe", "today"), "today", "default footerTimeframe");
+	assertEq(st.getPreference("footerTimeframe", "today"), "3d", "default footerTimeframe");
 	assertEq(st.getPreference("footerEnabled", true), true, "default footerEnabled");
 	assertEq(st.getPreference("responseDividerEnabled", true), true, "default responseDividerEnabled");
+	assertEq(st.getPreference("thinkProcessingEnabled", false), false, "default thinkProcessingEnabled");
 	// First access ensures the file exists with defaults so the user
 	// always has a real, editable state.json on disk.
 	assert(fs.existsSync(STATE_PATH), "getPreference should ensure state.json exists");
 	const ensured = JSON.parse(fs.readFileSync(STATE_PATH, "utf-8"));
-	assertEq(ensured.version, st.DEFAULT_PREFERENCES.version, "ensured version");
 	assertEq(ensured.footerTimeframe, st.DEFAULT_PREFERENCES.footerTimeframe, "ensured footerTimeframe");
 	assertEq(ensured.footerEnabled, st.DEFAULT_PREFERENCES.footerEnabled, "ensured footerEnabled");
 	assertEq(ensured.responseDividerEnabled, st.DEFAULT_PREFERENCES.responseDividerEnabled, "ensured responseDividerEnabled");
+	assertEq(ensured.thinkProcessingEnabled, st.DEFAULT_PREFERENCES.thinkProcessingEnabled, "ensured thinkProcessingEnabled");
 	console.log("OK defaults returned + state.json generated on first access");
 
 	// =========================================================================
@@ -96,7 +97,6 @@ function assertEq(a, b, msg) {
 	assert(fs.existsSync(STATE_PATH), "state.json should exist after setPreference");
 	const written = JSON.parse(fs.readFileSync(STATE_PATH, "utf-8"));
 	assertEq(written.footerTimeframe, "7d", "persisted footerTimeframe");
-	assertEq(written.version, 1, "persisted version");
 	// Every DEFAULT_PREFERENCES key is present in the written file.
 	assertEq(written.footerEnabled, st.DEFAULT_PREFERENCES.footerEnabled, "footerEnabled default written");
 	assertEq(written.responseDividerEnabled, st.DEFAULT_PREFERENCES.responseDividerEnabled, "responseDividerEnabled default written");
@@ -115,7 +115,7 @@ function assertEq(a, b, msg) {
 	// =========================================================================
 	rmAll();
 	fs.mkdirSync(DATA_DIR, { recursive: true });
-	fs.writeFileSync(STATE_PATH, JSON.stringify({ version: 1, footerTimeframe: "24h" }));
+	fs.writeFileSync(STATE_PATH, JSON.stringify({ footerTimeframe: "24h" }));
 	st = freshState();
 	assertEq(st.getPreference("footerTimeframe", "today"), "24h", "partial state.json: timeframe preserved");
 	assertEq(st.getPreference("footerEnabled", true), true, "partial state.json: missing key gets default");
@@ -127,26 +127,34 @@ function assertEq(a, b, msg) {
 	rmAll();
 	fs.writeFileSync(STATE_PATH, "{ this is not valid json");
 	st = freshState();
-	assertEq(st.getPreference("footerTimeframe", "today"), "today", "corrupt state.json: default returned");
+	assertEq(st.getPreference("footerTimeframe", "today"), "3d", "corrupt state.json: default returned");
 	// The corrupt file is left on disk so the user can hand-fix it.
 	console.log("OK corrupt state.json returns defaults (file left on disk)");
 
 	// =========================================================================
-	// 6. Version mismatch returns defaults (no aggressive migration).
+	// 6. Unknown / extra fields are tolerated — saved values for known
+	//    keys are preserved, unknown keys are ignored. (Replaces the
+	//    old "version mismatch discards the file" test: that path is
+	//    gone, and old state.json files with a leftover `version: 1`
+	//    still load cleanly.)
 	// =========================================================================
 	rmAll();
-	fs.writeFileSync(STATE_PATH, JSON.stringify({ version: 99, footerTimeframe: "should-be-ignored" }));
+	fs.writeFileSync(STATE_PATH, JSON.stringify({
+		version: 1, // legacy field from an earlier release
+		footerTimeframe: "3h",
+		someFutureField: "should-be-ignored",
+	}));
 	st = freshState();
-	assertEq(st.getPreference("footerTimeframe", "today"), "today", "version mismatch: default returned, value ignored");
-	console.log("OK state.json version mismatch returns defaults");
+	assertEq(st.getPreference("footerTimeframe", "today"), "3h", "known key preserved when extra fields present");
+	assertEq(st.getPreference("footerEnabled", true), true, "missing key still gets default");
+	console.log("OK unknown fields tolerated, known values preserved");
 
 	// =========================================================================
 	// 7. DEFAULT_PREFERENCES is exported and has the expected keys.
 	// =========================================================================
 	st = freshState();
 	const d = st.DEFAULT_PREFERENCES;
-	assertEq(d.version, 1, "DEFAULT_PREFERENCES.version");
-	assertEq(d.footerTimeframe, "today", "DEFAULT_PREFERENCES.footerTimeframe");
+	assertEq(d.footerTimeframe, "3d", "DEFAULT_PREFERENCES.footerTimeframe");
 	assertEq(d.footerEnabled, true, "DEFAULT_PREFERENCES.footerEnabled");
 	assertEq(d.responseDividerEnabled, true, "DEFAULT_PREFERENCES.responseDividerEnabled");
 	console.log("OK DEFAULT_PREFERENCES exported with expected keys");
@@ -157,7 +165,6 @@ function assertEq(a, b, msg) {
 	rmAll();
 	freshState()._resetPreferencesCacheForTests();
 	fs.writeFileSync(STATE_PATH, JSON.stringify({
-		version: 1,
 		footerTimeframe: "3h",
 		footerEnabled: false,
 		responseDividerEnabled: false,
@@ -172,6 +179,7 @@ function assertEq(a, b, msg) {
 		registerShortcut() {},
 		registerTool() {},
 		registerMessageRenderer() {},
+		registerEntryRenderer() {},
 		getAllTools: () => [],
 		getActiveTools: () => [],
 		exec: async () => ({ stdout: "", stderr: "", code: 0 }),
@@ -199,6 +207,7 @@ function assertEq(a, b, msg) {
 		registerShortcut() {},
 		registerTool() {},
 		registerMessageRenderer() {},
+		registerEntryRenderer() {},
 		getAllTools: () => [],
 		getActiveTools: () => [],
 		exec: async () => ({ stdout: "", stderr: "", code: 0 }),
@@ -207,23 +216,23 @@ function assertEq(a, b, msg) {
 	};
 	const indexMod18 = jiti(path.resolve(__dirname, "../../extensions/toolset/index.ts"));
 	indexMod18.default(pi18);
-	const tfCmd = cmds18["aftc-footer-report-timeframe"];
-	if (!tfCmd) throw new Error("aftc-footer-report-timeframe command not registered");
+	const tfCmd = cmds18["aftc-set-costs-timeframe"];
+	if (!tfCmd) throw new Error("aftc-set-costs-timeframe command not registered");
 	const notifications = [];
 	await tfCmd.handler("", {
 		hasUI: true,
 		ui: {
 			notify: (m, l) => notifications.push({ m, l }),
 			select: async (title, options) => {
-				const idx = options.indexOf("7 Days");
-				return idx >= 0 ? "7 Days" : undefined;
+				const idx = options.indexOf("Last 7 Days");
+				return idx >= 0 ? "Last 7 Days" : undefined;
 			},
 		},
 	});
 	assert(fs.existsSync(STATE_PATH), "state.json should exist after timeframe change");
 	const savedState = JSON.parse(fs.readFileSync(STATE_PATH, "utf-8"));
 	assertEq(savedState.footerTimeframe, "7d", "timeframe persisted to state.json");
-	console.log("OK /aftc-footer-report-timeframe persists to state.json");
+	console.log("OK /aftc-set-costs-timeframe persists to state.json");
 
 	// =========================================================================
 	// 10. Timeframe persists across a simulated pi restart.
@@ -244,6 +253,7 @@ function assertEq(a, b, msg) {
 		registerShortcut() {},
 		registerTool() {},
 		registerMessageRenderer() {},
+		registerEntryRenderer() {},
 		getAllTools: () => [],
 		getActiveTools: () => [],
 		exec: async () => ({ stdout: "", stderr: "", code: 0 }),

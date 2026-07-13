@@ -46,7 +46,6 @@ backup.ps1
 dev.md
 rules.md
 docs/
-images/
 tests/
 internal-python-gui/
 
@@ -54,6 +53,10 @@ internal-python-gui/
 .bak/
 .old/
 test/
+*.old
+
+# Archived skills (kept in repo, not shipped to npm)
+skills/*.rar
 
 # ── pi caches (per-user, never publish) ───────────────────
 .pi/

@@ -7,23 +7,33 @@ the editor. Owns the render path, the 1Hz ticker, and the
 ## What it does
 
 Renders a 4-line bar showing:
-- **Line 1**: model, thinking level, last-turn cache hit %, session
-  average cache hit %, trend arrow, context window size, IO token
-  totals, last-turn cache split (cached / new).
+- **Line 1**: model name, thinking level, context window size, last-turn
+  cache hit %, session average cache hit %, trend arrow, last-turn
+  cache split (cached / new), session token totals (`Tk ↑XX Tk ↓YY`).
+  Token totals come straight from pi's per-assistant-message `usage`
+  (input / cacheRead / output / totalTokens), so they are token-accurate
+  — not byte counts. Layout:
+  `model · THINKING │ CTX Window │ Turn Cache X% / Avg Y% │ Cached A / New B │ Tk ↑P Tk ↓Q`
+  The line never ends with a trailing `│` — the final segment is the
+  value, never a divider.
 - **Line 2**: last-turn cost, context-session total cost (sum of all
-  turn costs in this context), user-prompted turns vs total turns,
-  context-window time, $/hr and $/min burn rates.
+  turn costs in this context), **user-prompted turns vs AI-initiated
+  turns** (a single user prompt with no tool calls shows
+  `User 1 / AI 0`; the AI counter only increments on tool-call
+  continuations), context-window time, $/hr and $/min burn rates.
 - **Line 3**: active tool count + token estimate, skills
   `used/available` (skills pulled into context this session via a
   `/skill:name` command or a successful `read` of a skill file, vs
   the count in the system prompt's `<available_skills>` block),
   thinking time (last / avg), response time (last / avg).
 - **Line 4**: aggregates from the SQLite `turns` table over a
-  configurable time window (default: Today, local 00:00 to now).
+  configurable time window (default: Last 3 Days).
   Shows cost, prompts/turns, **average** cache hit rate over the
   window, average thinking time, average response time. The window
-  is set by `/aftc-footer-report-timeframe` (Today, 3h, 6h, 24h,
-  2d, 3d, 7d, 28d) and persists across `/resume` and `/reload`.
+  is set by `/aftc-set-costs-timeframe` (Today, Last 3 Hours,
+  Last 6 Hours, Last 24 Hours, Last 2 Days, Last 3 Days, Last 7 Days,
+  Last 28 Days) and persists across `/resume` and `/reload`. The
+  legacy alias `/aftc-footer-report-timeframe` still works.
   Refreshed at most every 10s by core.ts so the DB isn't hammered
   on every render tick.
 

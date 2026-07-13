@@ -7,7 +7,12 @@ can read them without importing this file.
 ## What it owns (closure state)
 
 - `acc: CacheAccumulator` - running totals (cacheRead, cacheWrite,
-  input, output, cost, turns, userTurns, last-turn snapshots).
+  input, output, cost, turns, userTurns, aiTurns, last-turn snapshots).
+  `turns` is the total (userTurns + aiTurns); `userTurns` counts the
+  first assistant reply after each user prompt, `aiTurns` counts the
+  model's own continuation turns (tool-call follow-ups where it
+  decided to keep talking). A single user prompt that produces a
+  final answer with no tool calls leaves aiTurns at 0.
 - `recentHits: number[]` - last N turn hit rates for the trend arrow.
 - `shape: ShapeTracker` - system-prompt + tool-schema hash + churn
   detection (system / tools / unknown).
@@ -81,10 +86,12 @@ above state via cheap getters on every render.
   cache-write ROI, prefix hashes.
 - `/cache-reset` - zero in-memory accumulators and the in-memory
   context-window clock. Useful for benchmarking.
-- `/aftc-footer-report-timeframe` - set the footer 4th-line time
-  window: Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d (default: Today).
-  Persisted to `state.json` as a user preference (survives /new,
-  /reload, and fresh pi startup).
+- `/aftc-set-costs-timeframe` - set the footer 4th-line time
+  window: Today, Last 3 Hours, Last 6 Hours, Last 24 Hours,
+  Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days (default:
+  Last 3 Days). Persisted to `state.json` as a user preference
+  (survives /new, /reload, and fresh pi startup). Alias:
+  `/aftc-footer-report-timeframe`.
 - `/cls` - clear the terminal screen.
 
 ## Files persisted

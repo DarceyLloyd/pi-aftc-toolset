@@ -12,11 +12,33 @@ import * as fs from "node:fs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..").replace(/\\/g, "/");
 const jiti = createJiti(ROOT, { interopDefault: true });
 
-// Reset persisted preferences so a stale state.json left by another test
-// (e.g. load-test's /aftc-footer toggle writing footerEnabled=false)
-// doesn't suppress the widget here. The widget default is on.
+// state.json holds real USER PREFERENCES and must NEVER be deleted by
+// tests — doing so wipes the user's actual settings on every run.
+// This test depends on the widget being on at session_start so the
+// factory is captured. Save the existing state.json (if any), force
+// footerEnabled=true for the duration of the test, then restore the
+// original on exit.
 const _statePath = path.join(ROOT, ".pi-aftc-toolset", "data", "state.json");
-try { fs.unlinkSync(_statePath); } catch (_) { /* ignore if absent */ }
+const _originalState = fs.existsSync(_statePath) ? fs.readFileSync(_statePath, "utf-8") : null;
+const _processExit = process.exit;
+process.exit = function (code) {
+    try {
+        if (_originalState === null) {
+            if (fs.existsSync(_statePath)) fs.unlinkSync(_statePath);
+        } else {
+            fs.writeFileSync(_statePath, _originalState, "utf-8");
+        }
+    } catch (_) { /* best effort */ }
+    return _processExit.call(process, code);
+};
+try {
+    fs.mkdirSync(path.dirname(_statePath), { recursive: true });
+    fs.writeFileSync(
+        _statePath,
+        JSON.stringify({ footerTimeframe: "today", footerEnabled: true, responseDividerEnabled: true }, null, 2),
+        "utf-8",
+    );
+} catch (_) { /* ignore — defaults apply if write fails */ }
 
 const handlers = {};
 const commands = {};

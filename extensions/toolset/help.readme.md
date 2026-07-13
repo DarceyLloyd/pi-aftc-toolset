@@ -12,8 +12,8 @@ Renders a `ctx.ui.select` dialog grouped by category:
 - **Interrupt** - `/aftc-stop`, `/stfu`
 - **Navigation** - `/cd`, `/cd-set-max-depth`, `/dir`, `/ls`, `/cwd`
 - **Footer / cache / timing** - `/aftc-footer`,
-  `/aftc-footer-report-timeframe`, `/cache-profile`, `/cache-stats`,
-  `/cache-reset`
+  `/aftc-set-costs-timeframe` (alias `/aftc-footer-report-timeframe`),
+  `/cache-profile`, `/cache-stats`, `/cache-reset`
 - **Usage report** - `/usage-report`, `/usage-clear`
 - **SSH** - `/ssh-gui`, `/ssh-connect`, `/ssh-run`, `/ssh-status`,
   `/ssh-disconnect`

@@ -7,24 +7,22 @@ A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
 `pi-aftc-toolset` is a collection of tools for pi - from my point of view, essentials to assist with what I do on a daily basis and to get the most out of AI models.
 
-## Footer widget preview
-![Footer Widget](images/FooterWidget-v1.7.1.jpg)
+## Footer Widget Preview
+![Footer Widget](images/FooterWidget-v1.7.2.jpg)
 
 ---
 
-## Latest updates to v1.7.1
+## Updates v1.7.x
 
-- **New slash commands**: `/save-replay-prompt <text>` saves a prompt string to `.pi-aftc-toolset/data/replay.json` (persists across reload/sessions). `/replay` (or its short alias `/r`) re-sends the saved prompt as a fresh user message via `pi.sendUserMessage(...)` — fires immediately when the agent is idle, queues as a follow-up when busy.
-- New "Replay" section in `/aftc-help` and the Slash Commands listing below.
-- Bundled test `tests/replay-check/replay-check.cjs` covers save, persistence, idle/busy delivery, headless fallback, and the `/r` alias.
+Quick list — full details in their respective sections below.
 
----
-
-## What's new in v1.7.0
-
-- New line added to footer widget for those who use subscriptions, you can now see 5h allowance and weekly allowance quotas and when they reset (if appears different for different gateways, as each doesn't reveal or give the same information, some not at all, so if you don't see it, then the info is not available. I've tested it for minimax, z.ai and openai 5.6 terra)
-- New footer coloring (I programmed it using the theme included in this extension 'aftc-orange-viz')
-- Disabled local sqlite saving of prompts that cost $0, as that information will taint reports (this is still in alpha, and may be re-introduced as it still could give good information on model response & thinking times etc)
+- **`/keep-it-short`** — new command, tells the model to keep responses short (alias /kis).
+- **`/save-replay-prompt` + `/replay (alias /r)`** — save a prompt, re-send it later.
+- **`/aftc-set-costs-timeframe`** — new name for the footer timeframe command (old name kept as alias).
+- **Footer Widget Subsription Usage Limits and Metrics** — subscription allowance metrics for MiniMax / Z.ai / openai-codex / Anthropic OAuth.
+- **Footer Widget Styling Refresh** — Re-arrangements of a lot, color theme compatibility adjutments, sections moved etc.
+- **`<think>` tag parsing** — opt-in, see `/aftc-enable-think-processing` and `/aftc-disable-think-processing`, it's designed to process minimax-m3 <think> tags in responses (needs work).
+- **Footer Widget fixes and changes** — Units of measurement updaes and fixes, bug fixes and mroe.
 
 ---
 
@@ -61,111 +59,61 @@ Then in pi:
 
 ---
 
-## Slash Commands
-
-Run `/aftc-help` inside pi for the same list grouped by category.
-
-### General
-
-| Command | What it does |
-| --- | --- |
-| `/aftc-help` | Grouped command/shortcut reference |
-| `/aftc-install` | Install runtime deps (SQLite + Python SSH GUI) |
-| `/aftc-response-divider` | Toggle the themed divider above each assistant reply |
-| `/cls` | Clear the terminal |
-| `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
-
-### Interrupt
-
-| Command | What it does |
-| --- | --- |
-| `/aftc-stop` | Abort the current agent operation |
-| `/stfu` | Short alias for `/aftc-stop` |
-
-### Navigation
-
-| Command | What it does |
-| --- | --- |
-| `/cd [path]` | Switch directory (interactive picker or one-shot path). Always starts a fresh session. |
-| `/cd-set-max-depth [2-10]` | Set the `/cd` picker listing depth (default 3) |
-| `/dir` (alias `/ls`) | Show the current directory name + platform-native listing |
-| `/cwd` | Show the current working directory as an inline card |
-
-### Footer, cache, timing
-
-| Command | What it does |
-| --- | --- |
-| `/aftc-footer` | Toggle the cache/timing/cost/allowance footer widget |
-| `/aftc-footer-report-timeframe` | Set the footer AVG-window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d) |
-| `/cache-profile` | Per-tool token costs, prefix shape, churn analysis |
-| `/cache-stats` | Current-context cache diagnostics + cost rate |
-| `/cache-reset` | Zero accumulators and timer (debugging) |
-
-### SSH
-
-| Command | What it does |
-| --- | --- |
-| `/ssh-gui` | Launch the local PyQt6 SSH GUI |
-| `/ssh-connect` | Connect to `user@host[:port]` (use the GUI for credentials) |
-| `/ssh-run` | Run a one-shot command on the connected server |
-| `/ssh-status` | Show GUI running state + connection status |
-| `/ssh-disconnect` | Disconnect the active SSH session (use the GUI) |
-
-### Usage
-
-| Command | What it does |
-| --- | --- |
-| `/usage-report` | Write + open `report.html` (ALPHA) |
-| `/usage-clear` | Delete all SQLite rows (with confirmation) |
-
-### Replay
-
-| Command | What it does |
-| --- | --- |
-| `/save-replay-prompt <text>` | Save `<text>` as a replay prompt (persists across reload/sessions) |
-| `/replay` | Re-execute the saved prompt as a fresh user message (queued as follow-up when busy) |
-| `/r` | Short alias for `/replay` — same action, fewer keystrokes |
-
-### Keyboard shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| `Alt+C` | Clear the input editor |
-| `Ctrl+T` | Toggle thinking blocks (pi built-in) |
-
-### Bundled themes
-
-- **cache-viz** - cache-focused green/cyan colour scheme.
-- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default, recommended).
-- **aftc-black-n-blue** - dark blue accents on black.
-
-Switch themes with `/theme`.
-
----
-
-
 
 ## Footer widget
 
-![Footer Widget](images/FooterWidget-v1.7.1.jpg)
+![Footer Widget](images/FooterWidget-v1.7.2.jpg)
 
 A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler. Line 5 (subscription allowance) only appears for providers that expose usage data.
 
-**Line layout:**
+### Line 1 — what's happening right now
 
-| Line | Shows |
-| --- | --- |
-| 1 | Model, thinking level, latest-turn cache hit rate, session-average hit rate, trend arrow, context window, IO token totals, last-turn cache split |
-| 2 | Last-turn cost, session total cost, user-prompt count, total model calls, context time, burn rate |
-| 3 | Active tool count / token estimate, skills `used/available`, thinking time, response time |
-| 4 | AVG-window aggregates from SQLite (cost, prompts/turns, average cache hit rate, average thinking / response time) |
-| 5 | Subscription allowance: 5h + weekly used % with reset countdowns (only for providers that expose a usable endpoint: openai-codex, MiniMax, Z.ai, Anthropic OAuth; hidden otherwise) |
+Reading left to right:
+
+- **`model` `·` `THINKING`** — which AI model you're using, and the thinking level you set (e.g. `HIGH`).
+- **`CTX Window (X%)`** — how big the model's memory is (e.g. `1.0M`), and the `(X%)` is how full that memory is right now. Same number pi shows at the bottom of the screen.
+- **`Turn Cache X% / Avg Y%`** — how much of your prompt the model got to reuse from its cache this turn, and your session average. Higher = cheaper.
+- **`Cached A / New B`** — of all the stuff you sent this session, how much was cached (`A`) vs sent fresh (`B`).
+- **`Tk ↑P Tk ↓Q`** — total tokens sent up to the AI (`P`) and received back (`Q`) this session.
+
+Units: `t` = tokens, `Kt` = thousand tokens, `M` = million tokens (only used for the context window size).
+
+### Line 2 — your money and prompts
+
+- **`Prompts: User N / AI N`** — how many prompts you sent vs how many the AI kicked off on its own (e.g. tool-call follow-ups).
+- **`CTX Time`** — how long this session has been alive (e.g. `2h 14m`).
+- **`Turn cost`** — what the last prompt cost in dollars.
+- **`CTX Time Total Cost`** — what the whole session has cost so far.
+- **`$/hr`** and **`$/min`** — how fast you're spending (based on the session clock).
+
+### Line 3 — speed and tools
+
+- **`Turn Time L / Avg A`** — how long the last prompt took (`L`) vs your session average (`A`).
+- **`Turn Response Time L / Avg A`** — total round-trip time, last vs average.
+- **`N Tools ~X.XKt`** — how many tools the AI can call, and roughly how many tokens they take up in the prompt.
+- **`Skills used/avail`** — how many skill files you've loaded this session, out of how many exist (only shown if at least one is loaded).
+
+### Line 4 — long-term averages
+
+Shows your averages over a time window you pick with `/aftc-set-costs-timeframe` (default: last 3 days). Updates from a SQLite log on your disk.
+
+- **`Cost <window>: $X.XX`** — total spend in that window.
+- **`Prompts: User X / AI Y`** — prompt counts in that window.
+- **`Cache X%`** — average cache hit rate in that window.
+- **`Think time X`** and **`Response time X`** — average speeds in that window.
+
+### Line 5 — subscription quota (some providers only)
+
+Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax, Z.ai, Anthropic OAuth).
+
+- **`5h Allowance used: X% Resets in: ...`** — your 5-hour rolling quota.
+- **`Weekly Allowance used: Y% Resets in: ...`** — your weekly quota.
 
 **Example (rendered live below the editor):**
 
-![Footer Widget](images/FooterWidget-v1.7.1.jpg)
+![Footer Widget](images/FooterWidget-v1.7.2.jpg)
 
-Line 4's time window is configurable - see `/aftc-footer-report-timeframe`. Defaults to Today; persisted across `/reload`, `/new`, and fresh pi startup (stored in `.pi-aftc-toolset/data/state.json`). Refreshed at most every 10 s from SQLite.
+Line 4's time window is configurable - see `/aftc-set-costs-timeframe` (alias: `/aftc-footer-report-timeframe`). Defaults to **Last 3 Days**; persisted across `/reload`, `/new`, and fresh pi startup (stored in `.pi-aftc-toolset/data/state.json`). Refreshed at most every 10 s from SQLite.
 
 **Cache hit rate:** `cacheRead / (cacheRead + input)`.
 
@@ -177,6 +125,7 @@ Line 4's time window is configurable - see `/aftc-footer-report-timeframe`. Defa
 **Session clock:** wall-clock elapsed since the first user prompt of the current session. In-memory only; cleared on every `session_start`, `/cache-reset`, `/reload`. Cost rate displayed as `$X.XX/hr · $X.XXX/min`.
 
 ---
+
 
 ## SSH remote terminal
 
@@ -250,6 +199,21 @@ With no arguments, `/cd` opens a tree-style directory picker overlay rooted at t
 
 ---
 
+## Think-tag processing
+
+Some reasoning models emit their chain-of-thought as text wrapped in `<think>…</think>` tags (the DeepSeek / Qwen convention). pi's provider integrations for those models strip the tags into proper `ThinkingContent` blocks automatically; providers that don't (including some local servers and certain custom wrappers) leave the tags as literal text.
+
+`/aftc-enable-think-processing` turns on a client-side hook that does the conversion at the extension layer. With it on:
+
+- `<think>reasoning here</think>answer` renders as a proper pi thinking block (collapsible, theme-aware, `Ctrl+T` toggle, `hideThinkingBlock` setting).
+- Models that already produce native thinking are left alone (no conflict).
+- Errors and aborted turns are skipped (no mangle of partial output).
+
+Off by default. Toggle with `/aftc-enable-think-processing` or `/aftc-disable-think-processing`, then `/reload`.
+
+---
+
+
 ## Cache diagnostics
 
 A live hit-rate readout, prefix-shape hashing that detects cache invalidations mid-session, a cache-write ROI calculation, a per-tool token-cost breakdown that surfaces prefix bloat, and a `cache-audit` skill that walks the model through diagnosis. The `cache-viz` theme reinforces the cache metrics visually. None of this exists in stock pi.
@@ -301,7 +265,7 @@ Projections with fewer than ~14 calendar days of data are flagged as estimates. 
 
 ## Bundled skills
 
-Load with `/skill:<name>`. The toolset ships with 31 live skills:
+Load with `/skill:<name>`. The toolset ships with 32 live skills:
 
 | Skill | Use for |
 | --- | --- |
@@ -318,11 +282,108 @@ Load with `/skill:<name>`. The toolset ships with 31 live skills:
 | `cache-audit` | Prompt-cache diagnostics workflow |
 | `bulk-read` | Concatenate many files into one markdown document |
 
-32 live skills total. 27 archived as `.rar` files in `skills/` to reduce per-turn context cost:
+---
 
-> Previously bundled SDLC pipeline skills (assess-impact, audit-code, define-success, dispatch-agents, edit-document, plan-refactor, publish-package, quick-fix, request-review, research-first, respond-review, security-review, smoke-test, write-document, and the former git skills git-workflow / guard-git / github / release-branch) have been archived as `.rar` files in `skills/` to reduce per-turn context cost. The four git skills were merged into the single `/skill:git` above.
+
+
+## Slash Commands
+
+Run `/aftc-help` inside pi for the same list grouped by category.
+
+### General
+
+| Command | What it does |
+| --- | --- |
+| `/aftc-help` | Grouped command/shortcut reference |
+| `/aftc-install` | Install runtime deps (SQLite + Python SSH GUI) |
+| `/aftc-response-divider` | Toggle the themed divider above each assistant reply |
+| `/cls` | Clear the terminal |
+| `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
+
+### Interrupt
+
+| Command | What it does |
+| --- | --- |
+| `/aftc-stop` | Abort the current agent operation |
+| `/stfu` | Short alias for `/aftc-stop` |
+
+### Navigation
+
+| Command | What it does |
+| --- | --- |
+| `/cd [path]` | Switch directory (interactive picker or one-shot path). Always starts a fresh session. |
+| `/cd-set-max-depth [2-10]` | Set the `/cd` picker listing depth (default 3) |
+| `/dir` (alias `/ls`) | Show the current directory name + platform-native listing |
+| `/cwd` | Show the current working directory as an inline card |
+
+### Footer, cache, timing
+
+| Command | What it does |
+| --- | --- |
+| `/aftc-footer` | Toggle the footer dashboard widget on/off |
+| `/aftc-set-costs-timeframe` | Set the footer AVG-window (default: Last 3 Days; options: Today, Last 3 Hours, Last 6 Hours, Last 24 Hours, Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days). Alias: `/aftc-footer-report-timeframe` |
+| `/cache-profile` | Per-tool token costs, prefix shape, churn analysis |
+| `/cache-stats` | Current-context cache diagnostics + cost rate |
+| `/cache-reset` | Zero accumulators and timer (debugging) |
+
+### SSH
+
+| Command | What it does |
+| --- | --- |
+| `/ssh-gui` | Launch the local PyQt6 SSH GUI |
+| `/ssh-connect` | Connect to `user@host[:port]` (use the GUI for credentials) |
+| `/ssh-run` | Run a one-shot command on the connected server |
+| `/ssh-status` | Show GUI running state + connection status |
+| `/ssh-disconnect` | Disconnect the active SSH session (use the GUI) |
+
+### Usage
+
+| Command | What it does |
+| --- | --- |
+| `/usage-report` | Write + open `report.html` (ALPHA) |
+| `/usage-clear` | Delete all SQLite rows (with confirmation) |
+
+### Replay
+
+| Command | What it does |
+| --- | --- |
+| `/save-replay-prompt <text>` | Save `<text>` as a replay prompt (persists across reload/sessions) |
+| `/replay` | Re-execute the saved prompt as a fresh user message (queued as follow-up when busy) |
+| `/r` | Short alias for `/replay` — same action, fewer keystrokes |
+
+### Model behaviour
+
+| Command | What it does |
+| --- | --- |
+| `/keep-it-short` | Send a fixed "be concise" instruction prompt to the active model (queued as follow-up when busy) |
+| `/kis` | Short alias for `/keep-it-short` — same action, fewer keystrokes |
+
+### Thinking
+
+| Command | What it does |
+| --- | --- |
+| `/aftc-enable-think-processing` | Turn on inline `<think>…</think>` tag parsing (off by default; `/reload` to apply) |
+| `/aftc-disable-think-processing` | Turn off inline `<think>…</think>` tag parsing (`/reload` to apply) |
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Alt+C` | Clear the input editor |
+| `Ctrl+T` | Toggle thinking blocks |
+
+### Bundled themes
+
+- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default, recommended).
+- **cache-viz** - cache-focused green/cyan colour scheme.
+- **aftc-black-n-blue** - dark blue accents on black.
+
+Switch themes with `/theme`.
 
 ---
+
+
+
 
 ## Updating
 
@@ -423,6 +484,7 @@ After edits, reload pi with `/reload`.
 extensions/toolset/index.ts             extension entry point + orchestrator
 extensions/toolset/core.ts              cache/timing data + commands
 extensions/toolset/footer-widget.ts     cache dashboard widget + /aftc-footer
+extensions/toolset/think-parser.ts      inline <think>…</think> tag → ThinkingContent block conversion
 extensions/toolset/usage-report.ts      usage report generator
 extensions/toolset/usage-recording.ts   per-turn SQLite recording
 extensions/toolset/ssh.ts               SSH tools and commands
@@ -433,7 +495,7 @@ extensions/toolset/cwd.ts               /cwd current-directory display
 extensions/toolset/dir.ts               /dir + /ls listing
 extensions/toolset/help.ts              /aftc-help command reference
 internal-python-gui/main.py             local SSH GUI/API
-skills/                                 31 live skills (see Bundled skills above)
+skills/                                 32 live skills (see Bundled skills above)
 themes/cache-viz.json                   cache-oriented pi theme (green/cyan)
 themes/aftc-orange-viz.json             orange-accented pi theme
 themes/aftc-black-n-blue.json           dark blue accents on black theme
@@ -456,6 +518,11 @@ node tests/state-check/state-check.cjs
 node tests/cd-no-preserve/cd-no-preserve.cjs
 node tests/cd-picker-top/cd-picker-top.cjs
 node tests/load-test/load-test.cjs
+node tests/replay-check/replay-check.cjs
+node tests/prompt-tracking-check/prompt-tracking-check.mjs
+node tests/allowance-check/allowance-check.mjs
+node tests/think-parser-check/think-parser-check.cjs
+node tests/footer-line1-check/footer-line1-check.cjs
 ```
 
 See `tests/README.md` for the full layout and conventions.

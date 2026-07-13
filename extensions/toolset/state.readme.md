@@ -34,7 +34,7 @@ ONLY re-written when one of the three preferences actually changes via
 // default if the key is missing from disk (e.g. on first run, or
 // after the file is added in a later release). Read-only: does NOT
 // create state.json.
-const timeframe = getPreference("footerTimeframe", "today");
+const timeframe = getPreference("footerTimeframe", "3d");
 
 // Persist a single preference. Cache is updated and the file is
 // written atomically. Errors are logged, never thrown. This is the
@@ -45,8 +45,7 @@ setPreference("footerTimeframe", "7d");
 // merge against a partial one. Exported so tests can verify the
 // shape.
 export const DEFAULT_PREFERENCES: Preferences = {
-    version: 1,
-    footerTimeframe: "today",
+    footerTimeframe: "3d",
     footerEnabled: true,
     responseDividerEnabled: true,
 };
@@ -94,9 +93,10 @@ cache (process restart).
   writing (read-only).
 - **state.json corrupt** - logs an error, returns defaults. The bad
   file is left on disk; user can hand-fix it.
-- **state.json version mismatch** - logs a warning, returns defaults.
-  We deliberately do NOT migrate across versions automatically (too
-  risky for a config file).
+- **state.json has unknown extra fields** (e.g. a leftover `version`
+  from an earlier release) - silently ignored. Only known keys are
+  surfaced through `getPreference`. The user's saved values for
+  known keys are never lost.
 - **Disk write fails** - logs an error, the in-memory cache reflects
   the new value but the file is stale. Next successful save will
   catch up.

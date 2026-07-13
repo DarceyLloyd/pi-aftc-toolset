@@ -196,8 +196,8 @@ actual `registerCommand` / `registerTool` calls in each file.
 |---|---|---|
 | `/aftc-help` | help.ts | Static command/shortcut reference |
 | `/aftc-install` | install.ts | Install better-sqlite3 + Python SSH GUI deps |
-| `/aftc-footer` | footer-widget.ts | Toggle the cache dashboard widget |
-| `/aftc-footer-report-timeframe` | core.ts | Set the footer 4th-line time window (Today, 3h, 6h, 24h, 2d, 3d, 7d, 28d) |
+| `/aftc-footer` | footer-widget.ts | Toggle the footer dashboard widget on/off |
+| `/aftc-set-costs-timeframe` | core.ts | Set the footer 4th-line time window (Today, Last 3 Hours, Last 6 Hours, Last 24 Hours, Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days). Alias: `/aftc-footer-report-timeframe` |
 | `/aftc-response-divider` | response.ts | Toggle the response divider |
 | `/aftc-stop` | stfu.ts | Stop the current agent operation (alias for /stfu) |
 | `/stfu` | stfu.ts | Short alias for /aftc-stop |

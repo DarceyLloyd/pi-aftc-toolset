@@ -158,14 +158,15 @@ function makeCtx() {
 }
 
 (async () => {
-	// Clean up any persisted state files from previous test runs so
-	// the test starts from a known-clean baseline. state.json persists
-	// across runs; a leftover footerEnabled=false would mask the
-	// default-on behaviour the test expects. (Leftover session_state.json
-	// / data.json from the old per-session layout are also swept so they
-	// don't linger in the data dir.)
+	// state.json holds real USER PREFERENCES (footerEnabled, footerTimeframe,
+	// responseDividerEnabled) and must NEVER be deleted by tests — doing so
+	// wipes the user's actual settings on every test run. Defaults are
+	// already applied in code (state.ts DEFAULT_PREFERENCES) when the file
+	// is missing or has missing keys, so no setup is needed here.
+	// Sweep only the obsolete session_state.json / data.json artifacts
+	// from the old per-session layout that don't exist anymore.
 	const dataDir = path.join(__dirname, "..", "..", ".pi-aftc-toolset", "data");
-	for (const f of ["state.json", "session_state.json", "data.json"]) {
+	for (const f of ["session_state.json", "data.json"]) {
 		const p = path.join(dataDir, f);
 		if (fs.existsSync(p)) fs.unlinkSync(p);
 	}
@@ -488,10 +489,11 @@ function makeCtx() {
 	);
 	db.close();
 
-	// Clean up persisted state so this run's /aftc-footer toggle (which
-	// writes footerEnabled=false) doesn't suppress the widget in a later
-	// test run that reads the same state.json.
-	for (const f of ["state.json", "session_state.json", "data.json"]) {
+	// /aftc-footer was toggled off then back on above, so state.json's
+	// footerEnabled is already back to true. Leave state.json alone —
+	// it holds real user preferences that must persist across test runs.
+	// Sweep only obsolete per-session artifacts.
+	for (const f of ["session_state.json", "data.json"]) {
 		const p = path.join(dataDir, f);
 		try { fs.unlinkSync(p); } catch (_) { /* ignore */ }
 	}
