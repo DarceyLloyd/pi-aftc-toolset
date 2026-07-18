@@ -43,6 +43,7 @@ watchdog timeout near the top (see `.dev/dev_guide.md` — non-negotiable).
 | `ssh-nano-keys-check` | Docker | Drives nano through the PTY shell tools. |
 | `ssh-terminal-screen-check` | 20s local | VT100 virtual screen: SGR colours, cursor addressing, erase, scroll, alt-screen, split sequences. |
 | `ssh-replacement` | Docker (600s) | Commands, SFTP, forwarding, PTY against a disposable SSH fixture. |
+| `usage-report-check` | 30s local | `/usage-report` tabbed HTML shell, JSON round-trip, client-JS syntax, projection math invariants. |
 | `pi-linux-ssh-verify` | Docker Compose (1500s) | Full Linux gate: `/aftc-install`, unit suites, carrier pytest, client→target end-to-end. No provider allowance consumed. |
 | `pi-linux-integration` | Docker Compose (1500s) | Live-prompt Linux integration. Consumes provider allowance; copies local `auth.json` transiently. |
 

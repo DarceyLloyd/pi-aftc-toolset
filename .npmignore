@@ -39,7 +39,7 @@ secrets.json
 *secrets*.yml
 *secrets*.toml
 
-# ── Repo-only files (not shipped to npm) ──────────────────
+# Manually added
 .gitignore
 .npmignore
 backup.ps1
@@ -47,8 +47,10 @@ dev.md
 rules.md
 docs/
 tests/
-
-# ── Stale / backup ────────────────────────────────────────
+test/
+skills/cache-audit/SKILL.old
+AGENTS.md
+.dockerignore
 .bak/
 .old/
 .old-ssh-features/
@@ -58,6 +60,7 @@ test/
 
 # Archived skills (kept in repo, not shipped to npm)
 skills/*.rar
+skills/*.zip
 
 # ── pi runtime data ──────────────────────────────────────
 # Per-user caches and extension runtime data (user settings, SSH

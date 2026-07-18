@@ -1,7 +1,7 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.8.2",
-  "description": "AFTC toolset: Footer widget with usage costs, cache, turns, ctx window I/O analysis etc. Additional shortcuts, new fully-featured isolated SSH (model never gets access details), skills (designed for low context), 3 themes and more.",
+  "version": "1.9.0",
+  "description": "AFTC toolset: Footer widget with usage costs, cache, turns, ctx window etc. Generated usage reports, fully-featured isolated SSH (secure from imodels), skills (designed for low context), 3 themes, prompt repeater, shortcuts and more.",
   "keywords": [
     "pi-package",
     "pi",

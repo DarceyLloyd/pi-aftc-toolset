@@ -17,10 +17,19 @@ Click [here](#model-findings) to read my evaluation/findings/experience has been
 
 ---
 
+## Updates v1.9.x
+
+> **Usage Report rebuilt** and now in **BETA**. The report is now a clean tabbed page (Overview / Models / Thinking levels / Projections). Just use slash command `/usage-report` and your browser should open showing your usage report. [Click here for further information.](#usage-report)
+
+![Usage report](images/usage-report-overview.jpg)
+
+
+===
+
 ## Updates v1.8.x
 
-- **v1.8.2 — Footer line 5 now supports Kimi for Coding.** With Kimi as the active model, the footer shows your 5-hour and weekly Kimi subscription usage with live reset countdowns (the same numbers kimi.com shows), refreshed after each prompt and every few minutes during long-running ones. Also: `/ssh-status` now prints a one-line status instead of opening a panel, and the `/ssh-shell` terminal now adapts hard-to-read colours for its dark background (dark blue `ls` listings are brightened, light status bars become dark with white text).
-- **v1.8.1 — Packaging/data hygiene.** The whole `.pi-aftc-toolset/` runtime data dir is now hard-excluded from git and npm with no exception rules (a previous exception pattern leaked `config.json` and dev artifacts into the npm tarball). All runtime files are created lazily from in-code defaults. Documented permanently: updating the extension = fresh install (pi replaces the package dir, so extension data is reset by design). Added `tests/install-test` (clean-room Docker verification of the npm install/update lifecycle) and hardened `tests/npm-package-check` to fail if any data-dir, `.pi`, or test path ever ships.
+- **Usage Report rebuilt** and now in **BETA**. The HTML report is now a clean tabbed page (Overview / Models / Thinking levels / Projections).
+- **Footer line 5 now supports Kimi for Coding.** With Kimi as the active model, the footer shows your 5-hour and weekly Kimi subscription usage with live reset countdowns (the same numbers kimi.com shows), refreshed after each prompt and every few minutes during long-running ones.
 
 - **AFTC UI suite — replacement for user input screens.** now ships the full interactive layer, I was fed up of pi's dialogues appearing in the middle of the terminal which were hard to read and hard to distinguish the difference between the TUI output and the dialogue modal.
 - New bundled `ssh` skill. Load it with `/skill:ssh` for full model-facing guidance on driving the SSH feature from inside pi: routing non-interactive commands to `ssh_run`, interactive programs (Nano, Vi, htop, tmux) to the PTY shell tools, file work to the SFTP tools, and the privacy model that keeps credentials and endpoints out of the model context.
@@ -31,15 +40,15 @@ Click [here](#model-findings) to read my evaluation/findings/experience has been
   - Local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding, local-command-only so endpoints stay out of the model context.
   - Credential isolation: the model only ever sees opaque session and shell ids; credentials are memory-only and cleared after each attempt; all output is bounded and redacted; saved records hold non-secret metadata only.
   - built, tested on Windows and Linux against a Docker OpenSSH fixture, and integrated. (I don't have a mac).
-- **Deleted all SSH features** Yep, they are gone, in the bin. But a new one is coming, see above...
+- **Deleted all SSH features** Yep, they are gone, in the bin. But there is another jedi, see above...
 - **Restored the subscription-allowance footer line** a Pi compatibility regression in optional credential metadata handling broke some things it should now work again for zai, minimax and gpt subscriptions.
-- **
 
----
 
-## Install
+> ---
 
-### Option 1 - npm (recommended)
+## **Install**
+
+### **Option 1 - npm (recommended)**
 
 ```bash
 pi install npm:pi-aftc-toolset
@@ -54,7 +63,7 @@ Then in pi:
 
 > **Runtime dependencies:** `pi install` does not install all the required runtime deps. Run `/aftc-install` after extension installation.
 
-### Option 2 - GitHub
+### **Option 2 - GitHub**
 
 ```bash
 pi install git:github.com/DarceyLloyd/pi-aftc-toolset
@@ -72,7 +81,7 @@ Then in pi:
 ---
 
 
-## Footer widget
+## **Footer widget**
 
 ![Footer Widget](images/FooterWidget-v1.8.2.jpg)
 
@@ -125,9 +134,11 @@ Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax
 
 
 
-## SSH
+## **SSH**
 
-The old SSH GUI and features are gone, a new more fully features SSH feature has been build and tested from the ground up windows first and then for linux (I don't have a mac, so lets hope the linux testing gets it working for the OSX peeps).
+The old SSH GUI and features are gone, a new more fully featured SSH feature has been build and tested from the ground up windows first and then for linux (I don't have a mac, so lets hope the linux testing gets it working for the OSX peeps). 
+
+**Remember this is for AI models to use so if you manually want to use ssh then use you local ssh command in terminal or any of various free software out there, but still I built you `/ssh-shell` so you can mosly use SSH in pi.**
 
 Connect to remote machines over SSH from inside pi - run commands, open interactive shells (Nano, Vi, htop, tmux), transfer files, manage remote files, and open port forwards. The feature runs a packaged Paramiko carrier as a local process that talks JSON-RPC over its own standard input and output; it never opens a listening socket, an HTTP service, or a local GUI bridge. It supports multiple simultaneous in-memory connections, password and private-key (including encrypted-key) authentication, host-key approval, non-interactive commands with bounded standard input, recursive SFTP transfers, remote file operations, interactive PTY shells, and local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding.
 
@@ -151,7 +162,7 @@ Run it once after install:
 
 `/aftc-install` checks for Node, Python, and uv, reports platform-specific recovery guidance if any are missing, and verifies the carrier with the same ready handshake the runtime uses. npm installs run the post-install hook automatically; **GitHub and local-clone installs skip it, so `/aftc-install` is required for SSH**. See [Dependency installer](#dependency-installer) for the full list. The footer works without these dependencies, but SSH (and usage recording/reporting) do not.
 
-### SSH commands
+### **SSH commands**
 
 Every SSH command is local - it runs against a session you authorised yourself. `/ssh-help` shows the same reference inside pi.
 
@@ -239,7 +250,7 @@ Every tool result is bounded and redacted. The only connection-level model tools
 
 ---
 
-## /cd directory navigation
+## **/cd directory navigation**
 
 `/cd` switches the current Pi session to a different directory, always starting a fresh session in the target directory.
 
@@ -271,7 +282,7 @@ With no arguments, `/cd` opens a tree-style directory picker overlay rooted at t
 
 ---
 
-## Think-tag processing
+## **Think-tag processing**
 
 Some reasoning models emit their chain-of-thought as text wrapped in `<think>…</think>` tags (the DeepSeek / Qwen convention). pi's provider integrations for those models strip the tags into proper `ThinkingContent` blocks automatically; providers that don't (including some local servers and certain custom wrappers) leave the tags as literal text.
 
@@ -286,7 +297,7 @@ Off by default. Toggle with `/aftc-enable-think-processing` or `/aftc-disable-th
 ---
 
 
-## Cache diagnostics
+## **Cache diagnostics**
 
 A live hit-rate readout, prefix-shape hashing that detects cache invalidations mid-session, a cache-write ROI calculation, a per-tool token-cost breakdown that surfaces prefix bloat, and a `cache-audit` skill that walks the model through diagnosis. The `cache-viz` theme reinforces the cache metrics visually. None of this exists in stock pi.
 
@@ -300,24 +311,27 @@ It runs `/cache-stats` and `/cache-profile`, diagnoses low hit rates, explains p
 
 ---
 
-## Usage report
+## **Usage report**
 
-**ALPHA** - in development. Output, schema, and defaults may change before the first stable release.
+Every completed assistant response with usage data is recorded to a local SQLite database at `.pi-aftc-toolset/data/turns.db`. Generate a report with `/usage-report` - a single self-contained HTML file at `.pi-aftc-toolset/data/report.html`, opened in your browser. Dark themed, AFTC-branded, organised into four tabs. Graphs use Chart.js from a pinned CDN (the only external reference); offline the charts degrade to a note and every table and card still works.
 
-Every completed assistant response with usage data is recorded to a local SQLite database at `.pi-aftc-toolset/data/turns.db`. Generate a report with `/usage-report` - a single self-contained HTML file at `.pi-aftc-toolset/data/report.html`, opened in your browser. No server, no external assets, no build step.
+Prompt counts are split the same way as the footer widget: **User prompts** (what you typed) vs **AI prompts** (self-prompted tool-call turns). Cost averages use **paid turns only** - free / $0 (subscription) models are still recorded for prompt, cache and timing stats, but they never drag cost averages down. To skip recording $0 turns entirely, set `RECORD_ZERO_COST_TURNS = false` in `extensions/aftc-toolset/usage-recording.ts`.
 
-**Report sections:**
+![Usage report - Overview tab](images/usage-report-overview.jpg)
 
-| Section | Content |
-| --- | --- |
-| 1 | Daily totals (last 24 h): most used / most inefficient / highest avg cost / lowest avg cost |
-| 2 | Weekly totals (last 7 days), with weekend toggle |
-| 3 | Monthly totals (last 28 days), with weekend toggle |
-| 4 | Per-model cost report - sortable, period selector (Daily / Weekly / Monthly / All) |
-| 5 | Per-model x thinking level - one row per thinking level per model |
-| 6 | Cost projections per model x thinking level: $/hr, $/day, $/week, $/month, $/year |
+**Overview** - the headline numbers at a glance: total cost with avg per day, user prompts (tasks + follow-ups), AI prompts (self-prompting turns and how many run per user prompt), avg cost per user prompt, avg cache hit, and active days. Below the cards: a daily-spend bar chart for the last 30 days (today highlighted), a cost-share doughnut showing which models your money goes to, and period summary cards for the last 24 hours / 7 days / 28 days with the top model and its share of spend.
 
-Projections with fewer than ~14 calendar days of data are flagged as estimates. Single-turn handling: denominator is `max(0.5h, active hours)`.
+![Usage report - Models tab](images/usage-report-models.jpg)
+
+**Models** - the per-model cost report. A period selector (24 hours / 7 days / 28 days / all time) drives both the cost-by-model bar chart and the sortable table: cost (with share bars), user prompts, AI prompts, AI/user ratio, Avg $/Pup (average cost per user prompt), Avg cache, and avg response time. Every non-obvious column has an info icon with a hover tooltip explaining exactly what the values mean and how they're derived.
+
+![Usage report - Thinking levels tab](images/usage-report-thinking.jpg)
+
+**Thinking levels** - the same breakdown per model x thinking level (one row per combination you've actually used), adding avg think time. Answer questions like "does max thinking actually cost me more than medium?" with real numbers for your own usage.
+
+![Usage report - Projections tab](images/usage-report-projections.jpg)
+
+**Projections** - what your current usage pattern costs over time. The cards show the overall burn rate: avg $/day across all calendar days since recording began (idle days included), projected month (x30.4) and year (x365). The table breaks it down per model x thinking level: $/day, $/week, $/month, $/year derived from spend per **active day**. Rows built on fewer than 7 active days are marked `~` as estimates, and the overall figures are flagged until you have 14+ days of history.
 
 **What gets recorded per turn:** per-turn metrics + prompt-type classification flags. The actual text of prompts and responses is **never** recorded - only flags. This keeps the DB small (~100 bytes / row) and avoids storing sensitive content.
 

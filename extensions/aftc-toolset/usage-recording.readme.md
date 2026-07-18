@@ -17,14 +17,15 @@ to import this file.
 
 ## What is recorded (and what is NOT)
 
-Every **chargeable** completed assistant turn is inserted into the
-shared `turns` table. Turns whose cost is `$0` (or, defensively, any
-non-positive cost) are **skipped** — free turns (some subscription
-plans report $0) would taint the averages, totals, burn-rate, and
-projection maths in `/usage-report`. The in-memory footer
-accumulator in `core.ts` still updates, so the live footer keeps
-showing the real last-turn cost; only the historical DB row is
-skipped.
+Every completed assistant turn is inserted into the shared `turns`
+table, including turns whose cost is `$0` (free models, subscription
+plans). Their prompt counts, cache activity and thinking/response
+times are useful data, and `/usage-report` keeps them out of COST
+averages with paid-only denominators. To skip `$0` turns entirely,
+set `RECORD_ZERO_COST_TURNS = false` in `usage-recording.ts`.
+Negative-cost turns are always skipped (defensive; impossible from a
+real provider). The in-memory footer accumulator in `core.ts` always
+updates, so the live footer shows the real last-turn cost regardless.
 
 If you want to know *what the user asked*, read the session
 JSONL. If you want to know *how much that cost and how the

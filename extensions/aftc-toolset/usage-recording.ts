@@ -18,12 +18,14 @@
  * metrics + classification. Keeps the DB small (~100 bytes per row)
  * and avoids storing anything sensitive.
  *
- * Zero-cost turns (and defensively, any non-positive cost) are NOT
- * recorded. Free turns (some subscription plans report $0) would
- * taint the averages, totals, burn-rate, and projection maths in
- * /usage-report. The in-memory footer accumulator still updates so
- * the live footer shows the real last-turn cost; only the historical
- * DB row is skipped.
+ * Zero-cost turns (free models, subscription plans reporting $0) ARE
+ * recorded by default — their prompt counts and thinking/response
+ * times are useful data, and /usage-report keeps them out of COST
+ * averages with paid-only denominators. Set RECORD_ZERO_COST_TURNS
+ * (below) to false to skip recording them entirely. Negative-cost
+ * turns are never recorded (defensive; impossible from a real
+ * provider). The in-memory footer accumulator always updates so the
+ * live footer shows the real last-turn cost regardless.
  *
  * The 20 columns written per row are:
  *
@@ -73,6 +75,18 @@ import type { TurnRecord, TurnRecorder } from "./types";
 import { getDb } from "./db";
 
 // -----------------------------------------------------------------------------
+// $0-cost turn policy
+//
+// Some providers (subscription plans, free models) report cost_usd = 0 on
+// every turn. When true (default), those turns are still recorded: their
+// prompt counts, cache activity and thinking/response times feed the
+// /usage-report averages, and the report excludes them from COST averages
+// via paid-only denominators. Set to false to skip recording $0 turns
+// entirely (the pre-flag behaviour).
+// -----------------------------------------------------------------------------
+const RECORD_ZERO_COST_TURNS = true;
+
+// -----------------------------------------------------------------------------
 // UsageRecorder
 // -----------------------------------------------------------------------------
 
@@ -88,15 +102,12 @@ class UsageRecorder implements TurnRecorder {
     recordTurn(record: TurnRecord): void {
         const db = getDb();
         if (!db) return;
-        // Record EVERY turn so SQLite aggregates (line 4 of the footer:
-        // cost today, user prompts, AI continuations, total turns, average
-        // cache hit / thinking / response) reflect the full truth of what
-        // happened in pi. Previously we skipped cost <= 0 to keep averages
-        // clean, but that under-counted turns on free / subscription plans
-        // and made line 4 disagree with the in-memory counters.
-        // Defensive only: negative cost is impossible from a real provider
-        // and would corrupt aggregates if it leaked through.
+        // Recording policy: every turn is recorded by default, including
+        // $0-cost turns from free / subscription plans (see
+        // RECORD_ZERO_COST_TURNS above). Negative cost is impossible from a
+        // real provider and would corrupt aggregates — always skipped.
         if (!Number.isFinite(record.costUsd) || record.costUsd < 0) return;
+        if (!RECORD_ZERO_COST_TURNS && record.costUsd === 0) return;
         try {
             db.prepare(
                 `INSERT INTO turns (

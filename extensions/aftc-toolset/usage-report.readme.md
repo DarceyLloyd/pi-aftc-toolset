@@ -6,52 +6,63 @@ report. Owns the report commands.
 ## What it does
 
 `/usage-report` produces a single HTML file at
-`<package-root>/.pi-aftc-toolset/data/report.html`. The HTML is
-intentionally one self-contained file - embedded CSS, embedded JSON,
-embedded JS - so opening it from disk has no external dependencies.
+`<package-root>/.pi-aftc-toolset/data/report.html`. The HTML is one
+self-contained file - embedded CSS, embedded JSON, embedded JS. The
+only external reference is the Chart.js CDN (pinned `chart.js@4.4.7`,
+jsdelivr) used for the graphs; when offline the page degrades
+gracefully to text fallbacks and every table/card still works.
 
-The report is organised into six sections:
+The report is a dark-themed, tabbed page with an AFTC-branded header
+(page title, an "All For The Code" strapline, and an orange
+`Generated on: YYMMDD - HH:MM` line) and four tabs:
 
-### Section 1 - Daily totals (last 24 hours)
-Four cards:
-- **Most used** - derived from base-prompt count (highest `basePromptCount`)
-- **Most inefficient** - derived from turns / self-prompting (highest
-  `turnsPerBasePrompt`, capped at 0.1 minimum)
-- **Highest avg cost** - derived from base + sub prompts
-  (`avgCostPerUserPrompt`, highest)
-- **Lowest avg cost** - derived from base + sub prompts
-  (`avgCostPerUserPrompt`, lowest)
+### Tab 1 - Overview
+- Six headline stat cards: total cost, user prompts (tasks +
+  follow-ups), AI prompts (self-prompting turns), avg cost per user
+  prompt, avg cache hit, active days. Prompt terminology mirrors the
+  footer widget: **User** = typed prompts, **AI** = self-prompted
+  turns (tool-call continuations).
+- **Daily spend** bar chart (last 30 local days, zero-filled; today is
+  highlighted orange; tooltips show cost / calls / prompts).
+- **Cost share by model** doughnut (all time, top 7 + Other, total in
+  the centre).
+- **Period summary** - three compact cards (last 24 h / 7 d / 28 d):
+  cost, `Prompts: User N / AI M` (footer-style split), top model with
+  cost and share.
 
-### Section 2 - Weekly totals (last 7 days)
-Same four cards as Section 1, computed from the last 7 days of data.
-Includes a **weekend toggle** button that switches between
-include/exclude Sat/Sun data (`strftime('%w', ...) NOT IN ('0','6')`).
-Both variants are precomputed server-side so the toggle flips instantly.
+### Tab 2 - Models
+Sortable, horizontally responsive table with a period selector
+(Last 24 hours / 7 days / 28 days / All time, default All time) and a
+cost-by-model horizontal bar chart that follows the selected period.
+Columns: model, cost (bar), user prompts, AI prompts, AI/user,
+Avg $/Pup (avg cost per user prompt), Avg cache, avg response time.
+Non-obvious columns (AI/user, Avg $/Pup, Avg cache) carry an info
+icon that floats an on-theme tooltip explaining the metric on hover.
 
-### Section 3 - Monthly totals (last 28 days)
-Same four cards as Section 1, computed from the last 28 days of data.
-Same weekend toggle as Section 2.
+### Tab 3 - Thinking levels
+Same table shape keyed by model + thinking level (one row per
+combination), with avg think time added and the same info tooltips.
 
-### Section 4 - Per-model cost report
-Sortable table with a period selector (`Daily` / `Weekly` /
-`Monthly` / `All time`, default `All time`). Columns: model, cost,
-turns, user/base/sub prompts, calls/prompt, max calls/prompt,
-avg cost/turn, avg cost/prompt, avg cache, avg think, avg response.
+### Paid-only cost averages
+Free / $0 (subscription) turns are recorded (see
+`RECORD_ZERO_COST_TURNS` in `usage-recording.ts`) and count toward
+prompt, cache and timing figures, but every COST average
+denominator is paid-only (`CASE WHEN cost_usd > 0`), per model and
+in the lifetime totals, so free models never drag averages down. A
+note under the Overview cards states this basis.
 
-### Section 5 - Per-model × thinking level
-Same shape as Section 4 but keyed by model + thinking level, so a
-single model can have multiple rows (one per thinking level used).
+### Tab 4 - Projections
+- Three burn-rate cards: avg cost/day, projected /month (x30.44),
+  projected /year (x365). Basis: all-time spend / **calendar days**
+  since the first recorded turn (idle days included). Flagged as an
+  estimate below 14 calendar days.
+- Per model x thinking table: active days, prompts (User / AI), total
+  cost, $/day, $/week, $/month, $/year. Basis: spend / **active days**
+  (distinct calendar days with at least one turn). Rows with fewer
+  than 7 active days are marked `~` (estimate, tooltip explains why).
 
-### Section 6 - Cost projections
-Per model × thinking level: `$`/hour, `$`/day, `$`/week, `$`/month,
-`$`/year. Derived from total spend ÷ active hours, then scaled by
-24 / 168 / 720 / 8760. Active hours = max(0.5h, last-turn − first-turn).
-
-**Thin-data handling**: if fewer than ~14 calendar days are present across
-all data, projections are flagged as estimates with the note
-*"Not enough data available for calculation, averages have been used."*
-Rows with less than 1 hour of activity are individually flagged as
-estimates regardless of the global threshold.
+The old hourly-rate projection (`max(0.5h, active hours)` then x24/7)
+was removed - it inflated tiny samples into absurd yearly figures.
 
 ## Reading the SQLite DB
 
@@ -73,17 +84,38 @@ report an error and the HTML report cannot be generated.
 ```text
 {
   generatedAt: number,
-  totals: { ... },                 // lifetime aggregates
-  sections: {                      // 4-card bundles per period
-    daily: { title, subtitle, cards: [4 cards] },
-    weekly: {...}, weeklyExcl: {...},
-    monthly: {...}, monthlyExcl: {...},
+  totals: { totalCost, turnCount, userPromptCount, basePromptCount,
+            subPromptCount, automatedTurnCount, paidTurnCount,
+            paidUserPromptCount, totalInputTokens,
+            totalOutputTokens, totalCacheRead, avgCacheRate,
+            avgCostPerTurn, avgCostPerUserPrompt, turnsPerUserPrompt,
+            activeDays, calendarDays, avgDailySpend, firstTurnMs },
+  periods: {                       // compact 3-card summaries
+    daily:   { label, cost, calls, prompts, aiPrompts,
+               topModel, topModelCost, topModelShare },
+    weekly:  { ... },
+    monthly: { ... },
   },
+  dailySeries: [ { day, label, cost, calls, prompts } ],  // 30 days, zero-filled
   modelsByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
   modelThinkingByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
-  projections: { rows: [], estimated: boolean, note: string },
+  projections: {
+    avgDailySpend, projectedWeek, projectedMonth, projectedYear,
+    calendarDays, estimated, note,
+    rows: [ { modelName, thinkingLevel, activeDays, turns,
+              userPrompts, aiPrompts, cost,
+              costPerDay, costPerWeek, costPerMonth, costPerYear,
+              estimated } ],
+  },
 }
 ```
+
+## Template maintenance note
+
+The client-side JS lives inside a TS template literal in
+`generateReportHtml`, so it must never use backticks or `${}` —
+string concatenation only. The only template interpolations are
+`${title}` and `${json}`.
 
 ## Why "report" and not just "usage"
 

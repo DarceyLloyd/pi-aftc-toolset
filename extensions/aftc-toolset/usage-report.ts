@@ -6,33 +6,32 @@
  * <package-root>/.pi-aftc-toolset/data/report.html, then opens it in
  * the user's browser.
  *
- * The HTML is intentionally one file: embedded CSS, embedded JSON,
- * embedded JS — no external dependencies. The report is organised into:
+ * The report is a single .html file: embedded CSS, embedded JSON,
+ * embedded JS. The only external reference is the Chart.js CDN for the
+ * graphs; when offline the page degrades gracefully (tables always
+ * work). The report is organised into four tabs:
  *
- *   Section 1 — Daily totals (last 24h): most used / most inefficient /
- *               highest avg cost / lowest avg cost cards.
- *   Section 2 — Weekly totals (last 7d): same four cards, with a
- *               weekend toggle.
- *   Section 3 — Monthly totals (last 28d): same four cards, with a
- *               weekend toggle.
- *   Section 4 — Per-model cost report — sortable table with a period
- *               selector (Daily / Weekly / Monthly / All time).
- *   Section 5 — Per-model × thinking level — same shape as Section 4
- *               but keyed by model + thinking level.
- *   Section 6 — Cost projections — per model × thinking level:
- *               $/hr, $/day, $/wk, $/mo, $/yr derived from total cost
- *               over all recorded active hours. When data is thin
- *               (fewer than ~14 days of recorded activity), the figure
- *               is an estimate based on averages multiplied out, with a
- *               note explaining why.
+ *   Overview      — headline stat cards (total cost, prompts, calls,
+ *                   cache hit, active days), a daily-spend bar chart
+ *                   (last 30 days), a cost-share doughnut, and three
+ *                   period summary cards (24h / 7d / 28d).
+ *   Models        — per-model sortable table with a period selector
+ *                   and a cost-by-model bar chart.
+ *   Thinking      — per-model × thinking-level sortable table with a
+ *                   period selector.
+ *   Projections   — overall burn rate (avg $/day, projected month and
+ *                   year from calendar days) plus per-model × thinking
+ *                   $/day, $/week, $/month, $/year derived from
+ *                   spend ÷ ACTIVE DAYS (not active hours — the old
+ *                   hourly scaling produced absurd figures).
  *
- * IMPORTANT — small datasets:
- *   Users may have only a few minutes or hours of recorded data. The
- *   projection math uses `max(0.5h, activeHours)` and applies a
- *   confidence threshold: if fewer than ~14 calendar days are present
- *   across all recorded data, projections are flagged as estimates with
- *   a note explaining why and how they were derived. This keeps the
- *   numbers sane on a fresh install without crashing on 1 row.
+ * Projection math:
+ *   per model×thinking: costPerDay = totalCost / activeDays, where
+ *   activeDays = distinct calendar days with at least one turn. Week =
+ *   ×7, month = ×30.44, year = ×365. Rows with fewer than 7 active
+ *   days are flagged as estimates.
+ *   overall: avgDailySpend = totalCost / calendarDays since the first
+ *   recorded turn. Flagged as an estimate below 14 calendar days.
  *
  * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: it owns
  * no shared state with other feature modules and is wired into pi by
@@ -53,115 +52,102 @@ import { showConfirm } from "./ui/aftcUi";
 // ---------------------------------------------------------------------------
 
 type TablePeriod = "daily" | "weekly" | "monthly" | "all";
+
 type ModelRow = {
     modelName: string;
+    cost: number;
     turns: number;
     userPrompts: number;
-    basePrompts: number;
-    subPrompts: number;
-    cost: number;
-    avgCostPerTurn: number;
-    avgCostPerUserPrompt: number;
-    avgCostPerBasePrompt: number;
-    turnsPerUserPrompt: number;
-    turnsPerBasePrompt: number;
-    maxTurnsPerPrompt: number;
-    avgCacheRate: number;
-    avgThinkingMs: number;
-    avgResponseMs: number;
-    activeHours: number;
-};
-type ModelThinkingRow = {
-    modelName: string;
-    thinkingLevel: string;
-    turns: number;
-    userPrompts: number;
-    basePrompts: number;
-    subPrompts: number;
-    cost: number;
-    avgCostPerTurn: number;
+    /** Self-prompted turns: total turns minus user-prompt turns. */
+    aiPrompts: number;
+    /** AI (self-prompted) turns per user prompt. */
+    aiPerUserPrompt: number;
     avgCostPerUserPrompt: number;
     avgCacheRate: number;
     avgThinkingMs: number;
     avgResponseMs: number;
-    activeHours: number;
-    /** Projection fields derived from active hours. */
-    costPerHour: number;
-    costPerDay: number;
-    costPerWeek: number;
-    costPerMonth: number;
-    costPerYear: number;
-    estimated: boolean;
-    estimateNote: string;
 };
+
+type ModelThinkingRow = ModelRow & { thinkingLevel: string };
+
+type PeriodSummary = {
+    label: string;
+    cost: number;
+    calls: number;
+    prompts: number;
+    aiPrompts: number;
+    topModel: string;
+    topModelCost: number;
+    topModelShare: number; // 0..1 of period cost
+};
+
+type DayPoint = { day: string; label: string; cost: number; calls: number; prompts: number };
+
 type ProjectionRow = {
     modelName: string;
     thinkingLevel: string;
+    activeDays: number;
     turns: number;
+    userPrompts: number;
+    aiPrompts: number;
     cost: number;
-    activeHours: number;
-    costPerHour: number;
     costPerDay: number;
     costPerWeek: number;
     costPerMonth: number;
     costPerYear: number;
     estimated: boolean;
-    estimateNote: string;
 };
-type SectionCard = {
-    modelName: string;
-    primary: string;
-    secondary: string;
-    metric: number;
-    description: string;
-};
-type SectionData = {
-    mostUsed: SectionCard[];
-    mostInefficient: SectionCard[];
-    highestAvgCost: SectionCard[];
-    lowestAvgCost: SectionCard[];
-};
-type SectionKey = "daily" | "weekly" | "monthly";
-type SummaryEntry = {
-    modelName: string;
-    metric: number;
-    secondary: string;
-};
-type SummaryData = {
-    mostUsed: SummaryEntry[];
-    mostInefficient: SummaryEntry[];
-    highestAvgCost: SummaryEntry[];
-    lowestAvgCost: SummaryEntry[];
-};
-type SummaryBundle = {
-    title: string;
-    subtitle: string;
-    cards: SectionCard[];
+
+type ReportTotals = {
+    totalCost: number;
+    turnCount: number;
+    userPromptCount: number;
+    basePromptCount: number;
+    subPromptCount: number;
+    automatedTurnCount: number;
+    paidTurnCount: number;
+    paidUserPromptCount: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalCacheRead: number;
+    avgCacheRate: number;
+    avgCostPerTurn: number;
+    avgCostPerUserPrompt: number;
+    turnsPerUserPrompt: number;
+    activeDays: number;
+    calendarDays: number;
+    avgDailySpend: number;
+    firstTurnMs: number;
 };
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SERIES_DAYS = 30;
+const DAYS_PER_MONTH = 30.44;
+const ESTIMATE_MIN_ACTIVE_DAYS = 7;
+const ESTIMATE_MIN_CALENDAR_DAYS = 14;
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function num(v: unknown): number { return Number(v) || 0; }
 function safeDiv(a: number, b: number): number { return b > 0 ? a / b : 0; }
-function fmtMs(ms: number): string {
-    const s = Math.floor((Number(ms) || 0) / 1000);
-    if (s <= 0) return "0s";
-    return s < 60 ? s + "s" : Math.floor(s / 60) + "m " + (s % 60) + "s";
-}
+function pad2(n: number): string { return String(n).padStart(2, "0"); }
 
 // ---------------------------------------------------------------------------
-// SQL helpers
+// SQL fragments
 // ---------------------------------------------------------------------------
 
 const USER_PROMPT_SQL = `COALESCE(SUM(user_prompt), 0)`;
 const BASE_PROMPT_SQL = `COALESCE(SUM(base_prompt), 0)`;
 const SUB_PROMPT_SQL = `COALESCE(SUM(sub_prompt), 0)`;
-const STEERING_PROMPT_SQL = `COALESCE(SUM(steering_prompt), 0)`;
-const FOLLOWUP_PROMPT_SQL = `COALESCE(SUM(followup_prompt), 0)`;
-const CONTINUATION_PROMPT_SQL = `COALESCE(SUM(continuation_prompt), 0)`;
 const CACHE_RATE_SQL = `AVG(CAST(cache_read AS REAL) / NULLIF(cache_read + input_tokens, 0))`;
+// Paid-only denominators: free / $0 (subscription) turns are recorded
+// for their prompt counts and timing data, but must not drag cost
+// averages down.
+const PAID_TURNS_SQL = `COALESCE(SUM(CASE WHEN cost_usd > 0 THEN 1 ELSE 0 END), 0)`;
+const PAID_USER_PROMPT_SQL = `COALESCE(SUM(CASE WHEN cost_usd > 0 THEN user_prompt ELSE 0 END), 0)`;
 
 // ---------------------------------------------------------------------------
 // UsageModule
@@ -173,322 +159,252 @@ class UsageModule {
     attach(): void { this.registerCommands(); }
 
     // -------------------------------------------------------------------
-    // SQL helpers shared across collectors
+    // Collectors
     // -------------------------------------------------------------------
 
-    private weekendClause(exclude: boolean): string {
-        return exclude
-            ? `AND strftime('%w', timestamp / 1000, 'unixepoch', 'localtime') NOT IN ('0','6')`
-            : ``;
-    }
-
-    private windowStatsForModel(db: any, modelName: string, since: number, excludeWeekends = false): ModelRow {
+    private windowStatsForModel(db: any, modelName: string, since: number): ModelRow {
         const row = db.prepare(
             `SELECT COUNT(*) AS turns,
                     ${USER_PROMPT_SQL} AS user_count,
-                    ${BASE_PROMPT_SQL} AS base_count,
-                    ${SUB_PROMPT_SQL} AS sub_count,
+                    ${PAID_USER_PROMPT_SQL} AS paid_user_count,
                     COALESCE(SUM(cost_usd), 0) AS cost,
-                    AVG(cost_usd) AS avg_cost,
                     ${CACHE_RATE_SQL} AS avg_cache_rate,
                     AVG(thinking_ms) AS avg_thinking,
-                    AVG(response_ms) AS avg_response,
-                    COALESCE(MIN(timestamp), 0) AS first_turn,
-                    COALESCE(MAX(timestamp), 0) AS last_turn
+                    AVG(response_ms) AS avg_response
              FROM turns
-             WHERE model_name = ? AND timestamp >= ?
-             ${this.weekendClause(excludeWeekends)}`,
+             WHERE model_name = ? AND timestamp >= ?`,
         ).get(modelName, since) as any;
+        const turns = num(row.turns);
+        const userPrompts = num(row.user_count);
+        const paidUserPrompts = num(row.paid_user_count);
+        const cost = num(row.cost);
         return {
             modelName,
-            turns: num(row.turns),
-            userPrompts: num(row.user_count),
-            basePrompts: num(row.base_count),
-            subPrompts: num(row.sub_count),
-            cost: num(row.cost),
-            avgCostPerTurn: num(row.avg_cost),
-            avgCostPerUserPrompt: safeDiv(num(row.cost), num(row.user_count)),
-            avgCostPerBasePrompt: safeDiv(num(row.cost), num(row.base_count)),
-            turnsPerUserPrompt: safeDiv(num(row.turns), num(row.user_count)),
-            turnsPerBasePrompt: safeDiv(num(row.turns), num(row.base_count)),
-            maxTurnsPerPrompt: 0,
+            cost,
+            turns,
+            userPrompts,
+            aiPrompts: Math.max(0, turns - userPrompts),
+            aiPerUserPrompt: safeDiv(turns - userPrompts, userPrompts),
+            avgCostPerUserPrompt: safeDiv(cost, paidUserPrompts),
             avgCacheRate: num(row.avg_cache_rate),
             avgThinkingMs: num(row.avg_thinking),
             avgResponseMs: num(row.avg_response),
-            activeHours: Math.max(0.5, (num(row.last_turn) - num(row.first_turn)) / 3600_000),
         };
     }
 
-    private maxTurnsForModel(db: any, modelName: string, since: number, excludeWeekends = false): number {
-        const row = db.prepare(
-            `SELECT COALESCE(MAX(turns_per_prompt), 0) AS max_turns FROM (
-                 SELECT COUNT(*) AS turns_per_prompt
-                 FROM turns
-                 WHERE model_name = ? AND prompt_index > 0 AND timestamp >= ?
-                 ${this.weekendClause(excludeWeekends)}
-                 GROUP BY COALESCE(session_id, ''), prompt_index
-             )`,
-        ).get(modelName, since) as { max_turns: number };
-        return num(row.max_turns);
-    }
-
-    private collectAllTimeModels(db: any): ModelRow[] {
+    /** Per-model rows for a time window. Models with no turns in the window are omitted. */
+    private collectWindowedModels(db: any, since: number): ModelRow[] {
         const models = (db.prepare(
             `SELECT DISTINCT model_name FROM turns WHERE model_name IS NOT NULL AND model_name != '' ORDER BY model_name`,
         ).all() as Array<{ model_name: string }>).map(r => r.model_name);
-        return models.map(m => {
-            const r = this.windowStatsForModel(db, m, 0);
-            r.maxTurnsPerPrompt = this.maxTurnsForModel(db, m, 0);
-            return r;
-        });
+        return models
+            .map(m => this.windowStatsForModel(db, m, since))
+            .filter(r => r.turns > 0);
     }
 
-    private collectAllTimeModelThinking(db: any): ModelThinkingRow[] {
-        const rows = (db.prepare(
-            `SELECT model_name,
-                    thinking_level,
-                    COUNT(*) AS turns,
-                    ${USER_PROMPT_SQL} AS user_count,
-                    ${BASE_PROMPT_SQL} AS base_count,
-                    ${SUB_PROMPT_SQL} AS sub_count,
-                    COALESCE(SUM(cost_usd), 0) AS cost,
-                    AVG(cost_usd) AS avg_cost,
-                    ${CACHE_RATE_SQL} AS avg_cache_rate,
-                    AVG(thinking_ms) AS avg_thinking,
-                    AVG(response_ms) AS avg_response,
-                    COALESCE(MIN(timestamp), 0) AS first_turn,
-                    COALESCE(MAX(timestamp), 0) AS last_turn
-             FROM turns
-             WHERE model_name IS NOT NULL AND model_name != ''
-             GROUP BY model_name, thinking_level
-             ORDER BY model_name, thinking_level`,
-        ).all() as any[]).map(r => {
-            const cost = num(r.cost);
-            const turns = num(r.turns);
-            const userCount = num(r.user_count);
-            const activeHours = Math.max(0.5, (num(r.last_turn) - num(r.first_turn)) / 3600_000);
-            return {
-                modelName: r.model_name,
-                thinkingLevel: r.thinking_level || "(none)",
-                turns,
-                userPrompts: userCount,
-                basePrompts: num(r.base_count),
-                subPrompts: num(r.sub_count),
-                cost,
-                avgCostPerTurn: num(r.avg_cost),
-                avgCostPerUserPrompt: safeDiv(cost, userCount),
-                avgCacheRate: num(r.avg_cache_rate),
-                avgThinkingMs: num(r.avg_thinking),
-                avgResponseMs: num(r.avg_response),
-                activeHours,
-                costPerHour: 0,
-                costPerDay: 0,
-                costPerWeek: 0,
-                costPerMonth: 0,
-                costPerYear: 0,
-                estimated: false,
-                estimateNote: "",
-            };
-        });
-        return rows;
-    }
-
-    /**
-     * Collect per-model stats for a windowed table. Used by Section 4.
-     * @param since - timestamp floor; 0 = all time
-     */
-    private collectWindowedModels(db: any, since: number, excludeWeekends = false): ModelRow[] {
-        const models = (db.prepare(
-            `SELECT DISTINCT model_name FROM turns WHERE model_name IS NOT NULL AND model_name != '' ORDER BY model_name`,
-        ).all() as Array<{ model_name: string }>).map(r => r.model_name);
-        return models.map(m => {
-            const r = this.windowStatsForModel(db, m, since, excludeWeekends);
-            r.maxTurnsPerPrompt = this.maxTurnsForModel(db, m, since, excludeWeekends);
-            return r;
-        });
-    }
-
-    /**
-     * Collect per-model×thinking stats for a windowed table. Used by Section 5.
-     */
+    /** Per-model × thinking-level rows for a time window. */
     private collectWindowedModelThinking(db: any, since: number): ModelThinkingRow[] {
-        const rows = (db.prepare(
+        const rows = db.prepare(
             `SELECT model_name,
                     thinking_level,
                     COUNT(*) AS turns,
                     ${USER_PROMPT_SQL} AS user_count,
-                    ${BASE_PROMPT_SQL} AS base_count,
-                    ${SUB_PROMPT_SQL} AS sub_count,
+                    ${PAID_USER_PROMPT_SQL} AS paid_user_count,
                     COALESCE(SUM(cost_usd), 0) AS cost,
-                    AVG(cost_usd) AS avg_cost,
                     ${CACHE_RATE_SQL} AS avg_cache_rate,
                     AVG(thinking_ms) AS avg_thinking,
-                    AVG(response_ms) AS avg_response,
-                    COALESCE(MIN(timestamp), 0) AS first_turn,
-                    COALESCE(MAX(timestamp), 0) AS last_turn
+                    AVG(response_ms) AS avg_response
              FROM turns
              WHERE model_name IS NOT NULL AND model_name != ''
              ${since > 0 ? "AND timestamp >= ?" : ""}
              GROUP BY model_name, thinking_level
-             ORDER BY model_name, thinking_level`,
-        ).all(...(since > 0 ? [since] : [])) as any[]).map(r => {
-            const cost = num(r.cost);
+             ORDER BY cost DESC`,
+        ).all(...(since > 0 ? [since] : [])) as any[];
+        return rows.map(r => {
             const turns = num(r.turns);
-            const userCount = num(r.user_count);
-            const activeHours = Math.max(0.5, (num(r.last_turn) - num(r.first_turn)) / 3600_000);
+            const userPrompts = num(r.user_count);
+            const paidUserPrompts = num(r.paid_user_count);
+            const cost = num(r.cost);
             return {
                 modelName: r.model_name,
                 thinkingLevel: r.thinking_level || "(none)",
-                turns,
-                userPrompts: userCount,
-                basePrompts: num(r.base_count),
-                subPrompts: num(r.sub_count),
                 cost,
-                avgCostPerTurn: num(r.avg_cost),
-                avgCostPerUserPrompt: safeDiv(cost, userCount),
+                turns,
+                userPrompts,
+                aiPrompts: Math.max(0, turns - userPrompts),
+                aiPerUserPrompt: safeDiv(turns - userPrompts, userPrompts),
+                avgCostPerUserPrompt: safeDiv(cost, paidUserPrompts),
                 avgCacheRate: num(r.avg_cache_rate),
                 avgThinkingMs: num(r.avg_thinking),
                 avgResponseMs: num(r.avg_response),
-                activeHours,
-                costPerHour: 0,
-                costPerDay: 0,
-                costPerWeek: 0,
-                costPerMonth: 0,
-                costPerYear: 0,
-                estimated: false,
-                estimateNote: "",
             };
         });
-        return rows;
     }
 
-    // -------------------------------------------------------------------
-    // Projection math (Section 6)
-    // -------------------------------------------------------------------
+    /** Zero-filled per-day cost/calls/prompts for the last SERIES_DAYS local days. */
+    private collectDailySeries(db: any, now: number): DayPoint[] {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - (SERIES_DAYS - 1));
+        const rows = db.prepare(
+            `SELECT date(timestamp / 1000, 'unixepoch', 'localtime') AS day,
+                    COALESCE(SUM(cost_usd), 0) AS cost,
+                    COUNT(*) AS calls,
+                    ${USER_PROMPT_SQL} AS prompts
+             FROM turns
+             WHERE timestamp >= ?
+             GROUP BY day`,
+        ).all(start.getTime()) as any[];
+        const byDay = new Map<string, any>(rows.map(r => [String(r.day), r]));
+        const out: DayPoint[] = [];
+        for (let i = SERIES_DAYS - 1; i >= 0; i--) {
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - i);
+            const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+            const row = byDay.get(key);
+            out.push({
+                day: key,
+                label: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`,
+                cost: num(row?.cost),
+                calls: num(row?.calls),
+                prompts: num(row?.prompts),
+            });
+        }
+        return out;
+    }
 
-    /**
-     * Compute per-model×thinking-level cost projections from total spend
-     * over all recorded active hours. Returns $/hr, /day, /wk, /mo, /yr.
-     *
-     * Thin data handling:
-     *   - If fewer than ~14 distinct calendar days are present across ALL
-     *     data, projections are flagged as estimates ("not enough data
-     *     available for calculation, averages have been used").
-     *   - If a single model×thinking level has < 1 hour of activity, we
-     *     still compute an hourly rate but flag it as an estimate.
-     */
-    private computeProjections(db: any): { rows: ProjectionRow[]; estimated: boolean; estimateNote: string } {
-        const rows = this.collectAllTimeModelThinking(db);
-        const calendarDays = num(db.prepare(
+    private summarizePeriod(rows: ModelRow[], label: string): PeriodSummary {
+        const cost = rows.reduce((s, r) => s + r.cost, 0);
+        const calls = rows.reduce((s, r) => s + r.turns, 0);
+        const prompts = rows.reduce((s, r) => s + r.userPrompts, 0);
+        const top = rows.slice().sort((a, b) => b.cost - a.cost)[0];
+        return {
+            label,
+            cost,
+            calls,
+            prompts,
+            aiPrompts: Math.max(0, calls - prompts),
+            topModel: top?.modelName ?? "",
+            topModelCost: top?.cost ?? 0,
+            topModelShare: cost > 0 && top ? top.cost / cost : 0,
+        };
+    }
+
+    private collectTotals(db: any, now: number): ReportTotals {
+        const row = db.prepare(
+            `SELECT COUNT(*) AS turns,
+                    ${USER_PROMPT_SQL} AS user_prompts,
+                    ${BASE_PROMPT_SQL} AS base_prompts,
+                    ${SUB_PROMPT_SQL} AS sub_prompts,
+                    ${PAID_TURNS_SQL} AS paid_turns,
+                    ${PAID_USER_PROMPT_SQL} AS paid_user_prompts,
+                    COALESCE(SUM(cost_usd), 0) AS total_cost,
+                    COALESCE(SUM(input_tokens), 0) AS total_input,
+                    COALESCE(SUM(output_tokens), 0) AS total_output,
+                    COALESCE(SUM(cache_read), 0) AS total_cache_read,
+                    ${CACHE_RATE_SQL} AS avg_cache_rate,
+                    COALESCE(MIN(timestamp), 0) AS first_turn
+             FROM turns`,
+        ).get() as any;
+        const turns = num(row.turns);
+        const userPrompts = num(row.user_prompts);
+        const paidTurns = num(row.paid_turns);
+        const paidUserPrompts = num(row.paid_user_prompts);
+        const totalCost = num(row.total_cost);
+        const firstTurn = num(row.first_turn);
+        const activeDays = num(db.prepare(
             `SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', 'localtime')) AS n FROM turns`,
         ).get().n);
-        const dataDays = Math.max(0.5, calendarDays);
-        const enoughData = calendarDays >= 14;
-        const globalNote = enoughData
-            ? "Based on all-time recorded spend ÷ active hours."
-            : "Not enough data available for calculation, averages have been used.";
+        const calendarDays = firstTurn > 0 ? Math.max(1, Math.ceil((now - firstTurn) / DAY_MS)) : 0;
+        return {
+            totalCost,
+            turnCount: turns,
+            userPromptCount: userPrompts,
+            basePromptCount: num(row.base_prompts),
+            subPromptCount: num(row.sub_prompts),
+            automatedTurnCount: Math.max(0, turns - userPrompts),
+            paidTurnCount: paidTurns,
+            paidUserPromptCount: paidUserPrompts,
+            totalInputTokens: num(row.total_input),
+            totalOutputTokens: num(row.total_output),
+            totalCacheRead: num(row.total_cache_read),
+            avgCacheRate: num(row.avg_cache_rate),
+            avgCostPerTurn: safeDiv(totalCost, paidTurns),
+            avgCostPerUserPrompt: safeDiv(totalCost, paidUserPrompts),
+            turnsPerUserPrompt: safeDiv(turns, userPrompts),
+            activeDays,
+            calendarDays,
+            avgDailySpend: calendarDays > 0 ? totalCost / calendarDays : 0,
+            firstTurnMs: firstTurn,
+        };
+    }
+
+    /**
+     * Cost projections.
+     *
+     * Per model × thinking level: costPerDay = totalCost / activeDays
+     * (distinct local calendar days with at least one turn), scaled to
+     * week (×7), month (×30.44) and year (×365). Rows with fewer than
+     * ESTIMATE_MIN_ACTIVE_DAYS active days are flagged as estimates.
+     *
+     * Overall: avgDailySpend = totalCost / calendarDays since the first
+     * recorded turn — the true burn rate, including idle days. Flagged
+     * as an estimate below ESTIMATE_MIN_CALENDAR_DAYS calendar days.
+     */
+    private computeProjections(db: any, totals: ReportTotals): any {
+        const rows = db.prepare(
+            `SELECT model_name,
+                    thinking_level,
+                    COUNT(*) AS turns,
+                    ${USER_PROMPT_SQL} AS user_count,
+                    COALESCE(SUM(cost_usd), 0) AS cost,
+                    COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', 'localtime')) AS active_days
+             FROM turns
+             WHERE model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name, thinking_level
+             ORDER BY cost DESC`,
+        ).all() as any[];
 
         const projRows: ProjectionRow[] = rows.map(r => {
-            const cost = r.cost;
-            const perHr = safeDiv(cost, r.activeHours);
-            const perDay = perHr * 24;
-            const perWeek = perHr * 168;
-            const perMonth = perHr * 720;
-            const perYear = perHr * 8760;
-            const localEstimated = !enoughData || r.activeHours < 1;
-            const note = localEstimated
-                ? (r.activeHours < 1
-                    ? `Only ${r.activeHours.toFixed(2)}h of activity recorded for this model/thinking level — estimate.`
-                    : globalNote)
-                : globalNote;
+            const cost = num(r.cost);
+            const turns = num(r.turns);
+            const userPrompts = num(r.user_count);
+            const activeDays = Math.max(1, num(r.active_days));
+            const perDay = safeDiv(cost, activeDays);
             return {
-                modelName: r.modelName,
-                thinkingLevel: r.thinkingLevel,
-                turns: r.turns,
+                modelName: r.model_name,
+                thinkingLevel: r.thinking_level || "(none)",
+                activeDays,
+                turns,
+                userPrompts,
+                aiPrompts: Math.max(0, turns - userPrompts),
                 cost,
-                activeHours: r.activeHours,
-                costPerHour: perHr,
                 costPerDay: perDay,
-                costPerWeek: perWeek,
-                costPerMonth: perMonth,
-                costPerYear: perYear,
-                estimated: localEstimated,
-                estimateNote: note,
+                costPerWeek: perDay * 7,
+                costPerMonth: perDay * DAYS_PER_MONTH,
+                costPerYear: perDay * 365,
+                estimated: activeDays < ESTIMATE_MIN_ACTIVE_DAYS,
             };
         });
 
-        // Also populate the projection fields on the model-thinking rows so
-        // Section 5 can show them inline if desired.
-        for (const r of rows) {
-            const perHr = safeDiv(r.cost, r.activeHours);
-            r.costPerHour = perHr;
-            r.costPerDay = perHr * 24;
-            r.costPerWeek = perHr * 168;
-            r.costPerMonth = perHr * 720;
-            r.costPerYear = perHr * 8760;
-            r.estimated = !enoughData || r.activeHours < 1;
-            r.estimateNote = r.estimated
-                ? (r.activeHours < 1
-                    ? `Only ${r.activeHours.toFixed(2)}h of activity recorded for this model/thinking level — estimate.`
-                    : globalNote)
-                : globalNote;
-        }
-
-        return { rows: projRows, estimated: !enoughData, estimateNote: globalNote };
-    }
-
-    // -------------------------------------------------------------------
-    // Sections 1–3 summary cards
-    // -------------------------------------------------------------------
-
-    /**
-     * Compute the four summary cards for a windowed period.
-     *
-     *  - most used: derived from base prompts (highest basePromptCount wins)
-     *  - most inefficient: derived from highest turns/self-prompting
-     *    (turns / basePrompt ratio, capped at 1 turn minimum)
-     *  - highest avg cost: derived from base + sub prompts
-     *    (avgCostPerUserPrompt highest)
-     *  - lowest avg cost: derived from base + sub prompts
-     *    (avgCostPerUserPrompt lowest)
-     *
-     * @param sinceMs - timestamp floor; 0 = all time
-     */
-    private computeSummary(db: any, sinceMs: number, excludeWeekends = false): SummaryData {
-        const rows = this.collectWindowedModels(db, sinceMs, excludeWeekends).filter(r => r.turns > 0);
-        const pick = (arr: ModelRow[], key: (r: ModelRow) => number, dir: "asc" | "desc") => {
-            const sorted = arr.slice().sort((a, b) => {
-                const d = key(a) - key(b);
-                return dir === "asc" ? d : -d;
-            });
-            return sorted[0];
-        };
-
-        const makeEntry = (r: ModelRow | undefined): SummaryEntry => ({
-            modelName: r?.modelName ?? "",
-            metric: r?.turns ?? 0,
-            secondary: "",
-        });
-
-        const mostUsed = makeEntry(pick(rows, r => r.basePrompts, "desc"));
-        const inefficient = pick(rows, r => Math.max(0.1, r.turnsPerBasePrompt), "desc");
-        const mostInefficient = makeEntry(inefficient);
-        const highest = pick(rows, r => r.avgCostPerUserPrompt, "desc");
-        const highestAvgCost = makeEntry(highest);
-        const lowest = pick(rows, r => r.avgCostPerUserPrompt, "asc");
-        const lowestAvgCost = makeEntry(lowest);
-
-        // Attach metric context for each
-        const byMostUsed = rows.find(r => r.modelName === mostUsed.modelName);
-        const byInefficient = rows.find(r => r.modelName === mostInefficient.modelName);
-        const byHighest = rows.find(r => r.modelName === highestAvgCost.modelName);
-        const byLowest = rows.find(r => r.modelName === lowestAvgCost.modelName);
-
+        const days = Math.max(1, totals.calendarDays);
+        const avgDaily = safeDiv(totals.totalCost, days);
+        const noData = totals.turnCount === 0;
+        const enough = totals.calendarDays >= ESTIMATE_MIN_CALENDAR_DAYS;
         return {
-            mostUsed: [byMostUsed ? { ...mostUsed, metric: byMostUsed.basePrompts, secondary: `${byMostUsed.basePrompts} base prompts · ${byMostUsed.turns} model calls · $${byMostUsed.cost.toFixed(4)}` } : mostUsed],
-            mostInefficient: [byInefficient ? { ...mostInefficient, metric: byInefficient.turnsPerBasePrompt, secondary: `${byInefficient.turnsPerBasePrompt.toFixed(2)} model calls per base prompt · ${byInefficient.maxTurnsPerPrompt} max calls/prompt · ${byInefficient.subPrompts} sub prompts` } : mostInefficient],
-            highestAvgCost: [byHighest ? { ...highestAvgCost, metric: byHighest.avgCostPerUserPrompt, secondary: `$${byHighest.avgCostPerUserPrompt.toFixed(4)} avg cost/user prompt · ${byHighest.userPrompts} prompts · $${byHighest.cost.toFixed(4)} total` } : highestAvgCost],
-            lowestAvgCost: [byLowest ? { ...lowestAvgCost, metric: byLowest.avgCostPerUserPrompt, secondary: `$${byLowest.avgCostPerUserPrompt.toFixed(4)} avg cost/user prompt · ${byLowest.userPrompts} prompts · $${byLowest.cost.toFixed(4)} total` } : lowestAvgCost],
+            rows: projRows,
+            avgDailySpend: avgDaily,
+            projectedWeek: avgDaily * 7,
+            projectedMonth: avgDaily * DAYS_PER_MONTH,
+            projectedYear: avgDaily * 365,
+            calendarDays: totals.calendarDays,
+            estimated: !noData && !enough,
+            note: noData
+                ? "No usage recorded yet — projections will appear after some activity."
+                : enough
+                    ? `Overall burn rate: all-time spend ÷ ${days} calendar days since recording began.`
+                    : `Only ${days} day${days === 1 ? "" : "s"} of history so far — projections become more accurate over time.`,
         };
     }
 
@@ -501,139 +417,39 @@ class UsageModule {
         if (!db) return null;
 
         const now = Date.now();
-        const dayMs = 24 * 60 * 60 * 1000;
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        const dailySince = now - DAY_MS;
+        const weeklySince = now - 7 * DAY_MS;
+        const monthlySince = now - 28 * DAY_MS;
 
-        // ---- Section 1: Daily totals (last 24h) ----
-        const dailySince = now - dayMs;
-        const daily = this.computeSummary(db, dailySince);
+        const dailyModels = this.collectWindowedModels(db, dailySince);
+        const weeklyModels = this.collectWindowedModels(db, weeklySince);
+        const monthlyModels = this.collectWindowedModels(db, monthlySince);
+        const allModels = this.collectWindowedModels(db, 0);
 
-        // ---- Section 2: Weekly totals (last 7 days) ----
-        // We collect BOTH weekend-included and weekend-excluded variants so the
-        // toggle can flip without re-querying.
-        const weeklySince = now - 7 * dayMs;
-        const weekly = this.computeSummary(db, weeklySince, false);
-        const weeklyExcl = this.computeSummary(db, weeklySince, true);
-
-        // ---- Section 3: Monthly totals (last 28 days) ----
-        const monthlySince = now - 28 * dayMs;
-        const monthly = this.computeSummary(db, monthlySince, false);
-        const monthlyExcl = this.computeSummary(db, monthlySince, true);
-
-        // ---- Section 4: Per-model cost report (all variants precomputed) ----
-        const modelsByPeriod: Record<TablePeriod, ModelRow[]> = {
-            daily: this.collectWindowedModels(db, dailySince),
-            weekly: this.collectWindowedModels(db, weeklySince),
-            monthly: this.collectWindowedModels(db, monthlySince),
-            all: this.collectAllTimeModels(db),
-        };
-
-        // ---- Section 5: Per-model × thinking level ----
-        const modelThinkingByPeriod: Record<TablePeriod, ModelThinkingRow[]> = {
-            daily: this.collectWindowedModelThinking(db, dailySince),
-            weekly: this.collectWindowedModelThinking(db, weeklySince),
-            monthly: this.collectWindowedModelThinking(db, monthlySince),
-            all: this.collectAllTimeModelThinking(db),
-        };
-
-        // ---- Section 6: Cost projections ----
-        const projections = this.computeProjections(db);
-
-        // ---- Lifetime totals ----
-        const totalsRow = db.prepare(
-            `SELECT COUNT(*) AS turns,
-                    ${USER_PROMPT_SQL} AS user_prompts,
-                    ${BASE_PROMPT_SQL} AS base_prompts,
-                    ${SUB_PROMPT_SQL} AS sub_prompts,
-                    ${STEERING_PROMPT_SQL} AS steering_prompts,
-                    ${FOLLOWUP_PROMPT_SQL} AS followup_prompts,
-                    ${CONTINUATION_PROMPT_SQL} AS continuation_prompts,
-                    COALESCE(SUM(cost_usd), 0) AS total_cost,
-                    COALESCE(SUM(input_tokens), 0) AS total_input,
-                    COALESCE(SUM(output_tokens), 0) AS total_output,
-                    COALESCE(SUM(cache_read), 0) AS total_cache_read,
-                    COALESCE(SUM(cache_write), 0) AS total_cache_write,
-                    ${CACHE_RATE_SQL} AS avg_cache_rate,
-                    COALESCE(MIN(timestamp), 0) AS first_turn,
-                    COALESCE(MAX(timestamp), 0) AS last_turn
-             FROM turns`,
-        ).get() as any;
-        const turnCount = num(totalsRow.turns);
-        const userPromptCount = num(totalsRow.user_prompts);
-        const totalCost = num(totalsRow.total_cost);
-        const firstTurn = num(totalsRow.first_turn);
-        const lastTurn = num(totalsRow.last_turn);
-        const totals = {
-            turnCount,
-            userPromptCount,
-            basePromptCount: num(totalsRow.base_prompts),
-            subPromptCount: num(totalsRow.sub_prompts),
-            steeringPromptCount: num(totalsRow.steering_prompts),
-            followupPromptCount: num(totalsRow.followup_prompts),
-            continuationPromptCount: num(totalsRow.continuation_prompts),
-            automatedTurnCount: Math.max(0, turnCount - userPromptCount),
-            totalCost,
-            totalInputTokens: num(totalsRow.total_input),
-            totalOutputTokens: num(totalsRow.total_output),
-            totalCacheRead: num(totalsRow.total_cache_read),
-            totalCacheWrite: num(totalsRow.total_cache_write),
-            avgCacheRate: num(totalsRow.avg_cache_rate),
-            firstTurnMs: firstTurn,
-            lastTurnMs: lastTurn,
-            activeHours: Math.max(0, (lastTurn - firstTurn) / 3600_000),
-            avgCostPerTurn: safeDiv(totalCost, turnCount),
-            avgCostPerUserPrompt: safeDiv(totalCost, userPromptCount),
-            turnsPerUserPrompt: safeDiv(turnCount, userPromptCount),
-        };
-
-        // Build summary cards into a bundle keyed by section name.
-        const makeBundle = (key: SectionKey, data: SummaryData): SummaryBundle => {
-            const labels: Record<SectionKey, string> = {
-                daily: "Daily totals",
-                weekly: "Weekly totals",
-                monthly: "Monthly totals",
-            };
-            const sub: Record<SectionKey, string> = {
-                daily: "Last 24 hours",
-                weekly: "Last 7 days",
-                monthly: "Last 28 days",
-            };
-            const cards: SectionCard[] = [];
-            const push = (title: string, entries: SummaryEntry[]) => {
-                const e = entries[0];
-                cards.push({
-                    title,
-                    primary: e.modelName,
-                    secondary: e.secondary,
-                    metric: e.metric,
-                    description: e.secondary,
-                });
-            };
-            push("Most used", data.mostUsed);
-            push("Most inefficient", data.mostInefficient);
-            push("Highest avg cost", data.highestAvgCost);
-            push("Lowest avg cost", data.lowestAvgCost);
-            return { title: labels[key], subtitle: sub[key], cards };
-        };
+        const totals = this.collectTotals(db, now);
 
         return {
             generatedAt: now,
             totals,
-            sections: {
-                daily: makeBundle("daily", daily),
-                weekly: makeBundle("weekly", weekly),
-                weeklyExcl: makeBundle("weekly", weeklyExcl),
-                monthly: makeBundle("monthly", monthly),
-                monthlyExcl: makeBundle("monthly", monthlyExcl),
+            periods: {
+                daily: this.summarizePeriod(dailyModels, "Last 24 hours"),
+                weekly: this.summarizePeriod(weeklyModels, "Last 7 days"),
+                monthly: this.summarizePeriod(monthlyModels, "Last 28 days"),
             },
-            modelsByPeriod,
-            modelThinkingByPeriod,
-            projections: {
-                rows: projections.rows,
-                estimated: projections.estimated,
-                note: projections.estimateNote,
+            dailySeries: this.collectDailySeries(db, now),
+            modelsByPeriod: {
+                daily: dailyModels,
+                weekly: weeklyModels,
+                monthly: monthlyModels,
+                all: allModels,
             },
+            modelThinkingByPeriod: {
+                daily: this.collectWindowedModelThinking(db, dailySince),
+                weekly: this.collectWindowedModelThinking(db, weeklySince),
+                monthly: this.collectWindowedModelThinking(db, monthlySince),
+                all: this.collectWindowedModelThinking(db, 0),
+            },
+            projections: this.computeProjections(db, totals),
         };
     }
 
@@ -684,7 +500,7 @@ class UsageModule {
 
     private registerCommands(): void {
         this.pi.registerCommand("usage-report", {
-            description: "Write an enhanced self-contained model usage report to the pi-aftc-toolset data folder and open it in your browser",
+            description: "Write a self-contained model usage report (tabs, charts, projections) to the pi-aftc-toolset data folder and open it in your browser",
             handler: async (_a: string, ctx: ExtensionCommandContext) => this.runReport(ctx),
         });
         this.pi.registerCommand("usage-clear", {
@@ -697,6 +513,10 @@ class UsageModule {
 
     // -------------------------------------------------------------------
     // HTML generation
+    //
+    // NOTE for maintainers: the client-side JS below lives inside a TS
+    // template literal, so it must NOT use backticks or ${} — string
+    // concatenation only. The only interpolations are ${title} and ${json}.
     // -------------------------------------------------------------------
 
     private generateReportHtml(data: any): string {
@@ -708,481 +528,640 @@ class UsageModule {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
 <style>
   :root {
     --bg:#0f1115; --panel:#161a22; --panel-2:#1d2230; --border:#2a3142;
-    --text:#e6e9ef; --muted:#8b94a7; --accent:#6aa9ff; --good:#5ad19a;
-    --warn:#f3b664; --bad:#ef6b6b; --bar:#4d8df6; --bar-2:#76e0c2;
-    --card-bg:#1a1f2b;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg:#f7f8fb; --panel:#fff; --panel-2:#f1f3f8; --border:#d8dde7;
-      --text:#1a1d24; --muted:#5d667a; --accent:#2c6dd2; --good:#1f9d6c;
-      --warn:#c47d20; --bad:#c43c3c; --bar:#2c6dd2; --bar-2:#1f9d6c;
-      --card-bg:#f4f6fb;
-    }
+    --text:#e6e9ef; --muted:#8b94a7; --sub-white:#aeb6c6;
+    --accent:#6aa9ff; --good:#5ad19a; --warn:#f3b664; --bad:#ef6b6b;
+    --bar:#4d8df6; --bar-2:#76e0c2;
+    --orange:#fca02f; --orange-dim:#c97e1f;
   }
   * { box-sizing:border-box; }
   html, body { margin:0; padding:0; background:var(--bg); color:var(--text);
     font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
-  main { max-width:1240px; margin:0 auto; padding:24px 20px 64px; }
-  header { display:flex; flex-wrap:wrap; align-items:flex-start; gap:12px; margin-bottom:8px; }
-  h1 { font-size:24px; margin:0; }
-  h2 { font-size:18px; margin:28px 0 12px; padding-bottom:6px; border-bottom:1px solid var(--border); }
-  h2 .section-meta { color:var(--muted); font-size:12px; font-weight:400; margin-left:10px; }
-  .meta { color:var(--muted); font-size:12px; display:block; margin-top:2px; }
-  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin:10px 0; }
-  .grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  @media(max-width:1000px){.grid-4{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:600px){.grid-4{grid-template-columns:1fr}}
+  body::before { content:""; display:block; height:3px;
+    background:linear-gradient(90deg, var(--orange), rgba(252,160,47,0) 55%); }
+  main { max-width:1180px; margin:0 auto; padding:26px 20px 64px; }
+  header { margin-bottom:22px; }
+  h1 { font-size:22px; margin:0; display:flex; align-items:center; gap:10px; }
+  .title-mark { width:9px; height:22px; background:var(--orange); border-radius:2px; flex:none; }
+  .brand-sub { color:var(--sub-white); font-size:13px; font-weight:600;
+    letter-spacing:.14em; text-transform:uppercase; margin-top:6px; }
+  .generated { color:var(--orange); font-size:12px; margin-top:3px;
+    font-variant-numeric:tabular-nums; }
+  h2 { font-size:14px; margin:26px 0 10px; }
+  h2 .section-meta { color:var(--muted); font-size:11px; font-weight:400; margin-left:8px; }
+
+  /* Tabs */
+  .tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:18px; }
+  .tabs::after { content:""; flex:1; border-bottom:2px solid var(--border); }
+  .tab { background:none; border:none; color:var(--muted); font:inherit;
+    font-size:13px; font-weight:600; padding:10px 16px; cursor:pointer;
+    border-bottom:2px solid var(--border); white-space:nowrap; }
+  .tab:hover { color:var(--text); }
+  .tab.active { color:var(--orange); border-bottom-color:var(--orange); }
+  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .tab-panel.hidden { display:none; }
+
+  /* Cards */
+  .panel { background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:14px 16px; }
+  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:10px; }
   .stat-label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
-  .stat-value { font-size:15px; font-weight:700; margin-top:4px; word-break:break-word; }
-  .stat-sub { color:var(--muted); font-size:12px; margin-top:3px; }
-  .empty { color:var(--muted); font-style:italic; padding:10px 0; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
-  th { font-weight:600; color:var(--muted); cursor:pointer; user-select:none; white-space:nowrap; }
-  th .arrow { color:var(--accent); margin-left:4px; opacity:.5; font-size:10px; }
+  .stat-value { font-size:20px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .stat-value.money { color:var(--orange); }
+  .stat-sub { color:var(--muted); font-size:12px; margin-top:2px; }
+  .period-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+  .period-cost { font-size:22px; font-weight:700; color:var(--orange);
+    margin-top:4px; font-variant-numeric:tabular-nums; }
+  .period-top { font-size:12px; margin-top:8px; color:var(--muted); }
+  .period-top b { color:var(--text); font-weight:600; }
+  .empty { color:var(--muted); font-style:italic; padding:12px 4px; }
+
+  /* Charts */
+  .chart-grid { display:grid; grid-template-columns:1.7fr 1fr; gap:10px; margin-top:10px; }
+  @media(max-width:900px){ .chart-grid { grid-template-columns:1fr; } }
+  .chart-box { position:relative; height:250px; }
+  .chart-box.sm { height:210px; }
+  .panel-title { font-size:13px; font-weight:700; margin-bottom:10px; }
+  .panel-sub { color:var(--muted); font-weight:400; font-size:11px; margin-left:6px; }
+  .chart-fallback { color:var(--muted); font-size:12px; font-style:italic;
+    padding:24px 8px; text-align:center; }
+
+  /* Toolbar + selects */
+  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    justify-content:space-between; margin:0 0 10px; }
+  .period-label { color:var(--muted); font-size:12px; display:flex; align-items:center; gap:8px; }
+  select { background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px;
+    padding:6px 12px; font-size:13px; font-family:inherit; cursor:pointer; }
+  select:focus { outline:none; border-color:var(--orange); }
+  select option { background:var(--panel-2); color:var(--text); }
+
+  /* Tables */
+  .table-panel { padding:6px 0 8px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; min-width:680px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--muted); font-size:11px; text-transform:uppercase;
+    letter-spacing:.05em; cursor:pointer; user-select:none; }
+  th .arrow { color:var(--orange); margin-left:4px; opacity:0; font-size:10px; }
+  th:hover .arrow { opacity:.45; }
   th.sorted .arrow { opacity:1; }
+  .col-hint { display:inline-flex; align-items:center; margin-left:5px;
+    color:var(--muted); vertical-align:-1px; cursor:help; }
+  .col-hint:hover { color:var(--orange); }
+  .col-tip { position:fixed; z-index:50; max-width:250px; background:var(--panel-2);
+    border:1px solid var(--border); border-radius:8px; padding:8px 11px;
+    font-size:12px; line-height:1.45; color:var(--text);
+    box-shadow:0 8px 24px rgba(0,0,0,.5); pointer-events:none;
+    opacity:0; transition:opacity .12s ease; }
+  .col-tip.show { opacity:1; }
+  tbody tr:last-child td { border-bottom:none; }
   tbody tr:hover { background:var(--panel-2); }
   td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; }
-  .pill.good{background:rgba(90,209,154,.15);color:var(--good)}
-  .pill.warn{background:rgba(243,182,100,.15);color:var(--warn)}
-  .pill.bad{background:rgba(239,107,107,.15);color:var(--bad)}
-  .pill.info{background:rgba(106,169,255,.15);color:var(--accent)}
+  .bar-cell { display:flex; align-items:center; gap:8px; min-width:150px; }
+  .bar-track { flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; min-width:56px; }
+  .bar-fill { height:100%; border-radius:3px;
+    background:linear-gradient(90deg, var(--orange-dim), var(--orange)); }
+
+  /* Pills */
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .pill.good { background:rgba(90,209,154,.14); color:var(--good); }
+  .pill.warn { background:rgba(243,182,100,.14); color:var(--warn); }
+  .pill.bad { background:rgba(239,107,107,.14); color:var(--bad); }
   .lvl { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600;
     background:var(--panel-2); color:var(--muted); border:1px solid var(--border); }
-  .lvl.high{background:rgba(106,169,255,.15);color:var(--accent);border-color:transparent}
-  .lvl.medium{background:rgba(243,182,100,.15);color:var(--warn);border-color:transparent}
-  .lvl.low{background:rgba(90,209,154,.15);color:var(--good);border-color:transparent}
-  .bar-cell { display:flex; align-items:center; gap:8px; }
-  .bar-track { flex:1; height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden; }
-  .bar-fill { height:100%; background:var(--bar); }
-  /* Dropdowns */
-  .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin:0 0 12px; }
-  .toolbar-left { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
-  .toolbar-right { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
-  select {
-    background:var(--panel-2); color:var(--text);
-    border:1px solid var(--border); border-radius:8px;
-    padding:6px 12px; font-size:13px; font-family:inherit;
-    cursor:pointer;
-  }
-  select:focus { outline:none; border-color:var(--accent); }
-  /* Make sure dropdown options are readable on Windows/Chrome */
-  select option { background:var(--panel-2); color:var(--text); }
-  .toggle-btn {
-    background:var(--panel-2); color:var(--text);
-    border:1px solid var(--border); border-radius:8px;
-    padding:6px 12px; font-size:12px; cursor:pointer;
-    font-family:inherit;
-  }
-  .toggle-btn.active { background:var(--accent); color:#fff; border-color:transparent; }
-  .toggle-btn:not(.active):hover { background:var(--panel); }
-  .note { color:var(--muted); font-size:12px; line-height:1.55; margin:8px 0 0; }
+  .lvl.high { background:rgba(106,169,255,.14); color:var(--accent); border-color:transparent; }
+  .lvl.medium { background:rgba(243,182,100,.14); color:var(--warn); border-color:transparent; }
+  .lvl.low { background:rgba(90,209,154,.14); color:var(--good); border-color:transparent; }
+  .est { color:var(--warn); cursor:help; font-weight:700; margin-left:3px; }
+
+  .note { color:var(--muted); font-size:12px; line-height:1.55; margin:10px 0; }
   .note.estimate { color:var(--warn); }
-  .proj-grid { display:grid; grid-template-columns:2.2fr repeat(5,1fr); gap:0; font-size:13px; }
-  .proj-cell { padding:8px 10px; border-bottom:1px solid var(--border); }
-  .proj-cell.head { font-weight:600; color:var(--muted); background:var(--panel-2); cursor:pointer; user-select:none; white-space:nowrap; }
-  .proj-cell.head.sorted .arrow { color:var(--accent); font-weight:700; }
-  .proj-cell .arrow { opacity:.5; font-size:10px; margin-left:4px; }
-  .proj-cell .val { font-variant-numeric:tabular-nums; }
-  .proj-cell .sub { color:var(--muted); font-size:10px; margin-top:1px; }
-  .proj-cell.estimate .val { color:var(--warn); }
-  footer { color:var(--muted); font-size:11px; margin:32px 0 18px; text-align:center; }
+  footer { color:var(--muted); font-size:11px; margin:34px 0 18px; text-align:center; line-height:1.7; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <div>
-      <h1>${title}</h1>
-      <span class="meta" id="generated-at"></span>
-    </div>
+    <h1><span class="title-mark"></span>${title}</h1>
+    <div class="brand-sub">All For The Code</div>
+    <div class="generated" id="generated-at"></div>
   </header>
 
-  <h2>Lifetime totals</h2>
-  <div class="grid-4" id="lifetime-totals"></div>
+  <nav class="tabs" role="tablist" aria-label="Report sections">
+    <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="models" role="tab" aria-selected="false">Models</button>
+    <button class="tab" data-tab="thinking" role="tab" aria-selected="false">Thinking levels</button>
+    <button class="tab" data-tab="projections" role="tab" aria-selected="false">Projections</button>
+  </nav>
 
-  <!-- Section 1 -->
-  <h2 id="sec-daily-title">Daily totals <span class="section-meta">Last 24 hours</span></h2>
-  <div class="grid-4" id="sec-daily"></div>
+  <!-- ======================= OVERVIEW ======================= -->
+  <section class="tab-panel" id="panel-overview" role="tabpanel">
+    <div class="stat-grid" id="stat-grid"></div>
+    <p class="note" style="margin:6px 2px 0">Cost averages are based on paid turns only — free / $0 (subscription)
+    models still count toward prompt, cache and timing figures.</p>
 
-  <!-- Section 2 -->
-  <h2 id="sec-weekly-title">Weekly totals <span class="section-meta">Last 7 days</span></h2>
-  <div class="toolbar">
-    <div class="toolbar-left">
-      <button class="toggle-btn active" id="weekly-weekend-toggle" data-state="include">Include weekends</button>
-    </div>
-    <div class="toolbar-right">
-      <span class="note" id="weekly-note"></span>
-    </div>
-  </div>
-  <div class="grid-4" id="sec-weekly"></div>
-
-  <!-- Section 3 -->
-  <h2 id="sec-monthly-title">Monthly totals <span class="section-meta">Last 28 days</span></h2>
-  <div class="toolbar">
-    <div class="toolbar-left">
-      <button class="toggle-btn active" id="monthly-weekend-toggle" data-state="include">Include weekends</button>
-    </div>
-    <div class="toolbar-right">
-      <span class="note" id="monthly-note"></span>
-    </div>
-  </div>
-  <div class="grid-4" id="sec-monthly"></div>
-
-  <!-- Section 4 -->
-  <h2>Per-model cost report</h2>
-  <div class="panel">
-    <div class="toolbar">
-      <div class="toolbar-left"></div>
-      <div class="toolbar-right">
-        <label class="stat-sub">Period
-          <select id="models-period">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="all" selected>All time</option>
-          </select>
-        </label>
+    <div class="chart-grid">
+      <div class="panel">
+        <div class="panel-title">Daily spend <span class="panel-sub">last 30 days</span></div>
+        <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Cost share by model <span class="panel-sub">all time</span></div>
+        <div class="chart-box"><canvas id="chart-share"></canvas></div>
       </div>
     </div>
-    <table id="models-table">
-      <thead><tr>
-        <th data-sort="modelName">Model <span class="arrow">↕</span></th>
-        <th data-sort="cost" class="num sorted desc">Cost <span class="arrow">↓</span></th>
-        <th data-sort="turns" class="num">Turns <span class="arrow">↕</span></th>
-        <th data-sort="userPrompts" class="num">User prompts <span class="arrow">↕</span></th>
-        <th data-sort="basePrompts" class="num">Base prompts <span class="arrow">↕</span></th>
-        <th data-sort="subPrompts" class="num">Sub prompts <span class="arrow">↕</span></th>
-        <th data-sort="turnsPerUserPrompt" class="num">Calls/prompt <span class="arrow">↕</span></th>
-        <th data-sort="maxTurnsPerPrompt" class="num">Max calls/prompt <span class="arrow">↕</span></th>
-        <th data-sort="avgCostPerTurn" class="num">Avg cost/turn <span class="arrow">↕</span></th>
-        <th data-sort="avgCostPerUserPrompt" class="num">Avg cost/prompt <span class="arrow">↕</span></th>
-        <th data-sort="avgCacheRate" class="num">Avg cache <span class="arrow">↕</span></th>
-        <th data-sort="avgThinkingMs" class="num">Avg think <span class="arrow">↕</span></th>
-        <th data-sort="avgResponseMs" class="num">Avg response <span class="arrow">↕</span></th>
-      </tr></thead>
-      <tbody id="models-tbody"></tbody>
-    </table>
-    <div id="models-empty" class="empty" style="display:none;">No data for this period.</div>
-  </div>
 
-  <!-- Section 5 -->
-  <h2>Per-model × thinking level</h2>
-  <div class="panel">
+    <h2>Period summary</h2>
+    <div class="period-grid" id="period-grid"></div>
+  </section>
+
+  <!-- ======================= MODELS ======================= -->
+  <section class="tab-panel hidden" id="panel-models" role="tabpanel">
     <div class="toolbar">
-      <div class="toolbar-left"></div>
-      <div class="toolbar-right">
-        <label class="stat-sub">Period
-          <select id="thinking-period">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="all" selected>All time</option>
-          </select>
-        </label>
-      </div>
+      <div class="panel-title" style="margin:0">Per-model cost report</div>
+      <label class="period-label">Period
+        <select id="models-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
     </div>
-    <table id="thinking-table">
-      <thead><tr>
-        <th data-sort-t="modelName">Model <span class="arrow">↕</span></th>
-        <th data-sort-t="thinkingLevel">Thinking <span class="arrow">↕</span></th>
-        <th data-sort-t="turns" class="num">Turns <span class="arrow">↕</span></th>
-        <th data-sort-t="userPrompts" class="num">User prompts <span class="arrow">↕</span></th>
-        <th data-sort-t="basePrompts" class="num">Base prompts <span class="arrow">↕</span></th>
-        <th data-sort-t="subPrompts" class="num">Sub prompts <span class="arrow">↕</span></th>
-        <th data-sort-t="cost" class="num">Cost <span class="arrow">↕</span></th>
-        <th data-sort-t="avgCostPerTurn" class="num">Avg cost/turn <span class="arrow">↕</span></th>
-        <th data-sort-t="avgCostPerUserPrompt" class="num">Avg cost/prompt <span class="arrow">↕</span></th>
-        <th data-sort-t="avgCacheRate" class="num">Avg cache <span class="arrow">↕</span></th>
-        <th data-sort-t="avgThinkingMs" class="num">Avg think <span class="arrow">↕</span></th>
-        <th data-sort-t="avgResponseMs" class="num">Avg response <span class="arrow">↕</span></th>
-      </tr></thead>
-      <tbody id="thinking-tbody"></tbody>
-    </table>
-    <div id="thinking-empty" class="empty" style="display:none;">No data for this period.</div>
-  </div>
+    <div class="panel" style="margin-bottom:10px">
+      <div class="panel-title">Cost by model <span class="panel-sub" id="models-chart-sub">all time</span></div>
+      <div class="chart-box sm"><canvas id="chart-models"></canvas></div>
+    </div>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="models-table"></table>
+      </div>
+      <div id="models-empty" class="empty" hidden>No data for this period.</div>
+    </div>
+  </section>
 
-  <!-- Section 6 -->
-  <h2>Cost projections</h2>
-  <div class="panel">
+  <!-- ======================= THINKING ======================= -->
+  <section class="tab-panel hidden" id="panel-thinking" role="tabpanel">
     <div class="toolbar">
-      <div class="toolbar-left">
-        <p class="note" id="proj-note"></p>
+      <div class="panel-title" style="margin:0">Per-model × thinking level</div>
+      <label class="period-label">Period
+        <select id="thinking-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="thinking-table"></table>
       </div>
-      <div class="toolbar-right"></div>
+      <div id="thinking-empty" class="empty" hidden>No data for this period.</div>
     </div>
-    <div class="proj-grid" id="proj-grid">
-      <div class="proj-cell head" data-sort-p="modelName">Model <span class="arrow">↕</span></div>
-      <div class="proj-cell head" data-sort-p="thinkingLevel">Thinking <span class="arrow">↕</span></div>
-      <div class="proj-cell head sorted" data-sort-p="costPerHour">$/hr <span class="arrow">↓</span></div>
-      <div class="proj-cell head" data-sort-p="costPerDay">$/day <span class="arrow">↕</span></div>
-      <div class="proj-cell head" data-sort-p="costPerWeek">$/week <span class="arrow">↕</span></div>
-      <div class="proj-cell head" data-sort-p="costPerMonth">$/month <span class="arrow">↕</span></div>
-      <div class="proj-cell head" data-sort-p="costPerYear">$/year <span class="arrow">↕</span></div>
-    </div>
-    <div id="proj-empty" class="empty" style="display:none;">No data recorded yet.</div>
-  </div>
+  </section>
 
-  <footer>Generated by pi-aftc-toolset &middot; /usage-report<br>Author Darcey.Lloyd@gmail.com</footer>
+  <!-- ======================= PROJECTIONS ======================= -->
+  <section class="tab-panel hidden" id="panel-projections" role="tabpanel">
+    <div class="stat-grid" id="proj-cards"></div>
+    <p class="note" id="proj-note"></p>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="proj-table"></table>
+      </div>
+      <div id="proj-empty" class="empty" hidden>No data recorded yet.</div>
+    </div>
+    <p class="note">Per-model figures assume each future day looks like your average <b>active day</b>
+    with that model (spend ÷ active days). The overall burn rate divides all-time spend by every
+    calendar day since recording began, including idle days. Rows marked <span class="est">~</span>
+    are estimates from fewer than 7 active days.</p>
+  </section>
+
+  <footer>Generated by pi-aftc-toolset &middot; /usage-report &middot; All For The Code<br>Author Darcey.Lloyd@gmail.com</footer>
 </main>
 <script type="application/json" id="report-data">${json}</script>
 <script type="module">
-  const raw = document.getElementById("report-data").textContent || "{}";
-  const data = JSON.parse(raw);
-  const fmtMoney = n => "$" + (Number(n) || 0).toFixed(4);
-  const fmtMoney2 = n => "$" + (Number(n) || 0).toFixed(2);
-  const fmtPct = n => ((Number(n) || 0) * 100).toFixed(1) + "%";
-  const fmtMs = ms => { ms = Number(ms) || 0; if (ms <= 0) return "0s"; const s = Math.floor(ms/1000); return s < 60 ? s+"s" : Math.floor(s/60)+"m "+(s%60)+"s"; };
-  const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-  function cachePill(rate){ const p=(Number(rate)||0)*100; return '<span class="pill '+(p>=60?"good":p>=30?"warn":"bad")+'">'+p.toFixed(1)+"%</span>"; }
-  function thinkingPill(level){ const l=String(level||"").toLowerCase(); let cls=""; if(l==="high"||l==="xhigh")cls=" high"; else if(l==="medium"||l==="med")cls=" medium"; else if(l==="low"||l==="off"||l==="minimal")cls=" low"; return '<span class="lvl'+cls+'">'+esc(level)+'</span>'; }
-  function sortRows(rows,key,dir){ const d=dir==='asc'?1:-1; return rows.sort((a,b)=>{ const av=a[key], bv=b[key]; if(typeof av==='string') return av.localeCompare(bv)*d; return ((av||0)-(bv||0))*d; }); }
-  function updateArrows(sel, attr, key, dir){ document.querySelectorAll(sel).forEach(th=>{ const k=th.dataset[attr]; th.classList.toggle('sorted', k===key); const a=th.querySelector('.arrow'); if(a) a.textContent=k===key?(dir==='asc'?'↑':'↓'):'↕'; }); }
+  var data = JSON.parse(document.getElementById("report-data").textContent || "{}");
 
-  document.getElementById("generated-at").textContent = "Generated " + new Date(data.generatedAt).toLocaleString();
-
-  // ---- Lifetime totals ----
-  function renderTotals(){
-    const t = data.totals || {};
-    const cards = [
-      ["Total cost", fmtMoney(t.totalCost), "avg "+fmtMoney(t.avgCostPerUserPrompt)+" / user prompt"],
-      ["Model calls", (t.turnCount||0).toLocaleString(), (t.automatedTurnCount||0)+" automated continuations"],
-      ["User prompts", (t.userPromptCount||0).toLocaleString(), "base + sub prompts submitted by you"],
-      ["Base prompts", (t.basePromptCount||0).toLocaleString(), "top-level prompts (projection baseline)"],
-      ["Sub prompts", (t.subPromptCount||0).toLocaleString(), (t.steeringPromptCount||0)+" steer · "+(t.followupPromptCount||0)+" follow-up · "+(t.continuationPromptCount||0)+" continuation"],
-      ["Avg cost / turn", fmtMoney(t.avgCostPerTurn), "avg cost per assistant/model call"],
-      ["Avg cache", fmtPct(t.avgCacheRate), "cache read / total prompt tokens"],
-      ["Cache read / write", (t.totalCacheRead||0).toLocaleString()+" / "+(t.totalCacheWrite||0).toLocaleString()+" tok", "cached prefix activity"],
-      ["Active hours", (t.activeHours||0).toFixed(1)+"h", "first → last recorded turn"],
-      ["Calls / prompt", (Number(t.turnsPerUserPrompt)||0).toFixed(2), "lower is better; high = tool-call loop"],
-    ];
-    const root = document.getElementById("lifetime-totals");
-    root.innerHTML = "";
-    for (const [label, value, sub] of cards){
-      const el = document.createElement("div");
-      el.className = "panel";
-      el.innerHTML = '<div class="stat-label">'+esc(label)+'</div><div class="stat-value">'+esc(value)+'</div><div class="stat-sub">'+esc(sub)+'</div>';
-      root.appendChild(el);
-    }
+  // ---------- formatters ----------
+  function fmtMoney(v){ v = Number(v)||0; return "$" + (Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(4)); }
+  function fmtInt(v){ return (Number(v)||0).toLocaleString("en-US"); }
+  function fmtTok(v){ v = Number(v)||0; if (v>=1e9) return (v/1e9).toFixed(1)+"B"; if (v>=1e6) return (v/1e6).toFixed(1)+"M"; if (v>=1e3) return (v/1e3).toFixed(1)+"K"; return String(Math.round(v)); }
+  function fmtPct(v){ return ((Number(v)||0)*100).toFixed(1)+"%"; }
+  function fmtMs(ms){ ms = Number(ms)||0; if (ms<=0) return "0s"; var s = Math.floor(ms/1000); return s<60 ? s+"s" : Math.floor(s/60)+"m "+(s%60)+"s"; }
+  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+  function cachePill(rate){ var p=(Number(rate)||0)*100; var cls = p>=60?"good":p>=30?"warn":"bad"; return '<span class="pill '+cls+'">'+p.toFixed(1)+"%</span>"; }
+  function thinkingPill(level){
+    var l = String(level||"").toLowerCase(); var cls = "";
+    if (l==="high"||l==="xhigh") cls = " high";
+    else if (l==="medium"||l==="med") cls = " medium";
+    else if (l==="low"||l==="off"||l==="minimal") cls = " low";
+    return '<span class="lvl'+cls+'">'+esc(level)+'</span>';
   }
 
-  // ---- Section 1–3 cards ----
-  function renderSectionCards(sectionId, sectionKey){
-    const root = document.getElementById(sectionId);
-    if (!root) return;
-    const section = data.sections[sectionKey];
-    if (!section) { root.innerHTML = '<div class="empty">No data yet.</div>'; return; }
-    const titles = ["Most used", "Most inefficient", "Highest avg cost", "Lowest avg cost"];
-    const pills = ["info", "warn", "bad", "good"];
-    const pillLabels = ["USED", "INEFFICIENT", "HIGH COST", "LOW COST"];
-    root.innerHTML = "";
-    const cards = section.cards || [];
-    for (let i = 0; i < titles.length; i++){
-      const card = cards[i];
-      const el = document.createElement("div");
-      el.className = "panel";
-      const hasData = card && card.primary && card.primary !== "";
-      if (!hasData){
-        el.innerHTML = '<div class="stat-label">'+esc(titles[i])+'</div><div class="stat-value empty">No data</div>';
-      } else {
-        el.innerHTML = '<div class="stat-label">'+esc(titles[i])+' <span class="pill '+pills[i]+'">'+pillLabels[i]+'</span></div>'
-          + '<div class="stat-value">'+esc(card.primary)+'</div>'
-          + '<div class="stat-sub">'+esc(card.secondary)+'</div>';
-      }
-      root.appendChild(el);
-    }
+  // ---------- column info hints ----------
+  var INFO_SVG = '<svg class="info-i" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">'
+    + '<circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/>'
+    + '<circle cx="8" cy="5" r="1.1" fill="currentColor"/>'
+    + '<rect x="7.1" y="7.2" width="1.8" height="4.6" rx="0.9" fill="currentColor"/></svg>';
+  var HINT_AI_PER_USER = "Average number of AI (self-prompted) turns per user prompt - how many tool-call loops the model runs for each prompt you type. Lower is more efficient.";
+  var HINT_AVG_PUP = "Average cost per user prompt: total cost ÷ user prompts on paid turns. Free / $0 (subscription) turns are excluded so they don't drag the average down.";
+  var HINT_AVG_CACHE = "Average cache hit rate per turn: cached tokens ÷ (cached + new input tokens). Higher means cheaper, faster repeat context.";
+  var colTip = null;
+  function showColTip(anchor, text){
+    if (!colTip){ colTip = document.createElement("div"); colTip.className = "col-tip"; document.body.appendChild(colTip); }
+    colTip.textContent = text;
+    colTip.style.visibility = "hidden";
+    colTip.classList.add("show");
+    var r = anchor.getBoundingClientRect();
+    var tw = colTip.offsetWidth, th = colTip.offsetHeight;
+    var x = Math.min(Math.max(8, r.left + r.width/2 - tw/2), window.innerWidth - tw - 8);
+    var y = r.bottom + 8;
+    if (y + th > window.innerHeight - 8) y = Math.max(8, r.top - th - 8);
+    colTip.style.left = x+"px"; colTip.style.top = y+"px";
+    colTip.style.visibility = "";
   }
-
-  function renderSections(){
-    renderSectionCards("sec-daily", "daily");
-    renderSectionCards("sec-weekly", "weekly");
-    renderSectionCards("sec-monthly", "monthly");
-  }
-
-  // ---- Weekday toggle (weekly/monthly) ----
-  function renderNotes(){
-    const wNote = document.getElementById("weekly-note");
-    const mNote = document.getElementById("monthly-note");
-    if (wNote) wNote.textContent = "Weekend toggle filters out Sat/Sun data from the last 7 days.";
-    if (mNote) mNote.textContent = "Weekend toggle filters out Sat/Sun data from the last 28 days.";
-  }
-
-  function setupWeekendToggle(btnId, sectionKeyIncl, sectionKeyExcl){
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.addEventListener("click", () => {
-      const isInclude = btn.dataset.state === "include";
-      const newState = isInclude ? "exclude" : "include";
-      btn.dataset.state = newState;
-      btn.classList.toggle("active", newState === "include");
-      btn.textContent = newState === "include" ? "Include weekends" : "Exclude weekends";
-      const key = newState === "include" ? sectionKeyIncl : sectionKeyExcl;
-      const sectionId = sectionKeyIncl === "weekly" || sectionKeyExcl === "weekly" ? "sec-weekly" : "sec-monthly";
-      renderSectionCards(sectionId, key);
+  function hideColTip(){ if (colTip) colTip.classList.remove("show"); }
+  function bindHints(scope){
+    scope.querySelectorAll(".col-hint").forEach(function(el){
+      el.addEventListener("mouseenter", function(){ showColTip(el, el.dataset.tip || ""); });
+      el.addEventListener("mouseleave", hideColTip);
+      el.addEventListener("click", function(e){ e.stopPropagation(); showColTip(el, el.dataset.tip || ""); });
     });
   }
 
-  // ---- Section 4: Per-model table ----
-  let modelsPeriod = "all";
-  let modelsSortKey = "cost";
-  let modelsSortDir = "desc";
-  function renderModelsTable(){
-    const tbody = document.getElementById("models-tbody");
-    const empty = document.getElementById("models-empty");
-    const rows = (data.modelsByPeriod || {})[modelsPeriod] || [];
-    tbody.innerHTML = "";
-    if (!rows.length){ empty.style.display = "block"; return; }
-    empty.style.display = "none";
-    const sorted = sortRows(rows.slice(), modelsSortKey, modelsSortDir);
-    const maxCost = Math.max(1, ...rows.map(r => r.cost));
-    for (const r of sorted){
-      const tr = document.createElement("tr");
-      const pct = Math.max(0, Math.min(100, (r.cost / maxCost) * 100));
-      tr.innerHTML = '<td>'+esc(r.modelName)+'</td>'
-        + '<td class="num"><div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span>'+fmtMoney(r.cost)+'</span></div></td>'
-        + '<td class="num">'+r.turns+'</td>'
-        + '<td class="num">'+r.userPrompts+'</td>'
-        + '<td class="num">'+r.basePrompts+'</td>'
-        + '<td class="num">'+r.subPrompts+'</td>'
-        + '<td class="num">'+(Number(r.turnsPerUserPrompt)||0).toFixed(2)+'</td>'
-        + '<td class="num">'+(Number(r.maxTurnsPerPrompt)||0)+'</td>'
-        + '<td class="num">'+fmtMoney(r.avgCostPerTurn)+'</td>'
-        + '<td class="num">'+fmtMoney(r.avgCostPerUserPrompt)+'</td>'
-        + '<td class="num">'+cachePill(r.avgCacheRate)+'</td>'
-        + '<td class="num">'+fmtMs(r.avgThinkingMs)+'</td>'
-        + '<td class="num">'+fmtMs(r.avgResponseMs)+'</td>';
-      tbody.appendChild(tr);
-    }
-    updateArrows('#models-table thead th','sort',modelsSortKey,modelsSortDir);
+  // ---------- header ----------
+  (function(){
+    var d = new Date(data.generatedAt || Date.now());
+    function p(n){ return String(n).padStart(2,"0"); }
+    document.getElementById("generated-at").textContent =
+      "Generated on: " + String(d.getFullYear()).slice(2) + p(d.getMonth()+1) + p(d.getDate()) + " - " + p(d.getHours()) + ":" + p(d.getMinutes());
+  })();
+
+  // ---------- tabs ----------
+  var TAB_IDS = ["overview","models","thinking","projections"];
+  function activateTab(id){
+    document.querySelectorAll(".tab").forEach(function(b){
+      var on = b.dataset.tab === id;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll(".tab-panel").forEach(function(p){
+      p.classList.toggle("hidden", p.id !== "panel-"+id);
+    });
+    if (history.replaceState) history.replaceState(null, "", "#"+id);
+    if (id === "models") ensureModelsChart();
   }
-  function setupModelsTable(){
-    const sel = document.getElementById("models-period");
-    if (sel) sel.addEventListener("change", e => { modelsPeriod = e.target.value; renderModelsTable(); });
-    document.querySelectorAll('#models-table thead th').forEach(th => {
-      th.addEventListener("click", () => {
-        const k = th.dataset.sort;
-        if (modelsSortKey === k) modelsSortDir = modelsSortDir === 'asc' ? 'desc' : 'asc';
-        else { modelsSortKey = k; modelsSortDir = k === 'modelName' ? 'asc' : 'desc'; }
-        renderModelsTable();
+  document.querySelectorAll(".tab").forEach(function(b){
+    b.addEventListener("click", function(){ activateTab(b.dataset.tab); });
+  });
+  var initialTab = (location.hash || "").replace("#","");
+  if (TAB_IDS.indexOf(initialTab) < 0) initialTab = "overview";
+
+  // ---------- stat cards ----------
+  function statCard(label, valueHtml, sub, money){
+    return '<div class="panel stat"><div class="stat-label">'+esc(label)+'</div>'
+      + '<div class="stat-value'+(money ? " money" : "")+'">'+valueHtml+'</div>'
+      + (sub ? '<div class="stat-sub">'+esc(sub)+'</div>' : '') + '</div>';
+  }
+  function renderOverview(){
+    var t = data.totals || {};
+    var since = t.firstTurnMs
+      ? new Date(t.firstTurnMs).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" })
+      : "";
+    var html = "";
+    html += statCard("Total cost", fmtMoney(t.totalCost), "avg "+fmtMoney(t.avgDailySpend)+" / day", true);
+    html += statCard("User prompts", fmtInt(t.userPromptCount), fmtInt(t.basePromptCount)+" tasks · "+fmtInt(t.subPromptCount)+" follow-ups");
+    html += statCard("AI prompts", fmtInt(t.automatedTurnCount), "self-prompting · "+((Number(t.automatedTurnCount)||0)/Math.max(1, Number(t.userPromptCount)||0)).toFixed(1)+" per user prompt");
+    html += statCard("Avg cost / user prompt", fmtMoney(t.avgCostPerUserPrompt), fmtMoney(t.avgCostPerTurn)+" per turn (user + AI)");
+    html += statCard("Avg cache hit", fmtPct(t.avgCacheRate), fmtTok(t.totalCacheRead)+" cache-read tokens");
+    html += statCard("Active days", fmtInt(t.activeDays), since ? "recording since "+since : "");
+    document.getElementById("stat-grid").innerHTML = html;
+
+    var ph = "";
+    ["daily","weekly","monthly"].forEach(function(key){
+      var p = (data.periods || {})[key] || {};
+      var top = p.topModel
+        ? '<div class="period-top">Top model: <b>'+esc(p.topModel)+'</b> · '+fmtMoney(p.topModelCost)+' ('+Math.round((p.topModelShare||0)*100)+'%)</div>'
+        : '<div class="period-top">No activity</div>';
+      ph += '<div class="panel period-card"><div class="stat-label">'+esc(p.label || key)+'</div>'
+        + '<div class="period-cost">'+fmtMoney(p.cost)+'</div>'
+        + '<div class="stat-sub">Prompts: User '+fmtInt(p.prompts)+' / AI '+fmtInt(p.aiPrompts)+'</div>'
+        + top + '</div>';
+    });
+    document.getElementById("period-grid").innerHTML = ph;
+  }
+
+  // ---------- charts ----------
+  var PALETTE = ["#fca02f","#4d8df6","#76e0c2","#f3b664","#ef6b6b","#6aa9ff","#5ad19a","#b388ff","#ff8fab","#8ce99a"];
+  var chartsOk = typeof window.Chart !== "undefined";
+  if (chartsOk){
+    Chart.defaults.color = "#8b94a7";
+    Chart.defaults.borderColor = "rgba(139,148,167,.12)";
+    Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+  }
+  function chartFallback(canvasId, msg){
+    var c = document.getElementById(canvasId);
+    if (!c) return;
+    var d = document.createElement("div");
+    d.className = "chart-fallback";
+    d.textContent = msg || "Charts need network access to load Chart.js from the CDN — all tables and cards still work.";
+    c.parentNode.replaceChild(d, c);
+  }
+  var tooltipBase = { backgroundColor:"#1d2230", borderColor:"#2a3142", borderWidth:1, titleColor:"#e6e9ef", bodyColor:"#8b94a7", padding:10, displayColors:false };
+
+  function renderDailyChart(){
+    if (!chartsOk){ chartFallback("chart-daily"); return; }
+    var series = data.dailySeries || [];
+    var canvas = document.getElementById("chart-daily");
+    if (!canvas) return;
+    var lastIdx = series.length - 1;
+    new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: series.map(function(p){ return p.label; }),
+        datasets: [{
+          data: series.map(function(p){ return Number(p.cost)||0; }),
+          backgroundColor: series.map(function(_,i){ return i === lastIdx ? "#fca02f" : "#4d8df6"; }),
+          borderRadius: 3,
+          maxBarThickness: 22,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: Object.assign({}, tooltipBase, {
+            callbacks: {
+              label: function(item){
+                var p = series[item.dataIndex] || {};
+                return ["Cost: "+fmtMoney(p.cost), "User prompts: "+fmtInt(p.prompts), "AI prompts: "+fmtInt(Math.max(0,(p.calls||0)-(p.prompts||0)))];
+              },
+            },
+          }),
+        },
+        scales: {
+          x: { grid:{ display:false }, ticks:{ maxTicksLimit:10, maxRotation:0 } },
+          y: { beginAtZero:true, ticks:{ maxTicksLimit:6, callback:function(v){ return "$"+v; } }, grid:{ color:"rgba(139,148,167,.08)" } },
+        },
+      },
+    });
+  }
+
+  function renderShareChart(){
+    if (!chartsOk){ chartFallback("chart-share"); return; }
+    var canvas = document.getElementById("chart-share");
+    if (!canvas) return;
+    var rows = ((data.modelsByPeriod || {}).all || []).slice().sort(function(a,b){ return b.cost - a.cost; });
+    if (!rows.length){ chartFallback("chart-share", "No data recorded yet."); return; }
+    var top = rows.slice(0, 7);
+    var rest = rows.slice(7);
+    var labels = top.map(function(r){ return r.modelName; });
+    var costs = top.map(function(r){ return r.cost; });
+    if (rest.length){
+      labels.push("Other");
+      costs.push(rest.reduce(function(s,r){ return s + r.cost; }, 0));
+    }
+    var total = costs.reduce(function(s,v){ return s+v; }, 0);
+    var centerTotal = {
+      id: "centerTotal",
+      afterDraw: function(chart){
+        var meta = chart.getDatasetMeta(0);
+        if (!meta.data[0]) return;
+        var x = meta.data[0].x, y = meta.data[0].y;
+        var c = chart.ctx;
+        c.save();
+        c.textAlign = "center"; c.textBaseline = "middle";
+        c.fillStyle = "#e6e9ef";
+        c.font = "700 16px " + Chart.defaults.font.family;
+        c.fillText(fmtMoney(total), x, y - 8);
+        c.fillStyle = "#8b94a7";
+        c.font = "11px " + Chart.defaults.font.family;
+        c.fillText("total", x, y + 10);
+        c.restore();
+      },
+    };
+    new Chart(canvas, {
+      type: "doughnut",
+      data: { labels: labels, datasets: [{ data: costs, backgroundColor: PALETTE, borderColor: "#161a22", borderWidth: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: "62%",
+        plugins: {
+          legend: { position: window.innerWidth >= 860 ? "right" : "bottom",
+            labels: { boxWidth:10, boxHeight:10, padding:10, usePointStyle:true } },
+          tooltip: Object.assign({}, tooltipBase, {
+            displayColors: true,
+            callbacks: { label: function(item){
+              var v = Number(item.parsed)||0;
+              return " "+fmtMoney(v)+" ("+(total>0 ? (v/total*100).toFixed(1) : "0")+"%)";
+            } },
+          }),
+        },
+      },
+      plugins: [centerTotal],
+    });
+  }
+
+  var modelsChart = null;
+  function ensureModelsChart(){
+    var canvas = document.getElementById("chart-models");
+    if (!canvas) return;
+    if (!chartsOk){ chartFallback("chart-models"); return; }
+    var rows = ((data.modelsByPeriod || {})[modelsPeriod] || []).slice()
+      .sort(function(a,b){ return b.cost - a.cost; }).slice(0, 8);
+    var labels = rows.map(function(r){ return r.modelName; });
+    var costs = rows.map(function(r){ return r.cost; });
+    if (!modelsChart){
+      modelsChart = new Chart(canvas, {
+        type: "bar",
+        data: { labels: labels, datasets: [{ data: costs, backgroundColor: "#fca02f", borderRadius: 3, maxBarThickness: 18 }] },
+        options: {
+          indexAxis: "y", responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: Object.assign({}, tooltipBase, {
+              callbacks: { label: function(item){ return " "+fmtMoney(item.parsed.x); } },
+            }),
+          },
+          scales: {
+            x: { beginAtZero:true, ticks:{ callback:function(v){ return "$"+v; } }, grid:{ color:"rgba(139,148,167,.08)" } },
+            y: { grid:{ display:false } },
+          },
+        },
+      });
+    } else {
+      modelsChart.data.labels = labels;
+      modelsChart.data.datasets[0].data = costs;
+      modelsChart.update();
+    }
+  }
+
+  // ---------- sortable table factory ----------
+  function makeTable(opts){
+    var state = { key: opts.defaultKey, dir: opts.defaultDir || "desc" };
+    var table = document.getElementById(opts.tableId);
+    table.innerHTML = "";
+    var thead = document.createElement("thead");
+    var htr = document.createElement("tr");
+    opts.cols.forEach(function(c){
+      var th = document.createElement("th");
+      if (c.num) th.className = "num";
+      th.dataset.key = c.key;
+      th.innerHTML = esc(c.label)
+        + (c.hint ? '<span class="col-hint" data-tip="'+esc(c.hint)+'">'+INFO_SVG+'</span>' : '')
+        + '<span class="arrow">↓</span>';
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr);
+    table.appendChild(thead);
+    var tbody = document.createElement("tbody");
+    table.appendChild(tbody);
+    bindHints(table);
+
+    function updateHead(){
+      table.querySelectorAll("thead th").forEach(function(th){
+        var on = th.dataset.key === state.key;
+        th.classList.toggle("sorted", on);
+        var a = th.querySelector(".arrow");
+        if (a) a.textContent = on ? (state.dir === "asc" ? "↑" : "↓") : "↓";
+      });
+    }
+    function render(){
+      var rows = (opts.getRows() || []).slice();
+      var empty = document.getElementById(opts.emptyId);
+      if (!rows.length){ tbody.innerHTML = ""; empty.hidden = false; updateHead(); return; }
+      empty.hidden = true;
+      rows.sort(function(a,b){
+        var av = a[state.key], bv = b[state.key];
+        var d = state.dir === "asc" ? 1 : -1;
+        if (typeof av === "string") return String(av).localeCompare(String(bv)) * d;
+        return ((Number(av)||0) - (Number(bv)||0)) * d;
+      });
+      var html = "";
+      rows.forEach(function(r){
+        html += "<tr>";
+        opts.cols.forEach(function(c){
+          html += '<td class="'+(c.num ? "num" : "")+'">'+(c.render ? c.render(r) : esc(r[c.key]))+"</td>";
+        });
+        html += "</tr>";
+      });
+      tbody.innerHTML = html;
+      updateHead();
+    }
+    table.querySelectorAll("thead th").forEach(function(th){
+      th.addEventListener("click", function(){
+        var k = th.dataset.key;
+        if (state.key === k) state.dir = state.dir === "asc" ? "desc" : "asc";
+        else { state.key = k; state.dir = th.classList.contains("num") ? "desc" : "asc"; }
+        render();
       });
     });
+    return { render: render };
   }
 
-  // ---- Section 5: Per-model × thinking level table ----
-  let thinkingPeriod = "all";
-  let thinkingSortKey = "cost";
-  let thinkingSortDir = "desc";
-  function renderThinkingTable(){
-    const tbody = document.getElementById("thinking-tbody");
-    const empty = document.getElementById("thinking-empty");
-    const rows = (data.modelThinkingByPeriod || {})[thinkingPeriod] || [];
-    tbody.innerHTML = "";
-    if (!rows.length){ empty.style.display = "block"; return; }
-    empty.style.display = "none";
-    const sorted = sortRows(rows.slice(), thinkingSortKey, thinkingSortDir);
-    for (const r of sorted){
-      const tr = document.createElement("tr");
-      tr.innerHTML = '<td>'+esc(r.modelName)+'</td>'
-        + '<td>'+thinkingPill(r.thinkingLevel)+'</td>'
-        + '<td class="num">'+r.turns+'</td>'
-        + '<td class="num">'+r.userPrompts+'</td>'
-        + '<td class="num">'+r.basePrompts+'</td>'
-        + '<td class="num">'+r.subPrompts+'</td>'
-        + '<td class="num">'+fmtMoney(r.cost)+'</td>'
-        + '<td class="num">'+fmtMoney(r.avgCostPerTurn)+'</td>'
-        + '<td class="num">'+fmtMoney(r.avgCostPerUserPrompt)+'</td>'
-        + '<td class="num">'+cachePill(r.avgCacheRate)+'</td>'
-        + '<td class="num">'+fmtMs(r.avgThinkingMs)+'</td>'
-        + '<td class="num">'+fmtMs(r.avgResponseMs)+'</td>';
-      tbody.appendChild(tr);
-    }
-    updateArrows('#thinking-table thead th','sortT',thinkingSortKey,thinkingSortDir);
-  }
-  function setupThinkingTable(){
-    const sel = document.getElementById("thinking-period");
-    if (sel) sel.addEventListener("change", e => { thinkingPeriod = e.target.value; renderThinkingTable(); });
-    document.querySelectorAll('#thinking-table thead th').forEach(th => {
-      th.addEventListener("click", () => {
-        const k = th.dataset.sortT;
-        if (thinkingSortKey === k) thinkingSortDir = thinkingSortDir === 'asc' ? 'desc' : 'asc';
-        else { thinkingSortKey = k; thinkingSortDir = k === 'modelName' || k === 'thinkingLevel' ? 'asc' : 'desc'; }
-        renderThinkingTable();
-      });
-    });
-  }
+  // ---------- models table ----------
+  var modelsPeriod = "all";
+  var modelsMaxCost = 1;
+  var modelsTable = makeTable({
+    tableId: "models-table",
+    emptyId: "models-empty",
+    defaultKey: "cost",
+    getRows: function(){
+      var rows = (data.modelsByPeriod || {})[modelsPeriod] || [];
+      modelsMaxCost = Math.max(1e-9, rows.reduce(function(s,r){ return Math.max(s, r.cost); }, 0));
+      return rows;
+    },
+    cols: [
+      { key:"modelName", label:"Model" },
+      { key:"cost", label:"Cost", num:true, render:function(r){
+          var pct = Math.max(r.cost > 0 ? 2 : 0, Math.min(100, r.cost / modelsMaxCost * 100));
+          return '<div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span>'+fmtMoney(r.cost)+'</span></div>';
+      } },
+      { key:"userPrompts", label:"User prompts", num:true, render:function(r){ return fmtInt(r.userPrompts); } },
+      { key:"aiPrompts", label:"AI prompts", num:true, render:function(r){ return fmtInt(r.aiPrompts); } },
+      { key:"aiPerUserPrompt", label:"AI / user", num:true, hint:HINT_AI_PER_USER, render:function(r){ return (Number(r.aiPerUserPrompt)||0).toFixed(1); } },
+      { key:"avgCostPerUserPrompt", label:"Avg $/Pup", num:true, hint:HINT_AVG_PUP, render:function(r){ return fmtMoney(r.avgCostPerUserPrompt); } },
+      { key:"avgCacheRate", label:"Avg cache", num:true, hint:HINT_AVG_CACHE, render:function(r){ return cachePill(r.avgCacheRate); } },
+      { key:"avgResponseMs", label:"Avg response", num:true, render:function(r){ return fmtMs(r.avgResponseMs); } },
+    ],
+  });
+  document.getElementById("models-period").addEventListener("change", function(e){
+    modelsPeriod = e.target.value;
+    document.getElementById("models-chart-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase();
+    modelsTable.render();
+    ensureModelsChart();
+  });
 
-  // ---- Section 6: Cost projections ----
-  let projSortKey = "costPerHour";
-  let projSortDir = "desc";
-  function renderProjections(){
-    const noteEl = document.getElementById("proj-note");
-    if (noteEl){
-      const p = data.projections || {};
-      noteEl.textContent = p.note || "";
-      noteEl.classList.toggle("estimate", !!p.estimated);
-    }
-    const grid = document.getElementById("proj-grid");
-    const empty = document.getElementById("proj-empty");
-    const rows = (data.projections || {}).rows || [];
-    // Remove all rows after the header row
-    while (grid.children.length > 7) grid.removeChild(grid.lastElementChild);
-    if (!rows.length){ empty.style.display = "block"; return; }
-    empty.style.display = "none";
-    const sorted = sortRows(rows.slice(), projSortKey, projSortDir);
-    for (const r of sorted){
-      const cells = [
-        { v: r.modelName, sub: "" },
-        { v: r.thinkingLevel, sub: "" },
-        { v: fmtMoney(r.costPerHour), sub: "" },
-        { v: fmtMoney(r.costPerDay), sub: "" },
-        { v: fmtMoney(r.costPerWeek), sub: "" },
-        { v: fmtMoney(r.costPerMonth), sub: "" },
-        { v: fmtMoney(r.costPerYear), sub: "" },
-      ];
-      const cls = r.estimated ? " estimate" : "";
-      for (let i = 0; i < cells.length; i++){
-        const c = document.createElement("div");
-        c.className = "proj-cell" + cls;
-        const title = r.estimated ? ' title="'+esc(r.estimateNote)+'"' : '';
-        c.innerHTML = '<div class="val"'+title+'>'+esc(cells[i].v)+'</div>';
-        grid.appendChild(c);
-      }
-    }
-    document.querySelectorAll('#proj-grid .proj-cell.head').forEach(h => {
-      const k = h.dataset.sortP;
-      h.classList.toggle('sorted', k === projSortKey);
-      const a = h.querySelector('.arrow');
-      if (a) a.textContent = k === projSortKey ? (projSortDir === 'asc' ? '↑' : '↓') : '↕';
-    });
-  }
-  function setupProjections(){
-    document.querySelectorAll('#proj-grid .proj-cell.head').forEach(h => {
-      h.addEventListener("click", () => {
-        const k = h.dataset.sortP;
-        if (projSortKey === k) projSortDir = projSortDir === 'asc' ? 'desc' : 'asc';
-        else { projSortKey = k; projSortDir = k === 'modelName' || k === 'thinkingLevel' ? 'asc' : 'desc'; }
-        renderProjections();
-      });
-    });
-  }
+  // ---------- thinking table ----------
+  var thinkingPeriod = "all";
+  var thinkingTable = makeTable({
+    tableId: "thinking-table",
+    emptyId: "thinking-empty",
+    defaultKey: "cost",
+    getRows: function(){ return (data.modelThinkingByPeriod || {})[thinkingPeriod] || []; },
+    cols: [
+      { key:"modelName", label:"Model" },
+      { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
+      { key:"cost", label:"Cost", num:true, render:function(r){ return fmtMoney(r.cost); } },
+      { key:"userPrompts", label:"User prompts", num:true, render:function(r){ return fmtInt(r.userPrompts); } },
+      { key:"aiPrompts", label:"AI prompts", num:true, render:function(r){ return fmtInt(r.aiPrompts); } },
+      { key:"avgCostPerUserPrompt", label:"Avg $/Pup", num:true, hint:HINT_AVG_PUP, render:function(r){ return fmtMoney(r.avgCostPerUserPrompt); } },
+      { key:"avgCacheRate", label:"Avg cache", num:true, hint:HINT_AVG_CACHE, render:function(r){ return cachePill(r.avgCacheRate); } },
+      { key:"avgThinkingMs", label:"Avg think", num:true, render:function(r){ return fmtMs(r.avgThinkingMs); } },
+      { key:"avgResponseMs", label:"Avg response", num:true, render:function(r){ return fmtMs(r.avgResponseMs); } },
+    ],
+  });
+  document.getElementById("thinking-period").addEventListener("change", function(e){
+    thinkingPeriod = e.target.value;
+    thinkingTable.render();
+  });
 
-  // ---- Boot ----
-  renderTotals();
-  renderNotes();
-  renderSections();
-  setupWeekendToggle("weekly-weekend-toggle", "weekly", "weeklyExcl");
-  setupWeekendToggle("monthly-weekend-toggle", "monthly", "monthlyExcl");
-  setupModelsTable();
-  renderModelsTable();
-  setupThinkingTable();
-  renderThinkingTable();
-  setupProjections();
-  renderProjections();
+  // ---------- projections ----------
+  function estMark(r){
+    return r.estimated ? '<span class="est" title="Fewer than 7 active days recorded — estimate">~</span>' : '';
+  }
+  function renderProjCards(){
+    var p = data.projections || {};
+    var html = "";
+    html += statCard("Avg cost / day", fmtMoney(p.avgDailySpend), "all models · "+fmtInt(p.calendarDays)+" calendar days", true);
+    html += statCard("Projected / month", fmtMoney(p.projectedMonth), "avg day × 30.4");
+    html += statCard("Projected / year", fmtMoney(p.projectedYear), "avg day × 365");
+    document.getElementById("proj-cards").innerHTML = html;
+    var note = document.getElementById("proj-note");
+    note.textContent = p.note || "";
+    note.classList.toggle("estimate", !!p.estimated);
+  }
+  var projTable = makeTable({
+    tableId: "proj-table",
+    emptyId: "proj-empty",
+    defaultKey: "costPerDay",
+    getRows: function(){ return (data.projections || {}).rows || []; },
+    cols: [
+      { key:"modelName", label:"Model" },
+      { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
+      { key:"activeDays", label:"Active days", num:true, render:function(r){ return fmtInt(r.activeDays); } },
+      { key:"userPrompts", label:"Prompts (User / AI)", num:true, render:function(r){ return fmtInt(r.userPrompts)+' / '+fmtInt(r.aiPrompts); } },
+      { key:"cost", label:"Total cost", num:true, render:function(r){ return fmtMoney(r.cost); } },
+      { key:"costPerDay", label:"$ / day", num:true, render:function(r){ return fmtMoney(r.costPerDay)+estMark(r); } },
+      { key:"costPerWeek", label:"$ / week", num:true, render:function(r){ return fmtMoney(r.costPerWeek)+estMark(r); } },
+      { key:"costPerMonth", label:"$ / month", num:true, render:function(r){ return fmtMoney(r.costPerMonth)+estMark(r); } },
+      { key:"costPerYear", label:"$ / year", num:true, render:function(r){ return fmtMoney(r.costPerYear)+estMark(r); } },
+    ],
+  });
+
+  // ---------- boot ----------
+  renderOverview();
+  renderDailyChart();
+  renderShareChart();
+  modelsTable.render();
+  thinkingTable.render();
+  renderProjCards();
+  projTable.render();
+  activateTab(initialTab);
 </script>
 </body>
 </html>`;
