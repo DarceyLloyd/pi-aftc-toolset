@@ -1,0 +1,56 @@
+[project]
+name = "aftc-ssh-sidecar"
+version = "0.1.0"
+description = "AFTC-owned JSON-RPC SSH sidecar. uv-locked, multi-session, paramiko-backed."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "aftc", email = "dev@aftc.local" },
+]
+keywords = ["ssh", "paramiko", "pty", "aftc", "json-rpc", "sidecar"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    "paramiko>=3.4.0,<4.0.0",
+]
+
+[project.scripts]
+aftc-ssh-sidecar = "aftc_ssh_carrier.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aftc_ssh_carrier"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-timeout>=2.3",
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 60
+

@@ -3,26 +3,37 @@
 [![GitHub release](https://img.shields.io/github/v/release/DarceyLloyd/pi-aftc-toolset)](https://github.com/DarceyLloyd/pi-aftc-toolset/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-A productivity toolset for the [pi](https://pi.dev) CLI coding agent.
+The `pi-aftc-toolset` is a productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
-`pi-aftc-toolset` is a collection of tools for pi - from my point of view, essentials to assist with what I do on a daily basis and to get the most out of AI models.
+This is a collection of tools for which assist with what I do on a daily basis to help get the most out of AI models.
 
 ## Footer Widget Preview
-![Footer Widget](images/FooterWidget-v1.7.2.jpg)
+![Footer Widget](images/FooterWidget-v1.8.2.jpg)
 
 ---
 
-## Updates v1.7.x
+### Model Evaluations
+Click [here](#model-findings) to read my evaluation/findings/experience has been with various AI models (Kimi K3, GLM 5.2, Minimax M3, Qwen 3.7 MAX etc)
 
-Quick list — full details in their respective sections below.
+---
 
-- **`/keep-it-short`** — new command, tells the model to keep responses short (alias /kis).
-- **`/save-replay-prompt` + `/replay (alias /r)`** — save a prompt, re-send it later.
-- **`/aftc-set-costs-timeframe`** — new name for the footer timeframe command (old name kept as alias).
-- **Footer Widget Subsription Usage Limits and Metrics** — subscription allowance metrics for MiniMax / Z.ai / openai-codex / Anthropic OAuth.
-- **Footer Widget Styling Refresh** — Re-arrangements of a lot, color theme compatibility adjutments, sections moved etc.
-- **`<think>` tag parsing** — opt-in, see `/aftc-enable-think-processing` and `/aftc-disable-think-processing`, it's designed to process minimax-m3 <think> tags in responses (needs work).
-- **Footer Widget fixes and changes** — Units of measurement updaes and fixes, bug fixes and mroe.
+## Updates v1.8.x
+
+- **v1.8.2 — Footer line 5 now supports Kimi for Coding.** With Kimi as the active model, the footer shows your 5-hour and weekly Kimi subscription usage with live reset countdowns (the same numbers kimi.com shows), refreshed after each prompt and every few minutes during long-running ones. Also: `/ssh-status` now prints a one-line status instead of opening a panel, and the `/ssh-shell` terminal now adapts hard-to-read colours for its dark background (dark blue `ls` listings are brightened, light status bars become dark with white text).
+- **v1.8.1 — Packaging/data hygiene.** The whole `.pi-aftc-toolset/` runtime data dir is now hard-excluded from git and npm with no exception rules (a previous exception pattern leaked `config.json` and dev artifacts into the npm tarball). All runtime files are created lazily from in-code defaults. Documented permanently: updating the extension = fresh install (pi replaces the package dir, so extension data is reset by design). Added `tests/install-test` (clean-room Docker verification of the npm install/update lifecycle) and hardened `tests/npm-package-check` to fail if any data-dir, `.pi`, or test path ever ships.
+
+- **AFTC UI suite — replacement for user input screens.** now ships the full interactive layer, I was fed up of pi's dialogues appearing in the middle of the terminal which were hard to read and hard to distinguish the difference between the TUI output and the dialogue modal.
+- New bundled `ssh` skill. Load it with `/skill:ssh` for full model-facing guidance on driving the SSH feature from inside pi: routing non-interactive commands to `ssh_run`, interactive programs (Nano, Vi, htop, tmux) to the PTY shell tools, file work to the SFTP tools, and the privacy model that keeps credentials and endpoints out of the model context.
+- **New fully featured SSH capabilities (with sftp)** - A packaged Paramiko carrier talks JSON-RPC over local stdio with no socket, HTTP service, or GUI bridge. Capabilities:
+  - Multiple simultaneous in-memory connections; password and private-key (including encrypted-key) authentication; session-only host-key approval.
+  - Non-interactive commands with bounded standard input; interactive PTY shells (Nano, Vi, htop, tmux) through a local terminal overlay and model tools.
+  - Recursive SFTP upload and download with optional `--preserve`, chunked and cancellable transfers with live progress; remote list, stat, read, write, mkdir, rename, and remove.
+  - Local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding, local-command-only so endpoints stay out of the model context.
+  - Credential isolation: the model only ever sees opaque session and shell ids; credentials are memory-only and cleared after each attempt; all output is bounded and redacted; saved records hold non-secret metadata only.
+  - built, tested on Windows and Linux against a Docker OpenSSH fixture, and integrated. (I don't have a mac).
+- **Deleted all SSH features** Yep, they are gone, in the bin. But a new one is coming, see above...
+- **Restored the subscription-allowance footer line** a Pi compatibility regression in optional credential metadata handling broke some things it should now work again for zai, minimax and gpt subscriptions.
+- **
 
 ---
 
@@ -37,10 +48,11 @@ pi install npm:pi-aftc-toolset
 Then in pi:
 
 ```text
+/aftc-install     # installs better-sqlite3 + packaged SSH carrier deps (python)
 /reload
 ```
 
-> **Runtime dependencies:** `pi install` does not always install native runtime deps. If SQLite or SSH features are unavailable, run `/aftc-install` (see [Dependency installer](#dependency-installer)).
+> **Runtime dependencies:** `pi install` does not install all the required runtime deps. Run `/aftc-install` after extension installation.
 
 ### Option 2 - GitHub
 
@@ -51,18 +63,18 @@ pi install git:github.com/DarceyLloyd/pi-aftc-toolset
 Then in pi:
 
 ```text
-/aftc-install     # installs better-sqlite3 + Python GUI deps
+/aftc-install     # installs better-sqlite3 + packaged SSH carrier deps (python)
 /reload
 ```
 
-> **GitHub installs require `/aftc-install`.** GitHub installs skip the npm post-install hook, so native dependencies (better-sqlite3, the bundled Python SSH GUI) are not installed automatically. Run `/aftc-install` once after the first install, then `/reload`.
+> **Runtime dependencies:** `pi install` does not install all the required runtime deps. Run `/aftc-install` after extension installation.
 
 ---
 
 
 ## Footer widget
 
-![Footer Widget](images/FooterWidget-v1.7.2.jpg)
+![Footer Widget](images/FooterWidget-v1.8.2.jpg)
 
 A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler. Line 5 (subscription allowance) only appears for providers that expose usage data.
 
@@ -95,7 +107,7 @@ Units: `t` = tokens, `Kt` = thousand tokens, `M` = million tokens (only used for
 
 ### Line 4 — long-term averages
 
-Shows your averages over a time window you pick with `/aftc-set-costs-timeframe` (default: last 3 days). Updates from a SQLite log on your disk.
+Shows your averages over a time window you pick with `/aftc-set-costs-timeframe` (default: last 3 days). Updates from a SQLite log on your disk. Use `/aftc-set-costs-timeframe` to adjust time frame window.
 
 - **`Cost <window>: $X.XX`** — total spend in that window.
 - **`Prompts: User X / AI Y`** — prompt counts in that window.
@@ -104,66 +116,126 @@ Shows your averages over a time window you pick with `/aftc-set-costs-timeframe`
 
 ### Line 5 — subscription quota (some providers only)
 
-Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax, Z.ai, Anthropic OAuth).
+Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax, Z.ai, Kimi for Coding, Anthropic OAuth).
 
 - **`5h Allowance used: X% Resets in: ...`** — your 5-hour rolling quota.
 - **`Weekly Allowance used: Y% Resets in: ...`** — your weekly quota.
 
-**Example (rendered live below the editor):**
-
-![Footer Widget](images/FooterWidget-v1.7.2.jpg)
-
-Line 4's time window is configurable - see `/aftc-set-costs-timeframe` (alias: `/aftc-footer-report-timeframe`). Defaults to **Last 3 Days**; persisted across `/reload`, `/new`, and fresh pi startup (stored in `.pi-aftc-toolset/data/state.json`). Refreshed at most every 10 s from SQLite.
-
-**Cache hit rate:** `cacheRead / (cacheRead + input)`.
-
-- `Cache Turn` - latest assistant turn only.
-- `AVG` - whole-session average.
-
-**Prefix churn** is tracked in `core.ts` and surfaced by `/cache-profile` and `/cache-stats`. When the system prompt or tool schema changes between turns, `/cache-stats` shows the churn reason in the *Cache prefix shape* section.
-
-**Session clock:** wall-clock elapsed since the first user prompt of the current session. In-memory only; cleared on every `session_start`, `/cache-reset`, `/reload`. Cost rate displayed as `$X.XX/hr · $X.XXX/min`.
-
----
+--- 
 
 
-## SSH remote terminal
 
-![Footer Widget](images/SSH-GUI.jpg)
+## SSH
 
-Persistent remote terminal through a **visible local GUI**. The model asks the SSH tools to run commands; the tools talk to a local Python GUI that holds the real SSH connection.
+The old SSH GUI and features are gone, a new more fully features SSH feature has been build and tested from the ground up windows first and then for linux (I don't have a mac, so lets hope the linux testing gets it working for the OSX peeps).
+
+Connect to remote machines over SSH from inside pi - run commands, open interactive shells (Nano, Vi, htop, tmux), transfer files, manage remote files, and open port forwards. The feature runs a packaged Paramiko carrier as a local process that talks JSON-RPC over its own standard input and output; it never opens a listening socket, an HTTP service, or a local GUI bridge. It supports multiple simultaneous in-memory connections, password and private-key (including encrypted-key) authentication, host-key approval, non-interactive commands with bounded standard input, recursive SFTP transfers, remote file operations, interactive PTY shells, and local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding.
+
+> **The AI model is never given any SSH connection details.** Every connection is authorised and opened locally. The model can connect to server by connection name - connection details are stored in a json file and only read by typescript functions and the python sidecar, it is never given to the AI model. The AI model never sees usernames, hosts, ports, passwords, private-key paths, passphrases, fingerprints, or forwarding endpoints. All command output, file content, carrier errors, and stderr are bounded and redacted before they reach the model. Passwords and key passphrases live in memory for a single connection attempt and are cleared immediately afterwards.
+
+### Ensure dependencies are installed
+
+SSH needs native runtime dependencies that `pi install` does not always set up:
+
+- **Python 3** (`py`/`python` on Windows, `python3`/`python` elsewhere) - runs the packaged carrier.
+- **uv** - the carrier's package manager. `/aftc-install` uses the platform-native `uv.exe` on Windows and `uv` elsewhere.
+- **The packaged carrier environment** - installed via `uv sync --locked` against the carrier shipped inside the package.
+- **better-sqlite3** - installed via `npm install` (shared with the usage feature).
+
+Run it once after install:
 
 ```text
-pi extension (Node.js)
-  └─ launches internal-python-gui via uv
-      └─ PyQt6 terminal GUI
-          ├─ Paramiko SSH client
-          ├─ Flask API on http://127.0.0.85:8564
-          └─ std/out.txt session log
+/aftc-install
+/reload
 ```
 
-**Credential isolation** - the key safety design:
+`/aftc-install` checks for Node, Python, and uv, reports platform-specific recovery guidance if any are missing, and verifies the carrier with the same ready handshake the runtime uses. npm installs run the post-install hook automatically; **GitHub and local-clone installs skip it, so `/aftc-install` is required for SSH**. See [Dependency installer](#dependency-installer) for the full list. The footer works without these dependencies, but SSH (and usage recording/reporting) do not.
 
-- Username, server address, and password are entered in the local Python GUI only - never in the pi editor, never in a prompt, never sent to the model.
-- The model only calls `ssh_run` with a **command to execute**. It never sees the connection details.
-- The Flask API binds to loopback only (`127.0.0.85:8564`).
-- The model receives command output, not credentials.
+### SSH commands
 
-**AI-callable tools:**
+Every SSH command is local - it runs against a session you authorised yourself. `/ssh-help` shows the same reference inside pi.
 
-| Tool | Description |
+| Command | What it does |
 | --- | --- |
-| `ssh_status` | Check whether the GUI is reachable and connected |
-| `ssh_connect` | Launch GUI, connect to `user@host[:port]`, optionally run an initial command |
-| `ssh_run` | Execute a non-interactive shell command on the connected server |
-| `ssh_peek` | Read recent output from the API buffer or full `std/out.txt` log |
-| `ssh_interrupt` | Send repeated Ctrl+C / Ctrl+D to break hung commands |
+| `/ssh-cm` | Full-screen connection manager: add / edit / delete saved connections |
+| `/ssh-connections` | List your locally saved connection names |
+| `/ssh-connect [name]` | Connect to a saved connection (by name or picker) |
+| `/ssh-auto-accept-session-on` | Auto-approve new SSH host keys (saved in ssh.json) |
+| `/ssh-auto-accept-session-off` | Ask before trusting new SSH host keys (default) |
+| `/ssh-status` | Show `SSH Status: Connected to <name>` or `SSH Status: Not connected` |
+| `/ssh-select [id]` | Choose the active session used by local SSH commands |
+| `/ssh-shell` | Open a full-screen interactive terminal on the selected session |
+| `/ssh-close-shell <id>` | Close an interactive shell |
+| `/ssh-interrupt <id>` | Send recovery keys (Ctrl+C / Ctrl+D) to a shell |
+| `/ssh-upload <local> <remote>` | Upload a file (`--preserve` keeps remote attrs) |
+| `/ssh-download <remote> <local>` | Download a file (`--preserve` keeps local attrs) |
+| `/ssh-rename <from> <to>` | Rename a remote path (asks for confirmation) |
+| `/ssh-disconnect [id]` | Disconnect an SSH session |
+| `/ssh-help` | Show the SSH workflow reference |
 
-**Safety notes:**
+Running commands, inspecting and changing remote files, and driving
+interactive programs are the model tools' jobs — ask the model and it uses
+`ssh_run`, `ssh_read_file`, `ssh_write_file`, and friends. Port forwarding
+has no user or model surface; use `ssh -L` / `-R` / `-D` from your own
+terminal when you need a tunnel.
 
-- Avoid interactive commands (`vim`, `nano`, `top`) in `ssh_run` - they will hang.
-- Use `ssh_peek` with `mode: "file"` to inspect the full session history.
-- SSH logs under `internal-python-gui/std/` are gitignored.
+### How to manage connections
+
+Saved connections are local metadata only - a name you choose, plus the non-secret connection details (username, host, port, timeout, an optional private-key path, and an optional saved password). They live in `.pi-aftc-toolset/data/ssh.json`, which is excluded from git and npm publishing.
+
+Run `/ssh-cm` (or `/ssh-connection-manager`) to open the full-screen connection manager. The bottom options row offers **Add new connection**, **Edit**, and **Delete** for the highlighted entry (Tab moves between the list and the options, Left/Right moves between options, Enter activates):
+
+- **Add** opens the new-connection dialog (validation, empty-password and name-collision confirms).
+- **Edit** opens the same form pre-filled; a saved password is kept, and renaming through the name field removes the old record.
+- **Delete** asks "Are you sure?" before removing the record (a live session started from it keeps running).
+
+Saved connections are created in the connection manager (`/ssh-cm`).
+
+### How to connect
+
+Run `/ssh-connect` (or `/ssh-connect <name>` to jump straight to one). With no name it lists your saved connections — connect-only; new connections are made in `/ssh-cm`. With none saved it points you there. A connection with a saved password connects immediately; otherwise you enter the password or key passphrase for that attempt (never stored, never shown to the model). On the first connection to a host you approve its key locally (or skip the prompt with `/ssh-auto-accept-session-on`) without the fingerprint ever reaching the model; a changed key is rejected by default. Credentials are held in memory for that one attempt and cleared immediately afterwards - including through the new-host approval retry. Several connections and shells can be open at once; their names and opaque ids are tracked only in memory and clear on reload, new session, resume, or exit.
+
+### How to disconnect
+
+`/ssh-disconnect` closes the active session (or `/ssh-disconnect <id>` a specific one); the model can call `ssh_disconnect` with an opaque id. Disconnecting clears the session's redaction boundary, closes its shells and forwards, and stops anything it owned.
+
+The carrier is lazy and self-cleaning. It starts on first SSH use and, once the last session disconnects (or is lost), a short TS-side grace window stops it; if pi is killed or wedged, the sidecar self-exits on a closed stdin pipe and, as a last resort, an idle watchdog (10-minute default, overridable with `AFTC_SSH_IDLE_TIMEOUT_SEC`) closes it. The next connect relaunches a fresh sidecar through the same path.
+
+### Run commands and pick a session
+
+`/ssh-status` shows whether you are connected, and to which server. `/ssh-select [id]` sets which session local commands (`/ssh-shell`, transfers) act on. Running remote commands is a model tool job: ask the model and it uses `ssh_run`, which reports exit code, stdout/stderr presence, and truncation; large output is also written to a local redacted file you can inspect.
+
+### Interactive shells
+
+`/ssh-shell` opens a full-screen interactive terminal (TUI only) attached to the selected session: the remote terminal renders inside the AFTC takeover frame through a built-in virtual screen, so cursor-addressed programs (Nano, Vi, htop, top, less) display properly. It forwards normal text, Enter, Tab, arrows, function keys, Ctrl combinations, bracketed paste, resize, and interrupt. Press **Ctrl+]** to leave the terminal locally without sending that chord to the remote host. `/ssh-close-shell <id>` closes a shell and `/ssh-interrupt <id>` sends it recovery keys (Ctrl+C / Ctrl+D).
+
+### Transfer files
+
+`/ssh-upload <local> <remote>` and `/ssh-download <remote> <local>` move files with local overwrite confirmation. Both support an opt-in `--preserve` flag that restores remote timestamps and permission bits on upload, and local timestamps (plus permissions on POSIX hosts) on download; it is off by default. Transfers run in chunks so a large transfer can be cancelled mid-flight - aborting stops the carrier and removes its temporary file, leaving nothing behind.
+
+### Manage remote files
+
+Remote file work is a model tool job: the model uses `ssh_list_dir`, `ssh_stat`, and `ssh_read_file` to inspect, and `ssh_write_file`, `ssh_mkdir`, `ssh_rename`, and `ssh_remove` to change — every remote-mutating operation requires explicit local-user confirmation. The one remaining user command, `/ssh-rename <from> <to>`, renames a remote path after confirmation. Large reads are also saved to a local redacted file so you can inspect the full content without it entering the model context.
+
+### Model tools
+
+The model can help with SSH work through opaque session and shell ids. It can connect and reconnect a saved server by name and disconnect when done, but it can never create, edit, or delete a connection and never sees host, user, port, key path, password, passphrase, or fingerprint data.
+
+- `ssh_status`, `ssh_connect`, and `ssh_disconnect` manage the connection surface. `ssh_connect(<name>)` connects a saved server (or returns the existing opaque id if already connected); a local prompt collects credentials each time and the model supplies none. It throws for an unknown name and never offers to create one, and fails safely in headless mode.
+- `ssh_run` runs non-interactive commands with bounded standard input.
+- `ssh_open_shell`, `ssh_send_keys`, `ssh_paste`, `ssh_resize`, `ssh_peek`, `ssh_interrupt`, and `ssh_close` drive interactive programs such as Nano and Vi.
+- `ssh_upload`, `ssh_download`, `ssh_list_dir`, `ssh_read_file`, `ssh_stat`, `ssh_write_file`, `ssh_mkdir`, `ssh_rename`, and `ssh_remove` support file administration; the destructive ones require local-user confirmation.
+
+Every tool result is bounded and redacted. The only connection-level model tools are `ssh_status`, `ssh_connect`, and `ssh_disconnect`; no model tool can create, save, edit, rename, or forget a connection.
+
+### Credential isolation
+
+- Saved connection records contain only local connection metadata. Passwords and key passphrases are never persisted.
+- `/ssh-connect` collects credentials locally for each connection attempt, including saved connections.
+- The model can connect or reconnect a saved server by name (credentials collected locally each time) or use a session you have already opened, but it can never create, edit, or delete a connection.
+- Model tools receive opaque session and shell ids, never usernames, hosts, ports, passwords, key paths, or fingerprints.
+- Output, file content, and carrier failures are bounded and redacted before they reach the model.
+- Redaction values are registered and removed around every active connection, and the boundary survives a connection being renamed or removed.
 
 ---
 
@@ -265,7 +337,7 @@ Projections with fewer than ~14 calendar days of data are flagged as estimates. 
 
 ## Bundled skills
 
-Load with `/skill:<name>`. The toolset ships with 32 live skills:
+Load with `/skill:<name>`. The toolset ships with 33 live skills:
 
 | Skill | Use for |
 | --- | --- |
@@ -276,9 +348,10 @@ Load with `/skill:<name>`. The toolset ships with 32 live skills:
 | `python` / `go` / `csharp` / `php` | Backend languages |
 | `docker` / `devops` / `nginx` / `linux` | Infra and ops |
 | `ffmpeg` | Video / audio / image CLI |
-| `markdown-guide` | AI-friendly markdown for READMEs, SKILL.md, rules.md |
+| `markdown` | AI-friendly markdown for READMEs, SKILL.md, development guides, and tasks |
 | `pinescript` | Pine Script v6 for TradingView |
 | `godot` | Godot 4.x engine with GDScript 2.0, MVC architecture, headless compile checks |
+| `ssh` | Remote SSH sessions, commands, interactive shells, transfers, and remote file management |
 | `cache-audit` | Prompt-cache diagnostics workflow |
 | `bulk-read` | Concatenate many files into one markdown document |
 
@@ -295,8 +368,10 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | Command | What it does |
 | --- | --- |
 | `/aftc-help` | Grouped command/shortcut reference |
-| `/aftc-install` | Install runtime deps (SQLite + Python SSH GUI) |
+| `/aftc-install` | Install runtime deps (SQLite + packaged SSH carrier) |
 | `/aftc-response-divider` | Toggle the themed divider above each assistant reply |
+| `/aftc-intro-stop` | Disable the AFTC startup animation (persists across sessions) |
+| `/aftc-intro-on` | Enable and play the AFTC startup animation (persists across sessions) |
 | `/cls` | Clear the terminal |
 | `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
 
@@ -328,13 +403,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 ### SSH
 
-| Command | What it does |
-| --- | --- |
-| `/ssh-gui` | Launch the local PyQt6 SSH GUI |
-| `/ssh-connect` | Connect to `user@host[:port]` (use the GUI for credentials) |
-| `/ssh-run` | Run a one-shot command on the connected server |
-| `/ssh-status` | Show GUI running state + connection status |
-| `/ssh-disconnect` | Disconnect the active SSH session (use the GUI) |
+See the [SSH](#ssh) section for the full command reference, model tools, and workflows.
 
 ### Usage
 
@@ -347,7 +416,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 | Command | What it does |
 | --- | --- |
-| `/save-replay-prompt <text>` | Save `<text>` as a replay prompt (persists across reload/sessions) |
+| `/save-replay-prompt <text>` | Save `<text>` as a replay prompt (persists across reload/sessions) and add a visual save confirmation to conversation history |
 | `/replay` | Re-execute the saved prompt as a fresh user message (queued as follow-up when busy) |
 | `/r` | Short alias for `/replay` — same action, fewer keystrokes |
 
@@ -449,13 +518,16 @@ pi install /path/to/pi-aftc-toolset -l
 
 ## Dependency installer
 
-`/aftc-install` (see [Slash Commands](#slash-commands)) installs:
+`/aftc-install` (see [Slash Commands](#slash-commands)) installs and verifies:
 
 - `better-sqlite3` via `npm install`
-- Python GUI dependencies via `uv sync` inside `internal-python-gui/`
-- A bundled `uv.exe` automatically if required
+- Packaged SSH carrier dependencies via `uv sync --locked`
+- The platform-native `uv` executable, using `uv.exe` on Windows and `uv` on Linux and macOS
+- A Python 3 interpreter (`py`/`python` on Windows, `python3`/`python` elsewhere)
 
-Reload pi afterwards. The footer works without SQLite, but usage recording / reporting and SSH require `/aftc-install`.
+If Node, Python, or `uv` is missing it reports platform-specific recovery guidance without exposing saved connection data.
+
+Reload pi afterwards. The footer works without SQLite, but usage recording, reporting, and SSH require `/aftc-install`.
 
 ---
 
@@ -464,7 +536,7 @@ Reload pi afterwards. The footer works without SQLite, but usage recording / rep
 - pi CLI
 - Node.js / npm
 - Providers that expose `usage.cacheRead` and `usage.cacheWrite` for full cache metrics (other providers may show zero / incomplete cache values)
-- Python (installed automatically by `/aftc-install` via bundled `uv.exe`) for the SSH GUI
+- Python and uv for the packaged SSH carrier. `/aftc-install` verifies the carrier environment.
 
 ---
 
@@ -478,73 +550,106 @@ pi install /path/to/pi-aftc-toolset -l
 
 After edits, reload pi with `/reload`.
 
-### Key files
-
-```text
-extensions/toolset/index.ts             extension entry point + orchestrator
-extensions/toolset/core.ts              cache/timing data + commands
-extensions/toolset/footer-widget.ts     cache dashboard widget + /aftc-footer
-extensions/toolset/think-parser.ts      inline <think>…</think> tag → ThinkingContent block conversion
-extensions/toolset/usage-report.ts      usage report generator
-extensions/toolset/usage-recording.ts   per-turn SQLite recording
-extensions/toolset/ssh.ts               SSH tools and commands
-extensions/toolset/response.ts          response divider + /aftc-response-divider
-extensions/toolset/theme.ts              /theme shortcut to pi's theme picker
-extensions/toolset/cd.ts                /cd directory picker
-extensions/toolset/cwd.ts               /cwd current-directory display
-extensions/toolset/dir.ts               /dir + /ls listing
-extensions/toolset/help.ts              /aftc-help command reference
-internal-python-gui/main.py             local SSH GUI/API
-skills/                                 32 live skills (see Bundled skills above)
-themes/cache-viz.json                   cache-oriented pi theme (green/cyan)
-themes/aftc-orange-viz.json             orange-accented pi theme
-themes/aftc-black-n-blue.json           dark blue accents on black theme
-```
-
-Each TS file has a sibling `<name>.readme.md` documenting its contract (events, commands, factory signature, failure modes). See `extensions/toolset/readme.md` for the folder-level overview, and `rules.md` for source-of-truth development conventions.
-
-### Tests
-
-Each test has its own subfolder under `tests/` (dependency-free - `node` + pi's bundled jiti + `better-sqlite3` only):
-
-```bash
-node tests/parse-check/parse-check.mjs
-node tests/full-check/full-check.mjs
-node tests/widget-render-check/widget-render-check.mjs
-node tests/stfu-check/stfu-check.cjs
-node tests/bulk-read-check/bulk-read-check.mjs
-node tests/theme-check/theme-check.cjs
-node tests/state-check/state-check.cjs
-node tests/cd-no-preserve/cd-no-preserve.cjs
-node tests/cd-picker-top/cd-picker-top.cjs
-node tests/load-test/load-test.cjs
-node tests/replay-check/replay-check.cjs
-node tests/prompt-tracking-check/prompt-tracking-check.mjs
-node tests/allowance-check/allowance-check.mjs
-node tests/think-parser-check/think-parser-check.cjs
-node tests/footer-line1-check/footer-line1-check.cjs
-```
-
-See `tests/README.md` for the full layout and conventions.
-
 ---
 
 ## Persistent files
 
-Project-local runtime data lives under `.pi-aftc-toolset/data/`:
+Runtime data lives under `.pi-aftc-toolset/data/` inside the installed
+package directory. Every file is created lazily from built-in defaults —
+none of it is shipped or committed; the whole `.pi-aftc-toolset/`
+directory is excluded from git and npm publishing.
 
 | File | Purpose |
 | --- | --- |
-| `state.json` | Cross-session user preferences (footer AVG timeframe, footer on/off, response divider on/off). Created with defaults on first access; only re-written when a preference actually changes. |
+| `config.json` | Cross-session extension configuration: footer AVG timeframe, footer on/off, response divider on/off, and intro animation on/off. Created with defaults on first access; only re-written when a value actually changes. |
+| `replay.json` | Saved replay prompt. |
+| `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password). Local-only, never shipped. |
 | `turns.db` | SQLite usage database |
 | `report.html` | Latest generated usage report |
 
+**Updating the extension resets this data.** pi replaces the entire
+package directory when a package updates, so an update is a fresh
+install: preferences return to defaults, saved SSH connections and the
+usage database are discarded and re-created empty on next use.
+
 In-memory only (per-session, not persisted): cache accumulators, model info, per-turn timings, context-window clock start time.
 
-SSH GUI runtime files live under `internal-python-gui/std/` and are gitignored.
+SSH connections, shell buffers, credentials, and carrier processes are in-memory only and are cleared during shutdown.
+
+---
+---
+
+# **Model findings**
+
+## **Kimi K3 (kimi) - Allegretto plan**
+New supposed to be good. Testing in progress.
+
+### Usage allowance
+After just 17 minutes in and I've used 2% of my weekly quota, context window only at 10% and on first prompt, instructions were to read some pi documentation files. 10% of my 4 hour quote was used. So it doesn't matter how good thing thing may be, its not good for long coding sussions unless you sub to the $99 or $199 plan. And I would rather get the openai gpt 5.6 plan for $100 than do that and use terra on medium all day long.
+
+### Model thinking evaluation
+There is no choice other than max (there is min and max comming apparently). It's slow, very slow, but from reading what it's thinking I like it more than GLM 5.2 and Mimimax M3 etc. It doesn't appear to second guess itself as much as the others, but it does which is good but not constantly to almost the point of looping like GLM and Minimax models do.
+
+### Model coding capabilities
+My first test was to ask it to ask pi for extension development documentation and to read them, then to understand the types of modals, user inputs, especially the full screen one. Then asked it to create a slash command list a few things with up and down arrrow key navigation usage... It took 17 minutes...
+
+### Design capabilities
+I've fed it some images of UI's I like and it has re-created them in html, css and js and in Java with quite impressive results. I've not tested it for complete website design yet but judging by what it can analyse, if you are detailed enough with your description it probably wont have any issue building it.
+
+### Model issues
+- Slow, very slow, when giving it practical tasks to process it you best go do something else.
+- The `Allegretto plan` is not much use for anyone who wants to use this all day long during a working week, not to mention it's too slow to be used as an assistant, its a model you leave running on a task for a long time and then come back to evaluate what it has crated/done and for you to adjust/cleanup as you should be doing anyway.
+
+### Service issues
+- Lots of server timeouts (servers are overloaded)
+- Lots of server 404s (servers are overloaded)
 
 ---
 
-## License
+## **GLM 5.2 (z.ai) - Pro plan**
+
+#### Usage allowance
+If your initial setup *.md file(s) use about 10 to 15% and your tasks take this up to about 40 to 50% over around an 1 to 2 hours you will use up your 5 hour limit in about 1.5 to 2.5 hours. This at peak times will use about 25% of your weekly allowance. At non peak hours it will use up around 10 to 15%.
+
+### Model thinking evaluation
+It's long winded, very very slow at peak times and has a lot of "hang on" and "this is getting complex moments". It does mostly get there in the end, but it's not pop off and make a cuppa and it will be done, it's fire up a movie and you will have 4 to 5 break where you need to intervene if you have planned your setup.md and tasks.md correctly. Otherwise your going to be telling it to carry on every 10 to 25 minutes.
+
+### Model coding capabilities
+Its fine with typescript, javascript, python and php, not so good with go lang. It works well with docker and tooling.
+
+### Design capabilities
+It's one of the strongest out there, far better than most as long as you give it a lot of direction and a lot of details. It's better than anything I've seen from open ai and that includes sol. Qwen 3.7 Max however will give it a run for its money.
+
+### Model issues
+It's generally stable, I've not seen it go mental like some of the others do but it's thining is often second guessing itself, a lot, but it does typically get there in the end. It does help if you read what it's thinking and steer it.
+
+--- 
+
+
+## **Minimax M3 - Plus plan**
+
+#### Usage allowance
+Has the 5 hour window usage limit, you can use it up if you start loading up that 1M context window but the weekly allowance is much better than the rest, by far. ZAI with GLM5.2, you wont get a week out the pro plan, with minimax plus plan nad using nothing but the Minimax M3 model you will. The 5 hour limit will be the blocker mostly, which will stop you from breaching the weekly limit.
+
+### Model thinking evaluation
+A lot like GLM 5.2, long winded, a lot of second guessing but not as bad.
+
+### Model coding capabilities
+Not as good as GLM 5.2, it's mostly fine with typescript, javascript, html, css etc but when you get into complex features even in typescript node it will end up in an extremely long thinking loop and you will have to stop it. And switch model. I do notice a lot of, "I broke...", "I repalced too much...", which is not good as it then spend a long time working out how to repair what once was working... I wouldn't give this model complex stuff to do, no matter what thinking mode it's on.
+
+### Design capabilities
+Its not bad, not the best and not the worst, I would say 3rd, tie for 1st place is Qwen 3.7 Max and GLM 5.2.
+
+### Model issues
+It can go mental, it can start repeating the same bit of text or sentence over and over again from where it gets those conversations from I have no idea, it mostly starts to happen when you get to about 30% of the 1M context window and above. There's also formatting issues with the think tags, but nothing a small modification to a parser can't handle. It also seems to create a NUL file on windows for no reason.
+
+### Other mentions
+- If you want to cancel your plan, go to the pricing page, in very small text under a banner after scrolling down the page a bit you will find a cancel link. Took me ages to find it... Sneaky... Very sneaky...
+
+
+---
+---
+
+# License
 
 [MIT](./LICENSE) - Author <Darcey.Lloyd@gmail.com>

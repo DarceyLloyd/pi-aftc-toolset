@@ -1,7 +1,7 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.7.2",
-  "description": "AFTC toolset: Footer widget with usage costs, cache, turns, ctx window I/O analysis etc. Additional shortcuts, SSH via a PyQt6 GUI isolating SSH credentials from pi and any AI model, skills (designed for low context), 3 themes and more.",
+  "version": "1.8.2",
+  "description": "AFTC toolset: Footer widget with usage costs, cache, turns, ctx window I/O analysis etc. Additional shortcuts, new fully-featured isolated SSH (model never gets access details), skills (designed for low context), 3 themes and more.",
   "keywords": [
     "pi-package",
     "pi",
@@ -9,9 +9,15 @@
     "extension"
   ],
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"],
-    "themes": ["./themes"]
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "themes": [
+      "./themes"
+    ]
   },
   "author": "Darcey Lloyd",
   "license": "MIT",
@@ -31,5 +37,8 @@
   },
   "dependencies": {
     "better-sqlite3": "12.11.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true
   }
 }

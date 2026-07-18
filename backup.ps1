@@ -1,4 +1,9 @@
-param()
+[CmdletBinding()]
+param(
+    [Parameter(Position = 0)]
+    [AllowEmptyString()]
+    [string]$Message = ""
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -6,7 +11,8 @@ $rar   = "C:\Program Files\WinRAR\Rar.exe"
 $root  = $PSScriptRoot
 $bak   = Join-Path $root ".bak"
 $ts    = Get-Date -Format "yyMMdd-HHmmss"
-$name  = "$ts.rar"
+$safeMessage = ($Message -replace '[<>:"/\\|?*]', "_").Trim()
+$name  = if ($safeMessage) { "$ts ($safeMessage).rar" } else { "$ts.rar" }
 $dest  = Join-Path $bak $name
 
 # 1) ensure .bak exists

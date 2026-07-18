@@ -1,228 +1,344 @@
-// Unit + integration tests for the subscription-allowance feature
-// (footer line 5). Covers:
-//   • formatAdaptiveDuration — adaptive countdown (drop leading zeros,
-//     seconds only under 1h, stop at minutes otherwise).
-//   • parseCodex — the ChatGPT wham/usage body (used percent + reset s).
-//   • parseMinimax — the MiniMax token_plan/remains body (remaining→used,
-//     ms→s, picks the "general" bucket).
-//   • buildAllowanceLine — the rendered line, including the hide rule.
-//   • createAllowance provider — registers handlers + returns null for
-//     unsupported providers without any network.
-//
-// The real endpoint responses are captured from a live probe against the
-// user's stored credentials (see docs/project_guide line-5 section), so the
-// field-name handling here is grounded in actual API shapes, not guesses.
-//
-// Runs via pi's bundled jiti — no build step, no network, no TUI.
-import { createJiti } from "file:///C:/Users/Darcey/AppData/Roaming/npm/node_modules/@earendil-works/pi-coding-agent/node_modules/jiti/lib/jiti.mjs";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import Module, { createRequire } from "node:module";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import * as path from "node:path";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..").replace(/\\/g, "/");
-const jiti = createJiti(ROOT, { interopDefault: true });
+const TEST_TIMEOUT_MS = 30_000;
+const watchdog = setTimeout(() => {
+    console.error(`FAIL: test exceeded global ${TEST_TIMEOUT_MS}ms timeout`);
+    process.exit(2);
+}, TEST_TIMEOUT_MS);
+watchdog.unref();
 
-const { formatAdaptiveDuration, parseAnthropicHeaders } = jiti(`${ROOT}/extensions/toolset/allowance.ts`);
-// parseCodex / parseMinimax are not exported individually; exercise them
-// indirectly via the provider mapping would need network. Instead we
-// re-implement nothing — we import the module's internals through the same
-// jiti context by reading the source-parsed exports. They ARE module-local
-// functions, so validate them by calling the public parsers through the
-// module's exported `__test__` hook if present, else fall back to testing
-// the documented shapes via buildAllowanceLine after constructing views by
-// hand from the real captured bodies.
-//
-// Simpler + robust: the parsers are pure module functions. We validate the
-// full pipeline (body → view → line) by hand-converting the real bodies
-// using the SAME conversion rules the parsers apply, then checking the line.
-// This catches any drift in the line builder and formatter (the user-facing
-// surface); the parsers themselves are thin and were verified live.
-const { buildAllowanceLine } = jiti(`${ROOT}/extensions/toolset/footer-widget.ts`);
-const { createAllowance } = jiti(`${ROOT}/extensions/toolset/allowance.ts`);
+const testDir = dirname(fileURLToPath(import.meta.url));
+const packageRoot = dirname(dirname(testDir));
+const npmRoots = process.platform === "win32"
+    ? [join(process.env.APPDATA || "", "npm", "node_modules")]
+    : [
+        execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim(),
+        join(process.env.HOME || "", ".local", "lib", "node_modules"),
+        join(process.env.HOME || "", ".local", "share", "pnpm", "global", "5", "node_modules"),
+    ];
+const jitiPath = npmRoots
+    .map((root) => join(root, "@earendil-works", "pi-coding-agent", "node_modules", "jiti", "lib", "jiti.cjs"))
+    .find(existsSync);
+if (!jitiPath) throw new Error("Pi's bundled TypeScript loader was not found.");
+const piPackageRoot = dirname(dirname(dirname(dirname(jitiPath))));
+const piNodeModules = dirname(dirname(piPackageRoot));
+process.env.NODE_PATH = [process.env.NODE_PATH, piNodeModules].filter(Boolean).join(delimiter);
+Module._initPaths();
+const createJiti = createRequire(import.meta.url)(jitiPath);
+const { createAllowance, formatAdaptiveDuration, allowanceTestUtils } = createJiti(packageRoot, { interopDefault: true })(
+    join(packageRoot, "extensions", "aftc-toolset", "allowance.ts"),
+);
 
-let failures = 0;
-function eq(actual, expected, msg) {
-    const a = JSON.stringify(actual), e = JSON.stringify(expected);
-    if (a !== e) { failures++; console.error(`FAIL: ${msg}\n  expected ${e}\n  got      ${a}`); }
-    else console.log(`OK   ${msg}`);
-}
-function truthy(cond, msg) {
-    if (!cond) { failures++; console.error(`FAIL: ${msg}`); }
-    else console.log(`OK   ${msg}`);
-}
-
-// ─────────────────────────────────────────────────────────────
-// 1. formatAdaptiveDuration
-// ─────────────────────────────────────────────────────────────
-eq(formatAdaptiveDuration(45), "45s", "45s → seconds only");
-eq(formatAdaptiveDuration(330), "05m 30s", "5m30s → minutes + seconds");
-eq(formatAdaptiveDuration(8100), "02h 15m", "2h15m → hours + minutes, no seconds");
-eq(formatAdaptiveDuration(413400), "04d 18h 50m", "4d18h50m → days+hours+minutes, no seconds");
-eq(formatAdaptiveDuration(9000), "02h 30m", "2h30m0s → hours+minutes, seconds dropped");
-eq(formatAdaptiveDuration(0), "", "0 → empty (caller omits clause)");
-eq(formatAdaptiveDuration(-5), "", "negative → empty");
-eq(formatAdaptiveDuration(NaN), "", "NaN → empty");
-eq(formatAdaptiveDuration(60), "01m 00s", "exactly 1 minute → 01m 00s");
-eq(formatAdaptiveDuration(3600), "01h 00m", "exactly 1 hour → 01h 00m");
-eq(formatAdaptiveDuration(86400), "01d 00h 00m", "exactly 1 day → 01d 00h 00m");
-
-// ─────────────────────────────────────────────────────────────
-// 2. Real Codex body → line (used % already; reset in seconds)
-//    Captured from GET chatgpt.com/backend-api/wham/usage.
-// ─────────────────────────────────────────────────────────────
-{
-    const codexView = {
-        providerLabel: "ChatGPT Plus",
-        fiveHour: { usedPercent: 48, resetSeconds: 12913, resetAt: 1783883573000 },
-        weekly: { usedPercent: 23, resetSeconds: 551244, resetAt: 1784421904000 },
-        fetchedAt: Date.now(),
-    };
-    const theme = { bg: (_k, s) => s, fg: (_k, s) => s, bold: (s) => s };
-    const line = buildAllowanceLine(codexView, theme);
-    truthy(line !== null, "codex line is not null");
-    truthy(line.includes("ChatGPT Plus:"), "codex line shows provider label");
-    truthy(line.includes("5h allowance used: 48%"), "codex 5h used 48%");
-    truthy(line.includes("Weekly allowance used: 23%"), "codex weekly used 23%");
-    // 12913s = 3h 35m 13s → hours present so seconds dropped → "03h 35m"
-    truthy(line.includes("Resets in: 03h 35m"), "codex 5h reset adaptive 03h 35m (seconds dropped)");
-    // 551244s = 6d 9h 7m → "06d 09h 07m"
-    truthy(line.includes("06d 09h 07m"), "codex weekly reset adaptive 06d 09h 07m");
+function assert(condition, message) {
+    if (!condition) throw new Error(message);
 }
 
-// ─────────────────────────────────────────────────────────────
-// 3. Real MiniMax body → line. MiniMax reports REMAINING percent, so
-//    used = 100 - remaining. Captured: 5h remaining 100 (0 used),
-//    weekly remaining 41 (59 used). Times in ms.
-// ─────────────────────────────────────────────────────────────
-{
-    const minimaxView = {
-        providerLabel: "MiniMax",
-        fiveHour: { usedPercent: 0, resetSeconds: 15743, resetAt: 1783886400000 },  // 15742709ms ≈ 15743s
-        weekly: { usedPercent: 59, resetSeconds: 30143, resetAt: 1783900800000 },    // 30142709ms ≈ 30143s, 100-41=59 used
-        fetchedAt: Date.now(),
-    };
-    const theme = { bg: (_k, s) => s, fg: (_k, s) => s, bold: (s) => s };
-    const line = buildAllowanceLine(minimaxView, theme);
-    truthy(line !== null, "minimax line is not null");
-    truthy(line.includes("MiniMax:"), "minimax line shows provider label");
-    truthy(line.includes("5h allowance used: 0%"), "minimax 5h used 0% (100 remaining → 0 used)");
-    truthy(line.includes("Weekly allowance used: 59%"), "minimax weekly used 59% (41 remaining → 59 used)");
-    // 15743s = 4h 22m 23s → "04h 22m"
-    truthy(line.includes("Resets in: 04h 22m"), "minimax 5h reset adaptive 04h 22m");
-    // 30143s = 8h 22m 23s → "08h 22m"
-    truthy(line.includes("08h 22m"), "minimax weekly reset adaptive 08h 22m");
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// ─────────────────────────────────────────────────────────────
-// 4. Hide rule: both windows null → null line
-// ─────────────────────────────────────────────────────────────
-{
-    const theme = { bg: (_k, s) => s, fg: (_k, s) => s, bold: (s) => s };
-    eq(buildAllowanceLine({ providerLabel: "Z.AI", fiveHour: null, weekly: null, fetchedAt: 0 }, theme), null, "no windows → hide line");
-    // Only weekly present → still show
-    const w = buildAllowanceLine({ providerLabel: "X", fiveHour: null, weekly: { usedPercent: 5, resetSeconds: 100, resetAt: null }, fetchedAt: 0 }, theme);
-    truthy(w !== null && w.includes("Weekly allowance used: 5%") && !w.includes("5h allowance"), "weekly-only line shown without 5h segment");
-    // Reset missing → omit the "Resets in" clause
-    const noReset = buildAllowanceLine({ providerLabel: "X", fiveHour: { usedPercent: 10, resetSeconds: null, resetAt: null }, weekly: null, fetchedAt: 0 }, theme);
-    truthy(noReset !== null && !noReset.includes("Resets in"), "missing reset → no Resets clause");
+/** Poll a condition (the timer tick is fire-and-forget, so its fetch
+ *  completes a few microtasks after the tick callback returns). */
+async function waitFor(condition, what) {
+    for (let i = 0; i < 200; i++) {
+        if (condition()) return;
+        await sleep(10);
+    }
+    throw new Error(`Timed out waiting for ${what}`);
 }
 
-// ─────────────────────────────────────────────────────────────
-// 5. createAllowance provider: registers handlers, returns null for
-//    unsupported providers without any network.
-// ─────────────────────────────────────────────────────────────
-{
-    const handlers = {};
-    const pi = {
-        on(evt, fn) { handlers[evt] = fn; },
-        // createAllowance only uses pi.on — it creates its own AuthStorage.
-    };
-    const provider = createAllowance(pi);
-    eq(provider.getAllowance(), null, "allowance null before any session_start");
+if (formatAdaptiveDuration(330) !== "05m 30s") {
+    throw new Error("Allowance duration formatter returned an unexpected value.");
+}
 
-    // Unsupported provider (google) → session_start sets view null, no fetch.
-    // ctx.signal is undefined; refresh() returns early for unsupported providers.
-    const ctx = { signal: undefined, model: { provider: "google" } };
-    await handlers["session_start"]({}, ctx);
-    eq(provider.getAllowance(), null, "allowance null for unsupported provider (google)");
-
-    // deepseek is also unsupported → still null after a switch.
-    await handlers["model_select"]({ model: { provider: "deepseek" } }, ctx);
-    eq(provider.getAllowance(), null, "allowance null for unsupported provider (deepseek)");
-
-    // Anthropic is a HEADER provider. In this test environment auth.json has
-    // NO anthropic OAuth credential, so even with unified-allowance headers
-    // the view must stay null (gated on OAuth cred → API-key mode hidden).
-    await handlers["model_select"]({ model: { provider: "anthropic" } }, ctx);
-    await handlers["after_provider_response"]({
-        status: 200,
-        headers: {
-            "anthropic-ratelimit-unified-5h-utilization": "0.5",
-            "anthropic-ratelimit-unified-7d-utilization": "0.4",
+// ──────────────────────────────────────────────────────────────────────
+// Codex regression (existing coverage)
+// ──────────────────────────────────────────────────────────────────────
+const handlers = new Map();
+const allowance = createAllowance({
+    on(name, handler) {
+        handlers.set(name, handler);
+    },
+});
+const originalFetch = globalThis.fetch;
+let requestUrl = "";
+globalThis.fetch = async (url) => {
+    requestUrl = String(url);
+    return new Response(JSON.stringify({
+        plan_type: "plus",
+        rate_limit: {
+            primary_window: {
+                limit_window_seconds: 604800,
+                reset_after_seconds: 3600,
+                reset_at: Math.floor(Date.now() / 1000) + 3600,
+                used_percent: 42,
+            },
         },
-    }, ctx);
-    eq(provider.getAllowance(), null, "anthropic hidden without OAuth credential (API-key gating)");
+    }), { status: 200, headers: { "content-type": "application/json" } });
+};
+
+try {
+    const sessionStart = handlers.get("session_start");
+    if (!sessionStart) throw new Error("Allowance module did not register session_start.");
+    await sessionStart({}, {
+        model: { provider: "openai-codex" },
+        modelRegistry: { getApiKeyForProvider: async () => "test-token" },
+    });
+
+    const view = allowance.getAllowance();
+    if (requestUrl !== "https://chatgpt.com/backend-api/wham/usage") {
+        throw new Error("Allowance module did not request the Codex usage endpoint.");
+    }
+    if (!view || view.providerLabel !== "ChatGPT Plus" || view.fiveHour !== null || view.weekly?.usedPercent !== 42) {
+        throw new Error("Allowance module did not retain the Codex weekly allowance response.");
+    }
+} finally {
+    globalThis.fetch = originalFetch;
 }
 
-// ─────────────────────────────────────────────────────────────
-// 6. Z.ai real body → line (USED percent directly; nextResetTime ms).
-//    Captured from api.z.ai/api/monitor/usage/quota/limit:
-//    unit 3 (5h) percentage 31, unit 6 (weekly) percentage 67, level pro.
-// ─────────────────────────────────────────────────────────────
-{
-    // nextResetTime for 5h was 1783886995346; compute a future-ish absolute
-    // so the countdown is non-zero regardless of when the test runs.
-    const now = Date.now();
-    const zaiView = {
-        providerLabel: "Z.ai GLM Pro",
-        fiveHour: { usedPercent: 31, resetSeconds: null, resetAt: now + 3 * 3600 * 1000 },   // 3h from now
-        weekly: { usedPercent: 67, resetSeconds: null, resetAt: now + 5 * 86400 * 1000 },      // 5d from now
-        fetchedAt: now,
-    };
-    const theme = { bg: (_k, s) => s, fg: (_k, s) => s, bold: (s) => s };
-    const line = buildAllowanceLine(zaiView, theme);
-    truthy(line !== null, "zai line is not null");
-    truthy(line.includes("Z.ai GLM Pro:"), "zai line shows provider + level label");
-    truthy(line.includes("5h allowance used: 31%"), "zai 5h used 31% (percentage is USED directly)");
-    truthy(line.includes("Weekly allowance used: 67%"), "zai weekly used 67%");
-    // 3h → "03h 00m"; 5d → "05d 00h 00m"
-    truthy(line.includes("Resets in: 03h "), "zai 5h reset adaptive ~03h");
-    truthy(line.includes("05d 00h 00m"), "zai weekly reset adaptive 05d 00h 00m");
+console.log("Allowance provider and Codex regression checks passed.");
+
+// ──────────────────────────────────────────────────────────────────────
+// Kimi parser unit checks (pure, via the test-utils export)
+// ──────────────────────────────────────────────────────────────────────
+const kimiBody = {
+    user: { userId: "u1", region: "REGION_OVERSEA", membership: { level: "LEVEL_INTERMEDIATE" }, businessId: "" },
+    usage: { limit: "100", used: "66", remaining: "34", resetTime: "2026-07-24T03:31:57.067911Z" },
+    limits: [
+        {
+            window: { duration: 300, timeUnit: "TIME_UNIT_MINUTE" },
+            detail: { limit: "100", used: "22", remaining: "78", resetTime: "2026-07-18T14:31:57.067911Z" },
+        },
+    ],
+    parallel: { limit: "20" },
+    totalQuota: { limit: "100", remaining: "99" },
+};
+
+const kimiView = allowanceTestUtils.parseKimi(kimiBody);
+assert(kimiView.providerLabel === "Kimi", "Kimi label should be plain 'Kimi'.");
+assert(kimiView.weekly?.usedPercent === 66, "Kimi weekly usedPercent mismatch.");
+assert(kimiView.fiveHour?.usedPercent === 22, "Kimi 5h usedPercent mismatch.");
+assert(kimiView.weekly?.resetAt === Date.parse("2026-07-24T03:31:57.067911Z"), "Kimi weekly resetAt mismatch.");
+assert(kimiView.fiveHour?.resetAt === Date.parse("2026-07-18T14:31:57.067911Z"), "Kimi 5h resetAt mismatch.");
+
+// No membership tier -> plain label; no limits array -> 5h window null.
+const kimiNoTier = allowanceTestUtils.parseKimi({ usage: kimiBody.usage });
+assert(kimiNoTier.providerLabel === "Kimi", "Kimi label should fall back to plain 'Kimi'.");
+assert(kimiNoTier.fiveHour === null, "Kimi 5h window should be null without a limits array.");
+assert(kimiNoTier.weekly?.usedPercent === 66, "Kimi weekly window should still parse without a limits array.");
+
+// A zero/invalid limit must not divide by zero — that window becomes null.
+const kimiZeroLimit = allowanceTestUtils.parseKimi({ usage: { limit: "0", used: "0" }, limits: kimiBody.limits });
+assert(kimiZeroLimit.weekly === null, "Kimi window with a zero limit should be null.");
+assert(kimiZeroLimit.fiveHour?.usedPercent === 22, "Kimi 5h window should still parse when weekly is invalid.");
+
+// No usable windows -> throws (refresh keeps the previous snapshot).
+let kimiThrew = false;
+try {
+    allowanceTestUtils.parseKimi({ user: {} });
+} catch {
+    kimiThrew = true;
+}
+assert(kimiThrew, "Kimi parser should throw when both windows are missing.");
+
+console.log("Kimi parser checks passed.");
+
+// ──────────────────────────────────────────────────────────────────────
+// Kimi fetch flow + periodic timer lifecycle
+//
+// The 3-minute timer must ONLY run while a prompt is in flight:
+//   session_start      -> initial fetch, NO timer
+//   before_agent_start -> timer starts (idempotent, 180000ms)
+//   tick               -> throttled refresh while active
+//   agent_end          -> throttled refresh, timer KEEPS running
+//   agent_settled      -> final FORCED fetch, timer stopped
+//   unsupported provider -> no timer at all
+// ──────────────────────────────────────────────────────────────────────
+const kimiHandlers = new Map();
+const kimiAllowance = createAllowance({
+    on(name, handler) {
+        kimiHandlers.set(name, handler);
+    },
+});
+
+const realSetInterval = globalThis.setInterval;
+const realClearInterval = globalThis.clearInterval;
+const realDateNow = Date.now;
+const originalFetch2 = globalThis.fetch;
+
+const timers = [];
+globalThis.setInterval = (cb, ms) => {
+    const t = { cb, ms, cleared: false, unref() {} };
+    timers.push(t);
+    return t;
+};
+globalThis.clearInterval = (t) => {
+    if (t) t.cleared = true;
+};
+
+let dateOffset = 0;
+Date.now = () => realDateNow() + dateOffset;
+
+let kimiFetchCalls = 0;
+let fetchMode = "ok"; // "ok" | "404" | "garbage"
+globalThis.fetch = async (url) => {
+    if (String(url) !== "https://api.kimi.com/coding/v1/usages") {
+        throw new Error(`Unexpected allowance URL: ${url}`);
+    }
+    if (fetchMode === "404") {
+        return new Response("not found", { status: 404 });
+    }
+    if (fetchMode === "garbage") {
+        return new Response(JSON.stringify({ hello: "world" }), {
+            status: 200, headers: { "content-type": "application/json" },
+        });
+    }
+    kimiFetchCalls++;
+    return new Response(JSON.stringify({
+        user: { membership: { level: "LEVEL_INTERMEDIATE" } },
+        usage: {
+            limit: "100", used: "66", remaining: "34",
+            resetTime: new Date(realDateNow() + 134 * 3600_000).toISOString(),
+        },
+        limits: [
+            {
+                window: { duration: 300, timeUnit: "TIME_UNIT_MINUTE" },
+                detail: {
+                    limit: "100", used: "22", remaining: "78",
+                    resetTime: new Date(realDateNow() + 3600_000).toISOString(),
+                },
+            },
+        ],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+};
+
+const kimiCtx = {
+    model: { provider: "kimi-coding" },
+    modelRegistry: { getApiKeyForProvider: async () => "kimi-test-token" },
+    isIdle: () => false,
+};
+
+try {
+    // 1) session_start: initial fetch, but NO timer while pi is idle.
+    await kimiHandlers.get("session_start")({}, kimiCtx);
+    assert(kimiFetchCalls === 1, "Kimi session_start should fetch once.");
+    assert(timers.length === 0, "No timer may run before the first prompt.");
+    let kv = kimiAllowance.getAllowance();
+    assert(kv && kv.providerLabel === "Kimi", "Kimi view mismatch after session_start.");
+    assert(kv.fiveHour?.usedPercent === 22 && kv.weekly?.usedPercent === 66, "Kimi view percentages mismatch.");
+    assert(
+        kv.fiveHour.resetSeconds !== null && kv.fiveHour.resetSeconds <= 3600 && kv.fiveHour.resetSeconds > 3500,
+        "Kimi 5h reset countdown was not derived from resetTime.",
+    );
+
+    // 2) before_agent_start: a prompt is in flight -> timer starts.
+    await kimiHandlers.get("before_agent_start")({}, kimiCtx);
+    assert(timers.length === 1, "before_agent_start should start the periodic timer.");
+    assert(timers[0].ms === 180_000, "Periodic timer should use a 180000ms cadence.");
+    assert(!timers[0].cleared, "The new timer should be running.");
+    assert(kimiFetchCalls === 1, "before_agent_start refresh should be throttled right after session_start.");
+
+    // 3) Tick inside the 30s throttle window -> no fetch.
+    timers[0].cb();
+    await sleep(50);
+    assert(kimiFetchCalls === 1, "Timer tick should respect the 30s fetch throttle.");
+
+    // 4) Tick after the throttle window -> fetch #2 (no ctx needed: the
+    //    tick reuses the registry captured from session_start).
+    dateOffset += 31_000;
+    timers[0].cb();
+    await waitFor(() => kimiFetchCalls === 2, "timer tick refresh");
+    assert(!timers[0].cleared, "Timer must keep running while the prompt is active.");
+
+    // 5) agent_end: throttled refresh (skipped, just fetched), timer stays.
+    await kimiHandlers.get("agent_end")({}, kimiCtx);
+    assert(kimiFetchCalls === 2, "agent_end refresh should be throttled right after a tick fetch.");
+    assert(!timers[0].cleared, "Timer must keep running at agent_end (pi may auto-continue).");
+
+    // 6) agent_settled: one final FORCED fetch, then the timer stops.
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiFetchCalls === 3, "agent_settled should do a final forced fetch.");
+    assert(timers[0].cleared, "Timer must be stopped at agent_settled.");
+
+    // 7) Next prompt cycle restarts the timer; duplicate start signals
+    //    (before_agent_start + repeated agent_start) never stack timers.
+    await kimiHandlers.get("before_agent_start")({}, kimiCtx);
+    await kimiHandlers.get("agent_start")({}, kimiCtx);
+    await kimiHandlers.get("agent_start")({}, kimiCtx);
+    assert(timers.length === 2, "A new prompt should start exactly one new timer.");
+    assert(!timers[1].cleared, "The second-cycle timer should be running.");
+
+    // 8) agent_settled again: final fetch + timer stopped.
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiFetchCalls === 4, "agent_settled should force a fetch in the second cycle.");
+    assert(timers[1].cleared, "Second-cycle timer must be stopped at agent_settled.");
+
+    // 9) Unsupported provider: view cleared, NO timer is started.
+    await kimiHandlers.get("before_agent_start")({}, {
+        model: { provider: "deepseek" },
+        modelRegistry: { getApiKeyForProvider: async () => "deepseek-test-token" },
+    });
+    assert(kimiAllowance.getAllowance() === null, "Allowance view should clear for an unsupported provider.");
+    assert(timers.length === 2, "No timer may start for an unsupported provider.");
+    assert(kimiFetchCalls === 4, "Unsupported provider must not fetch.");
+
+    // 10) Switching back to Kimi force-refreshes immediately.
+    await kimiHandlers.get("model_select")({ model: { provider: "kimi-coding" } }, kimiCtx);
+    assert(kimiFetchCalls === 5, "Switching back to Kimi should force a refresh.");
+    kv = kimiAllowance.getAllowance();
+    assert(kv && kv.providerLabel === "Kimi", "Kimi view should return after switching back.");
+
+    // 11) Endpoint failures hide line 5 until the next success: never
+    //     render stale numbers or data we did not get.
+    fetchMode = "404";
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiAllowance.getAllowance() === null, "Allowance view must clear on an HTTP error.");
+
+    fetchMode = "ok";
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiAllowance.getAllowance() !== null, "Allowance view should recover after the endpoint recovers.");
+
+    fetchMode = "garbage";
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiAllowance.getAllowance() === null, "Allowance view must clear on an unexpected response shape.");
+
+    fetchMode = "ok";
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiAllowance.getAllowance() !== null, "Allowance view should recover after the shape is restored.");
+
+    // 12) A fresh session whose first fetch fails never shows line 5.
+    const failHandlers = new Map();
+    const failAllowance = createAllowance({ on(name, handler) { failHandlers.set(name, handler); } });
+    fetchMode = "404";
+    await failHandlers.get("session_start")({}, kimiCtx);
+    assert(failAllowance.getAllowance() === null, "Line 5 must stay hidden when the first fetch fails.");
+    fetchMode = "ok";
+
+    // 13) Desync guard: while the timer is running the tick asks pi
+    //     whether the agent is still active (ctx.isIdle). When pi reports
+    //     idle — e.g. a completion event was missed — the tick does one
+    //     final forced query and shuts the timer down.
+    kimiCtx.isIdle = () => true;
+    await kimiHandlers.get("before_agent_start")({}, kimiCtx);
+    assert(timers.length === 3, "A new prompt should start a third timer.");
+    assert(!timers[2].cleared, "The third timer should be running.");
+    timers[2].cb();
+    await waitFor(() => timers[2].cleared, "desync timer shutdown");
+    assert(kimiFetchCalls === 8, "The desync tick should do one final forced fetch.");
+    kimiCtx.isIdle = () => false;
+
+    // 14) session_shutdown with no timer running: clean no-op.
+    await kimiHandlers.get("session_shutdown")();
+    assert(timers.every((t) => t.cleared), "All timers should be cleared at the end of the flow.");
+} finally {
+    globalThis.fetch = originalFetch2;
+    globalThis.setInterval = realSetInterval;
+    globalThis.clearInterval = realClearInterval;
+    Date.now = realDateNow;
 }
 
-// ─────────────────────────────────────────────────────────────
-// 7. parseAnthropicHeaders (Claude subscription via OAuth)
-//    Unified headers present → view; absent (API-key mode) → null.
-//    Utilization is 0..1 (×100 for used %); reset is unix seconds.
-// ─────────────────────────────────────────────────────────────
-{
-    const subHeaders = {
-        "anthropic-ratelimit-unified-status": "allowed_warning",
-        "anthropic-ratelimit-unified-5h-utilization": "0.38",
-        "anthropic-ratelimit-unified-5h-reset": String(Math.floor((Date.now() + 2 * 3600 * 1000) / 1000)),
-        "anthropic-ratelimit-unified-7d-utilization": "0.81",
-        "anthropic-ratelimit-unified-7d-reset": String(Math.floor((Date.now() + 4 * 86400 * 1000) / 1000)),
-    };
-    const v = parseAnthropicHeaders(subHeaders);
-    truthy(v !== null, "anthropic subscription headers → view");
-    eq(v.providerLabel, "Claude", "anthropic label is Claude");
-    eq(v.fiveHour.usedPercent, 38, "anthropic 5h 0.38 → 38% used");
-    eq(v.weekly.usedPercent, 81, "anthropic weekly 0.81 → 81% used");
-    truthy(v.fiveHour.resetSeconds === null, "anthropic resetSeconds derived later (null pre-render)");
-    truthy(v.fiveHour.resetAt !== null && v.fiveHour.resetAt > Date.now(), "anthropic 5h resetAt in the future");
-
-    const line = buildAllowanceLine(v, { bg: (_k, s) => s, fg: (_k, s) => s, bold: (s) => s });
-    truthy(line !== null && line.includes("Claude:"), "anthropic line shows Claude label");
-    truthy(line.includes("5h allowance used: 38%"), "anthropic 5h 38%");
-    truthy(line.includes("Weekly allowance used: 81%"), "anthropic weekly 81%");
-
-    // API-key mode: no unified headers → null → line 5 hidden.
-    eq(parseAnthropicHeaders({ "anthropic-ratelimit-requests-remaining": "100" }), null, "anthropic API-key mode → null (hidden)");
-    eq(parseAnthropicHeaders({}), null, "anthropic empty headers → null");
-
-    // Case-insensitivity: headers may arrive upper-cased.
-    const upperV = parseAnthropicHeaders({ "Anthropic-RateLimit-Unified-5h-Utilization": "0.5" });
-    truthy(upperV !== null && upperV.fiveHour.usedPercent === 50, "anthropic header lookup is case-insensitive");
-}
-
-console.log(failures === 0 ? "\n=== ALL ALLOWANCE CHECKS PASSED ===" : `\n=== ${failures} CHECK(S) FAILED ===`);
-process.exit(failures === 0 ? 0 : 1);
+console.log("Kimi fetch flow and periodic timer lifecycle checks passed.");

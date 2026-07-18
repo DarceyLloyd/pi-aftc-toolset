@@ -1,76 +1,53 @@
 # tests/
 
-Test harnesses for the pi-aftc-toolset extension. No API calls, no TUI -
-every test loads the extension through pi's bundled `jiti` with a stub
-`ExtensionAPI` and exercises the factory, every event handler, every
-slash command, and the widget render path.
+One folder per check: `tests/<test-name>/<test-name>.mjs` plus its own
+README and any fixtures/helpers. Every script registers a global
+watchdog timeout near the top (see `.dev/dev_guide.md` — non-negotiable).
 
-## Layout
+## How they are built
 
-Each test has its own subfolder: `tests/<test-name>/`. The subfolder
-holds the test script (named `<test-name>.<ext>`) and any helpers it
-needs. See `rules.md` §11.
+- Plain Node.js ESM scripts; no test framework, no network, no TUI.
+- Extension TypeScript is loaded through the same `jiti` runtime pi
+  uses, resolved from the global `@earendil-works/pi-coding-agent`
+  install (`PI_CODING_AGENT_PATH` overrides the location).
+- Pi APIs are exercised through mock `ExtensionAPI` / `ctx` objects;
+  overlay components are driven headlessly via their `handleInput`.
+- Tests resolve paths from the script location, never `process.cwd()`.
+- Local Node checks (15s–30s watchdogs) need no Docker; the SSH
+  end-to-end checks use a disposable Docker fixture; the Linux gates
+  use Docker Compose.
 
+## The suites
+
+| Suite | Class | Covers |
+| --- | --- | --- |
+| `allowance-check` | 15s local | Footer line-5 allowance providers, Codex regression. |
+| `install-check` | 15s local | `/aftc-install` redaction, recovery guidance, concurrency, and the intelligent session-start dependency warning. |
+| `install-platform-uv-check` | 15s local | Platform-native uv resolution. |
+| `npm-package-check` | 15s local | Published package contents (carrier source included; credentials/venv excluded). |
+| `ssh-carrier-check` | 60s local | Carrier ready handshake, terminated state, redaction. |
+| `ssh-carrier-lifecycle-check` | 30s local (fake carrier) | Protocol, lifecycle, timeout, cancellation, crash, process-tree. |
+| `ssh-carrier-ready-check` | 60s local | Installed carrier ready handshake end-to-end. |
+| `ssh-confirmation-overlay-check` | 30s local | `confirmOverlay` two-button semantics. |
+| `ssh-connect-headless-check` | 30s local | `ssh_connect` fails safely headless; unknown names throw. |
+| `ssh-connection-form-check` | 30s local | Credential whitespace preservation. |
+| `ssh-connection-form-overlay-check` | 30s local | Connection form overlay fields/validation. |
+| `ssh-module-check` | 30s local | Command/tool registration, redaction, safe errors, destructive approvals. |
+| `ssh-auto-accept-check` | 30s local | Auto-accept store persistence + host-key dialog skip/refuse flow. |
+| `ssh-new-connection-dialog-check` | 30s local | Connection manager dialog: focus cycle, validation, password preservation, empty-password confirm, save flow (store restored after). |
+| `ssh-redaction-check` | 30s local | Redaction of connection metadata and secrets. |
+| `ssh-status-reaper-check` | 30s local (fake carrier) | Status surface, zero-sessions reaper, model boundary, prompt compliance. |
+| `ssh-local-path-check` | Docker | Upload/download path handling. |
+| `ssh-idle-self-exit-check` | Docker | Sidecar idle self-exit + reconnect. |
+| `ssh-idle-connection-lost-check` | Docker | Monitor prunes a dropped session; idle exit. |
+| `ssh-nano-keys-check` | Docker | Drives nano through the PTY shell tools. |
+| `ssh-terminal-screen-check` | 20s local | VT100 virtual screen: SGR colours, cursor addressing, erase, scroll, alt-screen, split sequences. |
+| `ssh-replacement` | Docker (600s) | Commands, SFTP, forwarding, PTY against a disposable SSH fixture. |
+| `pi-linux-ssh-verify` | Docker Compose (1500s) | Full Linux gate: `/aftc-install`, unit suites, carrier pytest, client→target end-to-end. No provider allowance consumed. |
+| `pi-linux-integration` | Docker Compose (1500s) | Live-prompt Linux integration. Consumes provider allowance; copies local `auth.json` transiently. |
+
+Run any suite directly, e.g.:
+
+```powershell
+node tests/ssh-module-check/ssh-module-check.mjs
 ```
-tests/
-├── parse-check/parse-check.mjs          # parse-only smoke for usage.ts
-├── full-check/full-check.mjs            # usage module: DB + projections + HTML
-├── widget-render-check/                 # orchestrator pattern + footer widget
-│   └── widget-render-check.mjs
-├── stfu-check/stfu-check.cjs            # /aftc-stop + /stfu: idle / streaming / headless
-├── bulk-read-check/                     # bulk-read skill: script + walker
-│   └── bulk-read-check.mjs
-├── theme-check/theme-check.cjs          # /theme: pre-select, page-nav, overlay
-├── state-check/state-check.cjs          # state.json (defaults generation, get/set, persistence)
-├── cd-no-preserve/                      # /cd always creates fresh session (PreserveOverlay removed)
-│   ├── cd-no-preserve.cjs               # behavioural test
-│   └── _pi-stub.cjs                     # SessionManager stub via jiti alias
-├── cd-picker-top/                       # CdOverlay: "./" first, selection always at top
-│   ├── cd-picker-top.cjs                # drives picker via ui.custom factory capture
-│   └── _pi-stub.cjs                     # SessionManager stub via jiti alias
-├── replay-check/replay-check.cjs        # /save-replay-prompt + /replay: save, persist, idle/busy/headless
-└── load-test/load-test.cjs              # end-to-end: factory + events + commands + widget
-```
-
-## Why these exist
-
-`extensions/toolset/index.ts` runs under pi's jiti at runtime, with no
-build step (see `rules.md` §1.3). These harnesses give a fast,
-dependency-free way to catch runtime errors (parse failures, bad
-event-shape access, widget render crashes) and verify the cache math
-(hit rates, write ROI, churn detection) without launching pi or making
-provider calls.
-
-## Run
-
-Each test runs independently from any cwd. Use `node <script>` from the
-project root (or anywhere - paths resolve from the script itself).
-
-```bash
-node tests/parse-check/parse-check.mjs
-node tests/full-check/full-check.mjs
-node tests/widget-render-check/widget-render-check.mjs
-node tests/stfu-check/stfu-check.cjs
-node tests/bulk-read-check/bulk-read-check.mjs
-node tests/theme-check/theme-check.cjs
-node tests/state-check/state-check.cjs
-node tests/cd-no-preserve/cd-no-preserve.cjs
-node tests/cd-picker-top/cd-picker-top.cjs
-node tests/replay-check/replay-check.cjs
-node tests/load-test/load-test.cjs
-```
-
-Exits `0` on success. Any error in the extension factory, an event
-handler, a command handler, or the widget render path fails the run
-with a stack trace.
-
-## Adding tests
-
-Create `tests/<name>/<name>.<ext>`. Resolve paths from the script
-(`__dirname` / `fileURLToPath(import.meta.url)`), not from `process.cwd()`
-- tests must run from any cwd. Keep harnesses dependency-free (`node` +
-pi's bundled jiti only) so they run anywhere pi is installed.
-
-When a refactor changes the public surface an existing test exercises
-(event shapes, tool signatures, widget factory signature, command
-names), update the test in the same change.

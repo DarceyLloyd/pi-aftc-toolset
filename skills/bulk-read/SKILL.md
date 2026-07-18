@@ -87,7 +87,7 @@ The output manifest lists how many files were skipped and why.
 ## Tips
 
 - For a subset of files, pass a more specific `rootDir` (for example
-  only `src/` or `extensions/toolset/`).
+  only `src/` or `extensions/aftc-toolset/`).
 - For 100+ files, prefer running the script on subfolders one at a
   time so the resulting markdown is easier to navigate.
 - Tell the user where the temp file lives so they can inspect it

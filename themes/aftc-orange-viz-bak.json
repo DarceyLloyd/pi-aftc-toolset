@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json",
-	"name": "aftc-orange-viz",
+	"name": "aftc-orange-viz-bak",
 	"vars": {
 		"bg": "#08131a",
 		"fg": "#deb88d",

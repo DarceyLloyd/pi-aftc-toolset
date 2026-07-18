@@ -51,9 +51,13 @@ secrets.json
 .bak/
 .old/
 test/
+tests/
+.dockerignore
+docs/
 rules.md
 dev.md
 skills/cache-audit/SKILL.old
+AGENTS.md
 
 # Archived skills
 skills/*.rar
@@ -61,7 +65,11 @@ skills/*.rar
 # pi package cache (global and project-local)
 .pi/
 
-# Cache-optimizer data folder (created on first use; per-user, not in repo)
+# Extension runtime data (created lazily by the extension from in-code
+# defaults on first use). Contains user settings, SSH credentials and usage
+# history. NEVER commit any of it: ignore the whole directory, with no
+# negation rules. See AGENTS.md "Data directory, packaging, and
+# test-exclusion decisions (permanent)".
 .pi-aftc-toolset/
 
 # IDE / editor
@@ -79,14 +87,7 @@ desktop.ini
 # Release notes are NOT kept as files — the root README.md is the source of truth.
 # (rules.md Section 10.4) Do not add RELEASE_NOTES_*.md to the repo.
 
-# Python (AFTC SSH GUI)
-# .venv/ = runtime venv (never commit — huge + system-specific)
-# std/*  = SSH session logs, credentials, command history (SECURITY: never commit)
-# std/.gitkeep = preserved so the directory exists on clone
-# bin/uv.exe = tracked (bundled so users don't need Python or uv on PATH)
-internal-python-gui/.venv/
-internal-python-gui/__pycache__/
-internal-python-gui/std/*
-!internal-python-gui/std/.gitkeep
 *.pyc
+.venv/
+__pycache__/
 tests/

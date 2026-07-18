@@ -47,18 +47,24 @@ dev.md
 rules.md
 docs/
 tests/
-internal-python-gui/
 
 # ── Stale / backup ────────────────────────────────────────
 .bak/
 .old/
+.old-ssh-features/
+.dev/
 test/
 *.old
 
 # Archived skills (kept in repo, not shipped to npm)
 skills/*.rar
 
-# ── pi caches (per-user, never publish) ───────────────────
+# ── pi runtime data ──────────────────────────────────────
+# Per-user caches and extension runtime data (user settings, SSH
+# credentials, usage history). Created lazily from in-code defaults;
+# NEVER ship any of it: ignore the whole directory, no negation rules.
+# See AGENTS.md "Data directory, packaging, and test-exclusion
+# decisions (permanent)".
 .pi/
 .pi-aftc-toolset/
 
@@ -73,3 +79,6 @@ skills/*.rar
 .DS_Store
 Thumbs.db
 desktop.ini
+.venv/
+__pycache__/
+images/SSH-GUI.jpg
