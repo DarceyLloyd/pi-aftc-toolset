@@ -4,6 +4,9 @@ pi-aftc-toolset - Change Log
 Updates v1.13.x
 ---------------
 
+- aftc-codex: out-of-sync notice on the fresh-session prep box.
+  When your live knowledge base is behind the shipped package resources (a new file or new [ID] entries you don't have yet), the "AFTC CODEX" notice shown on /new gains a white line: "NOTICE: Your AFTC codex resources are out of sync with the latest resource, run /codex-sync". Your own entries and edits never trigger it.
+
 - aftc-codex: new /aftc-codex-sync command (alias /codex-sync).
   Merges package updates into your live knowledge base without losing your own additions: missing top-level files and seed-only resource files are copied over, and any shipped entry whose [ID] is missing from one of your resource docs is appended to it. Your entries always win - an [ID] you already have (even if you edited its text) is never touched, and your own files/folders are left alone. The resource list is always regenerated afterwards. Run it after updating pi-aftc-toolset to pick up new shipped gotchas. Also available from the config menu: /aftc-codex > Resources & Updates > Sync Codex Resources.
 

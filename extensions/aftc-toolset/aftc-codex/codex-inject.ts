@@ -35,7 +35,6 @@ import { Box, Text } from "@earendil-works/pi-tui";
 import { getPreference } from "../config";
 import type { CodexContext } from "./aftc-codex";
 import { codexNeedsSync } from "./codex-merge";
-import type { CodexContext } from "./aftc-codex";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants

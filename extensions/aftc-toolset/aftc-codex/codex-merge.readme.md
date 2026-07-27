@@ -56,3 +56,14 @@ interface CodexMergeReport {
     errors: string[];              // non-fatal problems
 }
 ```
+```
+
+## `codexNeedsSync(seedDir, liveDir)`
+
+Read-only counterpart: would the merge change anything? Returns `true` when a
+top-level file is missing, `resources/` is missing, a seed resource file is
+missing on the live side, or a seed entry `[ID]` is absent from the matching
+live file. User edits and user-only files/entries do NOT count as out-of-sync.
+Fail-soft: any read problem answers `false` (never nag on error). Used by
+`codex-inject.ts` to add a white `NOTICE: ... run /codex-sync` line to the
+fresh-session prep notice when the live copy is behind the shipped seed.

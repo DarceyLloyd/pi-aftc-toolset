@@ -135,7 +135,9 @@ Uses `session_start.reason` (no `getEntries()` heuristic):
 - Restore (`resume` / `reload` / `fork`): restore `prepped` from entries, no nagging.
 
 The notice is a durable custom entry (`aftc-codex-prep-notice`) rendered via
-`registerEntryRenderer` — no timer, no TUI-ready wait.
+`registerEntryRenderer` — no timer, no TUI-ready wait. When the live copy is
+behind the shipped seed (`codexNeedsSync` in `codex-merge.ts`), the notice
+gains a white `NOTICE: ... run /codex-sync` line.
 
 ---
 
