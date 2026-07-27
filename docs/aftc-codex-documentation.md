@@ -238,7 +238,8 @@ spawn the sync script first. Pure toggles (`-enable`/`-disable`/`-status`) skip 
 ├── Resources & Updates .............              [submenu]
 │   ├── Re-Seed Resources ........... copy-only, never overwrites → seed choice
 │   ├── Start Fresh ................. [confirm-destructive] wipe + re-seed
-│   └── Open Codex Resource Dir ..... opens live resources/ in OS file manager
+│   ├── Open Codex Resource Dir ..... opens live resources/ in OS file manager
+│   └── Sync Codex Resources ........ closes menu, runs /codex-sync merge + report
 └── Help & Commands ................. [viewer]
 ```
 

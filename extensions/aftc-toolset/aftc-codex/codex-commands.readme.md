@@ -37,7 +37,8 @@ primitives (`showMenu`/`showConfirm`/`showInput`/`showViewer`):
   (`Clear and restore default codex resources` — confirm-destructive: wipes the
   live copy and re-copies the seed; irreversible, no backup), Open codex
   resource dir (opens the live `resources/` folder in the OS file manager:
-  `explorer.exe` / `open` / `xdg-open`).
+  `explorer.exe` / `open` / `xdg-open`), Sync codex resources (closes the menu
+  and runs the `/codex-sync` merge + report — same code path as the command).
 - **1.8 Help** — viewer. (Status is the `/aftc-codex-status` transcript output.)
 - **1.9 Seed choice** — Pre-trained (Recommended) / Fresh start.
 

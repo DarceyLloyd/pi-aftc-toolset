@@ -148,8 +148,48 @@ function openDir(dir: string): void {
     }
 }
 
+
+/** Run the /codex-sync merge, regenerate the resource list, and report.
+ *  Shared by the /aftc-codex-sync command and the Resources & updates menu. */
+async function runCodexSync(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<void> {
+    const { store } = ctx;
+    const report = mergeCodexSeedIntoLive(store.getSeedDir(), store.getRoot());
+    // Always regenerate the resource list, even when nothing changed.
+    await store.runSyncScript();
+
+    const totalMerged = report.merged.reduce((n, m) => n + m.ids.length, 0);
+    const lines: string[] = [];
+    if (report.createdLiveDir) lines.push("Codex dir was missing — full seed copied over.");
+    if (report.createdResourcesDir) lines.push("resources/ was missing — full seed resources copied over.");
+    if (report.copiedFiles.length > 0) {
+        lines.push(`Files copied (${report.copiedFiles.length}):`);
+        for (const f of report.copiedFiles) lines.push(`  ${f}`);
+    }
+    if (report.merged.length > 0) {
+        lines.push(`Entries merged (${totalMerged}):`);
+        for (const m of report.merged) lines.push(`  ${m.file}: +${m.ids.length} (${m.ids.join(", ")})`);
+    }
+    if (report.errors.length > 0) {
+        lines.push("Errors:");
+        for (const e of report.errors) lines.push(`  ${e}`);
+    }
+    if (lines.length === 0) lines.push("Already up to date — no files copied, no entries merged.");
+    lines.push("Resource list regenerated.");
+
+    const summary = report.createdLiveDir
+        ? `aftc-codex sync: full seed installed (${report.copiedFiles.length} files).`
+        : `aftc-codex sync: ${report.copiedFiles.length} files copied, ${totalMerged} entries merged.`;
+
+    if (isTui(cctx)) {
+        notify(cctx, summary, report.errors.length > 0 ? "warning" : "info");
+        await showViewer(cctx, { title: "aftc-codex sync", lines });
+    } else {
+        for (const line of lines) console.log(`[aftc-toolset] ${line}`);
+    }
+}
+
 /** Screen 1.6 — Resources & updates. */
-async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<void> {
+async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<"sync" | void> {
     const { store } = ctx;
     while (true) {
         const choice = await showMenu(cctx, {
@@ -159,6 +199,7 @@ async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContex
                 { value: "reseed", label: "Re-Seed Resources", description: " copy-only, never overwrites" },
                 { value: "fresh", label: "Start Fresh", description: " Clear and restore default codex resources" },
                 { value: "opendir", label: "Open Codex Resource Dir" },
+                { value: "sync", label: "Sync Codex Resources", description: " merge new seed entries, keep yours" },
             ],
         });
         if (!choice) return;
@@ -193,6 +234,7 @@ async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContex
             notify(cctx, `Opened ${dir}`, "info");
             return;
         }
+        if (choice === "sync") return "sync"; // main menu closes, then runs the sync
     }
 }
 
@@ -208,7 +250,6 @@ const HELP_LINES = [
     "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
     "  /aftc-codex-learn        Record durable lessons into the codex",
     "  /aftc-codex-sync         Merge new seed entries into your codex (alias /codex-sync)",
-    "  /aftc-codex-status       Show status",
     "  /aftc-codex-status       Show status",
     "",
     "Model tool:",
@@ -275,6 +316,13 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             if (autoAdd === "auto") setPreference("aftcCodexAutoAddEntries", true);
             else if (autoAdd === "manual") setPreference("aftcCodexAutoAddEntries", false);
         } else if (choice === "resources") {
+            const action = await openResourcesMenu(ctx, cctx);
+            if (action === "sync") {
+                // Close the menu tree, then run the merge + report.
+                await runCodexSync(ctx, cctx);
+                return;
+            }
+        } else if (choice === "help") {
             await openResourcesMenu(ctx, cctx);
         } else if (choice === "help") {
             await showViewer(cctx, { title: "aftc-codex help", lines: HELP_LINES });
@@ -445,43 +493,10 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
 
     // ---- /aftc-codex-sync (alias /codex-sync) — seed -> live merge ----
     const syncHandler = async (_args: string, cctx: ExtensionCommandContext) => {
-        const report = mergeCodexSeedIntoLive(store.getSeedDir(), store.getRoot());
-        // Always regenerate the resource list, even when nothing changed.
-        await store.runSyncScript();
-
-        const totalMerged = report.merged.reduce((n, m) => n + m.ids.length, 0);
-        const lines: string[] = [];
-        if (report.createdLiveDir) lines.push("Codex dir was missing — full seed copied over.");
-        if (report.createdResourcesDir) lines.push("resources/ was missing — full seed resources copied over.");
-        if (report.copiedFiles.length > 0) {
-            lines.push(`Files copied (${report.copiedFiles.length}):`);
-            for (const f of report.copiedFiles) lines.push(`  ${f}`);
-        }
-        if (report.merged.length > 0) {
-            lines.push(`Entries merged (${totalMerged}):`);
-            for (const m of report.merged) lines.push(`  ${m.file}: +${m.ids.length} (${m.ids.join(", ")})`);
-        }
-        if (report.errors.length > 0) {
-            lines.push("Errors:");
-            for (const e of report.errors) lines.push(`  ${e}`);
-        }
-        if (lines.length === 0) lines.push("Already up to date — no files copied, no entries merged.");
-        lines.push("Resource list regenerated.");
-
-        const summary = report.createdLiveDir
-            ? `aftc-codex sync: full seed installed (${report.copiedFiles.length} files).`
-            : `aftc-codex sync: ${report.copiedFiles.length} files copied, ${totalMerged} entries merged.`;
-
-        if (isTui(cctx)) {
-            notify(cctx, summary, report.errors.length > 0 ? "warning" : "info");
-            await showViewer(cctx, { title: "aftc-codex sync", lines });
-        } else {
-            for (const line of lines) console.log(`[aftc-toolset] ${line}`);
-        }
+        await runCodexSync(ctx, cctx);
     };
     pi.registerCommand("aftc-codex-sync", { description: "Merge new seed entries into the live codex", handler: syncHandler });
     pi.registerCommand("codex-sync", { description: "Merge new seed entries into the live codex (alias)", handler: syncHandler });
 
-    pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
 
 }

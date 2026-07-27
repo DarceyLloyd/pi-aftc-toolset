@@ -34,6 +34,8 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { getPreference } from "../config";
 import type { CodexContext } from "./aftc-codex";
+import { codexNeedsSync } from "./codex-merge";
+import type { CodexContext } from "./aftc-codex";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -108,6 +110,13 @@ export function createCodexInject(
             theme.fg("warning", "Recommended: Kimi K3 (Allegretto or above plans), Qwen 3.8 Max (Pro plan)."),
             0, 0,
         ));
+        const noticeData = (_entry.data ?? {}) as { outOfSync?: boolean };
+        if (noticeData.outOfSync === true) {
+            box.addChild(new Text(
+                theme.fg("mdHeading", "NOTICE: Your AFTC codex resources are out of sync with the latest resource, run /codex-sync"),
+                0, 0,
+            ));
+        }
         box.addChild(new Text(
             theme.fg("dim", "Options: /codex    ·    Disable: /codex-disable"),
             0, 0,
@@ -365,7 +374,10 @@ export function createCodexInject(
             const isTui = sctx.hasUI && sctx.mode === "tui";
             if (isTui) {
                 if (!state.noticedThisSession) {
-                    pi.appendEntry(CODEX_PREP_NOTICE_ENTRY, { at: Date.now() });
+                    // Out-of-sync with the shipped seed? The notice gains a NOTICE line.
+                    let outOfSync = false;
+                    try { outOfSync = codexNeedsSync(store.getSeedDir(), store.getRoot()); } catch { /* fail-soft */ }
+                    pi.appendEntry(CODEX_PREP_NOTICE_ENTRY, { at: Date.now(), outOfSync });
                     state.noticedThisSession = true;
                 }
             } else {

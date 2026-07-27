@@ -161,6 +161,60 @@ function mergeFile(seedFile: string, liveFile: string): { appended: string[]; er
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Out-of-sync check (drives the fresh-session NOTICE line)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Read-only: would mergeCodexSeedIntoLive() change anything? True when a
+ * top-level file is missing, resources/ is missing, a seed resource file is
+ * missing on the live side, or a seed entry [ID] is absent from the matching
+ * live file. Fail-soft: any read problem answers false (never nag on error).
+ */
+export function codexNeedsSync(seedDir: string, liveDir: string): boolean {
+    try {
+        if (!fs.existsSync(liveDir)) return true;
+        for (const name of TOP_LEVEL_FILES) {
+            if (fs.existsSync(path.join(seedDir, name)) && !fs.existsSync(path.join(liveDir, name))) {
+                return true;
+            }
+        }
+        const seedResourcesDir = path.join(seedDir, "resources");
+        const liveResourcesDir = path.join(liveDir, "resources");
+        if (!fs.existsSync(liveResourcesDir)) return true;
+
+        const walk = (srcDir: string, relPrefix: string): boolean => {
+            let entries: fs.Dirent[];
+            try {
+                entries = fs.readdirSync(srcDir, { withFileTypes: true });
+            } catch {
+                return false; // fail-soft
+            }
+            for (const entry of entries) {
+                const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+                const src = path.join(srcDir, entry.name);
+                if (entry.isDirectory()) {
+                    if (walk(src, rel)) return true;
+                    continue;
+                }
+                if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) continue;
+                const liveFile = path.join(liveResourcesDir, rel);
+                if (!fs.existsSync(liveFile)) return true;
+                const seedContent = safeRead(src);
+                const liveContent = safeRead(liveFile);
+                if (seedContent === null || liveContent === null) continue; // fail-soft
+                for (const e of parseEntries(seedContent)) {
+                    if (!liveContent.includes(`[${e.id}]`)) return true;
+                }
+            }
+            return false;
+        };
+        return walk(seedResourcesDir, "");
+    } catch {
+        return false;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Merge (the /aftc-codex-sync routine)
 // ─────────────────────────────────────────────────────────────────────────────
 
