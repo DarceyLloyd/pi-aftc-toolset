@@ -13,6 +13,7 @@ The `/aftc-codex-*` slash commands + the config menu.
 | `/codex-init` | Prep now: load the rules, detect the project, fetch the relevant docs (eager; names detected topics). |
 | `/aftc-codex-refresh` | Prune all codex from context, then re-prep (clean restart). |
 | `/aftc-codex-learn` | Self-education prompt injection; refused while disabled. |
+| `/aftc-codex-sync` | Seed → live merge (see `codex-merge.readme.md`): copies missing top-level files + seed-only resource files, and appends seed entries whose `[ID]` is missing from a live file — your own entries are never touched. Always regenerates the resource list afterwards, then reports what was copied/merged. |
 | `/aftc-codex-status` | Compact colored status in the TUI transcript: `AFTC Codex Enabled`, `Embedded in context`, and `No' of codex files read: X/YY`. The read count is rebuilt from durable read-tracking entries, so it survives `/reload`, resume and compaction. |
 
 (`/codex-*` are aliases of the matching `/aftc-codex-*` commands.)
@@ -21,7 +22,8 @@ The `/aftc-codex-*` slash commands + the config menu.
 
 The resources menu, `/aftc-codex-learn` and `/aftc-codex-install` spawn
 `node sync-codex-resources.mjs` first so `codex-resource-list.md` is fresh. Pure
-toggles (`-enable`/`-disable`/`-status`) skip the spawn.
+toggles (`-enable`/`-disable`/`-status`) skip the spawn. `/aftc-codex-sync` runs
+its merge first, then ALWAYS spawns the sync script (even when nothing changed).
 
 ## Config menu
 

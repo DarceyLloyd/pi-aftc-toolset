@@ -20,6 +20,8 @@ extensions/aftc-toolset/aftc-codex/
 ├── codex-inject.ts            # before_agent_start injection, session lifecycle, context prune
 ├── codex-detect.ts            # Project technology auto-detection
 ├── codex-learn.ts             # /aftc-codex-learn prompt injection
+├── codex-merge.ts             # /aftc-codex-sync seed -> live merge (pure TS)
+├── codex-commands.ts          # /aftc-codex-* commands + config menu
 ├── codex-commands.ts          # /aftc-codex-* commands + config menu
 ├── scripts/
 │   ├── sync-codex-resources.mjs   # Regenerates codex-resource-list.md (byte-stable)
@@ -74,6 +76,12 @@ extensions/aftc-toolset/data/aftc-codex/   →   <dataDir>/aftc-codex/
 - The seed is SOURCE only: no generated/runtime files (`codex-resource-list.md`).
 - User edits (via `/aftc-codex-learn` or manual) live only in the live copy.
 - "Start Fresh" / re-install: delete the live copy and re-seed (confirmed, irreversible).
+- `/aftc-codex-sync` (manual, `codex-merge.ts`): brings the live copy up to date
+  after a package update — copies missing top-level files and seed-only resource
+  files, and appends seed entries whose `[ID]` is absent from a live file. An ID
+  present in both (even with edited text) keeps the USER'S version; ID-less
+  legacy seed entries are skipped; live-only files/folders are never touched.
+  Always regenerates `codex-resource-list.md` afterwards.
 
 **Data dir resolution** (`paths.ts`):
 | OS | Path |
@@ -213,6 +221,7 @@ The prompt names the live OS-data copy as the write target (the package seed is 
 | `/aftc-codex-refresh` | `/codex-refresh` | Strip all codex, then re-init (clean restart) |
 | `/aftc-codex-install` | `/codex-install` | Fresh install or re-install (confirmed destructive) |
 | `/aftc-codex-learn` | `/codex-learn` | Self-education prompt injection |
+| `/aftc-codex-sync` | `/codex-sync` | Seed → live merge: copy missing files, append missing `[ID]` entries (never overwrites user entries), then always regenerate the resource list |
 | `/aftc-codex-status` | `/codex-status` | Colored status: enabled, embedded, files read |
 
 **Sync-first:** the resources menu, `-learn`, `-install`, `-init`, and `-refresh`

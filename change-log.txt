@@ -4,6 +4,9 @@ pi-aftc-toolset - Change Log
 Updates v1.13.x
 ---------------
 
+- aftc-codex: new /aftc-codex-sync command (alias /codex-sync).
+  Merges package updates into your live knowledge base without losing your own additions: missing top-level files and seed-only resource files are copied over, and any shipped entry whose [ID] is missing from one of your resource docs is appended to it. Your entries always win - an [ID] you already have (even if you edited its text) is never touched, and your own files/folders are left alone. The resource list is always regenerated afterwards. Run it after updating pi-aftc-toolset to pick up new shipped gotchas.
+
 - Audio notifications: master on/off + sensible shipped defaults.
   /aftc-notifications gains an "Enabled" toggle row and the feature is OFF by default for fresh installs - nothing plays until you switch it on. When enabled, the pre-configured sounds are sensible shipped picks (question: voc_question_07, task complete: voc_task_complete_07 with a 1s threshold, error: voc_we_got_a_problem_01, startup: xp, aborted: none) instead of all-none. Your existing settings are never touched: the config migration only ADDS missing keys - if you already had sounds configured the feature stays ON and your choices (and your saved /replay prompt) are preserved exactly; the saved replay prompt remains empty by default and is only ever written by an explicit /save-replay-prompt.
 

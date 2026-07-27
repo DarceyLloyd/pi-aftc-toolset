@@ -16,12 +16,6 @@ Click [here](./change-log.txt) to read the change logs.
 
 ## **WHATS NEW**
 
-### **AFTC CODEX (ALPHA)**
-Self training and self issue & resolution file loading with adaptive AI model thoughts and action guidance. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
-
-### **Added short cut "alt + n"**
-You can now enter new lines into your prompts in pi!
-
 ### **Audio notification system**
 A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error. NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
 
@@ -30,6 +24,12 @@ BETA 2. Lots of adjustments, new data recorded, tooltips, bug fix on browser res
 
 ### **Persistent Data Storage**
 From this version onwards data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /aftc-open-data-dir should you want to go there. The extension will be acting as a seed from here on for relevant features.
+
+### **AFTC CODEX (ALPHA)**
+Self training and self issue & resolution file loading with adaptive AI model thoughts and action guidance. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
+
+### **Added short cut "alt + n"**
+You can now enter new lines into your prompts in pi!
 
 ---
 
@@ -400,7 +400,7 @@ It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, P
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
 - Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add with uniqueness checks by default; switch to propose-then-confirm in the config menu).
-- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. In the config menu, Start Fresh wipes the live copy and re-copies the shipped defaults, and Open Codex Resource Dir opens the live `resources/` folder in your file manager.
+- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. Run `/aftc-codex-sync` after an update to pull in new shipped entries without losing yours (missing files are copied; missing `[ID]` entries are appended; your edits always win). In the config menu, Start Fresh wipes the live copy and re-copies the shipped defaults, and Open Codex Resource Dir opens the live `resources/` folder in your file manager.
 - **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
 
 | Command | What it does |
@@ -412,6 +412,7 @@ It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, P
 | `/aftc-codex-refresh` | Strip all codex from context, then re-init (alias `/codex-refresh`) |
 | `/aftc-codex-install` | Fresh install (or re-install) the codex to the data dir (alias `/codex-install`) |
 | `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
+| `/aftc-codex-sync` | Merge package updates into your knowledge base: copies new/missing files and appends new `[ID]` entries — your own entries are never touched (alias `/codex-sync`) |
 | `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
 
 The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex.readme.md`.

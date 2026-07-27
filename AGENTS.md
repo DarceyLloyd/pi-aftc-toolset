@@ -3,6 +3,7 @@
 - Never create NUL files.
 - Never read or process any files in folders named ".bak", ".old", ".git", unless specifically asked.
 - Keep answers short and to the point. Only give detailed responses when asked or when planning. It is fine to just say "done" or "ready". Never leave the user wondering if you are finished.
+- Any script or command you run must be self-terminating: add exit/escape timers (or timeouts) to tests, servers, watchers and one-off scripts so they can never hold the session in an infinite wait. Never run anything that blocks on stdin or runs indefinitely without a guaranteed exit path.
 - If you need to ask a question, ask immediately. Never assume.
 - Edit tool rules (learned from repeated failures):
   - `lines` holds literal file content ONLY — never paste `LINE#HASH:` anchors into it.

@@ -11,6 +11,8 @@
  *   /aftc-codex-refresh  Strip all codex from context, then re-init (clean restart).
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
+ *   /aftc-codex-sync     Merge new seed entries into the live codex (alias /codex-sync).
+ *   /aftc-codex-status   Quick status viewer.
  *
  * Sync-first wrapper (spec C4 / M-I1): the resources menu and /aftc-codex-learn
  * spawn the list-regeneration script first; pure toggles skip the spawn.
@@ -31,6 +33,7 @@ import { showConfirm, showMenu, showViewer } from "../ui/aftcUi";
 import type { CodexContext } from "./aftc-codex";
 import { isCommandBusy, type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
+import { mergeCodexSeedIntoLive } from "./codex-merge";
 import { CODEX_CATEGORIES } from "./codex-store";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +207,8 @@ const HELP_LINES = [
     "  /aftc-codex-refresh      Strip all codex, then re-init (clean restart)",
     "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
     "  /aftc-codex-learn        Record durable lessons into the codex",
+    "  /aftc-codex-sync         Merge new seed entries into your codex (alias /codex-sync)",
+    "  /aftc-codex-status       Show status",
     "  /aftc-codex-status       Show status",
     "",
     "Model tool:",
@@ -436,6 +441,47 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         notify(cctx, `aftc-codex installed (${result.copied} files copied). Run /codex-enable to enable.`, "info");
     };
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
+    pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
+
+    // ---- /aftc-codex-sync (alias /codex-sync) — seed -> live merge ----
+    const syncHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        const report = mergeCodexSeedIntoLive(store.getSeedDir(), store.getRoot());
+        // Always regenerate the resource list, even when nothing changed.
+        await store.runSyncScript();
+
+        const totalMerged = report.merged.reduce((n, m) => n + m.ids.length, 0);
+        const lines: string[] = [];
+        if (report.createdLiveDir) lines.push("Codex dir was missing — full seed copied over.");
+        if (report.createdResourcesDir) lines.push("resources/ was missing — full seed resources copied over.");
+        if (report.copiedFiles.length > 0) {
+            lines.push(`Files copied (${report.copiedFiles.length}):`);
+            for (const f of report.copiedFiles) lines.push(`  ${f}`);
+        }
+        if (report.merged.length > 0) {
+            lines.push(`Entries merged (${totalMerged}):`);
+            for (const m of report.merged) lines.push(`  ${m.file}: +${m.ids.length} (${m.ids.join(", ")})`);
+        }
+        if (report.errors.length > 0) {
+            lines.push("Errors:");
+            for (const e of report.errors) lines.push(`  ${e}`);
+        }
+        if (lines.length === 0) lines.push("Already up to date — no files copied, no entries merged.");
+        lines.push("Resource list regenerated.");
+
+        const summary = report.createdLiveDir
+            ? `aftc-codex sync: full seed installed (${report.copiedFiles.length} files).`
+            : `aftc-codex sync: ${report.copiedFiles.length} files copied, ${totalMerged} entries merged.`;
+
+        if (isTui(cctx)) {
+            notify(cctx, summary, report.errors.length > 0 ? "warning" : "info");
+            await showViewer(cctx, { title: "aftc-codex sync", lines });
+        } else {
+            for (const line of lines) console.log(`[aftc-toolset] ${line}`);
+        }
+    };
+    pi.registerCommand("aftc-codex-sync", { description: "Merge new seed entries into the live codex", handler: syncHandler });
+    pi.registerCommand("codex-sync", { description: "Merge new seed entries into the live codex (alias)", handler: syncHandler });
+
     pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
 
 }
