@@ -1,0 +1,9 @@
+WARNING: Do not run the python or bat files, they will affect the audio files in the folders. They are designed to:
+
+process_mp3s.py
+process every mp3, normalise the volume and trim silence and overwrite the file in mono and a specific sample rate
+
+process_wavs.py
+process every wav, normalise the volume and trim silence and overwrite and create mp3 of the file in mono, and a specific sample rate
+
+NOTE: Some samples should not be normalised as this can make them very loud.

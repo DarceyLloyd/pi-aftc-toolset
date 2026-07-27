@@ -19,15 +19,16 @@ commands/shortcuts/tools it registers. See `.dev/dev_guide.md`.
 | `install.ts` | `/aftc-install` - runs `npm install` for `better-sqlite3` and locked uv sync for the packaged SSH carrier. |
 | `help.ts` | `/aftc-help` - static command/shortcut list rendered via `ctx.ui.select`. |
 | `ssh/` | Packaged Paramiko carrier plus local sessions, connection flow, picker, SSH commands, and model tools for commands, PTYs, transfers, and remote file operations. |
+| `providers/` | DISABLED (pi 0.81 added native provider support; kept on disk in case the built-in proves weaker — re-enable in `index.ts`). LLM provider features: `qwencloud.ts` registers Qwen Cloud (DashScope) + Qwen Coding Plan via pi's native `/login` (live catalogs, cache/seed fallbacks, `/qwencloud` command). |
 | `response.ts` | Full-width themed divider above every assistant reply. Toggled by `/aftc-response-divider`. |
-| `intro.ts` | AFTC startup wordmark animation. Toggle it with `/aftc-intro-stop` and `/aftc-intro-on`; the setting persists across sessions. |
-| `input-clear.ts` | `alt+c` keyboard shortcut - clears the input editor. |
+| `intros/` | Startup intro animations. Factory picks one random enabled intro on session start. Currently: AFTC text wordmark (`/aftc-intro-on`, `/aftc-intro-off`). |
+| `keys.ts` | All keyboard shortcuts: `alt+c` clears the input editor, `alt+n` inserts a newline at the caret. |
 | `stfu.ts` | `/aftc-stop` and `/stfu` slash commands - emergency abort of the current agent operation (escape a runaway thinking loop). |
 | `theme.ts` | `/theme` slash command - shortcut to pi's theme picker. Lists all discovered themes, lets the user pick one, and switches the active theme. |
 | `cd.ts` | `/cd` slash command - switch to a fresh Pi session in another directory. Interactive directory-picker overlay, or one-shot path arg (`~`, absolute, relative). Cleans up empty sessions on shutdown. |
 | `dir.ts` | `/dir` and `/ls` slash commands - print the current directory name and run a platform-native directory listing (`dir` on Windows, `ls -la` on macOS/Linux). |
 | `cwd.ts` | `/cwd` slash command - show the current working directory as an inline card (same style as `/dir`). |
-| `replay.ts` | `/save-replay-prompt` and `/replay` slash commands - save a prompt string to `replay.json` and re-send it as a fresh user message (queued as follow-up when busy). |
+| `replay.ts` | `/save-replay-prompt` and `/replay` slash commands - save a prompt string to `config.json` and re-send it as a fresh user message (queued as follow-up when busy). |
 | `db.ts` | Shared better-sqlite3 connection. Lazy-opens the DB; returns `null` if the native binding isn't installed. |
 | `config.ts` | Persistent configuration module. Owns `config.json` (footer timeframe, footer on/off, response divider on/off, intro animation on/off). Creates the file with defaults on first use; only updates it when a preference changes. Never committed or shipped — the whole `.pi-aftc-toolset/` dir is ignored. |
 | `paths.ts` | Resolves the package root and runtime data directory. |

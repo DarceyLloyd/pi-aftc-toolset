@@ -1,50 +1,40 @@
-# pi-aftc-toolset
+# **pi-aftc-toolset**
 
-[![GitHub release](https://img.shields.io/github/v/release/DarceyLloyd/pi-aftc-toolset)](https://github.com/DarceyLloyd/pi-aftc-toolset/releases/latest)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
 The `pi-aftc-toolset` is a productivity toolset for the [pi](https://pi.dev) CLI coding agent.
 
-This is a collection of tools for which assist with what I do on a daily basis to help get the most out of AI models.
+This is a collection of tools for which assist with what I do on a daily basis to help get the most out of AI models. 
 
-## Footer Widget Preview
-![Footer Widget](images/FooterWidget-v1.8.2.jpg)
-
----
-
-### Model Evaluations
-Click [here](#model-findings) to read my evaluation/findings/experience has been with various AI models (Kimi K3, GLM 5.2, Minimax M3, Qwen 3.7 MAX etc)
+Click [here](./change-log.txt) to read the change logs.
 
 ---
 
-## Updates v1.9.x
-
-> **Usage Report rebuilt** and now in **BETA**. The report is now a clean tabbed page (Overview / Models / Thinking levels / Projections). Just use slash command `/usage-report` and your browser should open showing your usage report. [Click here for further information.](#usage-report)
-
-![Usage report](images/usage-report-overview.jpg)
+<br><br>
 
 
-===
+## **WHATS NEW**
 
-## Updates v1.8.x
+### **AFTC CODEX (ALPHA)**
+Self training and self issue & resolution file loading with adaptive AI model thoughts and action guidance. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
 
-- **Usage Report rebuilt** and now in **BETA**. The HTML report is now a clean tabbed page (Overview / Models / Thinking levels / Projections).
-- **Footer line 5 now supports Kimi for Coding.** With Kimi as the active model, the footer shows your 5-hour and weekly Kimi subscription usage with live reset countdowns (the same numbers kimi.com shows), refreshed after each prompt and every few minutes during long-running ones.
+### **Added short cut "alt + n"**
+You can now enter new lines into your prompts in pi!
 
-- **AFTC UI suite — replacement for user input screens.** now ships the full interactive layer, I was fed up of pi's dialogues appearing in the middle of the terminal which were hard to read and hard to distinguish the difference between the TUI output and the dialogue modal.
-- New bundled `ssh` skill. Load it with `/skill:ssh` for full model-facing guidance on driving the SSH feature from inside pi: routing non-interactive commands to `ssh_run`, interactive programs (Nano, Vi, htop, tmux) to the PTY shell tools, file work to the SFTP tools, and the privacy model that keeps credentials and endpoints out of the model context.
-- **New fully featured SSH capabilities (with sftp)** - A packaged Paramiko carrier talks JSON-RPC over local stdio with no socket, HTTP service, or GUI bridge. Capabilities:
-  - Multiple simultaneous in-memory connections; password and private-key (including encrypted-key) authentication; session-only host-key approval.
-  - Non-interactive commands with bounded standard input; interactive PTY shells (Nano, Vi, htop, tmux) through a local terminal overlay and model tools.
-  - Recursive SFTP upload and download with optional `--preserve`, chunked and cancellable transfers with live progress; remote list, stat, read, write, mkdir, rename, and remove.
-  - Local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding, local-command-only so endpoints stay out of the model context.
-  - Credential isolation: the model only ever sees opaque session and shell ids; credentials are memory-only and cleared after each attempt; all output is bounded and redacted; saved records hold non-secret metadata only.
-  - built, tested on Windows and Linux against a Docker OpenSSH fixture, and integrated. (I don't have a mac).
-- **Deleted all SSH features** Yep, they are gone, in the bin. But there is another jedi, see above...
-- **Restored the subscription-allowance footer line** a Pi compatibility regression in optional credential metadata handling broke some things it should now work again for zai, minimax and gpt subscriptions.
+### **Audio notification system**
+A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error. NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
 
+### **Usage Reports**
+BETA 2. Lots of adjustments, new data recorded, tooltips, bug fix on browser resize etc.
 
-> ---
+### **Persistent Data Storage**
+From this version onwards data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /aftc-open-data-dir should you want to go there. The extension will be acting as a seed from here on for relevant features.
+
+---
+
+<br><br>
+
 
 ## **Install**
 
@@ -63,27 +53,39 @@ Then in pi:
 
 > **Runtime dependencies:** `pi install` does not install all the required runtime deps. Run `/aftc-install` after extension installation.
 
-### **Option 2 - GitHub**
+---
 
-```bash
-pi install git:github.com/DarceyLloyd/pi-aftc-toolset
-```
+<br><br>
 
-Then in pi:
+# **Quick Documentation links**
+- [**Footer Widget**](#footer-widget)
+- [**SSH**](#ssh)
+- [**run_script**](#run_script-reliable-large-scripts)
 
-```text
-/aftc-install     # installs better-sqlite3 + packaged SSH carrier deps (python)
-/reload
-```
+    > Reliable large/multi-line script execution. Works around a pi bash-tool truncation bug that silently drops inline commands past a few KB.
 
-> **Runtime dependencies:** `pi install` does not install all the required runtime deps. Run `/aftc-install` after extension installation.
+- [**Usage Report**](#usage-report) (BETA 2)
+- [**Cache diagnostics**](#cache-diagnostics)
+- [**AFTC Codex**](#aftc-codex-knowledge-base) (ALPHA 1)
+
+    > **WARNING**: AFTC Codex injects ~29KB of rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This consumes context window and provider allowance rapidly. The Z.AI Pro-Monthly Plan 5h allowance can be consumed very easily in a single session. Only enable it when you need thought guidance and pre-learned gotchas for complex or large tasks. Do NOT use it with low 5h/weekly allowance remaining, low OpenRouter credits, or on a low-tier subscription. Some models devour context (eg Z.AI GLM 5.2), others are more efficient. Recommended models: Kimi K3 (Allegretto or above plans), Qwen 3.8 Max (Pro plaan). MiniMax M3 is context-cheap but makes too many mistakes to trust with self-education.
+
+- [**Audio notifications**](#slash-commands)
+- [**Slash commands**](#slash-commands)
+- [**/cd directory navigation**](#cd-directory-navigation)
+- [**Bundled skills**](#bundled-skills)
+- [**Feature defaults**](#pi-aftc-toolset-defaults)
+- [**Data location**](#data-location)
+- [**Advanced installation and uninstall guide**](#advanced-installation)
 
 ---
+
+<br><br>
 
 
 ## **Footer widget**
 
-![Footer Widget](images/FooterWidget-v1.8.2.jpg)
+![Footer Widget](images/footer-widget.png)
 
 A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler. Line 5 (subscription allowance) only appears for providers that expose usage data.
 
@@ -91,9 +93,9 @@ A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other fo
 
 Reading left to right:
 
-- **`model` `·` `THINKING`** — which AI model you're using, and the thinking level you set (e.g. `HIGH`).
-- **`CTX Window (X%)`** — how big the model's memory is (e.g. `1.0M`), and the `(X%)` is how full that memory is right now. Same number pi shows at the bottom of the screen.
-- **`Turn Cache X% / Avg Y%`** — how much of your prompt the model got to reuse from its cache this turn, and your session average. Higher = cheaper.
+- **`model` & `THINKING LEVEL`** — which AI model you're using, and the thinking level you set (e.g. `HIGH`).
+- **`CTX Window (%)`** — how big the model's memory is (e.g. `1.0M`), and the `(X%)` is how full that memory is right now. Same number pi shows at the bottom of the screen.
+- **`Turn Cache % / Avg %`** — how much of your prompt the model got to reuse from its cache this turn, and your session average. Higher = cheaper.
 - **`Cached A / New B`** — of all the stuff you sent this session, how much was cached (`A`) vs sent fresh (`B`).
 - **`Tk ↑P Tk ↓Q`** — total tokens sent up to the AI (`P`) and received back (`Q`) this session.
 
@@ -102,9 +104,10 @@ Units: `t` = tokens, `Kt` = thousand tokens, `M` = million tokens (only used for
 ### Line 2 — your money and prompts
 
 - **`Prompts: User N / AI N`** — how many prompts you sent vs how many the AI kicked off on its own (e.g. tool-call follow-ups).
-- **`CTX Time`** — how long this session has been alive (e.g. `2h 14m`).
 - **`Turn cost`** — what the last prompt cost in dollars.
-- **`CTX Time Total Cost`** — what the whole session has cost so far.
+- **`Task Time`** — how long the AI took to fully handle your last prompt and return control (one prompt's complete run, across all its tool-call turns), formatted like Session Time. Ticks live while the AI works, then holds the last task's duration; an error/abort shows the time to that point but isn't recorded. Runs through questions, steering, retries and compaction.
+- **`Session Time`** — how long this session has been alive (e.g. `2h 14m`).
+- **`Session Time Cost`** — what the whole session has cost so far.
 - **`$/hr`** and **`$/min`** — how fast you're spending (based on the session clock).
 
 ### Line 3 — speed and tools
@@ -132,7 +135,7 @@ Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax
 
 --- 
 
-
+<br><br>
 
 ## **SSH**
 
@@ -192,7 +195,7 @@ terminal when you need a tunnel.
 
 ### How to manage connections
 
-Saved connections are local metadata only - a name you choose, plus the non-secret connection details (username, host, port, timeout, an optional private-key path, and an optional saved password). They live in `.pi-aftc-toolset/data/ssh.json`, which is excluded from git and npm publishing.
+Saved connections are local metadata only - a name you choose, plus the non-secret connection details (username, host, port, timeout, an optional private-key path, and an optional saved password). They live in `ssh.json` in your OS data dir (see [Data location](#data-location)), which is outside the package and never shipped.
 
 Run `/ssh-cm` (or `/ssh-connection-manager`) to open the full-screen connection manager. The bottom options row offers **Add new connection**, **Edit**, and **Delete** for the highlighted entry (Tab moves between the list and the options, Left/Right moves between options, Enter activates):
 
@@ -250,6 +253,8 @@ Every tool result is bounded and redacted. The only connection-level model tools
 
 ---
 
+<br><br>
+
 ## **/cd directory navigation**
 
 `/cd` switches the current Pi session to a different directory, always starting a fresh session in the target directory.
@@ -282,6 +287,8 @@ With no arguments, `/cd` opens a tree-style directory picker overlay rooted at t
 
 ---
 
+<br><br>
+
 ## **Think-tag processing**
 
 Some reasoning models emit their chain-of-thought as text wrapped in `<think>…</think>` tags (the DeepSeek / Qwen convention). pi's provider integrations for those models strip the tags into proper `ThinkingContent` blocks automatically; providers that don't (including some local servers and certain custom wrappers) leave the tags as literal text.
@@ -296,6 +303,34 @@ Off by default. Toggle with `/aftc-enable-think-processing` or `/aftc-disable-th
 
 ---
 
+<br><br>
+
+## **QwenCloud / Alibaba providers**
+
+> **Currently disabled** — pi 0.81 added native provider registration, so this module is disconnected (but still shipped). It can be re-enabled if the native support proves weaker. The notes below apply when it is enabled.
+
+
+Adds Alibaba's Qwen lineup to pi's **native `/login`** and the `Ctrl+L` model picker — no config files to edit, credentials are stored by pi in its own `auth.json` like any built-in provider.
+
+Two providers are registered:
+
+| Provider | For | How to log in |
+| --- | --- | --- |
+| **Qwen Coding Plan** | Model Studio Coding Plan subscription (Lite / Standard / Pro) | `/login` → Plans → **Qwen Coding Plan** → paste your `sk-sp-…` or `sk-tok-…` token |
+| **Qwen Cloud (DashScope)** | Pay-per-token DashScope API | `/login` → Use an API key → **Qwen Cloud (DashScope)** → paste your `sk-…` key — or set `DASHSCOPE_API_KEY` in your environment |
+
+Then open the model picker (`Ctrl+L`) and pick a Qwen model.
+
+- **Self-updating model list**: the extension pulls the live catalog from Alibaba on every pi start (and right after a Plan login), so newly released models appear on their own. Offline? It falls back to the last fetched list, then to a small built-in seed — pi is never blocked.
+- **All regions**: Cloud defaults to the International endpoint; switch to China or a custom domain via `/qwencloud`. Plan endpoints default to Singapore with a custom option.
+- **OpenAI-compatible by default** (Alibaba's best-supported API shape); each provider can be switched to their Anthropic-compatible shape in the menu.
+- Reasoning models get native thinking support; vision models accept images automatically.
+
+Manage everything with **`/qwencloud`**: status (login state, endpoints, model counts), refresh model lists, cloud region, API formats, plan endpoints, and re-login help.
+
+---
+
+<br><br>
 
 ## **Cache diagnostics**
 
@@ -311,27 +346,33 @@ It runs `/cache-stats` and `/cache-profile`, diagnoses low hit rates, explains p
 
 ---
 
+<br><br>
+
 ## **Usage report**
 
-Every completed assistant response with usage data is recorded to a local SQLite database at `.pi-aftc-toolset/data/turns.db`. Generate a report with `/usage-report` - a single self-contained HTML file at `.pi-aftc-toolset/data/report.html`, opened in your browser. Dark themed, AFTC-branded, organised into four tabs. Graphs use Chart.js from a pinned CDN (the only external reference); offline the charts degrade to a note and every table and card still works.
+Every completed assistant response with usage data is recorded to a local SQLite database (`turns.db` in your OS data dir - see [Data location](#data-location)), and every settled task (prompt → AI finished) is recorded alongside it with its wall-clock **Task Time** and outcome. Generate a report with `/usage-report` - a single self-contained HTML file (`report.html` in the same data dir), opened in your browser. Dark themed, AFTC-branded, organised into five tabs (Overview, Models, Thinking levels, Timings, Projections). Graphs use Chart.js from a pinned CDN (the only external reference); offline the charts degrade to a note and every table and card still works.
 
 Prompt counts are split the same way as the footer widget: **User prompts** (what you typed) vs **AI prompts** (self-prompted tool-call turns). Cost averages use **paid turns only** - free / $0 (subscription) models are still recorded for prompt, cache and timing stats, but they never drag cost averages down. To skip recording $0 turns entirely, set `RECORD_ZERO_COST_TURNS = false` in `extensions/aftc-toolset/usage-recording.ts`.
 
-![Usage report - Overview tab](images/usage-report-overview.jpg)
+![Usage report - Overview tab](images/ur-overview.png)
 
-**Overview** - the headline numbers at a glance: total cost with avg per day, user prompts (tasks + follow-ups), AI prompts (self-prompting turns and how many run per user prompt), avg cost per user prompt, avg cache hit, and active days. Below the cards: a daily-spend bar chart for the last 30 days (today highlighted), a cost-share doughnut showing which models your money goes to, and period summary cards for the last 24 hours / 7 days / 28 days with the top model and its share of spend.
+**Overview** - the headline numbers at a glance: total cost with avg per day, user prompts (tasks + follow-ups), AI prompts (self-prompting turns and how many run per user prompt), avg cost per user prompt, avg cache hit, and active days. Below the cards: a daily-spend bar chart for the last 30 days (today highlighted), a cost-share doughnut showing which models your money goes to, and period summary cards for the last 24 hours / 7 days / 28 days. Each card carries a per-model scoreboard (cheapest / most costly, most / least used, **avg task time**, best / worst cache hit, response time and think time) that only lists models which cost something in the window - $0 models never appear.
 
-![Usage report - Models tab](images/usage-report-models.jpg)
+![Usage report - Models tab](images/ur-models.png)
 
-**Models** - the per-model cost report. A period selector (24 hours / 7 days / 28 days / all time) drives both the cost-by-model bar chart and the sortable table: cost (with share bars), user prompts, AI prompts, AI/user ratio, Avg $/Pup (average cost per user prompt), Avg cache, and avg response time. Every non-obvious column has an info icon with a hover tooltip explaining exactly what the values mean and how they're derived.
+**Models** - the per-model cost report. A period selector (24 hours / 7 days / 28 days / all time) drives both the cost-by-model bar chart and the sortable table: cost (with share bars), user prompts, AI prompts, AI/user ratio, Avg $/Pup (average cost per user prompt), Avg cache, avg response time and **Task time** (how long the AI took to fully handle your prompts and return control, averaged over that model's completed tasks). Every non-obvious column has an info icon with a hover tooltip explaining exactly what the values mean and how they're derived.
 
-![Usage report - Thinking levels tab](images/usage-report-thinking.jpg)
+![Usage report - Thinking levels tab](images/ur-thinking-levels.png)
 
-**Thinking levels** - the same breakdown per model x thinking level (one row per combination you've actually used), adding avg think time. Answer questions like "does max thinking actually cost me more than medium?" with real numbers for your own usage.
+**Thinking levels** - the same breakdown per model x thinking level (one row per combination you've actually used), adding avg think time and Task time. Answer questions like "does max thinking actually cost me more than medium?" with real numbers for your own usage.
 
-![Usage report - Projections tab](images/usage-report-projections.jpg)
+**Timings** - built around Task Time: the wall-clock time from when you press enter to when the AI fully returns control (one prompt's complete run, across all its tool-call turns). Cards show the avg task time, the longest task (and which model ran it), avg turns per task, and error & abort counts (failed tasks are recorded too - counted, but never averaged into Task Time). Charts break task time down by model and by day; a stacked bar shows where the time goes (thinking / responding / tools & overhead); a mini table compares user-prompt turns against AI (auto) turns; and the top-10 longest tasks are listed with model, thinking level and turn count.
 
-**Projections** - what your current usage pattern costs over time. The cards show the overall burn rate: avg $/day across all calendar days since recording began (idle days included), projected month (x30.4) and year (x365). The table breaks it down per model x thinking level: $/day, $/week, $/month, $/year derived from spend per **active day**. Rows built on fewer than 7 active days are marked `~` as estimates, and the overall figures are flagged until you have 14+ days of history.
+![Usage report - Timings tab](images/ur-timings.png)
+
+![Usage report - Projections tab](images/ur-projections.png)
+
+**Projections** - what your current usage pattern costs over time. The cards show the overall burn rate: avg $/day across all calendar days since recording began (idle days included), projected month (x30.4) and year (x365). The table breaks it down per model x thinking level: $/day, $/week, $/month, $/year derived from spend per **active day**. Rows built on fewer than 7 active days are marked `~` as estimates, the overall figures are flagged until you have 14+ days of history, and models with zero total cost are left out entirely.
 
 **What gets recorded per turn:** per-turn metrics + prompt-type classification flags. The actual text of prompts and responses is **never** recorded - only flags. This keeps the DB small (~100 bytes / row) and avoids storing sensitive content.
 
@@ -349,9 +390,56 @@ Prompt counts are split the same way as the footer widget: **User prompts** (wha
 
 ---
 
+<br><br>
+
+## **aftc-codex (knowledge base)**
+
+An opt-in knowledge base that makes the model follow your curated coding conventions. When enabled, pi-aftc-toolset injects a unified rules file + thinking-and-action guidance + a generated resource list into the model's system prompt (the cached prefix, so it is cheap), and gives the model a `codex_load` tool to fetch the full topic doc for a technology only when it is relevant.
+
+It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, HTML, Three.js, Chart.js, GSAP, PyTorch, Gradio, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, WinRAR, PowerShell, pi-extension, and the AFTC framework), organised into `languages/ libraries/ frameworks/ engines/ tools/`. It auto-detects your project's technologies and tells the model which docs to load.
+
+- Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
+- Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add with uniqueness checks by default; switch to propose-then-confirm in the config menu).
+- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. In the config menu, Start Fresh wipes the live copy and re-copies the shipped defaults, and Open Codex Resource Dir opens the live `resources/` folder in your file manager.
+- **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
+
+| Command | What it does |
+| --- | --- |
+| `/aftc-codex` | Open the config menu (alias `/codex`) |
+| `/aftc-codex-enable` | Enable the knowledge base (alias `/codex-enable`) |
+| `/aftc-codex-disable` | Disable + strip all codex from context/conversation (alias `/codex-disable`) |
+| `/aftc-codex-init` | Initialise: load rules + detect project + fetch relevant docs (alias `/codex-init`) |
+| `/aftc-codex-refresh` | Strip all codex from context, then re-init (alias `/codex-refresh`) |
+| `/aftc-codex-install` | Fresh install (or re-install) the codex to the data dir (alias `/codex-install`) |
+| `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
+| `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
+
+The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex.readme.md`.
+
+---
+
+<br><br>
+
+## **run_script (reliable large scripts)**
+
+The model's `run_script` tool runs a multi-line or large shell script reliably. It exists to work around a pi `bash`-tool bug: the `bash` tool feeds an inline command to the shell through standard input and, past a few KB, **silently truncates** it - the first part runs, the rest is dropped, with no error (silent partial execution). `run_script` instead writes the whole script to a temporary file and runs `bash <file>`, so there is no inline-size limit and multi-line / large scripts run to completion every time.
+
+The model picks it automatically: `run_script` for any multi-line or large script, the `bash` tool for short one-liners. It returns the combined output (truncated like the `bash` tool; full output saved to a temp file when truncated) plus the exit code, and kills the script's whole process tree on timeout or abort. Bash only (git-bash on Windows).
+
+Because this is a workaround for an upstream bug (reported to pi), it disables cleanly once pi ships a fix:
+
+| Command | What it does |
+| --- | --- |
+| `/run-script-on` | Enable the `run_script` tool (`/reload` to apply) |
+| `/run-script-off` | Disable the `run_script` tool (`/reload` to apply) |
+
+---
+
+<br><br>
+
 ## Bundled skills
 
-Load with `/skill:<name>`. The toolset ships with 33 live skills:
+Load with `/skill:<name>`. The toolset ships with 34 live skills:
 
 | Skill | Use for |
 | --- | --- |
@@ -366,12 +454,13 @@ Load with `/skill:<name>`. The toolset ships with 33 live skills:
 | `pinescript` | Pine Script v6 for TradingView |
 | `godot` | Godot 4.x engine with GDScript 2.0, MVC architecture, headless compile checks |
 | `ssh` | Remote SSH sessions, commands, interactive shells, transfers, and remote file management |
+| `aftc-codex` | Knowledge base: `codex_load` topic docs, self-education, structure maps |
 | `cache-audit` | Prompt-cache diagnostics workflow |
 | `bulk-read` | Concatenate many files into one markdown document |
 
 ---
 
-
+<br><br>
 
 ## Slash Commands
 
@@ -384,10 +473,13 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/aftc-help` | Grouped command/shortcut reference |
 | `/aftc-install` | Install runtime deps (SQLite + packaged SSH carrier) |
 | `/aftc-response-divider` | Toggle the themed divider above each assistant reply |
-| `/aftc-intro-stop` | Disable the AFTC startup animation (persists across sessions) |
-| `/aftc-intro-on` | Enable and play the AFTC startup animation (persists across sessions) |
+| `/aftc-intro-off` | Disable the AFTC text startup animation |
+| `/aftc-intro-on` | Enable and play the AFTC text startup animation |
 | `/cls` | Clear the terminal |
 | `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
+| `/aftc-open-data-dir` | Open the data directory in your OS file manager (alias `/aftc-odd`) |
+| `/run-script-on` | Enable the `run_script` tool (reliable large-script execution); `/reload` to apply |
+| `/run-script-off` | Disable the `run_script` tool (eg once pi fixes its bash truncation); `/reload` to apply |
 
 ### Interrupt
 
@@ -448,11 +540,16 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 | `/aftc-enable-think-processing` | Turn on inline `<think>…</think>` tag parsing (off by default; `/reload` to apply) |
 | `/aftc-disable-think-processing` | Turn off inline `<think>…</think>` tag parsing (`/reload` to apply) |
 
+### Providers
+
+Currently **disabled** — pi now registers providers natively. The module stays in the package and can be re-enabled in a future release.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |
 | --- | --- |
 | `Alt+C` | Clear the input editor |
+| `Alt+N` | Insert a newline at the cursor |
 | `Ctrl+T` | Toggle thinking blocks |
 
 ### Bundled themes
@@ -465,8 +562,42 @@ Switch themes with `/theme`.
 
 ---
 
+<br><br>
 
+## PI AFTC Toolset Defaults
 
+| Feature | Default state |
+| --- | --- |
+| Footer widget | Enabled |
+| SSH | Available (command-driven) |
+| Usage recording | Enabled (when SQLite installed) |
+| aftc-codex knowledge base | Disabled |
+| Audio notifications | Disabled (no sounds selected) |
+| run_script tool | Enabled |
+| Think-tag processing | Disabled |
+| Response divider | Enabled |
+
+---
+
+<br><br>
+
+## Data location
+
+The toolset stores its runtime data — usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`) and the generated report (`report.html`) — in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
+
+| OS | Data folder |
+| --- | --- |
+| **Windows** | `%APPDATA%\pi-aftc-toolset\data\` (eg `C:\Users\<you>\AppData\Roaming\pi-aftc-toolset\data\`) |
+| **Linux** | `$XDG_DATA_HOME/pi-aftc-toolset/data/`, falling back to `~/.local/share/pi-aftc-toolset/data/` |
+| **macOS** *(estimated)* | `~/Library/Application Support/pi-aftc-toolset/data/` |
+
+Set the `AFTC_TOOLSET_DATA_ROOT` environment variable to override the location (used by tests and power users).
+
+> **Uninstall note:** this folder lives outside the package, so `pi remove` does **not** delete it — your usage history and preferences remain after uninstall. Delete the folder above manually for a full clean-up.
+
+---
+
+<br><br>
 
 ## Updating
 
@@ -484,6 +615,8 @@ Then `/reload` in pi.
 
 ---
 
+<br><br>
+
 ## Uninstall
 
 ```bash
@@ -500,6 +633,8 @@ pi remove git:github.com/DarceyLloyd/pi-aftc-toolset
 Then `/reload` or restart pi.
 
 ---
+
+<br><br>
 
 ## Advanced installation
 
@@ -530,6 +665,8 @@ pi install /path/to/pi-aftc-toolset -l
 
 ---
 
+<br><br>
+
 ## Dependency installer
 
 `/aftc-install` (see [Slash Commands](#slash-commands)) installs and verifies:
@@ -545,6 +682,8 @@ Reload pi afterwards. The footer works without SQLite, but usage recording, repo
 
 ---
 
+<br><br>
+
 ## Requirements
 
 - pi CLI
@@ -553,6 +692,8 @@ Reload pi afterwards. The footer works without SQLite, but usage recording, repo
 - Python and uv for the packaged SSH carrier. `/aftc-install` verifies the carrier environment.
 
 ---
+
+<br><br>
 
 ## Development
 
@@ -566,103 +707,44 @@ After edits, reload pi with `/reload`.
 
 ---
 
+<br><br>
+
 ## Persistent files
 
-Runtime data lives under `.pi-aftc-toolset/data/` inside the installed
-package directory. Every file is created lazily from built-in defaults —
-none of it is shipped or committed; the whole `.pi-aftc-toolset/`
-directory is excluded from git and npm publishing.
+Runtime data lives in a per-user folder **outside** the installed package
+(see [Data location](#data-location)), so it survives `pi update`. Every
+file is created lazily from built-in defaults — none of it is shipped or
+committed, and the whole data dir is excluded from git and npm publishing.
 
 | File | Purpose |
 | --- | --- |
 | `config.json` | Cross-session extension configuration: footer AVG timeframe, footer on/off, response divider on/off, and intro animation on/off. Created with defaults on first access; only re-written when a value actually changes. |
-| `replay.json` | Saved replay prompt. |
 | `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password). Local-only, never shipped. |
 | `turns.db` | SQLite usage database |
 | `report.html` | Latest generated usage report |
 
-**Updating the extension resets this data.** pi replaces the entire
-package directory when a package updates, so an update is a fresh
-install: preferences return to defaults, saved SSH connections and the
-usage database are discarded and re-created empty on next use.
+**Your data survives updates.** Because the data dir is outside the
+package, `pi update` no longer wipes it. Upgrading from a version that
+stored data inside the install folder moves any still-present files over
+automatically on first run (data already lost to an older update can't be
+recovered).
 
 In-memory only (per-session, not persisted): cache accumulators, model info, per-turn timings, context-window clock start time.
 
 SSH connections, shell buffers, credentials, and carrier processes are in-memory only and are cleared during shutdown.
 
----
----
-
-# **Model findings**
-
-## **Kimi K3 (kimi) - Allegretto plan**
-New supposed to be good. Testing in progress.
-
-### Usage allowance
-After just 17 minutes in and I've used 2% of my weekly quota, context window only at 10% and on first prompt, instructions were to read some pi documentation files. 10% of my 4 hour quote was used. So it doesn't matter how good thing thing may be, its not good for long coding sussions unless you sub to the $99 or $199 plan. And I would rather get the openai gpt 5.6 plan for $100 than do that and use terra on medium all day long.
-
-### Model thinking evaluation
-There is no choice other than max (there is min and max comming apparently). It's slow, very slow, but from reading what it's thinking I like it more than GLM 5.2 and Mimimax M3 etc. It doesn't appear to second guess itself as much as the others, but it does which is good but not constantly to almost the point of looping like GLM and Minimax models do.
-
-### Model coding capabilities
-My first test was to ask it to ask pi for extension development documentation and to read them, then to understand the types of modals, user inputs, especially the full screen one. Then asked it to create a slash command list a few things with up and down arrrow key navigation usage... It took 17 minutes...
-
-### Design capabilities
-I've fed it some images of UI's I like and it has re-created them in html, css and js and in Java with quite impressive results. I've not tested it for complete website design yet but judging by what it can analyse, if you are detailed enough with your description it probably wont have any issue building it.
-
-### Model issues
-- Slow, very slow, when giving it practical tasks to process it you best go do something else.
-- The `Allegretto plan` is not much use for anyone who wants to use this all day long during a working week, not to mention it's too slow to be used as an assistant, its a model you leave running on a task for a long time and then come back to evaluate what it has crated/done and for you to adjust/cleanup as you should be doing anyway.
-
-### Service issues
-- Lots of server timeouts (servers are overloaded)
-- Lots of server 404s (servers are overloaded)
 
 ---
 
-## **GLM 5.2 (z.ai) - Pro plan**
+<br><br>
 
-#### Usage allowance
-If your initial setup *.md file(s) use about 10 to 15% and your tasks take this up to about 40 to 50% over around an 1 to 2 hours you will use up your 5 hour limit in about 1.5 to 2.5 hours. This at peak times will use about 25% of your weekly allowance. At non peak hours it will use up around 10 to 15%.
+## Change log
 
-### Model thinking evaluation
-It's long winded, very very slow at peak times and has a lot of "hang on" and "this is getting complex moments". It does mostly get there in the end, but it's not pop off and make a cuppa and it will be done, it's fire up a movie and you will have 4 to 5 break where you need to intervene if you have planned your setup.md and tasks.md correctly. Otherwise your going to be telling it to carry on every 10 to 25 minutes.
-
-### Model coding capabilities
-Its fine with typescript, javascript, python and php, not so good with go lang. It works well with docker and tooling.
-
-### Design capabilities
-It's one of the strongest out there, far better than most as long as you give it a lot of direction and a lot of details. It's better than anything I've seen from open ai and that includes sol. Qwen 3.7 Max however will give it a run for its money.
-
-### Model issues
-It's generally stable, I've not seen it go mental like some of the others do but it's thining is often second guessing itself, a lot, but it does typically get there in the end. It does help if you read what it's thinking and steer it.
-
---- 
-
-
-## **Minimax M3 - Plus plan**
-
-#### Usage allowance
-Has the 5 hour window usage limit, you can use it up if you start loading up that 1M context window but the weekly allowance is much better than the rest, by far. ZAI with GLM5.2, you wont get a week out the pro plan, with minimax plus plan nad using nothing but the Minimax M3 model you will. The 5 hour limit will be the blocker mostly, which will stop you from breaching the weekly limit.
-
-### Model thinking evaluation
-A lot like GLM 5.2, long winded, a lot of second guessing but not as bad.
-
-### Model coding capabilities
-Not as good as GLM 5.2, it's mostly fine with typescript, javascript, html, css etc but when you get into complex features even in typescript node it will end up in an extremely long thinking loop and you will have to stop it. And switch model. I do notice a lot of, "I broke...", "I repalced too much...", which is not good as it then spend a long time working out how to repair what once was working... I wouldn't give this model complex stuff to do, no matter what thinking mode it's on.
-
-### Design capabilities
-Its not bad, not the best and not the worst, I would say 3rd, tie for 1st place is Qwen 3.7 Max and GLM 5.2.
-
-### Model issues
-It can go mental, it can start repeating the same bit of text or sentence over and over again from where it gets those conversations from I have no idea, it mostly starts to happen when you get to about 30% of the 1M context window and above. There's also formatting issues with the think tags, but nothing a small modification to a parser can't handle. It also seems to create a NUL file on windows for no reason.
-
-### Other mentions
-- If you want to cancel your plan, go to the pricing page, in very small text under a banner after scrolling down the page a bit you will find a cancel link. Took me ages to find it... Sneaky... Very sneaky...
-
+The full change history is now in [change-log.txt](./change-log.txt).
 
 ---
----
+
+<br><br>
 
 # License
 

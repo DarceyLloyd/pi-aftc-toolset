@@ -1131,16 +1131,18 @@ export function createCd(pi: ExtensionAPI): void {
 				);
 				return;
 			}
-			const items: { value: string; label: string }[] = [];
+			const items: { value: string; label: string; description?: string }[] = [];
 			for (let i = MIN_DEPTH; i <= MAX_DEPTH; i++) {
 				items.push({
 					value: String(i),
-					label: i === maxDepth ? `${i} (current)` : String(i),
+					label: String(i),
+					description: i === maxDepth ? " (current)" : undefined,
 				});
 			}
 			const choice = await showMenu(ctx, {
 				title: "Set /cd picker listing depth",
 				items,
+				labelWidth: 3,
 				initialIndex: Math.max(0, Math.min(MAX_DEPTH, maxDepth) - MIN_DEPTH),
 			});
 			if (choice === null) return;

@@ -75,13 +75,14 @@ export function createTheme(pi: ExtensionAPI): void {
                 return;
             }
 
+            // ---- 3. Find current theme so we can pre-select + mark it ----
+            const currentName = readCurrentThemeName(ctx.ui);
             const items = themes.map((t: { name: string }) => ({
                 value: t.name,
                 label: t.name,
+                description: t.name === currentName ? " (current)" : undefined,
             }));
-
-            // ---- 3. Find current theme so we can pre-select it ----
-            const currentName = readCurrentThemeName(ctx.ui);
+            const themeLabelWidth = items.reduce((m, i) => Math.max(m, i.label.length), 0) + 1;
             const currentIndex = currentName
                 ? items.findIndex((i) => i.value === currentName)
                 : -1;
@@ -118,6 +119,7 @@ export function createTheme(pi: ExtensionAPI): void {
                 title: "Select theme",
                 body: [currentName ? `Current: ${currentName}` : "Pick a theme to switch to"],
                 items,
+                labelWidth: themeLabelWidth,
                 initialIndex: currentIndex >= 0 ? currentIndex : 0,
                 help: "↑↓ = preview   PgUp/PgDn = page   Ctrl+PgUp/PgDn = top/bottom   Enter = commit   Esc = revert",
                 onHighlight: (item) => previewTheme(item.value),

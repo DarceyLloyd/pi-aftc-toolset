@@ -45,6 +45,8 @@ secrets.json
 backup.ps1
 dev.md
 rules.md
+# aftc-codex build spec (relocated from .dev/ to the project root; dev doc, not shipped)
+codex-feature-plan.md
 docs/
 tests/
 test/
@@ -61,6 +63,16 @@ test/
 # Archived skills (kept in repo, not shipped to npm)
 skills/*.rar
 skills/*.zip
+
+# Audio notification: build source (miniaudio.h + play_sound.c) not needed at runtime
+extensions/aftc-toolset/bin/src/
+# Audio notification: WAV originals (MP3s are the shipped format)
+extensions/aftc-toolset/data/aftc-audio-notifications/*.wav
+# Shipped defaults live under extensions/aftc-toolset/data/ (aftc-codex seed,
+# aftc-audio-notifications MP3s, aftc-intro audio). The MP3s + codex seed ship;
+# the maintainer dev tooling that processes the audio does NOT ship.
+extensions/aftc-toolset/data/**/*.py
+extensions/aftc-toolset/data/**/*.bat
 
 # ── pi runtime data ──────────────────────────────────────
 # Per-user caches and extension runtime data (user settings, SSH

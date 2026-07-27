@@ -53,11 +53,9 @@ secrets.json
 test/
 tests/
 .dockerignore
-docs/
 rules.md
 dev.md
 skills/cache-audit/SKILL.old
-AGENTS.md
 
 # Archived skills
 skills/*.rar

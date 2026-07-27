@@ -71,7 +71,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { TurnRecord, TurnRecorder } from "./types";
+import type { TaskRecord, TurnRecord, TurnRecorder } from "./types";
 import { getDb } from "./db";
 
 // -----------------------------------------------------------------------------
@@ -142,6 +142,32 @@ class UsageRecorder implements TurnRecorder {
             );
         } catch (err) {
             console.log(`[aftc-toolset] SQLite insert error: ${(err as Error).message}`);
+        }
+    }
+
+    recordTask(record: TaskRecord): void {
+        const db = getDb();
+        if (!db) return;
+        // Defensive: a task duration must be a non-negative finite number.
+        if (!Number.isFinite(record.taskMs) || record.taskMs < 0) return;
+        try {
+            db.prepare(
+                `INSERT INTO tasks (
+                    session_id, prompt_index, timestamp, task_ms, stop_reason,
+                    model_name, thinking_level, turn_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ).run(
+                record.sessionId,
+                record.promptIndex,
+                record.timestamp,
+                record.taskMs,
+                record.stopReason,
+                record.modelName,
+                record.thinkingLevel,
+                record.turnCount,
+            );
+        } catch (err) {
+            console.log(`[aftc-toolset] SQLite tasks insert error: ${(err as Error).message}`);
         }
     }
 }

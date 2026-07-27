@@ -16,9 +16,17 @@ Renders a 4-line bar showing:
   `model · THINKING │ CTX Window │ Turn Cache X% / Avg Y% │ Cached A / New B │ Tk ↑P Tk ↓Q`
   The line never ends with a trailing `│` — the final segment is the
   value, never a divider.
-- **Line 2**: last-turn cost, context-session total cost (sum of all
-  turn costs in this context), **user-prompted turns vs AI-initiated
-  turns** (a single user prompt with no tool calls shows
+- **Line 2**: last-turn cost, **Task Time** (wall-clock from the user
+  pressing enter to the agent returning control — one user prompt's
+  full run across all its turns; ticks live while the agent works, then
+  holds the last task's duration (formatted like Session Time).
+  An error/abort stops the timer and shows the time to that point, but
+  is NOT recorded — a failed duration isn't a useful metric, so only
+  completed tasks are written to the DB. Runs through questions,
+  steering, retries and compaction, since none of those settle the
+  agent), context-session total cost (sum
+  of all turn costs in this context), **user-prompted turns vs
+  AI-initiated turns** (a single user prompt with no tool calls shows
   `User 1 / AI 0`; the AI counter only increments on tool-call
   continuations), context-window time, $/hr and $/min burn rates.
 - **Line 3**: active tool count + token estimate, skills

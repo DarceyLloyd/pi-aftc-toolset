@@ -4,7 +4,7 @@ Local persistent storage for named SSH connection settings.
 
 ## Storage
 
-- Records are stored at `.pi-aftc-toolset/data/ssh.json`.
+- Records are stored at `<persistent-data-dir>/ssh.json` (OS-specific; see `paths.readme.md`).
 - Each record contains its display name, username, host, optional port, optional timeout, optional private-key path, and an optional saved password.
 - The file also holds one preference: `ssh_session_auto_accept` (default
   false). When true, NEW host keys are trusted without the local approval

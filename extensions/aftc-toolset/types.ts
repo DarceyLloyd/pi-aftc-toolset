@@ -64,6 +64,33 @@ export interface TurnRecord {
     promptKind: string;
 }
 
+
+/**
+ * One completed TASK (a single user prompt's full agent run: enter → settle).
+ * Recorded by core.ts on `agent_settled` via TurnRecorder.recordTask. A task spans
+ * one or more assistant turns; `taskMs` is the wall-clock duration the user waited
+ * from pressing enter to the agent returning control (complete, error, or abort).
+ * Questions (ask_user_question) do NOT end a task — the agent does not settle while
+ * waiting for the answer, so the timer runs through them. See usage-recording.readme.md.
+ */
+export interface TaskRecord {
+    /** Stable per-runtime-session id (matches TurnRecord.sessionId). */
+    sessionId: string;
+    /** 1-based user-prompt number this task belongs to. */
+    promptIndex: number;
+    /** ms since epoch at task START (first agent_start). */
+    timestamp: number;
+    /** Wall-clock task duration in ms (enter → settle). */
+    taskMs: number;
+    /** How the task ended: "complete" | "error" | "aborted". */
+    stopReason: string;
+    /** Model that ran the task (eg "MiniMax-M3"). */
+    modelName: string;
+    /** Thinking level (eg "high", "low", "off"). */
+    thinkingLevel: string;
+    /** Number of assistant turns the task took. */
+    turnCount: number;
+}
 /**
  * Surface that core.ts relies on from the thinking module.
  *
@@ -73,6 +100,8 @@ export interface TurnRecord {
  */
 export interface TurnRecorder {
     recordTurn(record: TurnRecord): void;
+    /** Record one settled task (user prompt → settle, any outcome). See TaskRecord. */
+    recordTask(record: TaskRecord): void;
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -245,10 +274,26 @@ export interface FooterDataProvider {
      *  1Hz ticker. Null when pi hasn't computed one yet (e.g. before
      *  the first LLM response). */
     getContextUsage(): ContextUsageView | null;
+    /** Task-time view for the footer "Task Time" segment: the wall-clock duration
+     *  of the current (running) or last completed task (one user prompt's full agent
+     *  run, enter → settle). See TaskTimeView. */
+    getTaskTime(): TaskTimeView;
 }
 
 export interface ContextUsageView {
     tokens: number | null;
     contextWindow: number;
     percent: number | null;
+}
+
+/** Snapshot of the task timer for the footer "Task Time" segment. */
+export interface TaskTimeView {
+    /** True while a task is in flight (enter pressed, not yet settled). */
+    running: boolean;
+    /** Live elapsed ms when running; the last task's duration when idle. */
+    elapsedMs: number;
+    /** Last completed task duration in ms (0 before the first task). */
+    lastMs: number;
+    /** How the last task ended: "" (none yet) | "complete" | "error" | "aborted". */
+    lastStopReason: string;
 }

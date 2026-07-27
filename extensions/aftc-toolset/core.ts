@@ -338,6 +338,15 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     let lastResponseMs = 0;
     const thinkingTimes: number[] = [];
     const responseTimes: number[] = [];
+    // Task timer — wall-clock from the user pressing enter (first agent_start)
+    // to the agent returning control (agent_settled: complete/error/abort).
+    // Spans every turn of one user prompt's run; runs THROUGH questions
+    // (ask_user_question doesn't settle the agent) and retries/compaction.
+    let taskStartMs = 0;            // 0 = idle; else wall-clock at first agent_start
+    let taskTurnCount = 0;          // assistant turns seen during the current task
+    let lastTaskMs = 0;             // last completed task duration
+    let lastTaskStopReason = "";    // "" | "complete" | "error" | "aborted"
+    let lastAssistantStopReason: string | undefined;  // last assistant message stopReason
 
     // Pi's own context-usage snapshot. Captured on every message_end
     // (after the new turn is added) and on every 1Hz ticker pulse so
@@ -395,6 +404,11 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         lastResponseMs = 0;
         thinkingTimes.length = 0;
         responseTimes.length = 0;
+        taskStartMs = 0;
+        taskTurnCount = 0;
+        lastTaskMs = 0;
+        lastTaskStopReason = "";
+        lastAssistantStopReason = undefined;
         cachedSession = null;
         // Re-prime the cache so the post-reset render doesn't wait up to
         // 1s for the next ticker tick.
@@ -664,6 +678,43 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         availableSkills = skillsArr.filter(s => s.name);
     });
 
+    // Task timer START is in the message_start(user) handler below: it starts on
+    // a new user prompt (base/continuation/follow-up) but NOT on a steering prompt.
+    // Retries, compaction and steering don't settle the agent (pi's run loop drains
+    // them before the single agent_settled), so the timer spans them automatically.
+
+    // Task timer: stop + record on agent_settled — the ONLY "truly returned to
+    // user" hook. Covers complete / error / abort (via the last assistant
+    // stopReason). Questions do NOT settle the agent (ask_user_question blocks
+    // waiting for the answer), so the timer naturally runs through them.
+    pi.on("agent_settled", async () => {
+        if (taskStartMs === 0) return;
+        const taskMs = Math.max(0, Date.now() - taskStartMs);
+        const raw = lastAssistantStopReason;
+        const stopReason = raw === "error" ? "error" : raw === "aborted" ? "aborted" : "complete";
+        // Show the last task's duration in the footer whatever its outcome, so a
+        // failed task still displays how long the user waited before the error/abort.
+        lastTaskMs = taskMs;
+        lastTaskStopReason = stopReason;
+        // Record EVERY settled task — completed tasks feed the Task Time
+        // averages; error/abort rows are kept (duration = time-to-failure) so
+        // the usage report's Timings tab can count failures. The report only
+        // averages stop_reason='complete' rows, so failed durations never
+        // pollute the Task Time metric.
+        turnRecorder.recordTask({
+            sessionId: _sessionId,
+            promptIndex: _currentPromptIndex || 0,
+            timestamp: taskStartMs,
+            taskMs,
+            stopReason,
+            modelName: model.name || "",
+            thinkingLevel: model.thinkingLevel || "",
+            turnCount: taskTurnCount,
+        });
+        taskStartMs = 0;
+        taskTurnCount = 0;
+    });
+
     pi.on("input", async (event, _ctx) => {
         // The docs expose input.streamingBehavior for mid-stream user
         // messages. These are still user prompts, but they are useful to
@@ -731,6 +782,16 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                 : _pendingFollowupPrompt ? "followup"
                 : _pendingContinuationPrompt ? "continuation"
                 : "base";
+            // Task timer: start on a new user prompt (the user pressing enter).
+            // Self-healing — if a timer is already running (a previous task that didn't
+            // settle), reset + restart it. Skip steering prompts: those are sent mid-task
+            // and must not discard the ongoing task's elapsed time (steering doesn't
+            // settle the agent, so the timer keeps running through it).
+            if (_pendingStreamingBehavior !== "steer") {
+                taskStartMs = Date.now();
+                taskTurnCount = 0;
+                lastAssistantStopReason = undefined;
+            }
             if (!sessionStarted) {
                 // First user message of this context window. _sessionStartTime
                 // is null (resetTiming cleared it on session_start) - start
@@ -765,6 +826,10 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     pi.on("message_end", async (event, _ctx) => {
         const msg = (event as any).message;
         if (msg.role !== "assistant") return;
+        // Task timer: track the last assistant stopReason (for the agent_settled
+        // complete/error/abort classification) and count this turn into the task.
+        lastAssistantStopReason = (msg as any).stopReason;
+        if (taskStartMs !== 0) taskTurnCount++;
 
         // Per-turn timing — thinking (to first output) and response (total).
         // Done BEFORE the usage guard so aborted / empty / error turns still
@@ -905,9 +970,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         const cr = acc.lastTurnCacheRead;
         const fresh = Math.max(0, acc.lastTurnInput - cr);
         const total = acc.lastTurnInput + acc.lastTurnOutput;
-        console.log(
-            `[aftc-toolset] turn: ${fmt(total)} tok · in ${fmt(acc.lastTurnInput)} (${fmt(cr)} cached / ${fmt(fresh)} new) · out ${fmt(acc.lastTurnOutput)} · $${acc.cost.toFixed(4)} · think ${fmtDurationShort(lastThinkingMs)} · resp ${fmtDurationShort(lastResponseMs)}`
-        );
     });
 
     // -----------------------------------------------------------------------
@@ -1144,5 +1206,11 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         getAvgResponseMs: () => avgMs(responseTimes),
         onTick: onTickFull,
         getContextUsage: () => contextUsage,
+        getTaskTime: () => ({
+            running: taskStartMs !== 0,
+            elapsedMs: taskStartMs !== 0 ? Math.max(0, Date.now() - taskStartMs) : lastTaskMs,
+            lastMs: lastTaskMs,
+            lastStopReason: lastTaskStopReason,
+        }),
     };
 }

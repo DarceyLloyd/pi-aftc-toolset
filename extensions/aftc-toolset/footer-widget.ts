@@ -98,6 +98,22 @@ function fmtDurationHMS(ms: number): string {
     return `${s}s`;
 }
 
+/** Session-style duration matching the footer's Session Time (core.ts
+ *  fmtDurationLong): drops trailing zero units and handles days —
+ *  "0s" / "5s" / "1m" / "1m 30s" / "2h 14m" / "1d 2h". */
+function fmtDurationLong(ms: number): string {
+    if (ms <= 0) return "0s";
+    const s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+    if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    if (m > 0) return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
+    return `${sec}s`;
+}
+
 /** hit% = cacheRead / (cacheRead + input). Returns formatted string. */
 function hitRate(cached: number, input: number): string {
     const total = cached + input;
@@ -178,7 +194,7 @@ function coloredToken(formatted: string, c: FooterColors): string {
 // small named fragments into a parts array, and joins it with single
 // spaces. To re-order segments, move their entries in the array; to
 // recolour a field, swap its c1/c2/c3 wrapper. Every line starts with
-// the "▏ " bar prefix and never ends with a trailing divider.
+// the "│ " bar prefix and never ends with a trailing divider.
 // ──────────────────────────────────────────────────────────────────────
 
 /** Line 1 — model · thinking │ CTX Window (X%) │ Turn Cache % / Session Avg % │ Cached / New */
@@ -216,13 +232,14 @@ function buildModelLine(data: FooterDataProvider, c: FooterColors): string {
 
     const splitSeg = `${c.c2("Cached")} ${coloredToken(fmt(a.cacheRead), c)} / ${c.c2("New")} ${coloredToken(fmt(a.input), c)}`;
 
-    return ["▏ " + modelSeg, c.c3("│"), ctxSeg, c.c3("│"), cacheSeg, c.c3("│"), splitSeg].join(" ");
+    return ["│ " + modelSeg, c.c3("│"), ctxSeg, c.c3("│"), cacheSeg, c.c3("│"), splitSeg].join(" ");
 }
 
 /** Line 2 — Prompts User/AI | Turn cost │ Session Time │ Session Time Cost │ $/hr │ $/min */
 function buildCostLine(data: FooterDataProvider, c: FooterColors): string {
     const a = data.getAccumulator();
     const cached = data.getCachedSession();
+    const task = data.getTaskTime();
 
     // ── Values ──────────────────────────────────────────────────────
     const userTurns = String(a.userTurns);
@@ -241,12 +258,14 @@ function buildCostLine(data: FooterDataProvider, c: FooterColors): string {
     // ── Fragments ───────────────────────────────────────────────────
     const promptsSeg = `${c.c2("Prompts:")} ${c.c2("User")} ${c.c1(userTurns)} / ${c.c2("AI")} ${c.c1(aiTurns)}`;
     const turnCostSeg = `${c.c2("Turn cost")} ${c.c1(turnCost)}`;
+    const taskTimeStr = fmtDurationLong(task.elapsedMs);
+    const taskTimeSeg = `${c.c2("Task Time")} ${c.c1(taskTimeStr)}`;
     const timeSeg = `${c.c2("Session Time")} ${c.c1(ctxTime)}`;
     const timeCostSeg = `${c.c2("Session Time Cost")} ${c.c1(ctxTotalCost)}`;
     const hourSeg = `${c.c1(perHour)}${c.c2("/hr")}`;
     const minSeg = `${c.c1(perMin)}${c.c2("/min")}`;
 
-    return ["▏ " + promptsSeg, c.c3("|"), turnCostSeg, c.c3("│"), timeSeg, c.c3("│"), timeCostSeg, c.c3("│"), hourSeg, c.c3("│"), minSeg].join(" ");
+    return ["│ " + promptsSeg, c.c3("|"), turnCostSeg, c.c3("│"), taskTimeSeg, c.c3("│"), timeSeg, c.c3("│"), timeCostSeg, c.c3("│"), hourSeg, c.c3("│"), minSeg].join(" ");
 }
 
 /** Line 3 — Turn Time │ Turn Response Time │ Tools ~tokens (│ Skills used u/a) */
@@ -269,7 +288,7 @@ function buildTimingLine(data: FooterDataProvider, c: FooterColors): string {
     const respSeg = `${c.c2("Turn Response Time")} ${c.c1(respLast)} / ${c.c2("Session Avg")} ${c.c1(respAvg)}`;
     const toolsSeg = `${c.c1(toolCount)} ${c.c2("Tools")} ~${toolTokens}`;
 
-    const parts = ["▏ " + thinkSeg, c.c3("│"), respSeg, c.c3("│"), toolsSeg];
+    const parts = ["│ " + thinkSeg, c.c3("│"), respSeg, c.c3("│"), toolsSeg];
     if (showSkills) {
         const skillsSeg = `${c.c2("Skills used")} ${c.c1(String(usedSkillCount))}/${c.c1(String(skillAvail))}`;
         parts.push(c.c3("│"), skillsSeg);
@@ -296,7 +315,7 @@ function buildAveragesLine(data: FooterDataProvider, c: FooterColors): string {
     const thinkSeg = `${c.c2("Think time")} ${c.c1(tfThink)}`;
     const respSeg = `${c.c2("Response time")} ${c.c1(tfResp)}`;
 
-    return ["▏ " + costSeg, c.c3("|"), promptsSeg, c.c3("|"), cacheSeg, c.c3("|"), thinkSeg, c.c3("|"), respSeg].join(" ");
+    return ["│ " + costSeg, c.c3("|"), promptsSeg, c.c3("|"), cacheSeg, c.c3("|"), thinkSeg, c.c3("|"), respSeg].join(" ");
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -419,7 +438,7 @@ function createFooterComponent(
                 const allowance = data.getAllowance();
                 if (allowance) {
                     const allowanceLine = buildAllowanceLine(allowance, theme);
-                    if (allowanceLine) lines.push(`▏ ${allowanceLine}`);
+                    if (allowanceLine) lines.push(`│ ${allowanceLine}`);
                 }
 
                 return lines.map((l) => line(l, w));
@@ -511,7 +530,6 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
     // (loaded above) is the source of truth for "should this be
     // visible right now".
     pi.on("session_start", async (_event, ctx) => {
-        console.log(`[aftc-toolset] session_start — footer active=${active}, hasUI=${ctx.hasUI}`);
         if (active) show(ctx);
     });
 

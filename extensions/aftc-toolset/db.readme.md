@@ -7,7 +7,7 @@ use.
 ## What it does
 
 Lazy-opens the SQLite database at
-`<package-root>/.pi-aftc-toolset/data/turns.db` on first call to
+`<persistent-data-dir>/turns.db` (OS-specific; see `paths.readme.md`) on first call to
 `getDb()`. Creates the `turns` table if it doesn't exist and runs
 any pending migrations.
 
@@ -55,6 +55,24 @@ because the column already exists):
 - `base_prompt`, `steering_prompt`, `followup_prompt`,
   `continuation_prompt`
 - `prompt_kind`
+
+A second table, `tasks`, holds per-task metrics (one row per completed
+task — a user prompt's full agent run, enter → settle; recorded by
+core.ts on `agent_settled`):
+
+```sql
+CREATE TABLE IF NOT EXISTS tasks (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id      TEXT NOT NULL DEFAULT '',
+    prompt_index    INTEGER NOT NULL DEFAULT 0,
+    timestamp       INTEGER NOT NULL,
+    task_ms         INTEGER NOT NULL,
+    stop_reason     TEXT NOT NULL DEFAULT '',
+    model_name      TEXT,
+    thinking_level  TEXT,
+    turn_count      INTEGER NOT NULL DEFAULT 0
+);
+```
 
 For the full column reference and what each `prompt_kind` value
 means, see `usage-recording.readme.md`.

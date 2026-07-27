@@ -8,7 +8,7 @@ keyboard shortcut this extension registers.
 Renders a `ctx.ui.select` dialog grouped by category:
 
 - **General** - `/aftc-help`, `/aftc-install`, `/cls`, `/theme`
-- **Response** - `/aftc-response-divider`, `/aftc-intro-stop`, `/aftc-intro-on`
+- **Response** - `/aftc-response-divider`, `/aftc-intro-off`, `/aftc-intro-on`
 - **Interrupt** - `/aftc-stop`, `/stfu`
 - **Navigation** - `/cd`, `/cd-set-max-depth`, `/dir`, `/ls`, `/cwd`
 - **Footer / cache / timing** - `/aftc-footer`,

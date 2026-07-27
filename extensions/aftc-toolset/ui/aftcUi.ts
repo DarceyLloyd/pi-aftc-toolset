@@ -416,6 +416,8 @@ export interface AftcMenuOptions {
     fullscreen?: boolean;
     /** Fires whenever the highlight actually moves (live-preview use-cases). */
     onHighlight?: (item: AftcMenuItem, index: number) => void;
+    /** Pad item labels to this width so descriptions align in a vertical column. */
+    labelWidth?: number;
 }
 
 /**
@@ -521,14 +523,19 @@ export class AftcMenu implements Focusable {
         const panelW = ui.panelWidth(width);
         const innerW = Math.max(1, panelW - 2);
         const items = this.options.items;
-        const bodyLines = this.options.body ?? [];
+        const rawBody = this.options.body ?? [];
+        // Word-wrap body text to the panel width so long lines flow within
+        // the box instead of being clipped at the edge (mirrors showViewer).
+        const bodyLines = rawBody.flatMap((line) =>
+            line.trim().length === 0 ? [""] : Array.from(wrapTextWithAnsi(line, Math.max(1, innerW - 1))),
+        );
         const maxVisible = ui.listViewport(termH, MENU_CHROME_LINES + bodyLines.length);
 
         const panel: string[] = [];
         panel.push(ui.panelTop(this.options.title, innerW));
         panel.push(ui.panelBlank(innerW));
         for (const line of bodyLines) {
-            panel.push(ui.panelRow([ui.span(` ${line}`)], innerW));
+            panel.push(ui.panelRow([ui.span(line.trim().length === 0 ? " " : ` ${line}`)], innerW));
         }
         if (bodyLines.length > 0) panel.push(ui.panelBlank(innerW));
 
@@ -542,7 +549,7 @@ export class AftcMenu implements Focusable {
             for (let i = this.scrollOffset; i < viewportEnd; i++) {
                 const item = items[i];
                 if (!item) continue;
-                panel.push(ui.menuRow(item.label, item.description, { selected: i === this.selectedIndex }, innerW));
+                panel.push(ui.menuRow(item.label, item.description, { selected: i === this.selectedIndex, labelWidth: this.options.labelWidth }, innerW));
             }
             if (items.length > maxVisible) {
                 panel.push(ui.panelBlank(innerW));

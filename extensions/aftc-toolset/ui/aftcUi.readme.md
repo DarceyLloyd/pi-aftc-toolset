@@ -86,10 +86,14 @@ const value = await showMenu(ctx, {
     body: ["Pick one:"],      // optional lines above the list
     help: "...",               // optional footer override
     onHighlight: (item, i) => {}, // optional, fires on every move
+    labelWidth: 24,            // optional: pad labels so descriptions align in a column
 });
 ```
 
 Component class `AftcMenu` is exported for tests/custom hosts.
+`body` lines word-wrap to the panel width automatically (like `showViewer`) —
+a long line flows onto multiple rows inside the box, and the list viewport
+shrinks to fit. Never hand-wrap or shorten body text to make it fit.
 
 ### `showConfirm(ctx, options)` → `boolean`
 
@@ -176,6 +180,67 @@ an empty optional field resolves null.
 floating centred panel (same palette/chrome, 60% width) so the
 surrounding pi UI stays visible — required for live previews (`/theme`).
 Menus also bind Ctrl+PgUp/Ctrl+PgDn to first/last alongside Home/End.
+
+### Showing values & the current item
+
+Menus show state in two ways — don't mix them up, and **never** glue a
+value or marker onto a label (`OptionOn`, `Option[default]`); always
+separate it. The moving `❯` highlight is a third thing the toolkit owns —
+never replicate it.
+
+**Settings screen — a column of current values.** Give every row a stable
+label and put the value in the `description`, separated by ` | `. Pass
+`labelWidth` (>= the longest label) so the values align in a column.
+Yes/No for "Enabled"-style labels, ON/OFF for toggles, the literal value
+otherwise. `/aftc-codex` (`codex-commands.ts`) is the reference.
+
+```typescript
+const items = [
+    { value: "master", label: "AFTC Codex Enabled", description: enabled ? " | Yes" : " | No" },
+    { value: "guidance", label: "Thinking Guidance Injection", description: ` | ${on ? "ON" : "OFF"}` },
+];
+await showMenu(ctx, { title: "Menu:", labelWidth: 28, items });
+```
+
+If the menu re-renders in a loop after a toggle (a stable listing), track
+the highlighted index and pass it back as `initialIndex` so the selection
+stays on the toggled row instead of jumping to the top:
+
+```typescript
+let selectedIndex = 0;
+while (true) {
+    const choice = await showMenu(ctx, { title: "Menu:", labelWidth: 28, initialIndex: selectedIndex, items });
+    if (!choice) return;
+    selectedIndex = Math.max(0, items.findIndex((i) => i.value === choice));
+    /* toggle the preference, then the loop re-renders */
+}
+```
+
+One-shot menus that exit or navigate to another screen after a selection
+need NO index tracking — the highlight is gone with the screen. Only a
+looping settings menu (above) preserves it.
+
+**Picker — mark the effective item.** For a list where one item is the
+value currently in effect (active theme, current depth, current sound),
+mark that ONE row with a short `(current)` suffix in the `description`
+(aligned via `labelWidth`), state `Current: X` in the `body`, and
+pre-select it with `initialIndex`. Use the word `current`, not `selected`
+("selected" collides with the moving highlight).
+
+```typescript
+const items = themes.map((t) => ({
+    value: t.name, label: t.name,
+    description: t.name === currentName ? " (current)" : undefined,
+}));
+await showMenu(ctx, { title: "Select theme", labelWidth: maxNameLen + 1, initialIndex: currentIndex, items });
+```
+
+**Pure navigation list** (the `/cd` browser, a pick-only connection list):
+no current marker — `description` may carry a hint (path, id) but never a
+fake "current". Reset the highlight to the top only when the listing
+CONTENT changes (navigating into a new folder); keep it when only a value
+changed.
+
 
 ### `showViewer(ctx, options)` → `void`
 

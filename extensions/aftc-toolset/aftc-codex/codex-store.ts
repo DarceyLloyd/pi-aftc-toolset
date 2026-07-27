@@ -1,0 +1,485 @@
+/**
+ * pi-aftc-toolset / aftc-codex — data-dir layout, seeding, and resource access.
+ *
+ * Pure data module (no pi imports, no event subscriptions). Owns the two-copy
+ * model's "live copy" side:
+ *
+ *   - SHIPPED SEED (source only):  <packageRoot>/extensions/aftc-toolset/data/aftc-codex/
+ *   - USER LIVE COPY (per-user):   <codexRoot>/  (default <dataDir>/aftc-codex/)
+ *
+ * The shipped seed mirrors the live-copy layout: seed `data/aftc-codex/<x>` maps
+ * 1:1 to the live `<dataDir>/aftc-codex/<x>`. Only the seed's CONTENT is
+ * copied into the live codex root. The live copy survives `pi update` because it
+ * lives in the persistent OS data dir (see paths.ts).
+ *
+ * Responsibilities (step 2.2):
+ *   - Resolve the codex root: always <dataDir>/aftc-codex (one-way copy: seed -> live).
+ *   - First-run seed (pre-trained vs fresh), COPY-ONLY (never overwrites).
+ *   - Read resources on demand (codex_load + injection): search ACROSS ALL
+ *     category folders + top-level, fuzzy aliases, strip a leading "@".
+ *   - Spawn the ensure-entry-ids script (add missing unique entry IDs to resources).
+ *   - Spawn the sync script (regenerate codex-resource-list.md).
+ *
+ * Production-safety (spec Part G): every I/O op is best-effort try/catch -> fall
+ * back to a safe default / no-op; seeding never overwrites an existing file.
+ *
+ * See `codex-store.readme.md` for the full contract.
+ */
+
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { spawn } from "node:child_process";
+import { setPreference } from "../config";
+import { getDataDir, getPackageRoot } from "../paths";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The five well-known category folders (listed first; ANY other folder found
+ *  on disk, eg runtimes/, is appended after — retrieval never ignores folders). */
+export const CODEX_CATEGORIES = ["languages", "libraries", "frameworks", "engines", "tools"] as const;
+export type CodexCategory = (typeof CODEX_CATEGORIES)[number];
+
+/** All category folders: known order first, then any extra dirs (sorted). */
+function listCategoryFolders(resourcesDir: string): string[] {
+    let extras: string[] = [];
+    try {
+        extras = fs.readdirSync(resourcesDir, { withFileTypes: true })
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name)
+            .filter((name) => !(CODEX_CATEGORIES as readonly string[]).includes(name))
+            .sort();
+    } catch {
+        // fall through — known order only
+    }
+    return [...CODEX_CATEGORIES, ...extras];
+}
+
+/** Top-level guidance files that are not category docs. */
+const TOP_LEVEL_RESOURCES = [
+    "codex-rules.md",
+    "thought-and-action-guidance.md",
+    "markdown-guidance.md",
+] as const;
+
+/** A resolved resource read result. */
+export interface CodexResourceRead {
+    /** Absolute path to the file on disk. */
+    absPath: string;
+    /** Path relative to the resources dir (forward slashes). */
+    relPath: string;
+    /** Full file content. */
+    content: string;
+}
+
+/** Resource counts by category + totals. */
+export interface CodexCounts {
+    languages: number;
+    libraries: number;
+    frameworks: number;
+    engines: number;
+    tools: number;
+    topLevel: number;
+    total: number;
+}
+
+export interface CodexStore {
+    /** Resolved live codex root (<dataDir>/aftc-codex; one-way seed -> live). */
+    getRoot(): string;
+    /** <root>/resources. */
+    getResourcesDir(): string;
+    /** Shipped seed dir (<packageRoot>/extensions/aftc-toolset/data/aftc-codex). */
+    getSeedDir(): string;
+    /** Shipped seed resources dir. */
+    getSeedResourcesDir(): string;
+    /** True when the live copy exists and has a rules file (reconciled vs the pref). */
+    isSeeded(): boolean;
+    /** Copy-only seed from the package. "pretrained" = all docs; "fresh" = rules+guidance only. */
+    seed(mode: "pretrained" | "fresh"): { copied: number };
+    /** Seed if not already seeded (pre-trained default for headless). Returns true if seeded now. */
+    ensureSeeded(mode: "pretrained" | "fresh"): boolean;
+    /** Read a topic doc by name/alias across all folders + top-level. Null if unknown. */
+    readResource(topic: string): CodexResourceRead | null;
+    /** All valid topic names (basename without .md), sorted. */
+    listTopics(): string[];
+    /** Read the always-on rules file ("" if missing). */
+    readRules(): string;
+    /** Read thought-and-action-guidance.md ("" if missing). */
+    readGuidance(): string;
+    /** Read the generated codex-resource-list.md ("" if missing). */
+    readList(): string;
+    /** Resource counts by category. */
+    getCounts(): CodexCounts;
+    /** Spawn the sync script to regenerate codex-resource-list.md. Never throws. */
+    runSyncScript(): Promise<void>;
+    /** Spawn the ensure-entry-ids script on the live resources dir. Never throws. */
+    runEnsureIds(): Promise<void>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fuzzy topic aliases (spec D6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TOPIC_ALIASES: Record<string, string> = {
+    ts: "typescript",
+    typescript: "typescript",
+    py: "python",
+    python: "python",
+    js: "javascript",
+    javascript: "javascript",
+    pine: "pinescript",
+    pinescript: "pinescript",
+    gd: "godot",
+    gdscript: "godot",
+    godot: "godot",
+    // Special topics.
+    rules: "codex-rules",
+    guidance: "thought-and-action-guidance",
+    thinking: "thought-and-action-guidance",
+    list: "codex-resource-list",
+    resources: "codex-resource-list",
+    markdown: "markdown-guidance",
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function safeRead(absPath: string): string | null {
+    try {
+        return fs.readFileSync(absPath, "utf8");
+    } catch {
+        return null;
+    }
+}
+
+function listMarkdownNames(dir: string): string[] {
+    try {
+        return fs.readdirSync(dir)
+            .filter((n) => n.toLowerCase().endsWith(".md"))
+            .filter((n) => {
+                try { return fs.statSync(path.join(dir, n)).isFile(); } catch { return false; }
+            })
+            .sort();
+    } catch {
+        return [];
+    }
+}
+
+/** Recursively copy a directory tree, COPY-ONLY (never overwrites an existing
+ *  file). Returns the number of files actually copied. Best-effort per file. */
+function copyTreeNoOverwrite(srcDir: string, destDir: string): number {
+    let copied = 0;
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(srcDir, { withFileTypes: true });
+    } catch {
+        return 0;
+    }
+    for (const entry of entries) {
+        const src = path.join(srcDir, entry.name);
+        const dest = path.join(destDir, entry.name);
+        try {
+            if (entry.isDirectory()) {
+                fs.mkdirSync(dest, { recursive: true });
+                copied += copyTreeNoOverwrite(src, dest);
+            } else if (entry.isFile()) {
+                if (fs.existsSync(dest)) continue; // copy-only: never overwrite
+                fs.mkdirSync(path.dirname(dest), { recursive: true });
+                fs.copyFileSync(src, dest);
+                copied++;
+            }
+        } catch (err) {
+            console.log(`[aftc-toolset] codex seed: copy ${entry.name} failed: ${(err as Error).message}`);
+        }
+    }
+    return copied;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Factory
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function createCodexStore(): CodexStore {
+    function getRoot(): string {
+        return path.join(getDataDir(), "aftc-codex");
+    }
+
+    function getResourcesDir(): string {
+        return path.join(getRoot(), "resources");
+    }
+
+    function getSeedDir(): string {
+        return path.join(getPackageRoot(), "extensions", "aftc-toolset", "data", "aftc-codex");
+    }
+
+    function getSeedResourcesDir(): string {
+        return path.join(getSeedDir(), "resources");
+    }
+
+    function isSeeded(): boolean {
+        try {
+            // Top-level rules file lives at the codex ROOT (not in resources/).
+            const rulesPath = path.join(getRoot(), "codex-rules.md");
+            return fs.existsSync(rulesPath);
+        } catch {
+            return false;
+        }
+    }
+
+    function seed(mode: "pretrained" | "fresh"): { copied: number } {
+        const root = getRoot();
+        const resourcesDir = getResourcesDir();
+        const seedDir = getSeedDir();
+        const seedResourcesDir = getSeedResourcesDir();
+        let copied = 0;
+        try {
+            fs.mkdirSync(root, { recursive: true });
+            fs.mkdirSync(resourcesDir, { recursive: true });
+            // Always create the category folders (even empty) so the layout exists.
+            for (const cat of CODEX_CATEGORIES) {
+                fs.mkdirSync(path.join(resourcesDir, cat), { recursive: true });
+            }
+
+            // Top-level guidance files: seed dir root -> codex root (copy-only).
+            for (const name of TOP_LEVEL_RESOURCES) {
+                const src = path.join(seedDir, name);
+                const dest = path.join(root, name);
+                try {
+                    if (fs.existsSync(src) && !fs.existsSync(dest)) {
+                        fs.copyFileSync(src, dest);
+                        copied++;
+                    }
+                } catch (err) {
+                    console.log(`[aftc-toolset] codex seed: copy ${name} failed: ${(err as Error).message}`);
+                }
+            }
+
+            if (mode === "pretrained") {
+                // Copy the whole seed resources tree (copy-only).
+                copied += copyTreeNoOverwrite(seedResourcesDir, resourcesDir);
+            }
+            // Fresh mode: only the top-level files (already copied above) + empty categories.
+
+            setPreference("aftcCodexSeeded", true);
+        } catch (err) {
+            console.log(`[aftc-toolset] codex seed: error: ${(err as Error).message}`);
+        }
+        return { copied };
+    }
+
+    function ensureSeeded(mode: "pretrained" | "fresh"): boolean {
+        if (isSeeded()) return false;
+        seed(mode);
+        return true;
+    }
+
+    /** Resolve a topic name to an absolute file path across all folders + top-level. */
+    function resolveTopicPath(topic: string): { absPath: string; relPath: string } | null {
+        // Strip a leading "@" (some models add it) and normalise.
+        let raw = topic.trim();
+        if (raw.startsWith("@")) raw = raw.slice(1);
+        raw = raw.trim();
+        if (!raw) return null;
+        // Drop a trailing .md if supplied.
+        if (raw.toLowerCase().endsWith(".md")) raw = raw.slice(0, -3);
+        const lower = raw.toLowerCase();
+
+        // Explicit "category/name" form.
+        if (lower.includes("/")) {
+            const absPath = path.join(getResourcesDir(), `${raw}.md`);
+            if (fs.existsSync(absPath)) return { absPath, relPath: `${raw}.md`.replace(/\\/g, "/") };
+            return null;
+        }
+
+        const alias = TOPIC_ALIASES[lower] ?? lower;
+        const fileName = `${alias}.md`;
+        const resourcesDir = getResourcesDir();
+
+        // Top-level guidance files live at the codex ROOT (not in resources/).
+        const rootLevel = path.join(getRoot(), fileName);
+        if (fs.existsSync(rootLevel)) return { absPath: rootLevel, relPath: fileName };
+
+        // Then the resources dir (generated list + category docs).
+        const resLevel = path.join(resourcesDir, fileName);
+        if (fs.existsSync(resLevel)) return { absPath: resLevel, relPath: fileName };
+
+        // Then each category folder (known order first, then any extra dirs).
+        for (const cat of listCategoryFolders(resourcesDir)) {
+            const candidate = path.join(resourcesDir, cat, fileName);
+            if (fs.existsSync(candidate)) {
+                return { absPath: candidate, relPath: `${cat}/${fileName}` };
+            }
+        }
+        return null;
+    }
+
+    function readResource(topic: string): CodexResourceRead | null {
+        const resolved = resolveTopicPath(topic);
+        if (!resolved) return null;
+        const content = safeRead(resolved.absPath);
+        if (content === null) return null;
+        return { absPath: resolved.absPath, relPath: resolved.relPath, content };
+    }
+
+    function listTopics(): string[] {
+        const names = new Set<string>();
+        // Top-level guidance files at the codex root.
+        for (const name of listMarkdownNames(getRoot())) {
+            names.add(name.slice(0, -3));
+        }
+        // Resources dir (generated list + category docs).
+        const resourcesDir = getResourcesDir();
+        for (const name of listMarkdownNames(resourcesDir)) {
+            names.add(name.slice(0, -3));
+        }
+        for (const cat of listCategoryFolders(resourcesDir)) {
+            for (const name of listMarkdownNames(path.join(resourcesDir, cat))) {
+                names.add(name.slice(0, -3));
+            }
+        }
+        return [...names].sort();
+    }
+
+    function readRules(): string {
+        return safeRead(path.join(getRoot(), "codex-rules.md")) ?? "";
+    }
+
+    function readGuidance(): string {
+        return safeRead(path.join(getRoot(), "thought-and-action-guidance.md")) ?? "";
+    }
+
+    function readList(): string {
+        return safeRead(path.join(getResourcesDir(), "codex-resource-list.md")) ?? "";
+    }
+
+    function getCounts(): CodexCounts {
+        const counts: CodexCounts = {
+            languages: 0, libraries: 0, frameworks: 0, engines: 0, tools: 0,
+            topLevel: 0, total: 0,
+        };
+        // Top-level guidance files at the codex root.
+        counts.topLevel = listMarkdownNames(getRoot()).length;
+        const resourcesDir = getResourcesDir();
+        // Known categories report into their named fields; extra folders (eg
+        // runtimes/) count towards the total only (CodexCounts has fixed fields).
+        let allFolders = 0;
+        for (const cat of listCategoryFolders(resourcesDir)) {
+            const n = listMarkdownNames(path.join(resourcesDir, cat)).length;
+            allFolders += n;
+            if ((CODEX_CATEGORIES as readonly string[]).includes(cat)) {
+                counts[cat as CodexCategory] = n;
+            }
+        }
+        counts.total = counts.topLevel + allFolders;
+        return counts;
+    }
+
+    function runSyncScript(): Promise<void> {
+        return new Promise<void>((resolve) => {
+            try {
+                const scriptPath = path.join(
+                    getPackageRoot(), "extensions", "aftc-toolset", "aftc-codex",
+                    "scripts", "sync-codex-resources.mjs",
+                );
+                if (!fs.existsSync(scriptPath)) {
+                    resolve();
+                    return;
+                }
+                // M-M9: try `node`, fall back to the current executable. Arg array,
+                // no shell, so spaces in the path are safe.
+                const nodeExe = process.platform === "win32" ? "node.exe" : "node";
+                const child = spawn(nodeExe, [scriptPath], {
+                    stdio: "ignore",
+                    env: process.env,
+                });
+                const fallback = setTimeout(() => {
+                    try { child.kill(); } catch { /* ignore */ }
+                    resolve();
+                }, 10_000);
+                child.on("error", () => {
+                    // `node` not on PATH — retry with the running executable.
+                    clearTimeout(fallback);
+                    try {
+                        const retry = spawn(process.execPath, [scriptPath], {
+                            stdio: "ignore",
+                            env: process.env,
+                        });
+                        retry.on("error", () => resolve());
+                        retry.on("close", () => resolve());
+                    } catch {
+                        resolve();
+                    }
+                });
+                child.on("close", () => {
+                    clearTimeout(fallback);
+                    resolve();
+                });
+            } catch (err) {
+                console.log(`[aftc-toolset] codex sync spawn error: ${(err as Error).message}`);
+                resolve();
+            }
+        });
+    }
+
+    function runEnsureIds(): Promise<void> {
+        return new Promise<void>((resolve) => {
+            try {
+                const scriptPath = path.join(
+                    getPackageRoot(), "extensions", "aftc-toolset", "aftc-codex",
+                    "scripts", "ensure-entry-ids.mjs",
+                );
+                if (!fs.existsSync(scriptPath)) { resolve(); return; }
+                const resourcesDir = getResourcesDir();
+                if (!fs.existsSync(resourcesDir)) { resolve(); return; }
+                const nodeExe = process.platform === "win32" ? "node.exe" : "node";
+                const child = spawn(nodeExe, [scriptPath, resourcesDir], {
+                    stdio: "ignore",
+                    env: process.env,
+                });
+                const fallback = setTimeout(() => {
+                    try { child.kill(); } catch { /* ignore */ }
+                    resolve();
+                }, 10_000);
+                child.on("error", () => {
+                    clearTimeout(fallback);
+                    try {
+                        const retry = spawn(process.execPath, [scriptPath, resourcesDir], {
+                            stdio: "ignore",
+                            env: process.env,
+                        });
+                        retry.on("error", () => resolve());
+                        retry.on("close", () => resolve());
+                    } catch { resolve(); }
+                });
+                child.on("close", () => {
+                    clearTimeout(fallback);
+                    resolve();
+                });
+            } catch (err) {
+                console.log(`[aftc-toolset] codex ensure-ids spawn error: ${(err as Error).message}`);
+                resolve();
+            }
+        });
+    }
+
+    return {
+        getRoot,
+        getResourcesDir,
+        getSeedDir,
+        getSeedResourcesDir,
+        isSeeded,
+        seed,
+        ensureSeeded,
+        readResource,
+        listTopics,
+        readRules,
+        readGuidance,
+        readList,
+        getCounts,
+        runSyncScript,
+        runEnsureIds,
+    };
+}
+

@@ -12,6 +12,9 @@
  *   - responseDividerEnabled (response divider on/off)
  *   - thinkProcessingEnabled (inline <think>…</think> → ThinkingContent block)
  *   - "aftc-intro" (AFTC startup wordmark animation on/off)
+ *   - qwencloud* (QwenCloud provider prefs: cloud domain, API formats, plan endpoints)
+ *   - aftcCodex* (aftc-codex knowledge-base feature: master switch, guidance inject,
+ *     auto-load, codex root override, seeded flag — off by default)
  *
  * SSH connection records are intentionally stored separately in `ssh.json`.
  * `config.json` is created with `DEFAULT_PREFERENCES` on first access
@@ -20,10 +23,11 @@
  * timer, never on every turn, never on shutdown.
  *
  * All operations are best-effort. Errors are logged and the call falls
- * back to defaults rather than crashing pi. The file lives under
- * `.pi-aftc-toolset/`, which is gitignored and npm-ignored as a whole —
- * it is never committed or shipped; fresh installs and updates simply
- * re-create it from `DEFAULT_PREFERENCES` on first access.
+ * back to defaults rather than crashing pi. The file lives in the
+ * persistent OS data dir (see paths.ts getDataDir — outside the installed
+ * package), so it survives `pi update --extensions`; a fresh install
+ * re-creates it from `DEFAULT_PREFERENCES` on first access, and a legacy
+ * package-local copy is migrated forward by migrateLegacyData().
  *
  * Atomic writes: each save goes through a tmp file + rename so a crash
  * mid-write can't leave the file half-written.
@@ -62,6 +66,53 @@ export interface Preferences {
     thinkProcessingEnabled?: boolean;
     /** Whether the AFTC startup wordmark animation is shown. */
     "aftc-intro"?: boolean;
+    /** QwenCloud: DashScope cloud domain (International default, China, or custom). */
+    qwencloudCloudDomain?: string;
+    /** QwenCloud: cloud API format ("openai-completions" | "anthropic-messages"). */
+    qwencloudCloudApiFormat?: string;
+    /** QwenCloud: plan API format ("openai-completions" | "anthropic-messages"). */
+    qwencloudPlanApiFormat?: string;
+    /** QwenCloud: plan OpenAI-compatible base URL (region override). */
+    qwencloudPlanOpenAI?: string;
+    /** QwenCloud: plan Anthropic-compatible base URL (region override). */
+    qwencloudPlanAnthropic?: string;
+    /** Audio notifications master on/off. OFF by default (fresh installs are
+     *  silent); toggled in /aftc-audio-notifications. Migration enables it for
+     *  users who already had sounds configured (preserves their behaviour). */
+    notifyEnabled?: boolean;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/question/ played
+     *  when the AI asks a question, or "" for none. Set via /aftc-audio-notifications. */
+    notifySoundQuestion?: string;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/task-complete/
+     *  played when a task completes, or "" for none. Set via /aftc-audio-notifications. */
+    notifySoundTaskComplete?: string;
+    notifyTimeSec?: number;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/error/ played
+     *  when the agent ends with a provider/network error, or "" for none. */
+    notifySoundError?: string;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/aborted/ played
+     *  when the user aborts the agent, or "" for none. */
+    notifySoundAborted?: string;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/startup/ played
+     *  when pi starts a fresh session, or "" for none. */
+    notifySoundStartup?: string;
+    /** Saved replay prompt text (previously in replay.json). Empty = none saved. */
+    replayPrompt?: string;
+    /** WarGames intro: full-screen typewriter animation on session start. */
+    warGamesEnabled?: boolean;
+    /** aftc-codex: master on/off. Off = the feature does nothing. Off by default. */
+    aftcCodexEnabled?: boolean;
+    /** aftc-codex: inject thought-and-action-guidance.md when master is on. */
+    aftcCodexInjectGuidance?: boolean;
+    /** aftc-codex: auto-detect project techs and tell the model to fetch their docs. */
+    aftcCodexAutoLoad?: boolean;
+    /** aftc-codex: first-run seed choice (pre-trained vs fresh) has been done. */
+    aftcCodexSeeded?: boolean;
+    /** aftc-codex: auto-add entries without confirmation (true) or propose-then-confirm (false). */
+    aftcCodexAutoAddEntries?: boolean;
+    /** run_script tool: reliable large-script execution (workaround for a pi bash-tool
+     *  truncation bug). On = tool registered; off = tool absent. /run-script-on|off. */
+    runScriptEnabled?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -89,8 +140,27 @@ export const DEFAULT_PREFERENCES: Preferences = {
     responseDividerEnabled: true,
     thinkProcessingEnabled: false,
     "aftc-intro": true,
+    qwencloudCloudDomain: "dashscope-intl.aliyuncs.com",
+    qwencloudCloudApiFormat: "openai-completions",
+    qwencloudPlanApiFormat: "openai-completions",
+    qwencloudPlanOpenAI: "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+    qwencloudPlanAnthropic: "https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic",
+    notifyEnabled: false,
+    notifySoundQuestion: "voc_question_07.mp3",
+    notifySoundTaskComplete: "voc_task_complete_07.mp3",
+    notifyTimeSec: 1,
+    notifySoundError: "voc_we_got_a_problem_01.mp3",
+    notifySoundAborted: "",
+    notifySoundStartup: "xp.mp3",
+    replayPrompt: "",
+    warGamesEnabled: false,
+    aftcCodexEnabled: false,
+    aftcCodexInjectGuidance: true,
+    aftcCodexAutoLoad: true,
+    aftcCodexSeeded: false,
+    aftcCodexAutoAddEntries: true,
+    runScriptEnabled: true,
 };
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Preferences (config.json) - ensure, read, write, cache
 // ─────────────────────────────────────────────────────────────────────────────
@@ -140,20 +210,67 @@ function loadPreferencesInternal(): Preferences {
         // unknown fields (e.g. a leftover `version` from an earlier
         // release is silently ignored).
         //
-        // Unlike most defaults, the intro preference is written back
-        // immediately when missing. This migrates config.json files from
-        // versions released before the startup animation toggle existed,
-        // making the default explicit and preserving it for later sessions.
-        const savedIntroEnabled = parsed["aftc-intro"];
-        const needsIntroMigration = typeof savedIntroEnabled !== "boolean";
+        // Some preferences are written back immediately when missing or
+        // the wrong type. This migrates config.json files from versions
+        // released before those preferences existed, making the defaults
+        // explicit on disk and preserving them for later sessions.
+        const needsIntroMigration = typeof parsed["aftc-intro"] !== "boolean";
+        const needsNotifyQuestionMigration = typeof parsed.notifySoundQuestion !== "string";
+        const needsNotifyTaskMigration = typeof parsed.notifySoundTaskComplete !== "string";
+        const needsNotifyTimeMigration = typeof parsed.notifyTimeSec !== "number";
+        const needsWarGamesMigration = typeof parsed.warGamesEnabled !== "boolean";
+        const needsCodexEnabledMigration = typeof parsed.aftcCodexEnabled !== "boolean";
+        const needsCodexGuidanceMigration = typeof parsed.aftcCodexInjectGuidance !== "boolean";
+        const needsCodexAutoLoadMigration = typeof parsed.aftcCodexAutoLoad !== "boolean";
+        const needsCodexSeededMigration = typeof parsed.aftcCodexSeeded !== "boolean";
+        const needsCodexAutoAddMigration = typeof parsed.aftcCodexAutoAddEntries !== "boolean";
+        const needsNotifyErrorMigration = typeof parsed.notifySoundError !== "string";
+        const needsNotifyAbortedMigration = typeof parsed.notifySoundAborted !== "string";
+        const needsNotifyStartupMigration = typeof parsed.notifySoundStartup !== "string";
+        const needsReplayPromptMigration = typeof parsed.replayPrompt !== "string";
+        const needsRunScriptMigration = typeof parsed.runScriptEnabled !== "boolean";
+        const needsNotifyEnabledMigration = typeof parsed.notifyEnabled !== "boolean";
+        // When adding the notifyEnabled key to an existing config.json: users
+        // who already had notification sounds configured keep the feature ON
+        // (their setup is never silenced); everyone else starts disabled.
+        const migratedNotifyEnabled = [
+            parsed.notifySoundQuestion, parsed.notifySoundTaskComplete,
+            parsed.notifySoundError, parsed.notifySoundAborted, parsed.notifySoundStartup,
+        ].some((v) => typeof v === "string" && v.length > 0);
+        const needsMigration =
+            needsIntroMigration || needsNotifyQuestionMigration ||
+            needsNotifyTaskMigration || needsNotifyTimeMigration ||
+            needsNotifyErrorMigration || needsNotifyAbortedMigration ||
+            needsNotifyStartupMigration || needsReplayPromptMigration ||
+            needsWarGamesMigration || needsCodexEnabledMigration ||
+            needsCodexGuidanceMigration ||
+            needsCodexAutoLoadMigration ||
+            needsCodexSeededMigration || needsCodexAutoAddMigration ||
+            needsRunScriptMigration || needsNotifyEnabledMigration;
+
         cachedPreferences = {
             ...DEFAULT_PREFERENCES,
             ...parsed,
-            "aftc-intro": needsIntroMigration
-                ? DEFAULT_PREFERENCES["aftc-intro"]
-                : savedIntroEnabled,
+            ...(needsIntroMigration ? { "aftc-intro": DEFAULT_PREFERENCES["aftc-intro"] } : {}),
+            ...(needsNotifyQuestionMigration ? { notifySoundQuestion: DEFAULT_PREFERENCES.notifySoundQuestion } : {}),
+            ...(needsNotifyTaskMigration ? { notifySoundTaskComplete: DEFAULT_PREFERENCES.notifySoundTaskComplete } : {}),
+            ...(needsNotifyTimeMigration ? { notifyTimeSec: DEFAULT_PREFERENCES.notifyTimeSec } : {}),
+            ...(needsNotifyErrorMigration ? { notifySoundError: DEFAULT_PREFERENCES.notifySoundError } : {}),
+            ...(needsNotifyAbortedMigration ? { notifySoundAborted: DEFAULT_PREFERENCES.notifySoundAborted } : {}),
+            ...(needsNotifyStartupMigration ? { notifySoundStartup: DEFAULT_PREFERENCES.notifySoundStartup } : {}),
+            ...(needsReplayPromptMigration ? { replayPrompt: DEFAULT_PREFERENCES.replayPrompt } : {}),
+            ...(needsWarGamesMigration ? { warGamesEnabled: DEFAULT_PREFERENCES.warGamesEnabled } : {}),
+            ...(needsCodexEnabledMigration ? { aftcCodexEnabled: DEFAULT_PREFERENCES.aftcCodexEnabled } : {}),
+            ...(needsCodexGuidanceMigration ? { aftcCodexInjectGuidance: DEFAULT_PREFERENCES.aftcCodexInjectGuidance } : {}),
+            ...(needsCodexAutoLoadMigration ? { aftcCodexAutoLoad: DEFAULT_PREFERENCES.aftcCodexAutoLoad } : {}),
+            ...(needsCodexSeededMigration ? { aftcCodexSeeded: DEFAULT_PREFERENCES.aftcCodexSeeded } : {}),
+            ...(needsCodexAutoAddMigration ? { aftcCodexAutoAddEntries: DEFAULT_PREFERENCES.aftcCodexAutoAddEntries } : {}),
+            ...(needsRunScriptMigration ? { runScriptEnabled: DEFAULT_PREFERENCES.runScriptEnabled } : {}),
+            ...(needsNotifyEnabledMigration ? { notifyEnabled: migratedNotifyEnabled } : {}),
         };
-        if (needsIntroMigration) savePreferencesInternal(cachedPreferences);
+        // Strip obsolete keys from older versions
+        delete (cachedPreferences as any).notifySound;
+        if (needsMigration) savePreferencesInternal(cachedPreferences);
         return cachedPreferences;
     } catch (err) {
         console.log(`[aftc-toolset] config.json read/parse error: ${(err as Error).message}`);

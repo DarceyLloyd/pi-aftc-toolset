@@ -44,8 +44,8 @@ import { showViewer, type AftcViewerRow } from "./ui/aftcUi";
 //                            ssh-shell, ssh transfers, ssh-help)
 //   - response.ts           (aftc-response-divider)
 //   - help.ts               (aftc-help) ← this file
-//   - intro.ts              (aftc-intro-stop, aftc-intro-on)
-//   - input-clear.ts        (alt+c)
+//   - intros/               (aftc-intro-on, aftc-intro-off)
+//   - keys.ts               (alt+c, alt+n)
 //   - theme.ts              (theme)
 //   - stfu.ts               (aftc-stop, stfu)
 //   - cd.ts                 (cd)
@@ -53,6 +53,8 @@ import { showViewer, type AftcViewerRow } from "./ui/aftcUi";
 //   - cwd.ts                (cwd)
 //   - replay.ts             (save-replay-prompt, replay, r)
 //   - keep-it-short.ts      (keep-it-short, kis)
+//   - aftc-codex/           (aftc-codex, aftc-codex-enable/disable/install/update/
+//                            inject/refresh/prune/learn/sync/status/root)
 //
 // Note: /show-thinking and /hide-thinking were removed — pi's built-in
 // Ctrl+T (app.thinking.toggle) and the hideThinkingBlock setting
@@ -64,12 +66,15 @@ const GENERAL_COMMANDS: Array<[string, string]> = [
 	["/aftc-install", "Install runtime deps (SQLite + Python + SSH carrier)"],
 	["/cls", "Clear the terminal screen"],
 	["/theme", "Open the theme picker"],
+	["/aftc-open-data-dir", "Open the data directory in your OS file manager (alias /aftc-odd)"],
+	["/run-script-on", "Enable the run_script tool (reliable large-script execution); /reload to apply"],
+	["/run-script-off", "Disable the run_script tool (eg once pi fixes its bash truncation); /reload to apply"],
 ];
 
 const RESPONSE_COMMANDS: Array<[string, string]> = [
 	["/aftc-response-divider", "Toggle the divider above each reply"],
-	["/aftc-intro-stop", "Disable the AFTC startup animation"],
-	["/aftc-intro-on", "Enable and play the AFTC startup animation"],
+	["/aftc-intro-off", "Disable the AFTC text startup animation"],
+	["/aftc-intro-on", "Enable and play the AFTC text startup animation"],
 ];
 
 const INTERRUPT_COMMANDS: Array<[string, string]> = [
@@ -131,15 +136,39 @@ const KEEP_SHORT_COMMANDS: Array<[string, string]> = [
 const SKILL_COMMANDS: Array<[string, string]> = [
 	["/skill:cache-audit", "Cache diagnostics workflow"],
 	["/skill:bulk-read", "Concatenate many files into one doc"],
+	["/skill:aftc-codex", "Knowledge base: codex_load, lessons, structure maps"],
+];
+
+const CODEX_COMMANDS: Array<[string, string]> = [
+	["/aftc-codex", "Open the aftc-codex config menu (alias /codex)"],
+	["/aftc-codex-enable", "Enable the knowledge base (alias /codex-enable)"],
+	["/aftc-codex-disable", "Disable + strip from context (alias /codex-disable)"],
+	["/aftc-codex-init", "Initialise: load rules + fetch relevant docs (alias /codex-init)"],
+	["/aftc-codex-refresh", "Strip all codex, then re-init (alias /codex-refresh)"],
+	["/aftc-codex-install", "Fresh install the codex to the data dir (alias /codex-install)"],
+	["/aftc-codex-learn", "Record durable lessons into the codex (alias /codex-learn)"],
+	["/aftc-codex-status", "Show aftc-codex status (alias /codex-status)"],
 ];
 
 const THINKING_COMMANDS: Array<[string, string]> = [
 	["/aftc-enable-think-processing", "Enable <think>…</think> tag parsing"],
 	["/aftc-disable-think-processing", "Disable <think>…</think> tag parsing"],
+]
+
+const NOTIFY_COMMANDS: Array<[string, string]> = [
+	["/aftc-audio-notifications", "Choose notification sounds (alias /aftc-notifications)"],
+	["/aftc-notify-time [sec]", "Show or set the task-duration threshold (0 = off)"],
 ];
+
+// DISABLED: providers/ is disconnected (pi 0.81 added native provider
+// support). Re-enable with the import in index.ts, then restore this row.
+// const PROVIDER_COMMANDS: Array<[string, string]> = [
+// 	["/qwencloud", "Manage Qwen Cloud + Coding Plan providers (status, refresh, region, format)"],
+// ];
 
 const SHORTCUTS: Array<[string, string]> = [
 	["alt+c", "Clear the input editor"],
+	["alt+n", "Insert a new line at the cursor"],
 	["Ctrl+T", "Toggle thinking block visibility (pi built-in)"],
 ];
 
@@ -196,7 +225,10 @@ class HelpModule {
 		rows.push(...renderSectionRows("Replay", REPLAY_COMMANDS));
 		rows.push(...renderSectionRows("Keep it short", KEEP_SHORT_COMMANDS));
 		rows.push(...renderSectionRows("Skills", SKILL_COMMANDS));
+		rows.push(...renderSectionRows("aftc-codex (knowledge base)", CODEX_COMMANDS));
 		rows.push(...renderSectionRows("Thinking", THINKING_COMMANDS));
+		rows.push(...renderSectionRows("Audio notification", NOTIFY_COMMANDS));
+		// rows.push(...renderSectionRows("Providers", PROVIDER_COMMANDS)); // disabled — providers module disconnected
 		rows.push(...renderSectionRows("Shortcuts", SHORTCUTS));
 		return rows;
 	}

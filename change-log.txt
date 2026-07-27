@@ -1,0 +1,104 @@
+pi-aftc-toolset - Change Log
+============================
+
+Updates v1.13.x
+---------------
+
+- Audio notifications: master on/off + sensible shipped defaults.
+  /aftc-notifications gains an "Enabled" toggle row and the feature is OFF by default for fresh installs - nothing plays until you switch it on. When enabled, the pre-configured sounds are sensible shipped picks (question: voc_question_07, task complete: voc_task_complete_07 with a 1s threshold, error: voc_we_got_a_problem_01, startup: xp, aborted: none) instead of all-none. Your existing settings are never touched: the config migration only ADDS missing keys - if you already had sounds configured the feature stays ON and your choices (and your saved /replay prompt) are preserved exactly; the saved replay prompt remains empty by default and is only ever written by an explicit /save-replay-prompt.
+
+- aftc-codex seed fix: real Deno and Node.js resource docs.
+  The shipped seed's runtimes/deno.md and runtimes/nodejs.md were placeholders containing only "# Bun"; they now carry the real curated entries (identical to the live data-dir copies), so a re-seed, Start Fresh or re-install restores the real docs instead of clobbering them with stubs.
+
+- aftc-codex sync / update / root removed; codex is now a strict one-way copy.
+  The /aftc-codex-sync, /aftc-codex-update and /aftc-codex-root commands (and their /codex-* aliases) are gone, together with all the 3-way drift / .sync.json / backup / merge-by-ID machinery behind them and the aftcCodexRoot preference (the codex root is now always the data-dir copy). The codex is a strict one-way copy from the shipped seed to your live data-dir folder: your live edits (e.g. via /aftc-codex-learn) are never auto-overwritten and there is no merge step. The Resources menu keeps Re-Seed and Start Fresh (now 'Clear and restore default codex resources' - it wipes the live copy and re-copies the seed with no backup, so it is irreversible) and gains Open Codex Resource Dir (opens the live resources/ folder in your file manager). /aftc-codex-learn, codex_load, the rules + guidance injection, auto-detect and ensure-IDs are unchanged - learning issues and solutions into the resource docs with unique IDs is still the whole point.
+
+- aftc-codex Resources menu simplified.
+  The /aftc-codex Resources & updates menu no longer shows Sync / Merge Updates, View Resource List or View a Resource - those were maintainer/dev affordances, not user ones, and the sync/merge feature has been removed entirely. In their place is Open Codex Resource Dir, which opens your live resources/ folder in the OS file manager (explorer.exe on Windows, open on macOS, xdg-open on Linux). Start Fresh now reads "Clear and restore default codex resources" and simply wipes your resources and re-copies the shipped defaults (then regenerates codex-resource-list.md) - it no longer takes a backup, so it is irreversible.
+
+- aftc-codex thought harvest removed.
+  The optional thought-harvest feature (recording the model's reasoning to a private thought-log/) has been removed from aftc-codex: the Thought Harvest menu toggle and the aftcCodexThoughtLog preference are gone, and codex-learn.ts now owns only the /aftc-codex-learn self-education loop. Nothing else changes - codex enable/disable, guidance injection, auto-load, sync/merge and -learn all work as before. Any existing thought-log/ folder in your data dir is left untouched; delete it manually if you want it gone.
+
+- Usage report - Task Time everywhere + new Timings tab.
+  The usage report now analyses Task Time (the wall-clock time from when you press enter to when the AI fully returns control, across all of a prompt's tool-call turns). Each period card (24h / 7d / 28d) gains an Avg task time scoreboard row and excludes $0 (subscription) models from the COST rows only (Cheapest / Most costly) - usage, cache and timing rows keep them, so a subscription-only day still shows its real response / think / cache figures; every row is always present, and any row that cannot be computed stays visible as N/A with a tooltip explaining why; the Models and Thinking levels tables gain a Task Time column (info icon explains the metric); and Projections drops zero-cost models entirely. The new Timings tab (before Projections) is built around the tasks table: avg / longest task, turns per task, error and abort counts, task-time-by-model and daily task-time charts, a thinking / responding / tools-and-overhead breakdown of where the time goes, user-prompt vs AI turn timings, and the top-10 longest tasks. To make the error counts real, failed tasks (error / abort) are now recorded to the tasks table too, with their time-to-failure - they are counted but never averaged into Task Time (averages stay completed-only, superseding the earlier "isn't recorded" note above). /usage-clear now clears both tables. Money formatting tiers were also simplified: $1 to $1,000 now always shows two decimals ($4.10, $310.40 - $100-$999 no longer rounds to whole dollars), $1,000+ stays whole with thousands separators.
+
+- Footer "Task Time" metric.
+  Line 2 of the footer now shows Task Time - the wall-clock time from when you press enter to when the AI fully returns control (one prompt's complete agent run, across all its tool-call turns), formatted like Session Time. It ticks live while the AI works, then holds the last task's duration. An error/abort stops the timer and shows the time to that point but is not recorded (a failed duration is not a useful metric); completed tasks are recorded to a new tasks table in the usage database (duration, stop reason, model, thinking level, turn count) ready for the usage report. It keeps running through questions, steering, retries and compaction. Distinct from the existing per-turn Turn Time and the whole-session Session Time.
+
+- New run_script tool - reliable large-script execution.
+  Works around a pi bash-tool bug that silently truncates large inline commands (the first part runs, the rest is dropped, with no error). The model now hands the whole script to run_script, which writes it to a temp file and runs it with bash - no inline-size limit, so multi-line / large scripts run to completion every time. The model uses it automatically for any multi-line or large script (short one-liners still go to the bash tool). Bash only (git-bash on Windows). Because it is a workaround for an upstream bug, it disables cleanly: /run-script-off then /reload (and /run-script-on to re-enable).
+
+Updates v1.12.x
+---------------
+
+- aftc-codex self-education hardened against runaway deliberation.
+  /aftc-codex-learn (and spontaneous lesson recording) now spends far less effort second-guessing itself: the entry format is canonicalised (every new entry carries a short [ID], ending the old ID-vs-no-ID ambiguity), the rules and the learn prompt now state plainly that you write to the live copy in your OS data dir (the package seed is read-only), routing is "pick the best-fit file and move on", and new thinking-guidance rules tell the model to commit to a decision once, match the nearest example for ambiguous style, switch approach instead of theorising when a tool fails, and report an empty result honestly rather than pad. Adds a tools/bash.md resource (the stdin/heredoc partial-execution gotcha).
+
+- Usage-report money formatting + pie legend clean-up.
+  Every money value in the report now goes through the tiered formatter (4 decimal places below $1, whole dollars at $100+, thousands separators at every magnitude - $1,179, $18,021, $1,000,000) including the chart axis ticks, which previously showed raw values like $1179. The cost-share pie chart legend no longer lists models with a 0.0% share (invisible slices, pure clutter).
+
+- Usage-report period scoreboard fixed.
+  The per-model scoreboard rows in the 24h / 7d / 28d period cards on the Overview tab now always show a value after the model name: Cheapest / Most costly model show the average cost per turn (formatted with the money tiers - 4 decimal places below $1, whole dollars at $100+, thousands separators like $1,000), and Most / Least used model show their prompt counts.
+
+- Startup intro simplified.
+  The AFTC text intro now runs on its own, wired directly (as it was originally - rock solid). The experimental WarGames intro and the intro factory have been disconnected (files kept in the package, dormant). /aftc-intro-on / /aftc-intro-off work exactly as before.
+
+- New aftc-codex knowledge base (opt-in).
+  A new off-by-default feature injects a curated knowledge base - unified coding rules, thinking-and-action guidance, and a generated resource list - into the model's system prompt, and gives the model a codex_load tool to fetch topic docs (TypeScript, Python, Docker, Three.js, Godot, and ~27 more) on demand. Enable with /codex-enable, initialise with /codex-init, configure everything through the /aftc-codex menu. It auto-detects your project's technologies, can record durable lessons back into the knowledge base (/aftc-codex-learn), and updates safely with a backed-up, model-assisted merge (/aftc-codex-sync) that never overwrites your edits. Your knowledge base lives in your OS user profile, so it survives pi update. See the README section "aftc-codex (knowledge base)".
+
+- New /aftc-open-data-dir command (alias /aftc-odd).
+  Opens the pi-aftc-toolset data directory (where your usage history, config, SSH connections, and codex knowledge base live) in your OS file manager. Works on Windows (explorer.exe), Linux (xdg-open), and macOS (open).
+
+Updates v1.11.x
+---------------
+
+- Period summary scoreboard + smarter money formatting.
+  Each period card (24h / 7d / 28d) now shows a per-model scoreboard: cheapest/most costly model, most/least used model, best/worst cache hit, best/worst response time, best/worst think time. Money values now use intelligent decimal tiers (4dp below $1, 3dp below $5, 2dp below $100, whole numbers at $100+) with thousands separators. The old "Top model" line is gone - the pie chart legend carries share % instead.
+
+- Usage-report pie chart improvements.
+  The "Cost share by model" legend now shows each model's percentage (for example gpt-5 (42.3%)), slice colours are now clearly distinct from each other, the chart is slightly wider to fit the extra legend text, and it no longer overflows the page (forcing a horizontal scrollbar) after you shrink and re-expand the browser window.
+
+- Your data now survives updates.
+  Usage history (turns.db), preferences, saved SSH connections and the replay prompt are now stored in your OS user profile (for example %APPDATA%\pi-aftc-toolset\data on Windows, ~/.local/share/pi-aftc-toolset/data on Linux, ~/Library/Application Support/pi-aftc-toolset/data on macOS) instead of inside the install folder, so pi update --extensions no longer wipes them. Upgrading from an older version moves any data still present in the old install-folder location over automatically on first run. (Data already lost to a previous update cannot be recovered.)
+
+Updates v1.10.x
+---------------
+
+- New keyboard shortcut hub.
+  All shortcuts now live in one place. New Alt+N inserts a newline at the cursor for better multi-line prompt formatting, and Alt+C still clears the editor. The QwenCloud provider module is temporarily disabled because pi now registers providers natively - it stays in the package and can be re-enabled if needed.
+
+Updates v1.9.x
+--------------
+
+- Usage Report rebuilt and now in BETA.
+  The report is now a clean tabbed page (Overview / Models / Thinking levels / Projections). Just use slash command /usage-report and your browser should open showing your usage report. See the README Usage report section for further information.
+
+Updates v1.8.x
+--------------
+
+- Usage Report rebuilt and now in BETA.
+  The HTML report is now a clean tabbed page (Overview / Models / Thinking levels / Projections).
+
+- Footer line 5 now supports Kimi for Coding.
+  With Kimi as the active model, the footer shows your 5-hour and weekly Kimi subscription usage with live reset countdowns (the same numbers kimi.com shows), refreshed after each prompt and every few minutes during long-running ones.
+
+- AFTC UI suite - replacement for user input screens.
+  Now ships the full interactive layer. The old pi dialogues appeared in the middle of the terminal and were hard to read and distinguish from TUI output.
+
+- New bundled ssh skill.
+  Load it with /skill:ssh for full model-facing guidance on driving the SSH feature from inside pi: routing non-interactive commands to ssh_run, interactive programs (Nano, Vi, htop, tmux) to the PTY shell tools, file work to the SFTP tools, and the privacy model that keeps credentials and endpoints out of the model context.
+
+- New fully featured SSH capabilities (with sftp).
+  A packaged Paramiko carrier talks JSON-RPC over local stdio with no socket, HTTP service, or GUI bridge. Capabilities:
+  - Multiple simultaneous in-memory connections; password and private-key (including encrypted-key) authentication; session-only host-key approval.
+  - Non-interactive commands with bounded standard input; interactive PTY shells (Nano, Vi, htop, tmux) through a local terminal overlay and model tools.
+  - Recursive SFTP upload and download with optional --preserve, chunked and cancellable transfers with live progress; remote list, stat, read, write, mkdir, rename, and remove.
+  - Local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding, local-command-only so endpoints stay out of the model context.
+  - Credential isolation: the model only ever sees opaque session and shell ids; credentials are memory-only and cleared after each attempt; all output is bounded and redacted; saved records hold non-secret metadata only.
+  - Built and tested on Windows and Linux against a Docker OpenSSH fixture, and integrated.
+
+- Deleted all SSH features.
+  Yep, they are gone, in the bin. But there is another jedi, see above.
+
+- Restored the subscription-allowance footer line.
+  A Pi compatibility regression in optional credential metadata handling broke some things; it should now work again for zai, minimax and gpt subscriptions.

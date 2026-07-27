@@ -1,6 +1,6 @@
 ---
 name: python
-description: Python scripting with uv package manager, stdlib-first, type hints, and error handling. Use when writing or editing .py files, working with uv, pyproject.toml, or venv.
+description: Python scripting with uv package manager, stdlib-first, type hints, and error handling. Use when writing or editing .py files, working with uv, pyproject.toml, or venv. Includes Windows pitfalls (multiprocessing spawn safety, cp1252 console), and numeric/audio verification discipline.
 ---
 
 # Python
@@ -30,7 +30,7 @@ For standalone scripts, declare deps inline in a `# /// script` block at the top
 # ///
 ```
 
-This means a single `.py` file with its declared deps can be `uv run script.py`’d without any surrounding project - useful for throw-away scripts, samples, and CI tooling.
+This means a single `.py` file with its declared deps can be `uv run script.py`'d without any surrounding project - useful for throw-away scripts, samples, and CI tooling.
 
 ## Build Backend
 For pure-Python packages, use `uv_build` in `pyproject.toml`:
@@ -52,11 +52,32 @@ Faster and more reliable than legacy `setuptools`/`hatchling` for pure-Python pr
 ## Script Structure
 - Start with `#!/usr/bin/env python3` shebang
 - Use `"""docstring"""` at module level describing purpose
-- Use `if __name__ == "__main__":` guard
+- Use `if __name__ == "__main__":` guard - MANDATORY on Windows for any script that (even transitively) starts multiprocessing workers, see below
 - Use `argparse` for command-line arguments (not `sys.argv` directly)
 - Use type hints on function signatures
 - Use `pathlib.Path` instead of `os.path` for file paths
 - Return exit codes: `sys.exit(0)` for success, `sys.exit(1)` for failure
+
+## Windows Pitfalls (learned the hard way)
+- **Multiprocessing spawn re-runs your script.** On Windows, `multiprocessing` uses spawn: every worker process re-imports the main module. Any script body NOT behind `if __name__ == "__main__":` re-executes in EVERY worker - this includes DataLoader workers, Lightning Fabric, `ProcessPoolExecutor`, and anything built on them. Unguarded consequences seen in production: N python processes at 100% CPU, VRAM ballooning with duplicate model loads, outputs endlessly re-written, the real process deadlocked waiting for workers that are busy re-running the script. Zero real progress for hours. Guard everything; symptom check is `Get-Process python` + GPU/RAM.
+- **cp1252 console crashes.** Windows consoles default to cp1252; any emoji/unicode in log output raises UnicodeEncodeError. Reconfigure stdio first thing in entry points: `sys.stdout.reconfigure(encoding="utf-8")` + same for stderr (wrap in try/except for redirected streams).
+- **stdout is block-buffered when redirected.** In long-running scripts whose output goes to a log/pipe, prints arrive in rare 4KB chunks. Use `print(..., flush=True)` for progress, or `logging` with an unbuffered handler.
+- **DataLoader on Windows:** besides the guard, expect slow worker startup (each re-imports torch etc.); `num_workers=0` is a sane default for IO-cheap datasets to skip the whole problem.
+
+## Numeric / Audio Verification Discipline
+- **`soundfile` defaults can silently clip.** `sf.write("x.wav", data, sr)` writes PCM_16 by default - float data beyond +/-1.0 is hard-clipped on write. Scale first, or pass `subtype="FLOAT"`. Always read back and check peak/RMS before claiming a file is correct.
+- **RMS != correctness.** Non-silent audio can still be scrambled garbage. Cheap objective diagnostics: spectral flatness (noise ~0.5-1.0 vs tonal music ~0.001-0.3); adjacent-frame cosine similarity of latent/feature sequences (temporal scrambling shows a tell-tale alternating high/near-zero pattern; healthy is uniform).
+- **Bisect pipeline defects with saved intermediates.** Dump stage outputs (`np.savez`), then re-run ONE stage under varied configs (CPU fp32 vs GPU bf16 vs fp16). Near-identical outputs exonerate that stage; divergence localizes the bug - far faster than reading all the code.
+- **`torch.load`:** default `weights_only=True` for safety; plain dicts of tensors + primitive metadata load fine under it. Use `weights_only=False` only for trusted files with custom objects.
+- **Reproduce before fixing.** A deterministic repro (fixed seed + saved inputs) plus a numeric health check beats speculative code reading; confirm the fix by regenerating and re-checking, not by reasoning alone.
+
+## Editing & Bulk Changes
+- **Never blind sed/regex-replace Python source.** A comment injected into a parameter list eats the trailing comma and breaks every file at once (12 files broken by one sed in the wild). Make precise targeted edits, then compile-check everything touched: `python -m py_compile file1.py file2.py ...` (fast, no `__pycache__` side effects that matter, catches it immediately).
+
+## Driving Gradio Apps for Tests (gradio_client)
+- Discover endpoints + positional params + defaults: `GET http://host:port/gradio_api/info` (`named_endpoints`). Auto-named endpoints look like `/lambda_6`; labels in the dump map to UI controls.
+- Call with `Client(url).predict(*args, api_name="/endpoint")`; `handle_file(path)` for file inputs.
+- `gr.State` persists per Client session: call the state-setting endpoint first (e.g. a mode switch), then the worker endpoint on the same Client.
 
 ## Error Handling
 - Use `try/except` for file I/O, network, and external operations
@@ -79,6 +100,7 @@ Faster and more reliable than legacy `setuptools`/`hatchling` for pure-Python pr
 - Use `unittest` or `pytest` for structured tests
 - Smoke test pattern: run script with `--help`, check exit code 0
 - Test with sample input files in a `test-data/` directory
+- For ML/audio pipelines: RMS/duration checks are necessary but NOT sufficient - add a structural check (see Numeric / Audio Verification) and a human or golden-sample comparison for anything that ships
 
 ## Template Integration
 - Each template has: `README.md`, `script.py`, `smoke-test.py`, `pyproject.toml` (if deps needed)

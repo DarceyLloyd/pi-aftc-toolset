@@ -22,6 +22,7 @@ watchdog timeout near the top (see `.dev/dev_guide.md` — non-negotiable).
 | Suite | Class | Covers |
 | --- | --- | --- |
 | `allowance-check` | 15s local | Footer line-5 allowance providers, Codex regression. |
+| `keys-check` | 20s local | Shortcuts: alt+c clear, alt+n newline at caret. |
 | `install-check` | 15s local | `/aftc-install` redaction, recovery guidance, concurrency, and the intelligent session-start dependency warning. |
 | `install-platform-uv-check` | 15s local | Platform-native uv resolution. |
 | `npm-package-check` | 15s local | Published package contents (carrier source included; credentials/venv excluded). |
@@ -44,6 +45,8 @@ watchdog timeout near the top (see `.dev/dev_guide.md` — non-negotiable).
 | `ssh-terminal-screen-check` | 20s local | VT100 virtual screen: SGR colours, cursor addressing, erase, scroll, alt-screen, split sequences. |
 | `ssh-replacement` | Docker (600s) | Commands, SFTP, forwarding, PTY against a disposable SSH fixture. |
 | `usage-report-check` | 30s local | `/usage-report` tabbed HTML shell, JSON round-trip, client-JS syntax, projection math invariants. |
+| `intros-check` | 30s local | Intro factory: WarGames raw ANSI takeover starts on session_start (alt screen), restores pi on shutdown, commandless registration. |
+| `qwencloud-check` | 30s local | QwenCloud providers: heuristics, catalog parsing, registration shape, live refresh, offline/env fallbacks, oauth login flow. |
 | `pi-linux-ssh-verify` | Docker Compose (1500s) | Full Linux gate: `/aftc-install`, unit suites, carrier pytest, client→target end-to-end. No provider allowance consumed. |
 | `pi-linux-integration` | Docker Compose (1500s) | Live-prompt Linux integration. Consumes provider allowance; copies local `auth.json` transiently. |
 

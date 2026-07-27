@@ -11,8 +11,8 @@
  *   - help.ts         — /aftc-help (commands and shortcuts help)
  *   - ssh/index.ts    — local stdio-carrier SSH tools + slash commands
  *   - response.ts     — full-width <hr> divider above each assistant reply
- *   - input-clear.ts  — Alt+C shortcut to clear the input editor
- *   - intro.ts        — temporary AFTC startup wordmark animation
+ *   - keys.ts         — keyboard shortcuts: Alt+C clear editor, Alt+N newline at caret
+ *   - intros/         — AFTC text startup intro (factory disconnected; only intro-text wired)
  *   - theme.ts        — /theme: shortcut to pi's theme picker
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
  *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
@@ -23,6 +23,17 @@
  *   - think-parser.ts — message_end hook that converts inline <think>…</think>
  *                        tags in assistant text into pi's native ThinkingContent
  *                        blocks (no commands, no UI — pure message-content transform)
+ *   - notify.ts       — audio notification: plays MP3 on task completion (after a
+ *                        configurable threshold) and when the AI asks a question
+ *   - open-data-dir.ts — /aftc-open-data-dir + /aftc-odd: opens the persistent
+ *                        data directory in the OS file manager
+ *   - aftc-codex/     — opt-in knowledge base: injects codex rules + guidance +
+ *                        resource list into the system prompt; codex_load tool;
+ *                        /aftc-codex-* commands (off by default)
+ *   - providers/      — LLM provider features; today: qwencloud.ts (Alibaba Qwen
+ *                        Cloud + Coding Plan via pi's native /login, /qwencloud)
+ *                        DISABLED: pi now ships this natively; kept on disk in
+ *                        case the built-in proves weaker (see index body)
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -40,8 +51,11 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createAllowance } from "./allowance";
 import { createCore } from "./core";
 import { createFooterWidget } from "./footer-widget";
-import { createInputClear } from "./input-clear";
-import { createIntroAnimation } from "./intro";
+import { createKeys } from "./keys";
+// Intros: the factory (intros/intro-factory.ts) is DISCONNECTED 2026-07 —
+// files kept on disk. Only the AFTC text intro runs, wired directly below
+// (it was rock solid). Re-enable the factory to restore the random draw.
+import { createTextIntro } from "./intros/intro-text";
 import { createTheme } from "./theme";
 import { createUsageRecording } from "./usage-recording";
 import { createUsageModule } from "./usage-report";
@@ -56,17 +70,56 @@ import { createCwd } from "./cwd";
 import { createReplay } from "./replay";
 import { createKeepItShort } from "./keep-it-short";
 import { createThinkParser } from "./think-parser";
+import { createNotify } from "./notify";
+import { createOpenDataDir } from "./open-data-dir";
+import { createAftcCodex } from "./aftc-codex/aftc-codex";
+import { createRunScript } from "./run-script";
+import { migrateLegacyData } from "./paths";
+// DISABLED 2026-07: pi 0.81 added native provider support. Module kept on
+// disk (not deleted) in case the built-in proves weaker — re-enable both
+// lines to restore it.
+// import { createProviders } from "./providers/index";
 
 export default function (pi: ExtensionAPI): void {
 	try {
+	// Migrate any legacy package-local data (turns.db, config.json, ssh.json, ...)
+	// to the persistent OS data dir BEFORE any module reads it. Idempotent, lock-safe.
+	migrateLegacyData();
+
 	// Independent modules first (self-register commands/handlers).
 	const allowance = createAllowance(pi);
 	const recorder = createUsageRecording(pi);
 	const usage = createUsageModule(pi);
 	const help = createHelpModule(pi);
 	createInstallModule(pi);
-	createInputClear(pi);
-	createIntroAnimation(pi);
+	createKeys(pi);
+	// AFTC text intro only (factory disconnected — see the import note above).
+	const textIntro = createTextIntro();
+	pi.registerCommand("aftc-intro-on", {
+		description: "Enable and play the AFTC text startup animation",
+		handler: async (_args, ctx) => {
+			if (textIntro.isEnabled()) { ctx.ui.notify("AFTC text intro is already ON", "info"); return; }
+			textIntro.setEnabled(true);
+			ctx.ui.notify("AFTC text intro: ON", "info");
+			textIntro.play(ctx, 0); // instant feedback (no start delay from the command)
+		},
+	});
+	pi.registerCommand("aftc-intro-off", {
+		description: "Disable the AFTC text startup animation",
+		handler: async (_args, ctx) => {
+			if (!textIntro.isEnabled()) { ctx.ui.notify("AFTC text intro is already OFF", "info"); return; }
+			textIntro.setEnabled(false);
+			textIntro.stop(ctx);
+			ctx.ui.notify("AFTC text intro: OFF", "warning");
+		},
+	});
+	pi.on("session_start", async (_event, ctx) => {
+		// Default START_DELAY_MS applies so pi's startup paint settles first.
+		if (textIntro.isEnabled()) textIntro.play(ctx);
+	});
+	pi.on("session_shutdown", async (_event, ctx) => {
+		textIntro.stop(ctx);
+	});
 	createTheme(pi);
 	createSshModule(pi);
 	createResponseDivider(pi);
@@ -77,6 +130,11 @@ export default function (pi: ExtensionAPI): void {
 	createReplay(pi);
 	createKeepItShort(pi);
 	createThinkParser(pi);
+	createNotify(pi);
+	createOpenDataDir(pi);
+	createAftcCodex(pi);
+	createRunScript(pi);
+	// createProviders(pi); // disabled — see note at the import above
 
 	// Core owns the data; the widget renders it. The orchestrator wires
 	// them so neither module imports the other (.dev/dev_guide.md section 1.5). allowance

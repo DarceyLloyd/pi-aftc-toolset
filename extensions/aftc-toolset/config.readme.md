@@ -4,7 +4,10 @@ Persistent configuration for the extension. One file, one concern:
 
 - `config.json` - cross-session extension configuration that persists forever.
   Holds: footer timeframe, footer on/off, response divider on/off,
-  think-tag processing and startup animation.
+  think-tag processing, startup animation, and the aftc-codex
+  knowledge-base preferences (`aftcCodex*` — master switch, guidance
+  inject, auto-load, seeded
+  flag; off by default).
   Loaded on every `session_start` regardless of reason. Survives
   `/reload`, `/new`, fresh pi startup, and machine reboot.
 
@@ -51,6 +54,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
     responseDividerEnabled: true,
     thinkProcessingEnabled: false,
     "aftc-intro": true,
+    // ... qwencloud*, notify*, warGames*, and aftcCodex* prefs
+    aftcCodexEnabled: false,        // master switch (off by default)
+    aftcCodexInjectGuidance: true,  // inject thought-and-action-guidance.md
+    aftcCodexAutoLoad: true,        // auto-detect techs + fetch their docs
+    aftcCodexSeeded: false,         // first-run seed choice done
 };
 
 ```
@@ -66,13 +74,14 @@ Feature modules import `getPreference` / `setPreference`.
 
 ## Files persisted
 
-- `<package-root>/.pi-aftc-toolset/data/config.json`
+- `<persistent-data-dir>/config.json` (OS-specific; see `paths.readme.md` —
+  eg `%APPDATA%\pi-aftc-toolset\data\config.json` on Windows)
 
-Created lazily with `DEFAULT_PREFERENCES` on first access. Never
-committed or shipped: the whole `.pi-aftc-toolset/` directory is
-gitignored and npm-ignored, so fresh installs and updates re-create
-the file from defaults on first use (an update therefore resets
-preferences to defaults — accepted by design).
+Created lazily with `DEFAULT_PREFERENCES` on first access. Lives in the
+persistent OS data dir (outside the installed package), so it now
+SURVIVES `pi update --extensions`. New preference fields are migrated
+into an existing file on load (see `config.ts`); a legacy package-local
+config is copied forward by `migrateLegacyData()` on startup.
 
 ## Atomic writes
 

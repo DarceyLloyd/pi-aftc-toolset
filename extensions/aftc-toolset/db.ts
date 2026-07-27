@@ -3,8 +3,10 @@
  *
  * Owns the singleton better-sqlite3 connection used by both the recorder
  * (usage-recording.ts → recordTurn) and the report generator
- * (usage-report.ts → generateReportHtml). The DB lives at:
- *   <package-root>/.pi-aftc-toolset/data/turns.db
+ * (usage-report.ts → generateReportHtml). The DB lives in the persistent
+ * OS data dir (see paths.ts getPersistentRoot/getDataDir — outside the installed
+ * package so it survives `pi update --extensions`), eg
+ *   %APPDATA%\pi-aftc-toolset\data\turns.db   (Windows)
  *
  * This is a utility module, NOT a feature module. Per .dev/dev_guide.md section 1.5,
  * feature modules (usage-recording.ts, usage-report.ts, core.ts,
@@ -78,6 +80,22 @@ const SCHEMA = `
     );
     CREATE INDEX IF NOT EXISTS idx_turns_timestamp ON turns(timestamp);
     CREATE INDEX IF NOT EXISTS idx_turns_turn      ON turns(turn);
+
+    -- One row per completed TASK (a single user prompt's full agent run,
+    -- enter → settle). Per-task grain (vs the per-turn turns table above).
+    -- Recorded by core.ts on agent_settled via usage-recording.recordTask.
+    CREATE TABLE IF NOT EXISTS tasks (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id      TEXT NOT NULL DEFAULT '',
+        prompt_index    INTEGER NOT NULL DEFAULT 0,
+        timestamp       INTEGER NOT NULL,
+        task_ms         INTEGER NOT NULL,
+        stop_reason     TEXT NOT NULL DEFAULT '',
+        model_name      TEXT,
+        thinking_level  TEXT,
+        turn_count      INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_timestamp ON tasks(timestamp);
 `;
 
 const MIGRATIONS = [

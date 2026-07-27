@@ -82,6 +82,35 @@ grouping in the report.
 | 1 | `followup` | Sub-prompt queued in the editor and delivered after the agent finished. |
 | 0 | `auto` | Automated tool-call continuation round - no new user input between this and the prior turn. |
 
+### `tasks` table (per-task metrics)
+
+A separate table at **per-task** grain (vs the per-turn `turns` table
+above). One row per SETTLED task — a single user prompt's full agent
+run (enter → settle) — inserted by `core.ts` on `agent_settled` via
+`recordTask`. Records every task regardless of cost (including `$0`
+subscription turns). The timer starts on the user prompt and stops on
+the single `agent_settled`; questions, steering, retries and compaction
+don't settle the agent, so `task_ms` spans all of them.
+
+EVERY settled task is recorded, whatever its outcome: `stop_reason` is
+`complete`, `error` or `aborted` (classified from the last assistant
+`stopReason`). Failed rows carry the time-to-failure so the usage
+report's Timings tab can count errors/aborts. The report only ever
+AVERAGES `stop_reason = 'complete'` rows — a failed duration is shown
+in the footer and counted, but never mixed into the Task Time metric.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | int PK | Auto-increment row id |
+| `session_id` | text | Stable per-runtime-session id (matches `turns.session_id`) |
+| `prompt_index` | int | 1-based user-prompt number the task belongs to |
+| `timestamp` | int | ms since epoch at task START (first `agent_start`) |
+| `task_ms` | int | Wall-clock task duration (enter → settle; time-to-failure for error/abort) |
+| `stop_reason` | text | How the task ended: `complete` / `error` / `aborted` |
+| `model_name` | text | Model that ran the task |
+| `thinking_level` | text | Thinking level (`high` / `low` / `off`) |
+| `turn_count` | int | Number of assistant turns the task took |
+
 ### What is NOT recorded
 
 - The actual **text** of user prompts, sub-prompts, or assistant

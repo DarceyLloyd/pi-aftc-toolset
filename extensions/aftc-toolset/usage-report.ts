@@ -3,27 +3,37 @@
  *
  * Reads the per-turn SQLite database (populated by usage-recording.ts)
  * and writes a self-contained HTML report to
- * <package-root>/.pi-aftc-toolset/data/report.html, then opens it in
+ * the persistent data dir (report.html; see paths.ts), then opens it in
  * the user's browser.
  *
  * The report is a single .html file: embedded CSS, embedded JSON,
  * embedded JS. The only external reference is the Chart.js CDN for the
  * graphs; when offline the page degrades gracefully (tables always
- * work). The report is organised into four tabs:
+ * work). The report is organised into five tabs:
  *
  *   Overview      — headline stat cards (total cost, prompts, calls,
  *                   cache hit, active days), a daily-spend bar chart
  *                   (last 30 days), a cost-share doughnut, and three
- *                   period summary cards (24h / 7d / 28d).
- *   Models        — per-model sortable table with a period selector
- *                   and a cost-by-model bar chart.
+ *                   period summary cards (24h / 7d / 28d). The per-model
+ *                   scoreboard only lists models that cost something in
+ *                   the window ($0 models never appear) and carries an
+ *                   Avg Task Time row (from the tasks table).
+ *   Models        — per-model sortable table with a period selector,
+ *                   a cost-by-model bar chart and a Task Time column.
  *   Thinking      — per-model × thinking-level sortable table with a
- *                   period selector.
+ *                   period selector and a Task Time column.
+ *   Timings       — Task Time analysis from the tasks table: headline
+ *                   cards (avg / longest task, turns per task, error &
+ *                   abort counts), task-time-by-model and daily avg
+ *                   task-time charts, a think / respond / tools-and-
+ *                   overhead split, user- vs AI-turn timings, and the
+ *                   top-10 longest completed tasks.
  *   Projections   — overall burn rate (avg $/day, projected month and
  *                   year from calendar days) plus per-model × thinking
  *                   $/day, $/week, $/month, $/year derived from
- *                   spend ÷ ACTIVE DAYS (not active hours — the old
- *                   hourly scaling produced absurd figures).
+ *                   spend ÷ ACTIVE days (not active hours — the old
+ *                   hourly scaling produced absurd figures). Zero-cost
+ *                   model rows are excluded.
  *
  * Projection math:
  *   per model×thinking: costPerDay = totalCost / activeDays, where
@@ -66,9 +76,13 @@ type ModelRow = {
     avgCacheRate: number;
     avgThinkingMs: number;
     avgResponseMs: number;
+    /** Avg completed-task time (tasks table) for this model in the window. */
+    avgTaskMs: number;
 };
 
 type ModelThinkingRow = ModelRow & { thinkingLevel: string };
+
+type ScoreboardEntry = { label: string; model: string; value: string; /** When set, the row renders N/A with this tooltip reason. */ na?: string };
 
 type PeriodSummary = {
     label: string;
@@ -76,12 +90,40 @@ type PeriodSummary = {
     calls: number;
     prompts: number;
     aiPrompts: number;
-    topModel: string;
-    topModelCost: number;
-    topModelShare: number; // 0..1 of period cost
+    scoreboard: ScoreboardEntry[];
 };
 
 type DayPoint = { day: string; label: string; cost: number; calls: number; prompts: number };
+
+type TaskModelPoint = { modelName: string; avgTaskMs: number; tasks: number };
+
+type LongestTask = { timestamp: number; modelName: string; thinkingLevel: string; turnCount: number; taskMs: number };
+
+type TimingsWindow = {
+    /** All recorded tasks in the window (any outcome). */
+    taskCount: number;
+    completed: number;
+    errors: number;
+    aborted: number;
+    /** Completed-task timing figures — failed durations are never averaged in. */
+    avgTaskMs: number;
+    maxTaskMs: number;
+    maxTaskModel: string;
+    avgTurnsPerTask: number;
+    totalTaskMs: number;
+    userTurns: number;
+    userAvgThinkMs: number;
+    userAvgRespMs: number;
+    aiTurns: number;
+    aiAvgThinkMs: number;
+    aiAvgRespMs: number;
+    totalThinkMs: number;
+    totalRespMs: number;
+    taskByModel: TaskModelPoint[];
+    longest: LongestTask[];
+};
+
+type TaskDayPoint = { day: string; label: string; avgTaskMs: number; tasks: number };
 
 type ProjectionRow = {
     modelName: string;
@@ -131,9 +173,52 @@ const ESTIMATE_MIN_ACTIVE_DAYS = 7;
 const ESTIMATE_MIN_CALENDAR_DAYS = 14;
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// Scoreboard N/A tooltip reasons (a row stays visible as N/A whenever its
+// metric is uncomputable for the window, with the reason on an info icon).
+const NA_COST = "Not available - no model in this period has a recorded cost. Subscription providers often don't give a per-turn price, so cost averages can't be calculated.";
+const NA_NO_TURNS = "Not available - no turns were recorded in this period.";
+const NA_NO_PROMPTS = "Not available - no user-prompt turns were recorded in this period.";
+const NA_ONE_MODEL = "Not available - only one model had user-prompt turns in this period.";
+const NA_NO_TASKS = "Not available - no completed tasks were recorded in this period.";
+const NA_NO_RESPONSE = "Not available - no response-time data was recorded in this period.";
+const NA_NO_THINK = "Not available - no thinking-time data in this period (non-reasoning models record no think time).";
+
 function num(v: unknown): number { return Number(v) || 0; }
 function safeDiv(a: number, b: number): number { return b > 0 ? a / b : 0; }
 function pad2(n: number): string { return String(n).padStart(2, "0"); }
+
+/** Server-side duration formatter: Xh Ym Zs, no padding, omit zero units. */
+function fmtMsServer(ms: number): string {
+    const totalSec = Math.round((ms || 0) / 1000);
+    if (totalSec <= 0) return "0s";
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const parts: string[] = [];
+    if (h > 0) parts.push(h + "h");
+    if (m > 0) parts.push(m + "m");
+    if (s > 0 || parts.length === 0) parts.push(s + "s");
+    return parts.join(" ");
+}
+
+/** Server-side percentage formatter for cache hit rate. */
+function fmtPctServer(rate: number): string { return ((rate || 0) * 100).toFixed(1) + "%"; }
+
+/** Server-side money formatter — MUST mirror the client fmtMoney tiers:
+ *  $0 → $0.00 · <$1 → 4dp · $1–<$1,000 → 2dp · ≥$1,000 → whole number
+ *  (rounded) · thousands separators at every magnitude. */
+function fmtMoneyServer(v: number): string {
+    v = Number(v) || 0;
+    const a = Math.abs(v);
+    if (a === 0) return "$0.00";
+    let s: string;
+    if (a < 1) s = v.toFixed(4);
+    else if (a < 1000) s = v.toFixed(2);
+    else s = String(Math.round(v));
+    const parts = s.split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return "$" + parts.join(".");
+}
 
 // ---------------------------------------------------------------------------
 // SQL fragments
@@ -189,6 +274,7 @@ class UsageModule {
             avgCacheRate: num(row.avg_cache_rate),
             avgThinkingMs: num(row.avg_thinking),
             avgResponseMs: num(row.avg_response),
+            avgTaskMs: 0,
         };
     }
 
@@ -197,9 +283,11 @@ class UsageModule {
         const models = (db.prepare(
             `SELECT DISTINCT model_name FROM turns WHERE model_name IS NOT NULL AND model_name != '' ORDER BY model_name`,
         ).all() as Array<{ model_name: string }>).map(r => r.model_name);
+        const taskTimes = this.taskTimeByModel(db, since);
         return models
             .map(m => this.windowStatsForModel(db, m, since))
-            .filter(r => r.turns > 0);
+            .filter(r => r.turns > 0)
+            .map(r => ({ ...r, avgTaskMs: taskTimes.get(r.modelName) || 0 }));
     }
 
     /** Per-model × thinking-level rows for a time window. */
@@ -220,14 +308,16 @@ class UsageModule {
              GROUP BY model_name, thinking_level
              ORDER BY cost DESC`,
         ).all(...(since > 0 ? [since] : [])) as any[];
+        const taskTimes = this.taskTimeByModelThinking(db, since);
         return rows.map(r => {
             const turns = num(r.turns);
             const userPrompts = num(r.user_count);
             const paidUserPrompts = num(r.paid_user_count);
             const cost = num(r.cost);
+            const level = r.thinking_level || "(none)";
             return {
                 modelName: r.model_name,
-                thinkingLevel: r.thinking_level || "(none)",
+                thinkingLevel: level,
                 cost,
                 turns,
                 userPrompts,
@@ -237,6 +327,7 @@ class UsageModule {
                 avgCacheRate: num(r.avg_cache_rate),
                 avgThinkingMs: num(r.avg_thinking),
                 avgResponseMs: num(r.avg_response),
+                avgTaskMs: taskTimes.get(`${r.model_name}|${level}`) || 0,
             };
         });
     }
@@ -274,21 +365,250 @@ class UsageModule {
         return out;
     }
 
-    private summarizePeriod(rows: ModelRow[], label: string): PeriodSummary {
+    private summarizePeriod(rows: ModelRow[], label: string, taskStats: { avgMs: number; count: number }): PeriodSummary {
         const cost = rows.reduce((s, r) => s + r.cost, 0);
         const calls = rows.reduce((s, r) => s + r.turns, 0);
         const prompts = rows.reduce((s, r) => s + r.userPrompts, 0);
-        const top = rows.slice().sort((a, b) => b.cost - a.cost)[0];
+
+        // Cost rows (cheapest / most costly) only consider models that
+        // COST something — a cost average over $0 (subscription) models is
+        // meaningless. Usage / cache / timing rows consider ALL models:
+        // those metrics exist for subscription models too. EVERY row is
+        // always shown; an uncomputable metric renders N/A + a tooltip
+        // giving the reason (it never silently disappears).
+        const paid = rows.filter(r => r.cost > 0);
+
+        const scoreboard: ScoreboardEntry[] = [];
+        const naRow = (rowLabel: string, reason: string): void => {
+            scoreboard.push({ label: rowLabel, model: "", value: "", na: reason });
+        };
+
+        // Cheapest / most costly — paid models only, N/A when none.
+        if (paid.length > 0) {
+            const byCpt = paid.slice().sort((a, b) => safeDiv(a.cost, a.turns) - safeDiv(b.cost, b.turns));
+            scoreboard.push({ label: "Cheapest model", model: byCpt[0].modelName, value: fmtMoneyServer(safeDiv(byCpt[0].cost, byCpt[0].turns)) });
+            scoreboard.push({ label: "Most costly model", model: byCpt[byCpt.length - 1].modelName, value: fmtMoneyServer(safeDiv(byCpt[byCpt.length - 1].cost, byCpt[byCpt.length - 1].turns)) });
+        } else {
+            naRow("Cheapest model", NA_COST);
+            naRow("Most costly model", NA_COST);
+        }
+
+        // Most / least used by user-prompt count — all models.
+        const withUp = rows.filter(r => r.userPrompts > 0);
+        if (withUp.length > 0) {
+            const byUp = withUp.slice().sort((a, b) => b.userPrompts - a.userPrompts);
+            scoreboard.push({ label: "Most used model", model: byUp[0].modelName, value: byUp[0].userPrompts.toLocaleString("en-US") });
+            if (byUp.length > 1)
+                scoreboard.push({ label: "Least used model", model: byUp[byUp.length - 1].modelName, value: byUp[byUp.length - 1].userPrompts.toLocaleString("en-US") });
+            else
+                naRow("Least used model", NA_ONE_MODEL);
+        } else {
+            naRow("Most used model", NA_NO_PROMPTS);
+            naRow("Least used model", NA_NO_PROMPTS);
+        }
+
+        // Task Time — avg wall-clock time from user prompt to the agent
+        // settling, over the window's completed tasks (tasks table). Sits
+        // under the used-model rows; independent of model cost.
+        if (taskStats.count > 0) {
+            scoreboard.push({
+                label: "Avg Task Time",
+                model: fmtMsServer(taskStats.avgMs),
+                value: `${taskStats.count} task${taskStats.count === 1 ? "" : "s"}`,
+            });
+        } else {
+            naRow("Avg Task Time", NA_NO_TASKS);
+        }
+
+        // Cache hit rate — all models; best = highest %, worst = lowest %.
+        if (rows.length > 0) {
+            const byCache = rows.slice().sort((a, b) => b.avgCacheRate - a.avgCacheRate);
+            scoreboard.push({ label: "Best cache hit", model: byCache[0].modelName, value: fmtPctServer(byCache[0].avgCacheRate) });
+            scoreboard.push({ label: "Worst cache hit", model: byCache[byCache.length - 1].modelName, value: fmtPctServer(byCache[byCache.length - 1].avgCacheRate) });
+        } else {
+            naRow("Best cache hit", NA_NO_TURNS);
+            naRow("Worst cache hit", NA_NO_TURNS);
+        }
+
+        // Response time — all models; best = lowest avg (0 = no data).
+        const withRt = rows.filter(r => r.avgResponseMs > 0);
+        if (withRt.length > 0) {
+            const byRt = withRt.slice().sort((a, b) => a.avgResponseMs - b.avgResponseMs);
+            scoreboard.push({ label: "Best response time", model: byRt[0].modelName, value: fmtMsServer(byRt[0].avgResponseMs) });
+            scoreboard.push({ label: "Worst response time", model: byRt[byRt.length - 1].modelName, value: fmtMsServer(byRt[byRt.length - 1].avgResponseMs) });
+        } else {
+            naRow("Best response time", NA_NO_RESPONSE);
+            naRow("Worst response time", NA_NO_RESPONSE);
+        }
+
+        // Think time — all models; best = lowest avg (0 = non-reasoning).
+        const withTt = rows.filter(r => r.avgThinkingMs > 0);
+        if (withTt.length > 0) {
+            const byTt = withTt.slice().sort((a, b) => a.avgThinkingMs - b.avgThinkingMs);
+            scoreboard.push({ label: "Best think time", model: byTt[0].modelName, value: fmtMsServer(byTt[0].avgThinkingMs) });
+            scoreboard.push({ label: "Worst think time", model: byTt[byTt.length - 1].modelName, value: fmtMsServer(byTt[byTt.length - 1].avgThinkingMs) });
+        } else {
+            naRow("Best think time", NA_NO_THINK);
+            naRow("Worst think time", NA_NO_THINK);
+        }
+
         return {
             label,
             cost,
             calls,
             prompts,
             aiPrompts: Math.max(0, calls - prompts),
-            topModel: top?.modelName ?? "",
-            topModelCost: top?.cost ?? 0,
-            topModelShare: cost > 0 && top ? top.cost / cost : 0,
+            scoreboard,
         };
+    }
+
+    // -------------------------------------------------------------------
+    // Task-time collectors (tasks table)
+    // -------------------------------------------------------------------
+
+    /** Avg completed-task time per model in a window (tasks table). */
+    private taskTimeByModel(db: any, since: number): Map<string, number> {
+        const rows = db.prepare(
+            `SELECT model_name, AVG(task_ms) AS avg_task
+             FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+                   AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name`,
+        ).all(since) as any[];
+        return new Map(rows.map(r => [String(r.model_name), num(r.avg_task)]));
+    }
+
+    /** Avg completed-task time per model × thinking level in a window. */
+    private taskTimeByModelThinking(db: any, since: number): Map<string, number> {
+        const rows = db.prepare(
+            `SELECT model_name, thinking_level, AVG(task_ms) AS avg_task
+             FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+                   AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name, thinking_level`,
+        ).all(since) as any[];
+        return new Map(rows.map(r => [`${r.model_name}|${r.thinking_level || "(none)"}`, num(r.avg_task)]));
+    }
+
+    /** Completed-task stats for a window (feeds the period summaries). */
+    private windowTaskStats(db: any, since: number): { avgMs: number; count: number } {
+        const row = db.prepare(
+            `SELECT COUNT(*) AS n, COALESCE(AVG(task_ms), 0) AS avg_ms
+             FROM tasks WHERE timestamp >= ? AND stop_reason = 'complete'`,
+        ).get(since) as any;
+        return { avgMs: num(row.avg_ms), count: num(row.n) };
+    }
+
+    /** Everything the Timings tab needs for one period window. */
+    private collectTimingsWindow(db: any, since: number): TimingsWindow {
+        const t = db.prepare(
+            `SELECT COUNT(*) AS tasks,
+                    COALESCE(SUM(CASE WHEN stop_reason = 'complete' THEN 1 ELSE 0 END), 0) AS completed,
+                    COALESCE(SUM(CASE WHEN stop_reason = 'error' THEN 1 ELSE 0 END), 0) AS errors,
+                    COALESCE(SUM(CASE WHEN stop_reason = 'aborted' THEN 1 ELSE 0 END), 0) AS aborted,
+                    AVG(CASE WHEN stop_reason = 'complete' THEN task_ms END) AS avg_task,
+                    MAX(CASE WHEN stop_reason = 'complete' THEN task_ms END) AS max_task,
+                    AVG(CASE WHEN stop_reason = 'complete' THEN turn_count END) AS avg_turns,
+                    COALESCE(SUM(CASE WHEN stop_reason = 'complete' THEN task_ms ELSE 0 END), 0) AS total_task_ms
+             FROM tasks WHERE timestamp >= ?`,
+        ).get(since) as any;
+
+        const longestRow = db.prepare(
+            `SELECT model_name FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+             ORDER BY task_ms DESC LIMIT 1`,
+        ).get(since) as any;
+
+        const turns = db.prepare(
+            `SELECT COALESCE(SUM(user_prompt), 0) AS user_turns,
+                    COUNT(*) AS all_turns,
+                    AVG(CASE WHEN user_prompt = 1 THEN thinking_ms END) AS user_think,
+                    AVG(CASE WHEN user_prompt = 1 THEN response_ms END) AS user_resp,
+                    AVG(CASE WHEN user_prompt = 0 THEN thinking_ms END) AS ai_think,
+                    AVG(CASE WHEN user_prompt = 0 THEN response_ms END) AS ai_resp,
+                    COALESCE(SUM(thinking_ms), 0) AS total_think,
+                    COALESCE(SUM(response_ms), 0) AS total_resp
+             FROM turns WHERE timestamp >= ?`,
+        ).get(since) as any;
+
+        const taskByModel = (db.prepare(
+            `SELECT model_name, COUNT(*) AS tasks, AVG(task_ms) AS avg_task
+             FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+                   AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name ORDER BY avg_task DESC`,
+        ).all(since) as any[]).map(r => ({
+            modelName: String(r.model_name),
+            avgTaskMs: num(r.avg_task),
+            tasks: num(r.tasks),
+        }));
+
+        const longest = (db.prepare(
+            `SELECT timestamp, model_name, thinking_level, turn_count, task_ms
+             FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+             ORDER BY task_ms DESC LIMIT 10`,
+        ).all(since) as any[]).map(r => ({
+            timestamp: num(r.timestamp),
+            modelName: String(r.model_name || ""),
+            thinkingLevel: String(r.thinking_level || "(none)"),
+            turnCount: num(r.turn_count),
+            taskMs: num(r.task_ms),
+        }));
+
+        const userTurns = num(turns.user_turns);
+        return {
+            taskCount: num(t.tasks),
+            completed: num(t.completed),
+            errors: num(t.errors),
+            aborted: num(t.aborted),
+            avgTaskMs: num(t.avg_task),
+            maxTaskMs: num(t.max_task),
+            maxTaskModel: longestRow ? String(longestRow.model_name || "") : "",
+            avgTurnsPerTask: num(t.avg_turns),
+            totalTaskMs: num(t.total_task_ms),
+            userTurns,
+            userAvgThinkMs: num(turns.user_think),
+            userAvgRespMs: num(turns.user_resp),
+            aiTurns: Math.max(0, num(turns.all_turns) - userTurns),
+            aiAvgThinkMs: num(turns.ai_think),
+            aiAvgRespMs: num(turns.ai_resp),
+            totalThinkMs: num(turns.total_think),
+            totalRespMs: num(turns.total_resp),
+            taskByModel,
+            longest,
+        };
+    }
+
+    /** Zero-filled per-day avg task time for the last SERIES_DAYS local days. */
+    private collectTaskDailySeries(db: any, now: number): TaskDayPoint[] {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - (SERIES_DAYS - 1));
+        const rows = db.prepare(
+            `SELECT date(timestamp / 1000, 'unixepoch', 'localtime') AS day,
+                    AVG(task_ms) AS avg_task,
+                    COUNT(*) AS tasks
+             FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+             GROUP BY day`,
+        ).all(start.getTime()) as any[];
+        const byDay = new Map<string, any>(rows.map(r => [String(r.day), r]));
+        const out: TaskDayPoint[] = [];
+        for (let i = SERIES_DAYS - 1; i >= 0; i--) {
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - i);
+            const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+            const row = byDay.get(key);
+            out.push({
+                day: key,
+                label: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`,
+                avgTaskMs: num(row?.avg_task),
+                tasks: num(row?.tasks),
+            });
+        }
+        return out;
     }
 
     private collectTotals(db: any, now: number): ReportTotals {
@@ -347,6 +667,8 @@ class UsageModule {
      * (distinct local calendar days with at least one turn), scaled to
      * week (×7), month (×30.44) and year (×365). Rows with fewer than
      * ESTIMATE_MIN_ACTIVE_DAYS active days are flagged as estimates.
+     * Model × thinking rows with zero total cost are excluded — a $0
+     * model has nothing to project.
      *
      * Overall: avgDailySpend = totalCost / calendarDays since the first
      * recorded turn — the true burn rate, including idle days. Flagged
@@ -386,7 +708,7 @@ class UsageModule {
                 costPerYear: perDay * 365,
                 estimated: activeDays < ESTIMATE_MIN_ACTIVE_DAYS,
             };
-        });
+        }).filter(r => r.cost > 0);
 
         const days = Math.max(1, totals.calendarDays);
         const avgDaily = safeDiv(totals.totalCost, days);
@@ -428,13 +750,17 @@ class UsageModule {
 
         const totals = this.collectTotals(db, now);
 
+        const dailyTaskStats = this.windowTaskStats(db, dailySince);
+        const weeklyTaskStats = this.windowTaskStats(db, weeklySince);
+        const monthlyTaskStats = this.windowTaskStats(db, monthlySince);
+
         return {
             generatedAt: now,
             totals,
             periods: {
-                daily: this.summarizePeriod(dailyModels, "Last 24 hours"),
-                weekly: this.summarizePeriod(weeklyModels, "Last 7 days"),
-                monthly: this.summarizePeriod(monthlyModels, "Last 28 days"),
+                daily: this.summarizePeriod(dailyModels, "Last 24 hours", dailyTaskStats),
+                weekly: this.summarizePeriod(weeklyModels, "Last 7 days", weeklyTaskStats),
+                monthly: this.summarizePeriod(monthlyModels, "Last 28 days", monthlyTaskStats),
             },
             dailySeries: this.collectDailySeries(db, now),
             modelsByPeriod: {
@@ -449,6 +775,13 @@ class UsageModule {
                 monthly: this.collectWindowedModelThinking(db, monthlySince),
                 all: this.collectWindowedModelThinking(db, 0),
             },
+            timings: {
+                daily: this.collectTimingsWindow(db, dailySince),
+                weekly: this.collectTimingsWindow(db, weeklySince),
+                monthly: this.collectTimingsWindow(db, monthlySince),
+                all: this.collectTimingsWindow(db, 0),
+            },
+            taskDailySeries: this.collectTaskDailySeries(db, now),
             projections: this.computeProjections(db, totals),
         };
     }
@@ -457,20 +790,23 @@ class UsageModule {
     // Clearing
     // -------------------------------------------------------------------
 
-    private countTurns(): number {
+    private countRows(table: string): number {
         const db = getDb();
         if (!db) return 0;
-        const row = db.prepare(`SELECT COUNT(*) AS n FROM turns`).get() as { n: number };
+        const row = db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number };
         return row.n;
     }
 
-    private clearTurns(): number {
+    /** Deletes BOTH tables (turns + tasks) in one transaction. */
+    private clearUsage(): { turns: number; tasks: number } {
         const db = getDb();
-        if (!db) return 0;
+        if (!db) return { turns: 0, tasks: 0 };
         const tx = db.transaction(() => {
-            const result = db.prepare(`DELETE FROM turns`).run();
+            const turns = db.prepare(`DELETE FROM turns`).run().changes;
             db.prepare(`DELETE FROM sqlite_sequence WHERE name = 'turns'`).run();
-            return result.changes;
+            const tasks = db.prepare(`DELETE FROM tasks`).run().changes;
+            db.prepare(`DELETE FROM sqlite_sequence WHERE name = 'tasks'`).run();
+            return { turns, tasks };
         });
         return tx();
     }
@@ -481,18 +817,19 @@ class UsageModule {
             ctx.ui.notify?.("Cannot clear usage data: better-sqlite3 is not available. Run /aftc-install.", "error");
             return;
         }
-        const count = this.countTurns();
-        if (count === 0) {
+        const turns = this.countRows("turns");
+        const tasks = this.countRows("tasks");
+        if (turns === 0 && tasks === 0) {
             ctx.ui.notify?.("Usage database is already empty — nothing to clear.", "info");
             return;
         }
         if (ctx.hasUI) {
-            const ok = await showConfirm(ctx, { title: "Clear usage database", body: `Permanently delete all ${count} recorded turn${count === 1 ? "" : "s"} from the SQLite database?\n\nThis cannot be undone.` });
+            const ok = await showConfirm(ctx, { title: "Clear usage database", body: `Permanently delete all ${turns} recorded turn${turns === 1 ? "" : "s"} and ${tasks} task record${tasks === 1 ? "" : "s"} from the SQLite database?\n\nThis cannot be undone.` });
             if (!ok) return;
         }
         try {
-            const deleted = this.clearTurns();
-            ctx.ui.notify?.(`Cleared usage database — deleted ${deleted} turn${deleted === 1 ? "" : "s"}.`, "info");
+            const deleted = this.clearUsage();
+            ctx.ui.notify?.(`Cleared usage database — deleted ${deleted.turns} turn${deleted.turns === 1 ? "" : "s"} and ${deleted.tasks} task record${deleted.tasks === 1 ? "" : "s"}.`, "info");
         } catch (err) {
             ctx.ui.notify?.(`Failed to clear usage database: ${(err as Error).message}`, "error");
         }
@@ -572,17 +909,27 @@ class UsageModule {
   .stat-value { font-size:20px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
   .stat-value.money { color:var(--orange); }
   .stat-sub { color:var(--muted); font-size:12px; margin-top:2px; }
-  .period-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+  .period-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
   .period-cost { font-size:22px; font-weight:700; color:var(--orange);
     margin-top:4px; font-variant-numeric:tabular-nums; }
-  .period-top { font-size:12px; margin-top:8px; color:var(--muted); }
-  .period-top b { color:var(--text); font-weight:600; }
+  .period-score { margin-top:8px; border-top:1px solid var(--border); padding-top:6px; }
+  .period-score-row { display:flex; justify-content:space-between; align-items:baseline;
+    font-size:11px; line-height:1.7; gap:4px; }
+  .period-score-label { color:var(--muted); white-space:nowrap; }
+  .period-score-val { color:var(--text); font-weight:600; text-align:right;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .period-score-val .metric { color:var(--muted); font-weight:400; margin-left:4px; }
+  .na-mark { color:var(--muted); font-style:italic; font-weight:600; }
+  .period-score-val .col-hint { margin-left:6px; vertical-align:0; }
   .empty { color:var(--muted); font-style:italic; padding:12px 4px; }
 
   /* Charts */
-  .chart-grid { display:grid; grid-template-columns:1.7fr 1fr; gap:10px; margin-top:10px; }
+  .chart-grid { display:grid; grid-template-columns:1.58fr 1fr; gap:10px; margin-top:10px; }
   @media(max-width:900px){ .chart-grid { grid-template-columns:1fr; } }
-  .chart-box { position:relative; height:250px; }
+  /* Grid children must be able to shrink: without min-width:0 the canvas
+     locks wide after a shrink/expand resize and overflows the viewport. */
+  .chart-grid > .panel { min-width:0; }
+  .chart-box { position:relative; height:250px; overflow:hidden; }
   .chart-box.sm { height:210px; }
   .panel-title { font-size:13px; font-weight:700; margin-bottom:10px; }
   .panel-sub { color:var(--muted); font-weight:400; font-size:11px; margin-left:6px; }
@@ -602,7 +949,7 @@ class UsageModule {
   /* Tables */
   .table-panel { padding:6px 0 8px; }
   .table-wrap { overflow-x:auto; }
-  table { width:100%; border-collapse:collapse; font-size:13px; min-width:680px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; min-width:780px; }
   th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
   th { color:var(--muted); font-size:11px; text-transform:uppercase;
     letter-spacing:.05em; cursor:pointer; user-select:none; }
@@ -638,6 +985,19 @@ class UsageModule {
   .lvl.low { background:rgba(90,209,154,.14); color:var(--good); border-color:transparent; }
   .est { color:var(--warn); cursor:help; font-weight:700; margin-left:3px; }
 
+  /* Timings */
+  .duo-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+  @media(max-width:900px){ .duo-grid { grid-template-columns:1fr; } }
+  .duo-grid > .panel { min-width:0; }
+  .split-bar { display:flex; height:18px; border-radius:9px; overflow:hidden;
+    background:var(--panel-2); margin:12px 0 10px; }
+  .split-seg { height:100%; }
+  .split-legend { display:flex; flex-wrap:wrap; gap:4px 18px; font-size:12px; color:var(--muted); }
+  .split-legend .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .split-legend b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
+  .mini-table { min-width:0; }
+  .mini-table th { cursor:default; }
+
   .note { color:var(--muted); font-size:12px; line-height:1.55; margin:10px 0; }
   .note.estimate { color:var(--warn); }
   footer { color:var(--muted); font-size:11px; margin:34px 0 18px; text-align:center; line-height:1.7; }
@@ -655,6 +1015,7 @@ class UsageModule {
     <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
     <button class="tab" data-tab="models" role="tab" aria-selected="false">Models</button>
     <button class="tab" data-tab="thinking" role="tab" aria-selected="false">Thinking levels</button>
+    <button class="tab" data-tab="timings" role="tab" aria-selected="false">Timings</button>
     <button class="tab" data-tab="projections" role="tab" aria-selected="false">Projections</button>
   </nav>
 
@@ -725,6 +1086,58 @@ class UsageModule {
     </div>
   </section>
 
+  <!-- ======================= TIMINGS ======================= -->
+  <section class="tab-panel hidden" id="panel-timings" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Task Time &amp; turn timings</div>
+      <label class="period-label">Period
+        <select id="timings-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="stat-grid" id="timings-cards"></div>
+
+    <div class="chart-grid">
+      <div class="panel">
+        <div class="panel-title">Avg Task Time by model <span class="panel-sub" id="task-model-sub">all time</span></div>
+        <div class="chart-box sm"><canvas id="chart-task-model"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Daily Avg Task Time <span class="panel-sub">last 30 days · completed tasks</span></div>
+        <div class="chart-box sm"><canvas id="chart-task-daily"></canvas></div>
+      </div>
+    </div>
+
+    <div class="duo-grid">
+      <div class="panel">
+        <div class="panel-title">Where the task time goes <span class="panel-sub">completed tasks</span></div>
+        <div id="time-split"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">User-prompt vs AI turns <span class="panel-sub">per-turn timings</span></div>
+        <div class="table-wrap"><table class="mini-table" id="turn-split"></table></div>
+      </div>
+    </div>
+
+    <h2>Longest tasks <span class="section-meta">top 10 completed tasks in the selected period</span></h2>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="longest-table"></table>
+      </div>
+      <div id="longest-empty" class="empty" hidden>No completed tasks in this period.</div>
+    </div>
+
+    <p class="note"><b>Task Time</b> is the wall-clock time from when you press enter to when the AI fully
+    returns control &mdash; one prompt's complete agent run, across all its tool-call turns (questions, steering,
+    retries and compaction included). Averages and the longest-task list cover <b>completed</b> tasks only;
+    failed runs (error / abort) are counted in the cards above but never averaged into Task Time. Think and
+    response times come from the per-turn table.</p>
+  </section>
+
   <!-- ======================= PROJECTIONS ======================= -->
   <section class="tab-panel hidden" id="panel-projections" role="tabpanel">
     <div class="stat-grid" id="proj-cards"></div>
@@ -738,7 +1151,7 @@ class UsageModule {
     <p class="note">Per-model figures assume each future day looks like your average <b>active day</b>
     with that model (spend ÷ active days). The overall burn rate divides all-time spend by every
     calendar day since recording began, including idle days. Rows marked <span class="est">~</span>
-    are estimates from fewer than 7 active days.</p>
+    are estimates from fewer than 7 active days. Models with zero total cost are excluded.</p>
   </section>
 
   <footer>Generated by pi-aftc-toolset &middot; /usage-report &middot; All For The Code<br>Author Darcey.Lloyd@gmail.com</footer>
@@ -748,11 +1161,18 @@ class UsageModule {
   var data = JSON.parse(document.getElementById("report-data").textContent || "{}");
 
   // ---------- formatters ----------
-  function fmtMoney(v){ v = Number(v)||0; return "$" + (Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(4)); }
+  function fmtMoney(v){ v=Number(v)||0; var a=Math.abs(v); if(a===0) return "$0.00";
+    var s; if(a<1) s=v.toFixed(4); else if(a<1000) s=v.toFixed(2);
+    else s=String(Math.round(v));
+    var parts=s.split("."); parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,",");
+    return "$"+parts.join("."); }
   function fmtInt(v){ return (Number(v)||0).toLocaleString("en-US"); }
   function fmtTok(v){ v = Number(v)||0; if (v>=1e9) return (v/1e9).toFixed(1)+"B"; if (v>=1e6) return (v/1e6).toFixed(1)+"M"; if (v>=1e3) return (v/1e3).toFixed(1)+"K"; return String(Math.round(v)); }
   function fmtPct(v){ return ((Number(v)||0)*100).toFixed(1)+"%"; }
-  function fmtMs(ms){ ms = Number(ms)||0; if (ms<=0) return "0s"; var s = Math.floor(ms/1000); return s<60 ? s+"s" : Math.floor(s/60)+"m "+(s%60)+"s"; }
+  function fmtMs(ms){ ms=Number(ms)||0; if(ms<=0) return "0s";
+    var t=Math.round(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60,p=[];
+    if(h>0) p.push(h+"h"); if(m>0) p.push(m+"m"); if(s>0||p.length===0) p.push(s+"s");
+    return p.join(" "); }
   function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
   function cachePill(rate){ var p=(Number(rate)||0)*100; var cls = p>=60?"good":p>=30?"warn":"bad"; return '<span class="pill '+cls+'">'+p.toFixed(1)+"%</span>"; }
   function thinkingPill(level){
@@ -771,6 +1191,8 @@ class UsageModule {
   var HINT_AI_PER_USER = "Average number of AI (self-prompted) turns per user prompt - how many tool-call loops the model runs for each prompt you type. Lower is more efficient.";
   var HINT_AVG_PUP = "Average cost per user prompt: total cost ÷ user prompts on paid turns. Free / $0 (subscription) turns are excluded so they don't drag the average down.";
   var HINT_AVG_CACHE = "Average cache hit rate per turn: cached tokens ÷ (cached + new input tokens). Higher means cheaper, faster repeat context.";
+  var HINT_TASK_TIME = "Task Time: This is how long the AI took to fully handle a prompt and return control.";
+  // (N/A tooltip reasons come from the data — each na row carries its own.)
   var colTip = null;
   function showColTip(anchor, text){
     if (!colTip){ colTip = document.createElement("div"); colTip.className = "col-tip"; document.body.appendChild(colTip); }
@@ -803,7 +1225,7 @@ class UsageModule {
   })();
 
   // ---------- tabs ----------
-  var TAB_IDS = ["overview","models","thinking","projections"];
+  var TAB_IDS = ["overview","models","thinking","timings","projections"];
   function activateTab(id){
     document.querySelectorAll(".tab").forEach(function(b){
       var on = b.dataset.tab === id;
@@ -815,6 +1237,7 @@ class UsageModule {
     });
     if (history.replaceState) history.replaceState(null, "", "#"+id);
     if (id === "models") ensureModelsChart();
+    if (id === "timings") ensureTimingsCharts();
   }
   document.querySelectorAll(".tab").forEach(function(b){
     b.addEventListener("click", function(){ activateTab(b.dataset.tab); });
@@ -845,19 +1268,30 @@ class UsageModule {
     var ph = "";
     ["daily","weekly","monthly"].forEach(function(key){
       var p = (data.periods || {})[key] || {};
-      var top = p.topModel
-        ? '<div class="period-top">Top model: <b>'+esc(p.topModel)+'</b> · '+fmtMoney(p.topModelCost)+' ('+Math.round((p.topModelShare||0)*100)+'%)</div>'
-        : '<div class="period-top">No activity</div>';
+      var scoreHtml = "";
+      if (p.scoreboard && p.scoreboard.length) {
+        scoreHtml = '<div class="period-score">';
+        p.scoreboard.forEach(function(e){
+          var valHtml = e.na
+            ? '<span class="na-mark">N/A</span><span class="col-hint" data-tip="' + esc(e.na) + '">' + INFO_SVG + '</span>'
+            : esc(e.model) + (e.value ? '<span class="metric">' + esc(e.value) + '</span>' : '');
+          scoreHtml += '<div class="period-score-row">'
+            + '<span class="period-score-label">' + esc(e.label) + '</span>'
+            + '<span class="period-score-val">' + valHtml + '</span></div>';
+        });
+        scoreHtml += '</div>';
+      }
       ph += '<div class="panel period-card"><div class="stat-label">'+esc(p.label || key)+'</div>'
         + '<div class="period-cost">'+fmtMoney(p.cost)+'</div>'
         + '<div class="stat-sub">Prompts: User '+fmtInt(p.prompts)+' / AI '+fmtInt(p.aiPrompts)+'</div>'
-        + top + '</div>';
+        + scoreHtml + '</div>';
     });
     document.getElementById("period-grid").innerHTML = ph;
+    bindHints(document.getElementById("period-grid"));
   }
 
   // ---------- charts ----------
-  var PALETTE = ["#fca02f","#4d8df6","#76e0c2","#f3b664","#ef6b6b","#6aa9ff","#5ad19a","#b388ff","#ff8fab","#8ce99a"];
+  var PALETTE = ["#fca02f","#4d8df6","#4ade80","#b388ff","#ef6b6b","#22d3ee","#facc15","#ff8fab","#2dd4bf","#94a3b8"];
   var chartsOk = typeof window.Chart !== "undefined";
   if (chartsOk){
     Chart.defaults.color = "#8b94a7";
@@ -906,7 +1340,7 @@ class UsageModule {
         },
         scales: {
           x: { grid:{ display:false }, ticks:{ maxTicksLimit:10, maxRotation:0 } },
-          y: { beginAtZero:true, ticks:{ maxTicksLimit:6, callback:function(v){ return "$"+v; } }, grid:{ color:"rgba(139,148,167,.08)" } },
+          y: { beginAtZero:true, ticks:{ maxTicksLimit:6, callback:function(v){ return fmtMoney(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
         },
       },
     });
@@ -920,12 +1354,16 @@ class UsageModule {
     if (!rows.length){ chartFallback("chart-share", "No data recorded yet."); return; }
     var top = rows.slice(0, 7);
     var rest = rows.slice(7);
-    var labels = top.map(function(r){ return r.modelName; });
-    var costs = top.map(function(r){ return r.cost; });
+    var pairs = top.map(function(r){ return { label: r.modelName, cost: Number(r.cost) || 0 }; });
     if (rest.length){
-      labels.push("Other");
-      costs.push(rest.reduce(function(s,r){ return s + r.cost; }, 0));
+      pairs.push({ label: "Other", cost: rest.reduce(function(s,r){ return s + (Number(r.cost) || 0); }, 0) });
     }
+    // Drop slices that would format as 0.0% — invisible on the pie, legend clutter.
+    var totalAll = pairs.reduce(function(s,p){ return s + p.cost; }, 0);
+    if (totalAll > 0) pairs = pairs.filter(function(p){ return (p.cost / totalAll * 100) >= 0.05; });
+    if (!pairs.length){ chartFallback("chart-share", "No cost data recorded yet."); return; }
+    var labels = pairs.map(function(p){ return p.label; });
+    var costs = pairs.map(function(p){ return p.cost; });
     var total = costs.reduce(function(s,v){ return s+v; }, 0);
     var centerTotal = {
       id: "centerTotal",
@@ -952,7 +1390,20 @@ class UsageModule {
         responsive: true, maintainAspectRatio: false, cutout: "62%",
         plugins: {
           legend: { position: window.innerWidth >= 860 ? "right" : "bottom",
-            labels: { boxWidth:10, boxHeight:10, padding:10, usePointStyle:true } },
+            labels: { color:"#e6e9ef", boxWidth:10, boxHeight:10, padding:10, usePointStyle:true,
+              generateLabels: function(chart){
+                var ds = chart.data.datasets[0];
+                return chart.data.labels.map(function(lbl, i){
+                  var v = Number(ds.data[i])||0;
+                  var pct = total>0 ? (v/total*100).toFixed(1) : "0.0";
+                  // fontColor is read off the item with NO global fallback —
+                  // omit it and the legend text renders black (canvas default).
+                  return { text: lbl+" ("+pct+"%)", fillStyle: ds.backgroundColor[i],
+                    strokeStyle: ds.backgroundColor[i], pointStyle: "circle",
+                    fontColor: "#e6e9ef", color: "#e6e9ef",
+                    hidden: !chart.getDataVisibility(i), index: i };
+                });
+              } } },
           tooltip: Object.assign({}, tooltipBase, {
             displayColors: true,
             callbacks: { label: function(item){
@@ -988,7 +1439,7 @@ class UsageModule {
             }),
           },
           scales: {
-            x: { beginAtZero:true, ticks:{ callback:function(v){ return "$"+v; } }, grid:{ color:"rgba(139,148,167,.08)" } },
+            x: { beginAtZero:true, ticks:{ callback:function(v){ return fmtMoney(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
             y: { grid:{ display:false } },
           },
         },
@@ -1087,6 +1538,7 @@ class UsageModule {
       { key:"avgCostPerUserPrompt", label:"Avg $/Pup", num:true, hint:HINT_AVG_PUP, render:function(r){ return fmtMoney(r.avgCostPerUserPrompt); } },
       { key:"avgCacheRate", label:"Avg cache", num:true, hint:HINT_AVG_CACHE, render:function(r){ return cachePill(r.avgCacheRate); } },
       { key:"avgResponseMs", label:"Avg response", num:true, render:function(r){ return fmtMs(r.avgResponseMs); } },
+      { key:"avgTaskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.avgTaskMs); } },
     ],
   });
   document.getElementById("models-period").addEventListener("change", function(e){
@@ -1113,11 +1565,172 @@ class UsageModule {
       { key:"avgCacheRate", label:"Avg cache", num:true, hint:HINT_AVG_CACHE, render:function(r){ return cachePill(r.avgCacheRate); } },
       { key:"avgThinkingMs", label:"Avg think", num:true, render:function(r){ return fmtMs(r.avgThinkingMs); } },
       { key:"avgResponseMs", label:"Avg response", num:true, render:function(r){ return fmtMs(r.avgResponseMs); } },
+      { key:"avgTaskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.avgTaskMs); } },
     ],
   });
   document.getElementById("thinking-period").addEventListener("change", function(e){
     thinkingPeriod = e.target.value;
     thinkingTable.render();
+  });
+
+  // ---------- timings ----------
+  var timingsPeriod = "all";
+  function timingsWin(){ return (data.timings || {})[timingsPeriod] || {}; }
+  var MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function fmtWhen(ts){
+    var d = new Date(Number(ts)||0);
+    function p(n){ return String(n).padStart(2,"0"); }
+    return d.getDate() + " " + MONTHS_SHORT[d.getMonth()] + ", " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  function renderTimingsCards(){
+    var w = timingsWin();
+    var html = "";
+    html += statCard("Avg Task Time", fmtMs(w.avgTaskMs), "over " + fmtInt(w.completed) + " completed tasks");
+    html += statCard("Longest task", fmtMs(w.maxTaskMs), w.maxTaskModel || "no completed tasks");
+    html += statCard("Avg turns / task", (Number(w.avgTurnsPerTask)||0).toFixed(1), "per completed task");
+    html += statCard("Errors & aborts", fmtInt((Number(w.errors)||0) + (Number(w.aborted)||0)),
+      fmtInt(w.errors) + " errors · " + fmtInt(w.aborted) + " aborts - counted, never averaged");
+    document.getElementById("timings-cards").innerHTML = html;
+  }
+  function renderTimeSplit(){
+    var w = timingsWin();
+    var el = document.getElementById("time-split");
+    var totalTask = Number(w.totalTaskMs)||0, think = Number(w.totalThinkMs)||0, resp = Number(w.totalRespMs)||0;
+    if (totalTask <= 0){ el.innerHTML = '<div class="empty">No completed tasks in this period.</div>'; return; }
+    var overhead = Math.max(0, totalTask - think - resp);
+    function seg(ms, color, label){
+      var pct = ms / totalTask * 100;
+      return {
+        bar: '<div class="split-seg" style="flex:' + (ms / totalTask) + ' 1 0%;background:' + color + '"></div>',
+        legend: '<span><span class="dot" style="background:' + color + '"></span>' + label
+          + ' <b>' + fmtMs(ms) + '</b> (' + pct.toFixed(1) + '%)</span>',
+      };
+    }
+    var s1 = seg(think, "#b388ff", "Thinking");
+    var s2 = seg(resp, "#4d8df6", "Responding");
+    var s3 = seg(overhead, "#fca02f", "Tools & overhead");
+    el.innerHTML = '<div class="split-bar">' + s1.bar + s2.bar + s3.bar + '</div>'
+      + '<div class="split-legend">' + s1.legend + s2.legend + s3.legend + '</div>';
+  }
+  function renderTurnSplit(){
+    var w = timingsWin();
+    var rows = [
+      ["User-prompt turns", Number(w.userTurns)||0, Number(w.userAvgThinkMs)||0, Number(w.userAvgRespMs)||0],
+      ["AI (auto) turns", Number(w.aiTurns)||0, Number(w.aiAvgThinkMs)||0, Number(w.aiAvgRespMs)||0],
+    ];
+    var html = "<thead><tr><th>Turn kind</th><th class='num'>Turns</th><th class='num'>Avg think</th>"
+      + "<th class='num'>Avg respond</th><th class='num'>Avg total</th></tr></thead><tbody>";
+    rows.forEach(function(r){
+      html += "<tr><td>" + esc(r[0]) + "</td><td class='num'>" + fmtInt(r[1]) + "</td><td class='num'>" + fmtMs(r[2])
+        + "</td><td class='num'>" + fmtMs(r[3]) + "</td><td class='num'>" + fmtMs(r[2] + r[3]) + "</td></tr>";
+    });
+    document.getElementById("turn-split").innerHTML = html + "</tbody>";
+  }
+  var longestTable = makeTable({
+    tableId: "longest-table",
+    emptyId: "longest-empty",
+    defaultKey: "taskMs",
+    getRows: function(){ return timingsWin().longest || []; },
+    cols: [
+      { key:"timestamp", label:"When", render:function(r){ return fmtWhen(r.timestamp); } },
+      { key:"modelName", label:"Model" },
+      { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
+      { key:"turnCount", label:"Turns", num:true, render:function(r){ return fmtInt(r.turnCount); } },
+      { key:"taskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.taskMs); } },
+    ],
+  });
+  var taskModelChart = null;
+  var taskModelRows = [];
+  var taskDailyChartDone = false;
+  function ensureTimingsCharts(){
+    var canvas = document.getElementById("chart-task-model");
+    if (canvas){
+      if (!chartsOk){ chartFallback("chart-task-model"); }
+      else {
+        taskModelRows = (timingsWin().taskByModel || []).slice()
+          .sort(function(a,b){ return b.avgTaskMs - a.avgTaskMs; }).slice(0, 8);
+        var labels = taskModelRows.map(function(r){ return r.modelName; });
+        var vals = taskModelRows.map(function(r){ return r.avgTaskMs; });
+        if (!taskModelChart){
+          taskModelChart = new Chart(canvas, {
+            type: "bar",
+            data: { labels: labels, datasets: [{ data: vals, backgroundColor: "#fca02f", borderRadius: 3, maxBarThickness: 18 }] },
+            options: {
+              indexAxis: "y", responsive: true, maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: Object.assign({}, tooltipBase, {
+                  callbacks: { label: function(item){
+                    var r = taskModelRows[item.dataIndex] || {};
+                    return " " + fmtMs(item.parsed.x) + " avg · " + fmtInt(r.tasks) + " task" + ((Number(r.tasks)||0) === 1 ? "" : "s");
+                  } },
+                }),
+              },
+              scales: {
+                x: { beginAtZero:true, ticks:{ callback:function(v){ return fmtMs(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
+                y: { grid:{ display:false } },
+              },
+            },
+          });
+        } else {
+          taskModelChart.data.labels = labels;
+          taskModelChart.data.datasets[0].data = vals;
+          taskModelChart.update();
+        }
+      }
+    }
+    if (!taskDailyChartDone){ taskDailyChartDone = true; renderTaskDailyChart(); }
+  }
+  function renderTaskDailyChart(){
+    if (!chartsOk){ chartFallback("chart-task-daily"); return; }
+    var series = data.taskDailySeries || [];
+    var canvas = document.getElementById("chart-task-daily");
+    if (!canvas) return;
+    var lastIdx = series.length - 1;
+    new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels: series.map(function(p){ return p.label; }),
+        datasets: [{
+          data: series.map(function(p){ return Number(p.avgTaskMs)||0; }),
+          backgroundColor: series.map(function(p, i){
+            if ((Number(p.tasks)||0) === 0) return "rgba(139,148,167,.18)";
+            return i === lastIdx ? "#fca02f" : "#4d8df6";
+          }),
+          borderRadius: 3,
+          maxBarThickness: 22,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: Object.assign({}, tooltipBase, {
+            callbacks: { label: function(item){
+              var p = series[item.dataIndex] || {};
+              var n = Number(p.tasks)||0;
+              return n === 0 ? " No completed tasks" : ["Avg Task Time: " + fmtMs(p.avgTaskMs), "Completed tasks: " + fmtInt(n)];
+            } },
+          }),
+        },
+        scales: {
+          x: { grid:{ display:false }, ticks:{ maxTicksLimit:10, maxRotation:0 } },
+          y: { beginAtZero:true, ticks:{ maxTicksLimit:6, callback:function(v){ return fmtMs(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
+        },
+      },
+    });
+  }
+  function renderTimingsAll(){
+    renderTimingsCards();
+    renderTimeSplit();
+    renderTurnSplit();
+    longestTable.render();
+    ensureTimingsCharts();
+  }
+  document.getElementById("timings-period").addEventListener("change", function(e){
+    timingsPeriod = e.target.value;
+    document.getElementById("task-model-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase();
+    renderTimingsAll();
   });
 
   // ---------- projections ----------
@@ -1159,6 +1772,10 @@ class UsageModule {
   renderShareChart();
   modelsTable.render();
   thinkingTable.render();
+  renderTimingsCards();
+  renderTimeSplit();
+  renderTurnSplit();
+  longestTable.render();
   renderProjCards();
   projTable.render();
   activateTab(initialTab);
@@ -1209,4 +1826,4 @@ export function createUsageModule(pi: ExtensionAPI): UsageModule {
     return m;
 }
 
-export { isDbAvailable };
+export { isDbAvailable, fmtMoneyServer };
