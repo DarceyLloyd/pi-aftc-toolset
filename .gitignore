@@ -55,7 +55,9 @@ tests/
 .dockerignore
 rules.md
 dev.md
+tasks.md
 skills/cache-audit/SKILL.old
+*.zip
 
 # Archived skills
 skills/*.rar
