@@ -10,9 +10,11 @@ import { createSavedConnectionRequest } from "./connection-form";
 import { pickConnection, pickSession } from "./picker";
 import { formatSshStatus, SshHostKeyApprovalRequired, SshSessionManager, type SshSessionView } from "./session";
 import { showSshTerminal } from "./terminal-overlay";
-import { showViewer } from "../../ui/aftcUi";
+import { registerHelpEntry } from "../help-registry";
+import { showViewer } from "../../ui/aftc-ui";
 import { confirmOverlay } from "./confirmation-overlay";
 import { sshSafeError as safeError, sshSafeErrorMessage as safeMessage } from "./redaction";
+import * as aftcConsole from "../ui/aftc-console";
 
 const LOCAL_OUTPUT_DISPLAY_MAX = 50_000;
 
@@ -118,20 +120,38 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         }
     }
 
+    registerHelpEntry({
+        command: "ssh-auto-accept-session-on",
+        description: "Auto-approve new SSH host keys (saved)",
+        category: "SSH",
+    });
+
     pi.registerCommand("ssh-auto-accept-session-on", {
         description: "Auto-approve NEW SSH host keys (saved in ssh.json). Changed keys still ask.",
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
             setSshSessionAutoAccept(true);
-            ctx.ui.notify("SSH new-host-key auto-accept is ON. New host keys will be trusted without asking; changed keys are still rejected.", "warning");
+            aftcConsole.emphasis(ctx, "SSH new-host-key auto-accept is ON. New host keys will be trusted without asking; changed keys are still rejected.");
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-auto-accept-session-off",
+        description: "Ask before trusting new SSH host keys",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-auto-accept-session-off", {
         description: "Ask for approval before trusting NEW SSH host keys (default).",
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
             setSshSessionAutoAccept(false);
-            ctx.ui.notify("SSH new-host-key auto-accept is OFF. New host keys will ask for approval.", "info");
+            aftcConsole.emphasis(ctx, "SSH new-host-key auto-accept is OFF. New host keys will ask for approval.");
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-connections",
+        description: "List locally saved connection names",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-connections", {
@@ -142,11 +162,18 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         },
     });
 
+    registerHelpEntry({
+        command: "ssh-connect",
+        args: "[name]",
+        description: "Connect locally using a saved connection",
+        category: "SSH",
+    });
+
     pi.registerCommand("ssh-connect", {
         description: "Connect using a saved SSH connection.",
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             if (!args.trim() && getSshConnections().length === 0) {
-                return ctx.ui.notify("No saved SSH connections. Create one in the connection manager: /ssh-cm", "warning");
+                return aftcConsole.warn(ctx, "No saved SSH connections. Create one in the connection manager: /ssh-cm");
             }
             const selected = args.trim() ? findSshConnection(args.trim()) ?? null : await pickConnection(ctx);
             if (!selected) return;
@@ -165,11 +192,17 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
                     if (!approved) return;
                     session = await sessions.connect(request, true);
                 }
-                ctx.ui.notify(`SSH connected: ${session.name}`, "info");
+                aftcConsole.emphasis(ctx, `SSH connected: ${session.name}`);
             } catch {
-                ctx.ui.notify("SSH connection failed. Check the saved connection.", "error");
+                aftcConsole.error(ctx, "SSH connection failed. Check the saved connection.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-status",
+        description: "Show SSH connection status",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-status", {
@@ -181,46 +214,73 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
             const text = status.connected
                 ? `SSH Status: Connected to ${status.sessions.map((session) => session.name).join(", ")}`
                 : "SSH Status: Not connected";
-            ctx.ui.notify(text, "warning");
+            aftcConsole.emphasis(ctx, text);
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-select",
+        args: "[id]",
+        description: "Select the active SSH session for local commands",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-select", {
         description: "Select an active SSH session for local SSH commands.",
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const id = args.trim() || await pickSession(ctx, sessions.list());
-            if (!id) return ctx.ui.notify("No SSH session was selected.", "warning");
-            if (!sessions.select(id)) return ctx.ui.notify("That SSH session is not connected.", "warning");
-            ctx.ui.notify("SSH session selected.", "info");
+            if (!id) return aftcConsole.warn(ctx, "No SSH session was selected.");
+            if (!sessions.select(id)) return aftcConsole.warn(ctx, "That SSH session is not connected.");
+            aftcConsole.emphasis(ctx, "SSH session selected.");
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-disconnect",
+        args: "[id]",
+        description: "Disconnect an SSH session",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-disconnect", {
         description: "Disconnect an SSH session by opaque id.",
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const id = args.trim() || sessions.selected()?.id;
-            if (!id) return ctx.ui.notify("No SSH session is connected.", "warning");
+            if (!id) return aftcConsole.warn(ctx, "No SSH session is connected.");
             try {
                 await sessions.disconnect(id);
-                ctx.ui.notify("SSH disconnected.", "info");
+                aftcConsole.emphasis(ctx, "SSH disconnected.");
             } catch {
-                ctx.ui.notify("SSH disconnect failed.", "error");
+                aftcConsole.error(ctx, "SSH disconnect failed.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-shell",
+        description: "Open a full-screen interactive SSH terminal",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-shell", {
         description: "Open an interactive PTY shell on the selected SSH session.",
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
             const session = sessions.selected();
-            if (!session) return ctx.ui.notify("No SSH session is connected.", "warning");
+            if (!session) return aftcConsole.warn(ctx, "No SSH session is connected.");
             try {
                 const shellId = await sessions.openShell(session.id);
                 await showSshTerminal(ctx, sessions, session.id, shellId);
             } catch {
-                ctx.ui.notify("SSH shell could not be opened.", "error");
+                aftcConsole.error(ctx, "SSH shell could not be opened.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-close-shell",
+        args: "<id>",
+        description: "Close an interactive SSH shell",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-close-shell", {
@@ -228,14 +288,21 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const session = sessions.selected();
             const shellId = args.trim();
-            if (!session || !shellId) return ctx.ui.notify("Select a session and provide a shell id.", "warning");
+            if (!session || !shellId) return aftcConsole.warn(ctx, "Select a session and provide a shell id.");
             try {
                 await sessions.closeShell(session.id, shellId);
-                ctx.ui.notify("SSH shell closed.", "info");
+                aftcConsole.emphasis(ctx, "SSH shell closed.");
             } catch {
-                ctx.ui.notify("SSH shell close failed.", "error");
+                aftcConsole.error(ctx, "SSH shell close failed.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-interrupt",
+        args: "<id>",
+        description: "Send recovery keys to an SSH shell",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-interrupt", {
@@ -243,14 +310,20 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const session = sessions.selected();
             const shellId = args.trim();
-            if (!session || !shellId) return ctx.ui.notify("Select a session and provide a shell id.", "warning");
+            if (!session || !shellId) return aftcConsole.warn(ctx, "Select a session and provide a shell id.");
             try {
                 await sessions.interrupt(session.id, shellId);
-                ctx.ui.notify("SSH interrupt sent.", "info");
+                aftcConsole.emphasis(ctx, "SSH interrupt sent.");
             } catch {
-                ctx.ui.notify("SSH interrupt failed.", "error");
+                aftcConsole.error(ctx, "SSH interrupt failed.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-help",
+        description: "Show SSH workflow guidance",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-help", {
@@ -270,17 +343,24 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         },
     });
 
+    registerHelpEntry({
+        command: "ssh-upload",
+        args: "<local> <remote>",
+        description: "Upload a file (--preserve keeps attrs)",
+        category: "SSH",
+    });
+
     pi.registerCommand("ssh-upload", {
         description: "Upload a local file to the selected SSH session. Quote paths containing spaces. Add --preserve to keep timestamps and permissions.",
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const session = sessions.selected();
             const preserve = args.includes("--preserve");
             const paths = parseTwoPaths(args.replace(/--preserve/g, ""));
-            if (!session || !paths) return ctx.ui.notify("Select a session and provide local and remote paths.", "warning");
+            if (!session || !paths) return aftcConsole.warn(ctx, "Select a session and provide local and remote paths.");
             const [localInput, remotePath] = paths;
             const localFile = localPath(ctx.cwd, localInput);
             if (!fs.existsSync(localFile) || !fs.statSync(localFile).isFile()) {
-                return ctx.ui.notify("The local upload path is not a file.", "warning");
+                return aftcConsole.warn(ctx, "The local upload path is not a file.");
             }
             try {
                 await sessions.stat(session.id, remotePath);
@@ -291,11 +371,18 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
             }
             try {
                 await sessions.upload(session.id, localFile, remotePath, preserve);
-                ctx.ui.notify(preserve ? "SSH upload completed (attributes preserved)." : "SSH upload completed.", "info");
+                aftcConsole.emphasis(ctx, preserve ? "SSH upload completed (attributes preserved)." : "SSH upload completed.");
             } catch {
-                ctx.ui.notify("SSH upload failed.", "error");
+                aftcConsole.error(ctx, "SSH upload failed.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-download",
+        args: "<remote> <local>",
+        description: "Download a file (--preserve keeps attrs)",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-download", {
@@ -304,7 +391,7 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
             const session = sessions.selected();
             const preserve = args.includes("--preserve");
             const paths = parseTwoPaths(args.replace(/--preserve/g, ""));
-            if (!session || !paths) return ctx.ui.notify("Select a session and provide remote and local paths.", "warning");
+            if (!session || !paths) return aftcConsole.warn(ctx, "Select a session and provide remote and local paths.");
             const [remotePath, localInput] = paths;
             const localFile = localPath(ctx.cwd, localInput);
             if (fs.existsSync(localFile)) {
@@ -313,11 +400,18 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
             }
             try {
                 await sessions.download(session.id, remotePath, localFile, preserve);
-                ctx.ui.notify(preserve ? "SSH download completed (attributes preserved)." : "SSH download completed.", "info");
+                aftcConsole.emphasis(ctx, preserve ? "SSH download completed (attributes preserved)." : "SSH download completed.");
             } catch {
-                ctx.ui.notify("SSH download failed.", "error");
+                aftcConsole.error(ctx, "SSH download failed.");
             }
         },
+    });
+
+    registerHelpEntry({
+        command: "ssh-rename",
+        args: "<from> <to>",
+        description: "Rename a remote path after confirmation",
+        category: "SSH",
     });
 
     pi.registerCommand("ssh-rename", {
@@ -325,7 +419,7 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const session = sessions.selected();
             const paths = parseTwoPaths(args);
-            if (!session || !paths) return ctx.ui.notify("Select a session and provide source and destination paths.", "warning");
+            if (!session || !paths) return aftcConsole.warn(ctx, "Select a session and provide source and destination paths.");
             let destinationExists = false;
             try { await sessions.stat(session.id, paths[1]); destinationExists = true; } catch { /* New destination path. */ }
             if (!await confirmOverlay(ctx, {
@@ -334,9 +428,9 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
             })) return;
             try {
                 await sessions.rename(session.id, paths[0], paths[1]);
-                ctx.ui.notify("SSH remote path renamed.", "info");
+                aftcConsole.emphasis(ctx, "SSH remote path renamed.");
             } catch {
-                ctx.ui.notify("SSH rename failed.", "error");
+                aftcConsole.error(ctx, "SSH rename failed.");
             }
         },
     });

@@ -6,10 +6,10 @@
  * + bash to run the sync script). No separate model tool (KISS). The injected prompt:
  *   1. sync first, 2. check the resource list (update, never duplicate),
  *   3. PROPOSE entries and wait for confirmation (M-I8) in the established entry
- *      format, routing thinking lessons -> thought-and-action-guidance.md and tech
- *      gotchas -> the right category doc, 4. sync after.
+ *      format, routing TECH gotchas -> the right category doc under resources/
+ *      (the fixed top-level docs are never written by -learn), 4. sync after.
  *
- * See `codex-learn.readme.md` for the full contract.
+ * See `codex-learn-readme.md` for the full contract.
  */
 
 import * as path from "node:path";
@@ -62,9 +62,9 @@ export function createCodexLearn(ctx: CodexContext): CodexLearnApi {
             "     - `[ID] LEAD_TOKEN` — one-line symptom",
             "       Cause: why it happens.",
             "       Fix: what to do. (YYYY-MM)",
-            "   Where to write:",
-            `     - Thinking / verification / process lessons -> "${path.join(root, "thought-and-action-guidance.md")}"`,
+            "     Where to write (TECH gotchas only — create folders/.md under resources/):",
             `     - Technology gotchas -> "${resourcesDir}/{languages|libraries|frameworks|engines|tools}/<topic>.md"`,
+            "     - Process / thinking guidance is NOT recorded by -learn (thought-and-action-guidance.md is a fixed maintainer doc).",
             "     - If the file does not exist yet, CREATE it (with a # heading). If the category folder does not exist, CREATE it.",
             getPreference("aftcCodexAutoAddEntries", true)
                 ? `4. After writing, sync again — run: node "${script}"`

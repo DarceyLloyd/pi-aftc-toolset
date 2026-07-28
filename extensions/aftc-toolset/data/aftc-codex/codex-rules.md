@@ -13,25 +13,25 @@
 
 ## Critical Global Rules
 
-- AFTER READING THIS FILE YOU MUST READ AND UNDERSTAND THE `## Self-Learning & Usage Guidelines` SECTION BELOW, if you start working on any project without reading these rules and loading the relevant codex resources for the project you are about to work on then you have failed and should not start any work on anything, no thinking, no working, no changes, no nothing.
-- See `(*D)` on any fule means it does not apply to creative tasks such as image creation (svg, jpg, png, webp etc), designing frontend websites, rendering, screen capturing, etc (Non programming related tasks).
+- AFTER READING THIS FILE you MUST also read and understand the `## Self-Learning & Usage Guidelines` section below. Do NOT start any project work — no thinking, no file changes, nothing — until you have read these rules AND loaded the relevant codex resources for the project you are about to work on. Skipping that is a hard fail.
+- See `(*D)` on any rule means it does not apply to creative tasks such as image creation (svg, jpg, png, webp etc), designing frontend websites, rendering, screen capturing, etc (Non programming related tasks).
 - IMPORTANT: Never use the character '§' in any code comment, file or documentation (excluding in this line, do not remove the character '§' from this line).
 - Never create NUL files.
 - Any script or command you run must be self-terminating: add exit/escape timers (or timeouts) to tests, servers, watchers and one-off scripts so they can never hold the session in an infinite
  wait. Never run anything that blocks on stdin or runs indefinitely without a guaranteed exit path.
 - Got a problem or question ask immediately
-- Never read or use any files in the the following folders ".bak", ".old", ".git", ".dev". Unless specifically asked to or instructed to in another rule or documentation after this.
-- Keep your answers, short and to the point, only when asked or discussing/planning give detailed responses (but not overly long winded). Remember it's fine to just say, ok, done, finished, ready etc. But never lave the user wondering if you are done without telling them. If you need to ask a question ask, dont assume. If you are responding to the user never be vauge, if there are many features to the project, detail what you are talking about and what feature precisely and simply.
+- Never read or use any files in the following folders ".bak", ".old", ".git", ".dev". Unless specifically asked to or instructed to in another rule or documentation after this.
+- Keep your answers, short and to the point, only when asked or discussing/planning give detailed responses (but not overly long winded). Remember it's fine to just say, ok, done, finished, ready etc. But never leave the user wondering if you are done without telling them. If you need to ask a question ask, dont assume. If you are responding to the user never be vague, if there are many features to the project, detail what you are talking about and what feature precisely and simply.
 - Do not over engineer (*D)
 - The simplest solutions are the best (*D)
 - KISS (*D)
 - ensure variables, functions and methods are named exactly what they are for eg hemiLightColor, enableVisualDevConsole
 - When appending a description, hint or parenthetical after a list/menu/dropdown option label (or any label text), ALWAYS separate it from the label with a space — write `None (No sound will be played)`, never `None(No sound will be played)`. This applies to EVERY list/option you generate, not just any one option.
 - When using Object Orientated capable languages (OOP) and using OOP, define variables above the constructor
-- When defining variables that the user/developer may want to adjust often place them at the top of the sciprt
+- When defining variables that the user/developer may want to adjust often place them at the top of the script
 - When working with threejs and babylonjs, WebGPU first and ensure fallback to WebGL2 unless specifically asked to
-- When working with WebGPU / WebGL it is important that you inpsect the users requirements in detail and ensure no errors in console occur and that features render and animate as requested.
-- If you encounter an issue or are rquested to fix an issue, before doing anything it is critical that you evaluate if its relevant or feasible to add logging to what you are working on. When you do add logging I typically have in place a log class/function which can be enabled/disabled via a bool and can be used per a file. My logs to console or file read like a story of how an application initliasises and runs at every step, event, timer completion etc. Then when I read this I often find an issue very quickly, you should do the same. Ensure you never interfere or break logging features of technologies standard parctice/functionality or any project designed logging features. Ensure you clean up or disbale this logging after the issue or fix has been compelted. Be intelligent and adaptive with how you implent this and clean up after.
+- When working with WebGPU / WebGL it is important that you inspect the users requirements in detail and ensure no errors in console occur and that features render and animate as requested.
+- If you encounter an issue or are requested to fix an issue, before doing anything it is critical that you evaluate if its relevant or feasible to add logging to what you are working on. When you do add logging I typically have in place a log class/function which can be enabled/disabled via a bool and can be used per file. My logs to console or file read like a story of how an application initialises and runs at every step, event, timer completion etc. Then when I read this I often find an issue very quickly, you should do the same. Ensure you never interfere or break logging features of technologies standard practice/functionality or any project designed logging features. Ensure you clean up or disable this logging after the issue or fix has been completed. Be intelligent and adaptive with how you implement this and clean up after.
 - For frontend runtime issues (something not rendering, an event not firing, a timer/animation not running, state not updating): add console logging at every relevant point (each function entry, event handler, timer tick, init) and read the browser console to observe the real runtime values and execution flow BEFORE doing a deep code analysis. Observe first, reason second — it is faster and more reliable than reading code blind. Gate the logs behind a debug flag or remove them once the issue is resolved.
 - Never base64-embed an SVG (via img src or JS injection). Either inline the SVG code in the HTML (best for accessing its dom for animation) or use a real .svg file
 - Image data is to never be stored in the database unless last resort or instructed to by project documentation or the user (store files on disk, paths in the db only)
@@ -116,7 +116,7 @@ When the user tells you a codex entry is wrong, outdated, or has a better fix:
 3. Update the date to current (YYYY-MM). If completely wrong, replace; if needs nuance, amend.
 4. Run the sync script after editing.
 
-### Record a new issue (max 2 steps)
+### Record a new issue (max 3 steps)
 
 1. Pick the obvious resource (tool > framework > language; file by the cause when known).
    If it seems to be missing, check the resource list first — a parallel session may have
@@ -146,26 +146,22 @@ Pick the BEST-fit file in ONE pass and move on — do not agonise over borderlin
 hook finds an entry even in a slightly-wrong file, and a later `-learn` can relocate it.
 If a lesson genuinely spans two scopes, file it where a searcher will grep first and
 cross-reference the other file in the Fix line; never duplicate the full entry in both.
-### Which KIND of lesson? (thought guidance vs tech gotcha vs design/planning)
+### Which KIND of lesson? (-learn records TECH GOTCHAS only)
 
-Before writing, classify it — the three kinds go to different places, and one usually
-does NOT belong in the codex at all:
+`/aftc-codex-learn` records **technology gotchas into `resources/` only** — it NEVER
+writes to the fixed top-level docs. Classify a lesson before writing:
 
-- **Thought / process guidance** → `thought-and-action-guidance.md`. Timeless directives
-  about HOW to work: verification rigour, what "done" means, red-teaming, finishing
-  discipline, how to triage a mistake. Test: still valid advice on ANY project, ANY
-  language, with NO tech content? Then it is process guidance. It must also be
-  SELF-DIRECTED — a rule the model can apply on its own. A pattern the model cannot
-  observe itself (eg one that only spans separate sessions it has no memory of, so it
-  could only ever act on it if the user points it out) is NOT actionable guidance; do
-  not record it.
-- **Tech gotcha** → the right `languages|libraries|frameworks|engines|tools/<topic>.md`.
-  A symptom/error → cause → fix tied to a specific technology.
-- **Design / planning deliberation** → usually NOT a codex entry. Architectural
-  tradeoffs, "X vs Y" decisions, feature specs and discussion conclusions are
-  project/task-specific and ephemeral — they belong in the project's plan/spec doc or the
-  relevant module readme, not the general codex. Recording a design discussion as if it
-  were process guidance or a gotcha is a miscategorisation; do not do it.
+- **Thought / process guidance** → NOT recorded by `-learn`. `thought-and-action-guidance.md`
+  is a FIXED maintainer doc (curated by hand in the package seed; `/codex-sync` overwrites
+  the live copy from the seed). If a process rule belongs in the codex, tell the user to
+  add it to the seed — do not write it via `-learn`.
+- **Tech gotcha** → the ONLY kind `-learn` records: the right
+  `resources/{languages|libraries|frameworks|engines|tools}/<topic>.md`. A symptom/error →
+  cause → fix tied to a specific technology (create the folder/file if missing).
+- **Design / planning deliberation** → NOT a codex entry. Architectural tradeoffs, "X vs Y"
+  decisions, feature specs and discussion conclusions are project/task-specific and
+  ephemeral — they belong in the project's plan/spec doc or the relevant module readme,
+  not the general codex.
 
 ### Entry format
 
@@ -177,11 +173,18 @@ described properly. **Lead token first** — it is the grep hook:
   Cause: why it happens.
   Fix: what to do. (YYYY-MM)
 ```
+> **EXCEPTION — `thought-and-action-guidance.md` uses NO `[ID]`s.** The `[ID]` format here
+> is for files under `resources/` ONLY (`languages|libraries|frameworks|engines|tools/<topic>.md`).
+> Entries in `thought-and-action-guidance.md` are PLAIN PROSE LEADS — `- one-line symptom`
+> then `  Cause:` / `  Fix:` — with **no `[ID]` and no brackets**. For that file: write the
+> prose lead, check it is not a duplicate of an existing lead, stop. Never add an `[ID]`
+> to `thought-and-action-guidance.md`.
 
-- **`[ID]` (required on NEW entries).** A short (~6-char) alphanumeric token in square
-  brackets, unique within the file (eg `[aB3xY9]`). It lets the uniqueness check and any
-  cross-reference target one specific entry. Pick any unused token; never reuse one
-  already in the same file.
+- **`[ID]` (required on NEW entries in `resources/**/*.md` files ONLY).** A short (~6-char)
+  alphanumeric token in square brackets, unique within the file (eg `[aB3xY9]`). It lets the
+  uniqueness check and any cross-reference target one specific entry. Pick any unused token;
+  never reuse one already in the same file. **NOT used in `thought-and-action-guidance.md`**
+  (see the EXCEPTION above the bullet list).
 - **Line 1 — `[ID]` + lead token + symptom (required).** After the `[ID]`, the literal
   unique part of an error message (`TS7016`, `ERR_MODULE_NOT_FOUND`); for a non-error
   gotcha, the most greppable symptom / feature / class / function name. Keep the lead
@@ -200,8 +203,9 @@ described properly. **Lead token first** — it is the grep hook:
   Good: "Web page with many iframes crashes the browser tab."
 - **Legacy entries** in the old single-line `A — cause — fix (date)` form, or without an
   `[ID]`, are still valid and grep-able; write NEW entries in the `[ID]` structured form
-  above and add an ID to a legacy entry when you next touch it. Do NOT mass-reformat
-  existing entries just to add IDs.
+  above and add an ID to a legacy entry in a `resources/**/*.md` file when you next touch
+  it. Do NOT mass-reformat existing entries just to add IDs. **`thought-and-action-guidance.md`
+  is prose-only by design — never add an `[ID]` there** (not even to its "legacy" entries).
 
 ### MANDATORY: contributing back (never wait to be asked)
 
@@ -221,8 +225,8 @@ docs. Two triggers:
 `/aftc-codex-learn` injects instructions for you to persist durable, GENERAL lessons (not
 project-specific) into the codex resources, using your standard tools (read/edit/write +
 bash to run the sync script). It: syncs first; checks the resource list to avoid
-duplicates; writes thinking/verification lessons to `thought-and-action-guidance.md` and
-tech gotchas to the right `languages|libraries|frameworks|engines|tools/<topic>.md`
-(creating the file in the correct category folder if missing); proposes entries and writes
-only after user confirmation; then syncs after. `markdown-guidance.md` is a FIXED
-maintainer doc — `-learn` does NOT modify it.
+duplicates; writes TECH gotchas to the right
+`languages|libraries|frameworks|engines|tools/<topic>.md` ONLY (creating the file in the
+correct category folder if missing); proposes entries and writes only after user
+confirmation; then syncs after. `codex-rules.md`, `markdown-guidance.md`, and
+`thought-and-action-guidance.md` are FIXED maintainer docs — `-learn` does NOT modify them.

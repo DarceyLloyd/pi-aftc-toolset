@@ -33,12 +33,14 @@
  *   for a first cut — matches the behaviour of every other "strip on
  *   finalize" provider in the wild (DeepSeek, Qwen via openrouter, etc.).
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: no
+ * Per AGENTS.md, this is a self-contained feature module: no
  * commands, no shared state, no dependencies on other feature modules,
  * wired into pi by the orchestrator in index.ts.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import type { TextContent, ThinkingContent } from "@earendil-works/pi-ai";
 import { getPreference, setPreference } from "./config";
 
@@ -199,19 +201,31 @@ export function createThinkParser(pi: ExtensionAPI): void {
     const enabled = getPreference("thinkProcessingEnabled", false);
     if (enabled) registerThinkParserHook(pi);
 
+    registerHelpEntry({
+        command: "aftc-enable-think-processing",
+        description: "Enable <think>…</think> tag parsing",
+        category: "Thinking",
+    });
+
     pi.registerCommand("aftc-enable-think-processing", {
         description: "Enable the <think>…</think> → ThinkingContent hook (requires /reload to take effect)",
         handler: async (_args: string, ctx: { ui: { notify?: (m: string, l: string) => void; hasUI?: boolean } }) => {
             setPreference("thinkProcessingEnabled", true);
-            if (ctx.ui?.notify) ctx.ui.notify("Think-tag processing ON. Run /reload to activate.", "info");
+            if (ctx.ui?.notify) aftcConsole.emphasis(ctx, "Think-tag processing ON. Run /reload to activate.");
         },
+    });
+
+    registerHelpEntry({
+        command: "aftc-disable-think-processing",
+        description: "Disable <think>…</think> tag parsing",
+        category: "Thinking",
     });
 
     pi.registerCommand("aftc-disable-think-processing", {
         description: "Disable the <think>…</think> → ThinkingContent hook (requires /reload to take effect)",
         handler: async (_args: string, ctx: { ui: { notify?: (m: string, l: string) => void; hasUI?: boolean } }) => {
             setPreference("thinkProcessingEnabled", false);
-            if (ctx.ui?.notify) ctx.ui.notify("Think-tag processing OFF. Run /reload to deactivate.", "info");
+            if (ctx.ui?.notify) aftcConsole.emphasis(ctx, "Think-tag processing OFF. Run /reload to deactivate.");
         },
     });
 

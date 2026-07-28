@@ -8,9 +8,9 @@
  *
  * Steps (in order):
  *   1. Live codex dir missing            -> copy the whole seed over, STOP.
- *   2. codex-rules.md missing            -> copy it.
- *   3. markdown-guidance.md missing      -> copy it.
- *   4. thought-and-action-guidance.md    -> copy it.
+ *   2. codex-rules.md            -> FIXED doc: ALWAYS overwrite from the seed.
+ *   3. markdown-guidance.md      -> FIXED doc: ALWAYS overwrite from the seed.
+ *   4. thought-and-action-guidance.md -> FIXED doc: ALWAYS overwrite from the seed.
  *   5. resources/ missing                -> copy the whole seed resources, STOP.
  *   6. Merge pass over the seed resources tree:
  *        - seed .md missing on live side -> copy it (mkdir as needed).
@@ -21,7 +21,7 @@
  *
  * Production-safety: every I/O op is best-effort try/catch; the merge never
  * overwrites or deletes a live file; re-running is a no-op ("already up to
- * date"). See `codex-merge.readme.md` for the full contract.
+ * date"). See `codex-merge-readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";
@@ -31,8 +31,11 @@ import * as path from "node:path";
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Top-level guidance files that live at the codex ROOT (not in resources/). */
-const TOP_LEVEL_FILES = [
+/** Fixed maintainer docs at the codex ROOT: the maintainer curates these in the
+ *  seed and -learn never writes to them, so /codex-sync ALWAYS overwrites the
+ *  live copy from the seed (keeping them byte-identical to the shipped version).
+ *  All self-learning writes go to resources/ only. */
+const FORCE_OVERWRITE_FILES = [
     "codex-rules.md",
     "markdown-guidance.md",
     "thought-and-action-guidance.md",
@@ -165,18 +168,26 @@ function mergeFile(seedFile: string, liveFile: string): { appended: string[]; er
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Read-only: would mergeCodexSeedIntoLive() change anything? True when a
- * top-level file is missing, resources/ is missing, a seed resource file is
- * missing on the live side, or a seed entry [ID] is absent from the matching
- * live file. Fail-soft: any read problem answers false (never nag on error).
+ * Read-only: would mergeCodexSeedIntoLive() change anything? True when a FIXED
+ * top-level doc (codex-rules.md / markdown-guidance.md / thought-and-action-guidance.md)
+ * is missing OR its content differs from the seed, `resources/` is missing, a seed
+ * resource file is missing on the live side, or a seed entry `[ID]` is absent from the
+ * matching live file. Fail-soft: any read problem answers false (never nag on error).
  */
 export function codexNeedsSync(seedDir: string, liveDir: string): boolean {
     try {
         if (!fs.existsSync(liveDir)) return true;
-        for (const name of TOP_LEVEL_FILES) {
-            if (fs.existsSync(path.join(seedDir, name)) && !fs.existsSync(path.join(liveDir, name))) {
-                return true;
-            }
+        // Fixed docs: sync force-overwrites them, so a MISSING file OR a CONTENT
+        // difference means a sync is needed.
+        for (const name of FORCE_OVERWRITE_FILES) {
+            const seedFile = path.join(seedDir, name);
+            if (!fs.existsSync(seedFile)) continue;
+            const liveFile = path.join(liveDir, name);
+            if (!fs.existsSync(liveFile)) return true;
+            const seedContent = safeRead(seedFile);
+            const liveContent = safeRead(liveFile);
+            if (seedContent === null || liveContent === null) continue; // fail-soft
+            if (seedContent !== liveContent) return true;
         }
         const seedResourcesDir = path.join(seedDir, "resources");
         const liveResourcesDir = path.join(liveDir, "resources");
@@ -245,12 +256,17 @@ export function mergeCodexSeedIntoLive(seedDir: string, liveDir: string): CodexM
         return report;
     }
 
-    // Steps 2-4 — top-level guidance files (copy-only, no sync needed).
-    for (const name of TOP_LEVEL_FILES) {
+    // Fixed maintainer docs — ALWAYS overwrite from the seed (the maintainer
+    // curates these; -learn never writes here). Recorded as copied only when the
+    // content actually changed, so a re-run is a clean no-op.
+    for (const name of FORCE_OVERWRITE_FILES) {
         const src = path.join(seedDir, name);
         const dest = path.join(liveDir, name);
         try {
-            if (fs.existsSync(src) && !fs.existsSync(dest)) {
+            if (!fs.existsSync(src)) continue;
+            const seedContent = safeRead(src);
+            const liveContent = safeRead(dest);
+            if (seedContent !== null && seedContent !== liveContent) {
                 fs.copyFileSync(src, dest);
                 report.copiedFiles.push(name);
             }

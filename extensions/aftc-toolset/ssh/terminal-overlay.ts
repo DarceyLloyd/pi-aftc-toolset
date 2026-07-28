@@ -16,7 +16,8 @@
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, type Focusable } from "@earendil-works/pi-tui";
-import { AftcUi, terminalRows, defaultAftcPalette, type AftcPalette } from "../../ui/aftcUi";
+import * as aftcConsole from "../../ui/aftc-console";
+import { AftcUi, terminalRows, defaultAftcPalette, type AftcPalette } from "../../ui/aftc-ui";
 import { TerminalScreen } from "../../ui/terminal-screen";
 import type { SshSessionManager } from "./session";
 
@@ -180,7 +181,7 @@ export async function showSshTerminal(
     shellId: string,
 ): Promise<void> {
     if (ctx.mode !== "tui") {
-        ctx.ui.notify("Interactive SSH terminal requires Pi's TUI mode.", "warning");
+        aftcConsole.warn(ctx, "Interactive SSH terminal requires Pi's TUI mode.");
         return;
     }
     const sessionName = sessions.list().find((session) => session.id === sessionId)?.name ?? "session";

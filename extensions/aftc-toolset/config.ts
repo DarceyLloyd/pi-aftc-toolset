@@ -35,7 +35,7 @@
  * Self-contained module — no event subscriptions, no cross-module
  * imports. Feature modules import `getPreference` / `setPreference`.
  *
- * See `config.readme.md` for the full contract.
+ * See `config-readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";

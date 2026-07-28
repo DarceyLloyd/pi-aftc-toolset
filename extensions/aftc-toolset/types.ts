@@ -1,7 +1,7 @@
 /**
  * Shared types for cross-module communication.
  *
- * Per .dev/dev_guide.md section 1.5, feature modules must not import each other directly.
+ * Per AGENTS.md, feature modules must not import each other directly.
  * The orchestrator (index.ts) wires them through these interfaces.
  *
  * Structural typing handles the rest: the UsageRecorder class in
@@ -10,7 +10,7 @@
  * the methods declared on FooterDataProvider — it never imports
  * core.ts.
  *
- * See `types.readme.md` for the full type catalogue and structural-
+ * See `types-readme.md` for the full type catalogue and structural-
  * typing rationale.
  */
 
@@ -71,7 +71,7 @@ export interface TurnRecord {
  * one or more assistant turns; `taskMs` is the wall-clock duration the user waited
  * from pressing enter to the agent returning control (complete, error, or abort).
  * Questions (ask_user_question) do NOT end a task — the agent does not settle while
- * waiting for the answer, so the timer runs through them. See usage-recording.readme.md.
+ * waiting for the answer, so the timer runs through them. See usage-recording-readme.md.
  */
 export interface TaskRecord {
     /** Stable per-runtime-session id (matches TurnRecord.sessionId). */
@@ -236,8 +236,8 @@ export interface TimeframeStatsView {
  *
  * core.ts implements this; the orchestrator (index.ts) passes the
  * returned object to footer-widget.ts so the widget never imports
- * core.ts directly. This keeps the orchestrator pattern (.dev/dev_guide.md
- * section 1.5): feature modules communicate through structural interfaces,
+ * core.ts directly. This keeps the orchestrator pattern (AGENTS.md):
+ * feature modules communicate through structural interfaces,
  * not by importing each other.
  *
  * All getters must be cheap — render() runs every TUI frame.

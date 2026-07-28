@@ -6,7 +6,7 @@
 // stay out of the model context by design.
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { showMenu } from "../../ui/aftcUi";
+import { showMenu } from "../../ui/aftc-ui";
 import { getSshConnections, type SshConnection } from "./connection-store";
 import type { SshSessionView } from "./session";
 

@@ -26,7 +26,7 @@ extensions/aftc-toolset/aftc-codex/
 ├── scripts/
 │   ├── sync-codex-resources.mjs   # Regenerates codex-resource-list.md (byte-stable)
 │   └── ensure-entry-ids.mjs       # Adds unique 6-char [ID]s to entries missing them
-└── *.readme.md                # Per-module companion docs
+└── *-readme.md                # Per-module companion docs
 ```
 
 ### Shared types (exported from aftc-codex.ts)
@@ -71,17 +71,24 @@ extensions/aftc-toolset/data/aftc-codex/   →   <dataDir>/aftc-codex/
 ```
 
 **Rules:**
-- Strict one-way copy: seed → live. The seed never auto-overwrites a live file.
-- Seeding is copy-only: existing live files are never overwritten.
+- Strict one-way copy: seed → live. The seed never AUTO-overwrites a live file at
+  runtime; the THREE fixed maintainer docs (`codex-rules.md`, `markdown-guidance.md`,
+  `thought-and-action-guidance.md`) are the exception — `/aftc-codex-sync` force-overwrites
+  them from the seed so shipped rule/guidance updates always reach the user.
+- Seeding is copy-only for LEARNED content: existing live `resources/` files are never
+  overwritten; user entries persist. The three fixed docs above ARE overwritten by
+  `/aftc-codex-sync`.
 - The seed is SOURCE only: no generated/runtime files (`codex-resource-list.md`).
 - User edits (via `/aftc-codex-learn` or manual) live only in the live copy.
 - "Start Fresh" / re-install: delete the live copy and re-seed (confirmed, irreversible).
 - `/aftc-codex-sync` (manual, `codex-merge.ts`): brings the live copy up to date
-  after a package update — copies missing top-level files and seed-only resource
-  files, and appends seed entries whose `[ID]` is absent from a live file. An ID
-  present in both (even with edited text) keeps the USER'S version; ID-less
-  legacy seed entries are skipped; live-only files/folders are never touched.
-  Always regenerates `codex-resource-list.md` afterwards.
+  after a package update. It FORCE-OVERWRITES the three fixed maintainer docs
+  (`codex-rules.md`, `markdown-guidance.md`, `thought-and-action-guidance.md`) from the seed
+  so shipped rule/guidance updates always win; copies seed-only resource files; and appends
+  seed entries whose `[ID]` is absent from a live file. An ID present in both
+  (even with edited text) keeps the USER'S version; ID-less legacy seed entries
+  are skipped; live-only files/folders are never touched. Always regenerates
+  `codex-resource-list.md` afterwards.
 
 **Data dir resolution** (`paths.ts`):
 | OS | Path |
@@ -204,8 +211,8 @@ Steps enforced by the prompt:
      Cause: why it happens.
      Fix: what to do. (YYYY-MM)
    ```
-   Routing: thinking lessons → `thought-and-action-guidance.md`;
-   tech gotchas → the correct `resources/{category}/<topic>.md`.
+   Routing: TECH gotchas → the correct `resources/{category}/<topic>.md` only
+   (`-learn` never writes to the fixed top-level docs).
 4. Sync after writing.
 
 The prompt names the live OS-data copy as the write target (the package seed is read-only).
@@ -223,7 +230,7 @@ The prompt names the live OS-data copy as the write target (the package seed is 
 | `/aftc-codex-refresh` | `/codex-refresh` | Strip all codex, then re-init (clean restart) |
 | `/aftc-codex-install` | `/codex-install` | Fresh install or re-install (confirmed destructive) |
 | `/aftc-codex-learn` | `/codex-learn` | Self-education prompt injection |
-| `/aftc-codex-sync` | `/codex-sync` | Seed → live merge: copy missing files, append missing `[ID]` entries (never overwrites user entries), then always regenerate the resource list |
+| `/aftc-codex-sync` | `/codex-sync` | Seed → live sync: force-overwrite the three fixed docs (codex-rules.md, markdown-guidance.md, thought-and-action-guidance.md), copy seed-only resource files, append missing `[ID]` resource entries (never overwrites user entries), then always regenerate the resource list |
 | `/aftc-codex-status` | `/codex-status` | Colored status: enabled, embedded, files read |
 
 **Sync-first:** the resources menu, `-learn`, `-install`, `-init`, and `-refresh`
@@ -309,8 +316,12 @@ Idempotent. Processes only category subfolder `.md` files. Never throws.
 3. Fail soft — every I/O op is best-effort try/catch → safe default / no-op.
 4. Off by default.
 5. Idempotent + resumable — seed/list-regen re-run safely.
-6. Copy-only seeding — never overwrites an existing file.
-7. One-way copy — the seed never auto-overwrites a live file; user edits persist.
+6. Copy-only seeding — never overwrites an existing file, EXCEPT the three fixed
+   maintainer docs (codex-rules.md, markdown-guidance.md, thought-and-action-guidance.md)
+   which `/aftc-codex-sync` force-overwrites from the seed (shipped rule/guidance updates
+   win).
+7. One-way copy — the seed never AUTO-overwrites a live file at runtime;
+   user-learned content (resources/) always persists.
 8. Destructive actions (Start Fresh, re-install) are confirmed and irreversible by design.
 9. No surprise context pollution — codex injected only when enabled + prepped.
 10. Bounded resource use — no processes/timers in the factory.
@@ -337,4 +348,4 @@ Idempotent. Processes only category subfolder `.md` files. Never throws.
 - **Detection stays out of the prefix**: session-specific data (detected topics) goes in
   the marker message, never the system prompt.
 - **`silent` resets each session**: disable is per-session; the persistent `enabled`
-  pref is the cross-session master switch.
+  pref is the cross-session on/off switch.

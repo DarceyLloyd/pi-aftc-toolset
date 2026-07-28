@@ -1,7 +1,7 @@
 /**
  * pi-aftc-toolset — extension entry / orchestrator.
  *
- * Per .dev/dev_guide.md section 1.5, this extension uses the orchestrator pattern:
+ * Per AGENTS.md, this extension uses the orchestrator pattern:
  *   - index.ts        — this file: orchestrator (default export)
  *   - core.ts         — cache-diagnostics data + events + commands
  *   - footer-widget.ts — cache-diagnostics widget rendering + /aftc-footer
@@ -43,7 +43,7 @@
  * a FooterDataProvider that the orchestrator passes to footer-widget.ts.
  * Modules own their own state in closure and do not import each other.
  *
- * See `index.readme.md` for the orchestration responsibilities.
+ * See `index-readme.md` for the orchestration responsibilities.
  * See `readme.md` (folder level) for the full file map.
  */
 
@@ -60,6 +60,7 @@ import { createTheme } from "./theme";
 import { createUsageRecording } from "./usage-recording";
 import { createUsageModule } from "./usage-report";
 import { createHelpModule } from "./help";
+import { registerHelpEntry } from "./help-registry";
 import { createInstallModule } from "./install";
 import { createSshModule } from "./ssh/index";
 import { createResponseDivider } from "./response";
@@ -75,6 +76,7 @@ import { createOpenDataDir } from "./open-data-dir";
 import { createAftcCodex } from "./aftc-codex/aftc-codex";
 import { createRunScript } from "./run-script";
 import { migrateLegacyData } from "./paths";
+import * as aftcConsole from "./ui/aftc-console";
 // DISABLED 2026-07: pi 0.81 added native provider support. Module kept on
 // disk (not deleted) in case the built-in proves weaker — re-enable both
 // lines to restore it.
@@ -86,6 +88,9 @@ export default function (pi: ExtensionAPI): void {
 	// to the persistent OS data dir BEFORE any module reads it. Idempotent, lock-safe.
 	migrateLegacyData();
 
+	// Centralised console output — register the emphasis entry renderer once.
+	aftcConsole.init(pi);
+
 	// Independent modules first (self-register commands/handlers).
 	const allowance = createAllowance(pi);
 	const recorder = createUsageRecording(pi);
@@ -95,22 +100,34 @@ export default function (pi: ExtensionAPI): void {
 	createKeys(pi);
 	// AFTC text intro only (factory disconnected — see the import note above).
 	const textIntro = createTextIntro();
+	registerHelpEntry({
+		command: "aftc-intro-on",
+		description: "Enable and play the AFTC text startup animation",
+		category: "Response",
+	});
+
 	pi.registerCommand("aftc-intro-on", {
 		description: "Enable and play the AFTC text startup animation",
 		handler: async (_args, ctx) => {
-			if (textIntro.isEnabled()) { ctx.ui.notify("AFTC text intro is already ON", "info"); return; }
+			if (textIntro.isEnabled()) { aftcConsole.emphasis(ctx, "AFTC text intro is already ON"); return; }
 			textIntro.setEnabled(true);
-			ctx.ui.notify("AFTC text intro: ON", "info");
+			aftcConsole.emphasis(ctx, "AFTC text intro: ON");
 			textIntro.play(ctx, 0); // instant feedback (no start delay from the command)
 		},
 	});
+	registerHelpEntry({
+		command: "aftc-intro-off",
+		description: "Disable the AFTC text startup animation",
+		category: "Response",
+	});
+
 	pi.registerCommand("aftc-intro-off", {
 		description: "Disable the AFTC text startup animation",
 		handler: async (_args, ctx) => {
-			if (!textIntro.isEnabled()) { ctx.ui.notify("AFTC text intro is already OFF", "info"); return; }
+			if (!textIntro.isEnabled()) { aftcConsole.emphasis(ctx, "AFTC text intro is already OFF"); return; }
 			textIntro.setEnabled(false);
 			textIntro.stop(ctx);
-			ctx.ui.notify("AFTC text intro: OFF", "warning");
+			aftcConsole.emphasis(ctx, "AFTC text intro: OFF");
 		},
 	});
 	pi.on("session_start", async (_event, ctx) => {
@@ -137,7 +154,7 @@ export default function (pi: ExtensionAPI): void {
 	// createProviders(pi); // disabled — see note at the import above
 
 	// Core owns the data; the widget renders it. The orchestrator wires
-	// them so neither module imports the other (.dev/dev_guide.md section 1.5). allowance
+	// them so neither module imports the other (AGENTS.md). allowance
 	// is passed into core exactly like recorder, and re-exposed on the
 	// FooterDataProvider so the widget can render line 5 without importing
 	// allowance.ts.
@@ -150,7 +167,7 @@ export default function (pi: ExtensionAPI): void {
 	void usage;
 	void help;
 	} catch (err) {
-		console.log(`[aftc-toolset] orchestrator error: ${(err as Error).message}`);
-		console.log(`[aftc-toolset] stack: ${(err as Error).stack}`);
+		aftcConsole.log(`orchestrator error: ${(err as Error).message}`);
+		aftcConsole.log(`stack: ${(err as Error).stack}`);
 	}
 }

@@ -22,7 +22,7 @@
  *   best-effort delete) so an in-place upgrade keeps user data whenever the old
  *   dir is still reachable.
  *
- * See `paths.readme.md` for the full path map.
+ * See `paths-readme.md` for the full path map.
  */
 
 import * as fs from "node:fs";

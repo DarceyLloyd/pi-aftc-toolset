@@ -89,3 +89,6 @@ desktop.ini
 .venv/
 __pycache__/
 tests/
+
+# Runtime debug logs
+temp/

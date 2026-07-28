@@ -74,18 +74,23 @@
  * Failures (network, auth, parse, non-200) are swallowed, and the
  * snapshot is CLEARED — line 5 is hidden while the endpoint is not
  * giving us the data we expect, and returns on the next successful
- * fetch. Stale or partial numbers are never rendered.
+ * fetch. Stale numbers are never rendered.
+ *
+ * One exception: a SUCCESSFUL response that omits a window (Kimi's
+ * limits[] intermittently drops the 5h entry) is merged over the
+ * previous snapshot (mergeWindows) — the last good window is kept
+ * until its reset time passes, so the segment does not flicker off.
  *
  * Credentials come from pi's public ModelRegistry API. It resolves a usable
  * Bearer token and refreshes OAuth tokens with file locking, so the Codex
  * access token is always fresh. `readStoredCredential()` is used only for
  * credential metadata such as the Codex account id.
  *
- * Per .dev/dev_guide.md section 1.5 this module never imports core.ts or footer-widget.ts;
+ * Per AGENTS.md this module never imports core.ts or footer-widget.ts;
  * the orchestrator passes the returned `AllowanceProvider` into core.ts,
  * which re-exposes it on `FooterDataProvider`.
  *
- * See `allowance.readme.md` for the full contract.
+ * See `allowance-readme.md` for the full contract.
  */
 
 import * as piApi from "@earendil-works/pi-coding-agent";
@@ -162,7 +167,7 @@ const PROVIDERS: Record<string, ProviderConfig> = {
     "minimax-cn": {
         // China variant — www.minimaxi.com mirrors www.minimax.io. Default
         // to non-China; this branch only fires when the active model is the
-        // CN provider (.dev/dev_guide.md / feature spec: default to non-CN routes).
+        // CN provider (feature spec: default to non-CN routes).
         url: "https://www.minimaxi.com/v1/token_plan/remains",
         parse: parseMinimax,
     },
@@ -398,6 +403,31 @@ function capitalize(s: string): string {
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
+
+/** Merge a freshly parsed view over the previous snapshot, retaining a
+ * window the latest response omitted. Kimi's `/coding/v1/usages` limits[]
+ * intermittently drops the 300-minute (5h) entry; without retention the
+ * 5h segment flickers off for a refresh cycle even though nothing
+ * actually changed. A retained window is only kept while its reset time
+ * is still in the future — once the window resets, the old numbers are
+ * meaningless. Provider switches clear `view` first (captureProvider),
+ * so retention can never leak across providers. */
+function mergeWindows(prev: AllowanceView | null, next: AllowanceView): AllowanceView {
+    if (!prev) return next;
+    const now = Date.now();
+    const keep = (oldW: AllowanceWindow | null): AllowanceWindow | null => {
+        if (!oldW) return null;
+        if (oldW.resetAt === null || !Number.isFinite(oldW.resetAt)) return null;
+        return oldW.resetAt > now ? oldW : null;
+    };
+    return {
+        providerLabel: next.providerLabel,
+        fiveHour: next.fiveHour ?? keep(prev.fiveHour),
+        weekly: next.weekly ?? keep(prev.weekly),
+        fetchedAt: next.fetchedAt,
+    };
+}
+
 /** Read credential metadata without resolving or exposing its key value.
  * Pi 0.80 exports readStoredCredential; older Pi releases exposed a
  * synchronous AuthStorage.get() compatibility method. */
@@ -499,7 +529,11 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
                     return;
                 }
                 const body = await res.json();
-                view = cfg.parse(body);
+                // Merge over the previous snapshot so a response that
+                // OMITS a window (Kimi's limits[] intermittently drops the
+                // 5h entry) does not make that segment flicker off — the
+                // last good window is kept until its reset time passes.
+                view = mergeWindows(view, cfg.parse(body));
             } catch (err) {
                 // Network / abort / parse failure (including a response
                 // shape change): never render data we did not get — clear

@@ -1,6 +1,6 @@
 // New-connection dialog for the SSH connection manager.
 //
-// A thin wrapper over the shared AFTC UI form suite (ui/aftcUi.ts —
+// A thin wrapper over the shared AFTC UI form suite (ui/aftc-ui.ts —
 // showForm/AftcForm). The dialog is a GRUB-style full-screen takeover:
 // Tab / Shift+Tab move focus through the fields and onto the bottom
 // [ SAVE CONNECTION ] action, Enter advances (or submits on the action),
@@ -21,9 +21,10 @@
 // logged, never shown back, and is covered by the redaction layer.
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { showForm, type AftcFormField } from "../../ui/aftcUi";
+import { showForm, type AftcFormField } from "../../ui/aftc-ui";
 import { findSshConnection, saveSshConnection, type SshConnection } from "../connection-store";
 import { confirmOverlay } from "../confirmation-overlay";
+import * as aftcConsole from "../../ui/aftc-console";
 
 const TITLE = "New SSH connection";
 
@@ -141,7 +142,7 @@ export async function runNewConnectionFlow(ctx: ExtensionCommandContext): Promis
             ...(values.password ? { password: values.password } : {}),
         };
         saveSshConnection(connection);
-        ctx.ui.notify(`SSH connection saved: ${values.name}`, "info");
+        aftcConsole.emphasis(ctx, `SSH connection saved: ${values.name}`);
         return connection;
     }
 }

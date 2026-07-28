@@ -415,7 +415,7 @@ It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, P
 | `/aftc-codex-sync` | Merge package updates into your knowledge base: copies new/missing files and appends new `[ID]` entries — your own entries are never touched (alias `/codex-sync`) |
 | `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
 
-The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex.readme.md`.
+The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex-readme.md`.
 
 ---
 

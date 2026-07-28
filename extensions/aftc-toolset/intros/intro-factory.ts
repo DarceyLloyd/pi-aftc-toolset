@@ -11,15 +11,17 @@
  *   2. Import it here and add to the INTROS array
  *   3. Add its preference key to config.ts if needed
  *
- * See `intros/readme.md` for the full contract.
+ * See `intro-factory-readme.md` and `intros/readme.md` for the full contract.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { appendFileSync } from "node:fs";
+import * as aftcConsole from "../ui/aftc-console";
 import { join } from "node:path";
 import { getDataDir } from "../paths";
 import { createTextIntro } from "./intro-text";
 import { createWarGamesIntro } from "./intro-wargames";
+import { registerHelpEntry } from "../help-registry";
 
 
 // Debug log — writes to <data-dir>/intros-debug.log so output survives
@@ -77,11 +79,11 @@ export function createIntros(pi: ExtensionAPI): void {
             description: `Enable the ${intro.label} (plays on session start)`,
             handler: async (_args, ctx) => {
                 if (intro.isEnabled()) {
-                    ctx.ui.notify(`${intro.label} is already ON`, "info");
+                    aftcConsole.emphasis(ctx, `${intro.label} is already ON`);
                     return;
                 }
                 intro.setEnabled(true);
-                ctx.ui.notify(`${intro.label}: ON`, "info");
+                aftcConsole.emphasis(ctx, `${intro.label}: ON`);
                 // Command handlers run after user interaction — immediate play.
                 intro.play(ctx);
             },
@@ -90,13 +92,23 @@ export function createIntros(pi: ExtensionAPI): void {
             description: `Disable the ${intro.label}`,
             handler: async (_args, ctx) => {
                 if (!intro.isEnabled()) {
-                    ctx.ui.notify(`${intro.label} is already OFF`, "info");
+                    aftcConsole.emphasis(ctx, `${intro.label} is already OFF`);
                     return;
                 }
                 intro.setEnabled(false);
                 intro.stop(ctx);
-                ctx.ui.notify(`${intro.label}: OFF`, "warning");
+                aftcConsole.emphasis(ctx, `${intro.label}: OFF`);
             },
+        });
+        registerHelpEntry({
+            command: onCmd,
+            description: `Enable the ${intro.label} (plays on session start)`,
+            category: "Response",
+        });
+        registerHelpEntry({
+            command: offCmd,
+            description: `Disable the ${intro.label}`,
+            category: "Response",
         });
     }
 

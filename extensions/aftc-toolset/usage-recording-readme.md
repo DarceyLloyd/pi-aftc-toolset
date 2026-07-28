@@ -1,0 +1,139 @@
+# usage-recording.ts
+
+Per-turn SQLite recording. The "writer" half of the usage pipeline
+(`usage-report.ts` is the "reader").
+
+## What it does
+
+Every completed assistant turn is inserted into the shared
+`turns` table (see `db.ts`) so the user can query historical
+per-turn stats via `/usage-report`.
+
+The single class implements the `TurnRecorder` interface declared
+in `types.ts`. `core.ts` calls `recordTurn(record)` from its
+`message_end` handler. The orchestrator (`index.ts`) wires the
+`UsageRecorder` instance into `createCore` so core doesn't need
+to import this file.
+
+## What is recorded (and what is NOT)
+
+Every completed assistant turn is inserted into the shared `turns`
+table, including turns whose cost is `$0` (free models, subscription
+plans). Their prompt counts, cache activity and thinking/response
+times are useful data, and `/usage-report` keeps them out of COST
+averages with paid-only denominators. To skip `$0` turns entirely,
+set `RECORD_ZERO_COST_TURNS = false` in `usage-recording.ts`.
+Negative-cost turns are always skipped (defensive; impossible from a
+real provider). The in-memory footer accumulator in `core.ts` always
+updates, so the live footer shows the real last-turn cost regardless.
+
+If you want to know *what the user asked*, read the session
+JSONL. If you want to know *how much that cost and how the
+assistant responded over time*, query this DB.
+
+## Schema (see `db.ts`)
+
+### Per-row columns - metrics
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | int PK | Auto-increment row id |
+| `turn` | int | Session-scoped turn counter |
+| `timestamp` | int | ms since epoch at `message_end` |
+| `model_name` | text | e.g. `MiniMax-M3` |
+| `thinking_level` | text | e.g. `high`, `low`, `off` |
+| `thinking_ms` | int | Time to first non-thinking output |
+| `response_ms` | int | Total turn duration (request-sent → message end) |
+| `cost_usd` | real | Cost of this turn |
+| `input_tokens` | int | New prompt tokens |
+| `output_tokens` | int | Output tokens |
+| `cache_read` | int | Cached prefix tokens served |
+| `cache_write` | int | Tokens written to cache this turn |
+| `session_id` | text | Stable per-runtime-session id |
+| `prompt_index` | int | 1-based user-prompt number; all automated continuations share the same index as the user prompt that caused them |
+
+### Per-row columns - prompt-type classification (flags)
+
+These flag the *kind of trigger* for the assistant turn - **not
+the content of the prompt**. They're either `0` (false) or `1`
+(true).
+
+| Column | Meaning |
+|---|---|
+| `user_prompt` | `1` if this assistant turn is a direct response to a user message. `0` for automated tool-call continuation rounds. |
+| `base_prompt` | `1` if this is the first user prompt of a task (top-level, drives projections). Always `0` when `user_prompt = 0`. |
+| `sub_prompt` | `1` if this is any follow-up / refinement under the current task. Always `0` when `user_prompt = 0`. |
+| `steering_prompt` | `1` if the user sent this sub-prompt while the agent was still actively processing the previous one (pi's `steer()`). |
+| `followup_prompt` | `1` if the user queued this sub-prompt to be delivered after the agent finished (pi's `followUp()`). |
+| `continuation_prompt` | `1` if this is an idle follow-up / refinement sent in the same task thread. |
+| `prompt_kind` | text - single human-readable label (see below) |
+
+### `prompt_kind` values
+
+Redundant with the flag columns above (the flags are derived from
+the same source) but a useful denormalised index for sorting and
+grouping in the report.
+
+| `user_prompt` | `prompt_kind` | Meaning |
+|---|---|---|
+| 1 | `base` | First user prompt of a task (top-level, drives projections). |
+| 1 | `continuation` | Idle follow-up / refinement in the same task thread. |
+| 1 | `steer` | Sub-prompt sent while the agent was still actively processing the previous one. |
+| 1 | `followup` | Sub-prompt queued in the editor and delivered after the agent finished. |
+| 0 | `auto` | Automated tool-call continuation round - no new user input between this and the prior turn. |
+
+### `tasks` table (per-task metrics)
+
+A separate table at **per-task** grain (vs the per-turn `turns` table
+above). One row per SETTLED task — a single user prompt's full agent
+run (enter → settle) — inserted by `core.ts` on `agent_settled` via
+`recordTask`. Records every task regardless of cost (including `$0`
+subscription turns). The timer starts on the user prompt and stops on
+the single `agent_settled`; questions, steering, retries and compaction
+don't settle the agent, so `task_ms` spans all of them.
+
+EVERY settled task is recorded, whatever its outcome: `stop_reason` is
+`complete`, `error` or `aborted` (classified from the last assistant
+`stopReason`). Failed rows carry the time-to-failure so the usage
+report's Timings tab can count errors/aborts. The report only ever
+AVERAGES `stop_reason = 'complete'` rows — a failed duration is shown
+in the footer and counted, but never mixed into the Task Time metric.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | int PK | Auto-increment row id |
+| `session_id` | text | Stable per-runtime-session id (matches `turns.session_id`) |
+| `prompt_index` | int | 1-based user-prompt number the task belongs to |
+| `timestamp` | int | ms since epoch at task START (first `agent_start`) |
+| `task_ms` | int | Wall-clock task duration (enter → settle; time-to-failure for error/abort) |
+| `stop_reason` | text | How the task ended: `complete` / `error` / `aborted` |
+| `model_name` | text | Model that ran the task |
+| `thinking_level` | text | Thinking level (`high` / `low` / `off`) |
+| `turn_count` | int | Number of assistant turns the task took |
+
+### What is NOT recorded
+
+- The actual **text** of user prompts, sub-prompts, or assistant
+  responses.
+- File paths, tool names, or arguments the assistant invoked
+  tools with.
+- Reasoning or thinking-block content (only `thinking_ms` is
+  recorded as a duration).
+## Public factory
+
+```typescript
+export function createUsageRecording(pi: ExtensionAPI): TurnRecorder
+```
+
+Returns a `TurnRecorder` (structurally typed, see `types.ts`) that
+core.ts can call on every `message_end`. Never import this file
+directly - go through the orchestrator.
+
+## Failure mode
+
+If better-sqlite3 isn't installed (user hasn't run `/aftc-install`),
+`getDb()` returns `null` and `recordTurn` is a silent no-op. A turn
+whose `costUsd` is `<= 0` is also a silent no-op (see above). The
+SQLite insert itself is wrapped in try/catch - any other error is
+logged via `console.log` and swallowed. Per-turn failures never break
+the agent loop.

@@ -1,8 +1,10 @@
 import * as fs from "node:fs";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { verifySshCarrierReady } from "./ssh/carrier";
-import { showConfirm, showViewer } from "./ui/aftcUi";
+import { showConfirm, showViewer } from "./ui/aftc-ui";
 
 const NPM_INSTALL_TIMEOUT_MS = 300_000;
 const UV_SYNC_TIMEOUT_MS = 600_000;
@@ -75,10 +77,7 @@ class InstallModule {
             // Intelligent gate: stay silent when every runtime dependency
             // (npm deps + the SSH carrier Python env) is already installed.
             if (missing.length === 0) return;
-            ctx.ui.notify?.(
-                `pi-aftc-toolset: runtime dependencies may be missing (${missing.join(", ")}) - run /aftc-install.`,
-                "warning",
-            );
+            aftcConsole.warn(ctx, `pi-aftc-toolset: runtime dependencies may be missing (${missing.join(", ")}) - run /aftc-install.`);
         });
     }
 
@@ -116,11 +115,17 @@ class InstallModule {
     }
 
     private registerCommands(): void {
+        registerHelpEntry({
+            command: "aftc-install",
+            description: "Install runtime deps (SQLite + Python + SSH carrier)",
+            category: "General",
+        });
+
         this.pi.registerCommand("aftc-install", {
             description: "Install better-sqlite3 and the packaged SSH carrier dependencies.",
             handler: async (_args: string, ctx: ExtensionCommandContext) => {
                 if (this.installPromise) {
-                    ctx.ui.notify?.("Dependency installation is already in progress.", "info");
+                    aftcConsole.emphasis(ctx, "Dependency installation is already in progress.");
                     await this.installPromise;
                     return;
                 }
@@ -137,10 +142,7 @@ class InstallModule {
         const packageRoot = findPackageRoot(__dirname);
         const carrierDir = findCarrierDir(__dirname);
         if (!packageRoot || !carrierDir) {
-            ctx.ui.notify?.(
-                "The packaged SSH carrier could not be located. Reinstall pi-aftc-toolset and try again.",
-                "error",
-            );
+            aftcConsole.error(ctx, "The packaged SSH carrier could not be located. Reinstall pi-aftc-toolset and try again.");
             return;
         }
 
@@ -164,13 +166,13 @@ class InstallModule {
 
         if (!npmInstalled) await this.installNpmDeps(ctx, packageRoot);
         if (!uvExecutable) {
-            ctx.ui.notify?.(this.uvInstallGuidance(), "error");
+            aftcConsole.error(ctx, this.uvInstallGuidance());
             await this.showDialog(ctx, "Dependency install", ["better-sqlite3 installation was attempted.", "", this.uvInstallGuidance()]);
             return;
         }
         if (!pythonAvailable) {
             const pythonGuidance = this.pythonInstallGuidance();
-            ctx.ui.notify?.(pythonGuidance, "error");
+            aftcConsole.error(ctx, pythonGuidance);
             await this.showDialog(ctx, "Dependency install", ["better-sqlite3 installation was attempted.", "", pythonGuidance]);
             return;
         }
@@ -245,29 +247,29 @@ class InstallModule {
     }
 
     private async installNpmDeps(ctx: ExtensionContext, cwd: string): Promise<void> {
-        ctx.ui.notify?.("Installing Node.js runtime dependencies...", "info");
+        aftcConsole.emphasis(ctx, "Installing Node.js runtime dependencies...");
         try {
             const result = await this.pi.exec("npm", ["install", "--no-audit", "--no-fund"], {
                 cwd,
                 timeout: NPM_INSTALL_TIMEOUT_MS,
             }) as ExecResult;
             if (result.code !== 0) {
-                ctx.ui.notify?.("npm install failed. Ensure Node.js and npm are installed, then run /aftc-install again.", "error");
+                aftcConsole.error(ctx, "npm install failed. Ensure Node.js and npm are installed, then run /aftc-install again.");
             }
         } catch {
-            ctx.ui.notify?.("npm could not be started. Ensure Node.js and npm are installed.", "error");
+            aftcConsole.error(ctx, "npm could not be started. Ensure Node.js and npm are installed.");
         }
     }
 
     private async installCarrierDeps(ctx: ExtensionContext, carrierDir: string, uvExecutable: string): Promise<boolean> {
-        ctx.ui.notify?.("Installing packaged SSH carrier dependencies...", "info");
+        aftcConsole.emphasis(ctx, "Installing packaged SSH carrier dependencies...");
         try {
             const sync = await this.pi.exec(uvExecutable, ["sync", "--locked"], {
                 cwd: carrierDir,
                 timeout: UV_SYNC_TIMEOUT_MS,
             }) as ExecResult;
             if (sync.code !== 0) {
-                ctx.ui.notify?.("SSH carrier install failed. Check uv and Python, then run /aftc-install again.", "error");
+                aftcConsole.error(ctx, "SSH carrier install failed. Check uv and Python, then run /aftc-install again.");
                 return false;
             }
 
@@ -276,7 +278,7 @@ class InstallModule {
             await verifySshCarrierReady();
             return true;
         } catch {
-            ctx.ui.notify?.("The SSH carrier could not be started. Check uv and Python, then run /aftc-install again.", "error");
+            aftcConsole.error(ctx, "The SSH carrier could not be started. Check uv and Python, then run /aftc-install again.");
             return false;
         }
     }

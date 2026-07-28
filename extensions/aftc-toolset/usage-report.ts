@@ -43,19 +43,21 @@
  *   overall: avgDailySpend = totalCost / calendarDays since the first
  *   recorded turn. Flagged as an estimate below 14 calendar days.
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: it owns
+ * Per AGENTS.md, this is a self-contained feature module: it owns
  * no shared state with other feature modules and is wired into pi by
  * the orchestrator in index.ts. It does not import core.ts or
  * usage-recording.ts (it only reads the DB they share).
  *
- * See `usage-report.readme.md` for the full report contents.
+ * See `usage-report-readme.md` for the full report contents.
  */
 
 import * as fs from "node:fs";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getDb, isDbAvailable } from "./db";
 import { getDataDir, getReportFile } from "./paths";
-import { showConfirm } from "./ui/aftcUi";
+import { showConfirm } from "./ui/aftc-ui";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -814,13 +816,13 @@ class UsageModule {
     private async runClear(ctx: ExtensionCommandContext): Promise<void> {
         const db = getDb();
         if (!db) {
-            ctx.ui.notify?.("Cannot clear usage data: better-sqlite3 is not available. Run /aftc-install.", "error");
+            aftcConsole.error(ctx, "Cannot clear usage data: better-sqlite3 is not available. Run /aftc-install.");
             return;
         }
         const turns = this.countRows("turns");
         const tasks = this.countRows("tasks");
         if (turns === 0 && tasks === 0) {
-            ctx.ui.notify?.("Usage database is already empty — nothing to clear.", "info");
+            aftcConsole.emphasis(ctx, "Usage database is already empty — nothing to clear.");
             return;
         }
         if (ctx.hasUI) {
@@ -829,17 +831,29 @@ class UsageModule {
         }
         try {
             const deleted = this.clearUsage();
-            ctx.ui.notify?.(`Cleared usage database — deleted ${deleted.turns} turn${deleted.turns === 1 ? "" : "s"} and ${deleted.tasks} task record${deleted.tasks === 1 ? "" : "s"}.`, "info");
+            aftcConsole.emphasis(ctx, `Cleared usage database — deleted ${deleted.turns} turn${deleted.turns === 1 ? "" : "s"} and ${deleted.tasks} task record${deleted.tasks === 1 ? "" : "s"}.`);
         } catch (err) {
-            ctx.ui.notify?.(`Failed to clear usage database: ${(err as Error).message}`, "error");
+            aftcConsole.error(ctx, `Failed to clear usage database: ${(err as Error).message}`);
         }
     }
 
     private registerCommands(): void {
+        registerHelpEntry({
+            command: "usage-report",
+            description: "Open the usage HTML report (ALPHA)",
+            category: "Usage report",
+        });
+
         this.pi.registerCommand("usage-report", {
             description: "Write a self-contained model usage report (tabs, charts, projections) to the pi-aftc-toolset data folder and open it in your browser",
             handler: async (_a: string, ctx: ExtensionCommandContext) => this.runReport(ctx),
         });
+        registerHelpEntry({
+            command: "usage-clear",
+            description: "Delete all recorded usage rows",
+            category: "Usage report",
+        });
+
         this.pi.registerCommand("usage-clear", {
             description: "Permanently clear all recorded turns from the SQLite database (asks for confirmation)",
             handler: async (_a: string, ctx: ExtensionCommandContext) => this.runClear(ctx),
@@ -1804,17 +1818,17 @@ class UsageModule {
         try { await this.pi.exec(cmd, args, { timeout: 10_000 }); }
         catch {
             try { await this.pi.exec("cmd", ["/c", "start", "", filePath], { timeout: 10_000 }); }
-            catch (err2) { ctx.ui.notify?.(`Browser launch failed (${(err2 as Error).message}). File written to ${filePath} — open it manually.`, "error"); }
+            catch (err2) { aftcConsole.error(ctx, `Browser launch failed (${(err2 as Error).message}). File written to ${filePath} — open it manually.`); }
         }
     }
 
     private async runReport(ctx: ExtensionCommandContext): Promise<void> {
         const data = this.collectReportData();
-        if (!data) { ctx.ui.notify?.("Cannot generate HTML report: better-sqlite3 is not available. Run /aftc-install.", "error"); return; }
+        if (!data) { aftcConsole.error(ctx, "Cannot generate HTML report: better-sqlite3 is not available. Run /aftc-install."); return; }
         let reportPath: string;
         try { reportPath = this.writeReportHtml(this.generateReportHtml(data)); }
-        catch (err) { ctx.ui.notify?.(`Failed to write report.html: ${(err as Error).message}`, "error"); return; }
-        ctx.ui.notify?.(`Wrote ${reportPath}`, "info");
+        catch (err) { aftcConsole.error(ctx, `Failed to write report.html: ${(err as Error).message}`); return; }
+        aftcConsole.emphasis(ctx, `Wrote ${reportPath}`);
         if (!ctx.hasUI) { console.log(`[aftc-toolset] HTML report written: ${reportPath}`); return; }
         void this.launchBrowser(reportPath, ctx);
     }

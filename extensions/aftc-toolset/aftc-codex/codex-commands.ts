@@ -17,11 +17,11 @@
  * Sync-first wrapper (spec C4 / M-I1): the resources menu and /aftc-codex-learn
  * spawn the list-regeneration script first; pure toggles skip the spawn.
  *
- * Menus use ONLY the aftcUi primitives (showMenu/showConfirm/showInput/showViewer) —
+ * Menus use ONLY the aftc-ui primitives (showMenu/showConfirm/showInput/showViewer) —
  * never hand-built chrome (AGENTS.md AFTC UI rules). All guard ctx.hasUI / mode==="tui";
  * print mode falls back to printed summaries and never auto-merges destructively (M-I4).
  *
- * See `codex-commands.readme.md` for the full contract.
+ * See `codex-commands-readme.md` for the full contract.
  */
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -29,7 +29,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { getPreference, setPreference } from "../config";
-import { showConfirm, showMenu, showViewer } from "../ui/aftcUi";
+import { showConfirm, showMenu, showViewer } from "../ui/aftc-ui";
+import * as aftcConsole from "../ui/aftc-console";
+import { registerHelpEntry } from "../help-registry";
 import type { CodexContext } from "./aftc-codex";
 import { isCommandBusy, type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
@@ -41,8 +43,10 @@ import { CODEX_CATEGORIES } from "./codex-store";
 // ─────────────────────────────────────────────────────────────────────────────
 
 function notify(ctx: ExtensionCommandContext, msg: string, level: "info" | "warning" | "error" = "info"): void {
-    if (ctx.hasUI && ctx.ui?.notify) ctx.ui.notify(msg, level);
-    else console.log(`[aftc-toolset] ${msg}`);
+    if (!ctx.hasUI) { aftcConsole.log(msg); return; }
+    if (level === "warning") aftcConsole.warn(ctx, msg);
+    else if (level === "error") aftcConsole.error(ctx, msg);
+    else aftcConsole.emphasis(ctx, msg);
 }
 
 function isTui(ctx: ExtensionCommandContext): boolean {
@@ -346,6 +350,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         }
         await openMainMenu(ctx, cctx, inject);
     };
+    registerHelpEntry({ command: "aftc-codex", description: "Open the aftc-codex config menu", category: "aftc-codex", aliases: ["codex"] });
     pi.registerCommand("aftc-codex", { description: "Open the aftc-codex config menu", handler: menuHandler });
     pi.registerCommand("codex", { description: "Open the aftc-codex config menu (alias)", handler: menuHandler });
 
@@ -362,6 +367,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         setPreference("aftcCodexEnabled", true);
         notify(cctx, "AFTC Codex enabled. Run /codex-init to prep the AI for this session.", "info");
     };
+    registerHelpEntry({ command: "aftc-codex-enable", description: "Enable the knowledge base", category: "aftc-codex", aliases: ["codex-enable"] });
     pi.registerCommand("aftc-codex-enable", { description: "Enable the aftc-codex knowledge base", handler: enableHandler });
     pi.registerCommand("codex-enable", { description: "Enable the aftc-codex knowledge base (alias)", handler: enableHandler });
 
@@ -373,6 +379,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         inject.persistState();
         notify(cctx, "AFTC Codex disabled and stripped from context/conversation.", "warning");
     };
+    registerHelpEntry({ command: "aftc-codex-disable", description: "Disable + strip from context", category: "aftc-codex", aliases: ["codex-disable"] });
     pi.registerCommand("aftc-codex-disable", { description: "Disable aftc-codex and strip from context", handler: disableHandler });
     pi.registerCommand("codex-disable", { description: "Disable aftc-codex and strip from context (alias)", handler: disableHandler });
 
@@ -405,6 +412,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
                 : "aftc-codex initialised — rules + guidance loaded; the AI will fetch relevant docs.",
             "info");
     };
+    registerHelpEntry({ command: "aftc-codex-init", description: "Initialise: load rules + fetch relevant docs", category: "aftc-codex", aliases: ["codex-init"] });
     pi.registerCommand("aftc-codex-init", { description: "Initialise codex: load rules + fetch relevant docs for this project", handler: initHandler });
     pi.registerCommand("codex-init", { description: "Initialise codex (alias)", handler: initHandler });
 
@@ -426,6 +434,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         inject.injectMarker(busy, true, detectedTopics(ctx, cctx));
         notify(cctx, "aftc-codex refreshed — old codex stripped; fresh rules + marker injected.", "info");
     };
+    registerHelpEntry({ command: "aftc-codex-refresh", description: "Strip all codex, then re-init", category: "aftc-codex", aliases: ["codex-refresh"] });
     pi.registerCommand("aftc-codex-refresh", { description: "Strip all codex, then re-init (clean restart)", handler: refreshHandler });
     pi.registerCommand("codex-refresh", { description: "Strip all codex, then re-init (alias)", handler: refreshHandler });
 
@@ -439,6 +448,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         learn.injectLearnPrompt(isCommandBusy(cctx));
         notify(cctx, "aftc-codex-learn: instructions sent.", "info");
     };
+    registerHelpEntry({ command: "aftc-codex-learn", description: "Record durable lessons into the codex", category: "aftc-codex", aliases: ["codex-learn"] });
     pi.registerCommand("aftc-codex-learn", { description: "Record durable lessons into the codex", handler: learnHandler });
     pi.registerCommand("codex-learn", { description: "Record durable lessons into the codex (alias)", handler: learnHandler });
 
@@ -459,6 +469,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         }
         pi.appendEntry(CODEX_STATUS_ENTRY, { enabled, embedded, read, total });
     };
+    registerHelpEntry({ command: "aftc-codex-status", description: "Show aftc-codex status", category: "aftc-codex", aliases: ["codex-status"] });
     pi.registerCommand("aftc-codex-status", { description: "Show aftc-codex status", handler: statusHandler });
     pi.registerCommand("codex-status", { description: "Show aftc-codex status (alias)", handler: statusHandler });
 
@@ -488,6 +499,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         await store.runSyncScript();
         notify(cctx, `aftc-codex installed (${result.copied} files copied). Run /codex-enable to enable.`, "info");
     };
+    registerHelpEntry({ command: "aftc-codex-install", description: "Fresh install the codex to the data dir", category: "aftc-codex", aliases: ["codex-install"] });
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
     pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
 
@@ -495,6 +507,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     const syncHandler = async (_args: string, cctx: ExtensionCommandContext) => {
         await runCodexSync(ctx, cctx);
     };
+    registerHelpEntry({ command: "aftc-codex-sync", description: "Merge new seed entries into the live codex", category: "aftc-codex", aliases: ["codex-sync"] });
     pi.registerCommand("aftc-codex-sync", { description: "Merge new seed entries into the live codex", handler: syncHandler });
     pi.registerCommand("codex-sync", { description: "Merge new seed entries into the live codex (alias)", handler: syncHandler });
 

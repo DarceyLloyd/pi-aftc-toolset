@@ -22,7 +22,7 @@
  * Optional clauses are plain if statements, not inline ternaries.
  * Line 5 is built by buildAllowanceLine (exported for unit tests).
  *
- * Per .dev/dev_guide.md section 7, setWidget composes alongside other
+ * Per docs/footer-widget-documentation.md, setWidget composes alongside other
  * footer/status extensions (e.g. pi-bar) instead of replacing them.
  *
  * Performance: all expensive work happens in the provider; render()
@@ -36,11 +36,13 @@
  * the cached prefix. The true total prompt is their sum. Do not
  * divide by `input` alone.
  *
- * See `footer-widget.readme.md` for the full contract (component
+ * See `footer-widget-readme.md` for the full contract (component
  * lifecycle, ticker behaviour, /aftc-footer wiring).
  */
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { AllowanceView, FooterDataProvider, AllowanceWindow, ModelView } from "./types";
 import { formatAdaptiveDuration } from "./allowance";
@@ -485,7 +487,7 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
             data.onTick();
             // Render as a widget below the editor instead of replacing pi's
             // footer. See the file header for the setFooter vs setWidget
-            // trade-off (.dev/dev_guide.md section 7.1).
+            // trade-off.
             ctx.ui.setWidget("aftc-cache", (tui, theme) => {
                 // Dispose the previous component (if any) before creating
                 // a new one — stops the old 1Hz timer.
@@ -507,6 +509,12 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
     }
 
     // /aftc-footer — toggle the widget on/off at runtime.
+    registerHelpEntry({
+        command: "aftc-footer",
+        description: "Toggle the footer dashboard",
+        category: "Footer / cache / timing",
+    });
+
     pi.registerCommand("aftc-footer", {
         description: "Toggle the footer dashboard widget on/off",
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
@@ -516,11 +524,11 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
                 // widget stays hidden across /reload, /new, and
                 // fresh pi startup.
                 setPreference("footerEnabled", false);
-                ctx.ui.notify?.("Footer dashboard widget hidden.", "info");
+                aftcConsole.emphasis(ctx, "Footer dashboard widget hidden.");
             } else {
                 show(ctx);
                 setPreference("footerEnabled", true);
-                ctx.ui.notify?.("Footer dashboard widget shown.", "info");
+                aftcConsole.emphasis(ctx, "Footer dashboard widget shown.");
             }
         },
     });

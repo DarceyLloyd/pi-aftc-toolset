@@ -43,9 +43,9 @@
  * plan endpoints/format, re-login help).
  *
  * Self-contained feature module: imports config.ts (preferences),
- * paths.ts (data dir) and ui/aftcUi.ts (dialogs) — no feature-module
+ * paths.ts (data dir) and ui/aftc-ui.ts (dialogs) — no feature-module
  * imports. Wired by providers/index.ts -> createProviders(pi).
- * See qwencloud.readme.md for the full contract.
+ * See qwencloud-readme.md for the full contract.
  */
 
 import type {
@@ -59,7 +59,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getPreference, setPreference } from "../config";
 import { getDataDir } from "../paths";
-import { showInput, showMenu, showViewer } from "../ui/aftcUi";
+import { registerHelpEntry } from "../help-registry";
+import { showInput, showMenu, showViewer } from "../ui/aftc-ui";
+import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -531,8 +533,10 @@ export function createQwenCloud(pi: ExtensionAPI, options?: QwencloudModuleOptio
 
     // ── Command helpers ────────────────────────────────────────────────
     const notify = (ctx: ExtensionCommandContext, msg: string, level: "info" | "warning" | "error"): void => {
-        if (ctx.hasUI) ctx.ui.notify(msg, level);
-        else console.log(`[aftc-toolset] ${msg}`);
+        if (!ctx.hasUI) { aftcConsole.log(msg); return; }
+        if (level === "warning") aftcConsole.warn(ctx, msg);
+        else if (level === "error") aftcConsole.error(ctx, msg);
+        else aftcConsole.emphasis(ctx, msg);
     };
 
     const validateUrl = (v: string): string | null =>
@@ -707,6 +711,12 @@ export function createQwenCloud(pi: ExtensionAPI, options?: QwencloudModuleOptio
         } catch (err) {
             console.log(`[aftc-toolset] qwencloud session_start refresh error: ${(err as Error).message}`);
         }
+    });
+
+    registerHelpEntry({
+        command: "qwencloud",
+        description: "Manage Qwen Cloud + Coding Plan providers (status, refresh, region, format)",
+        category: "Providers",
     });
 
     pi.registerCommand("qwencloud", {

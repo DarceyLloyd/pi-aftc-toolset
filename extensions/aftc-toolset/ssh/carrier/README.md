@@ -93,11 +93,9 @@ uv sync --locked
 
 ## Tests
 
-```text
-uv run --locked pytest tests/
-```
-
-The daemon, key, and connection-monitor tests do not require an SSH server. Run the toolset Docker smoke test from the package root:
+The carrier is exercised end-to-end by the toolset's Node checks (they
+spawn the real carrier via `uv`). Run the Docker smoke test from the
+package root:
 
 ```text
 node tests/ssh-replacement/ssh-replacement.mjs

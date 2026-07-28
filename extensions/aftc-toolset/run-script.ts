@@ -24,16 +24,18 @@
  *     config.json (or run /run-script-off) then /reload. The tool is then
  *     fully absent from the model's tool list.
  *   - Remove entirely once pi ships a fix: delete this file +
- *     run-script.readme.md, remove the single `createRunScript(pi)` line
+ *     run-script-readme.md, remove the single `createRunScript(pi)` line
  *     (and its import) from index.ts, drop the `runScriptEnabled` preference
  *     from config.ts, and delete tests/run-script-check/. Nothing else
  *     references this module.
  * ─────────────────────────────────────────────────────────────────────────
  *
- * See `run-script.readme.md` for the full contract.
+ * See `run-script-readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawn } from "node:child_process";
@@ -217,18 +219,30 @@ export function createRunScript(pi: ExtensionAPI): void {
     // the tool back on after disabling it. The tool itself is registered
     // conditionally below so that, when disabled, it is fully absent from the
     // model's tool list (no wasted prompt tokens, no accidental calls).
+    registerHelpEntry({
+        command: "run-script-on",
+        description: "Enable the run_script tool (/reload to apply)",
+        category: "General",
+    });
+
     pi.registerCommand("run-script-on", {
         description: "Enable the run_script tool (reliable large-script execution). /reload to apply.",
         handler: async (_args, ctx) => {
             setPreference("runScriptEnabled", true);
-            ctx.ui.notify("run_script enabled. Run /reload to apply.", "info");
+            aftcConsole.emphasis(ctx, "run_script enabled. Run /reload to apply.");
         },
     });
+    registerHelpEntry({
+        command: "run-script-off",
+        description: "Disable the run_script tool (/reload to apply)",
+        category: "General",
+    });
+
     pi.registerCommand("run-script-off", {
         description: "Disable the run_script tool (eg if pi fixes the underlying bash bug). /reload to apply.",
         handler: async (_args, ctx) => {
             setPreference("runScriptEnabled", false);
-            ctx.ui.notify("run_script disabled. Run /reload to apply.", "warning");
+            aftcConsole.emphasis(ctx, "run_script disabled. Run /reload to apply.");
         },
     });
 

@@ -97,3 +97,6 @@ desktop.ini
 .venv/
 __pycache__/
 images/SSH-GUI.jpg
+
+# Runtime debug logs
+temp/

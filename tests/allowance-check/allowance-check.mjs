@@ -184,7 +184,7 @@ let dateOffset = 0;
 Date.now = () => realDateNow() + dateOffset;
 
 let kimiFetchCalls = 0;
-let fetchMode = "ok"; // "ok" | "404" | "garbage"
+let fetchMode = "ok"; // "ok" | "404" | "garbage" | "no-5h"
 globalThis.fetch = async (url) => {
     if (String(url) !== "https://api.kimi.com/coding/v1/usages") {
         throw new Error(`Unexpected allowance URL: ${url}`);
@@ -196,6 +196,18 @@ globalThis.fetch = async (url) => {
         return new Response(JSON.stringify({ hello: "world" }), {
             status: 200, headers: { "content-type": "application/json" },
         });
+    }
+    if (fetchMode === "no-5h") {
+        // Kimi's limits[] intermittently drops the 300-minute (5h) entry:
+        // weekly window only, no limits array at all.
+        kimiFetchCalls++;
+        return new Response(JSON.stringify({
+            usage: {
+                limit: "100", used: "66", remaining: "34",
+                resetTime: new Date(realDateNow() + 134 * 3600_000).toISOString(),
+            },
+            limits: [],
+        }), { status: 200, headers: { "content-type": "application/json" } });
     }
     kimiFetchCalls++;
     return new Response(JSON.stringify({
@@ -331,7 +343,29 @@ try {
     assert(kimiFetchCalls === 8, "The desync tick should do one final forced fetch.");
     kimiCtx.isIdle = () => false;
 
-    // 14) session_shutdown with no timer running: clean no-op.
+    // 14) Partial-response retention: a response that OMITS the 5h window
+    //     keeps the last good 5h window (no segment flicker) — but only
+    //     until its reset time passes, then it drops for real.
+    fetchMode = "no-5h";
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    kv = kimiAllowance.getAllowance();
+    assert(kv && kv.fiveHour?.usedPercent === 22, "5h window must be retained when a response omits it.");
+    assert(kv.weekly?.usedPercent === 66, "Weekly window must still update from a partial response.");
+
+    dateOffset += 2 * 3600_000; // past the 5h reset (1h from real-now)
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    kv = kimiAllowance.getAllowance();
+    assert(kv && kv.fiveHour === null, "Expired retained 5h window must drop after its reset passes.");
+    assert(kv.weekly?.usedPercent === 66, "Weekly window survives the 5h expiry.");
+
+    fetchMode = "ok";
+    await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    kv = kimiAllowance.getAllowance();
+    assert(kv && kv.fiveHour?.usedPercent === 22, "5h window returns on the next full response.");
+    dateOffset = 0;
+    fetchMode = "ok";
+
+    // 15) session_shutdown with no timer running: clean no-op.
     await kimiHandlers.get("session_shutdown")();
     assert(timers.every((t) => t.cleared), "All timers should be cleared at the end of the flow.");
 } finally {

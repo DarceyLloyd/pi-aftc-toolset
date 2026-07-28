@@ -3,7 +3,7 @@
 // Opened by `/ssh-connection-manager` (alias `/ssh-cm`), both registered
 // at the bottom of this file and wired into pi by the SSH module
 // (ssh/index.ts). The manager is a GRUB-style full-screen takeover built
-// on the shared AFTC UI toolkit (ui/aftcUi.ts): solid black background,
+// on the shared AFTC UI toolkit (ui/aftc-ui.ts): solid black background,
 // centred #555555-bordered panel, #fca02f accents, and a dark-orange
 // selection bar on the active row.
 //
@@ -28,11 +28,13 @@
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Key, matchesKey, type Focusable } from "@earendil-works/pi-tui";
-import { AftcUi, terminalRows, defaultAftcPalette, type AftcPalette, type AftcSpan } from "../../ui/aftcUi";
+import { AftcUi, terminalRows, defaultAftcPalette, type AftcPalette, type AftcSpan } from "../../ui/aftc-ui";
 import { findSshConnection, getSshConnections, removeSshConnection, saveSshConnection, type SshConnection } from "../connection-store";
 import { editConnectionSettings } from "../connection-form";
 import { confirmOverlay } from "../confirmation-overlay";
 import { runNewConnectionFlow } from "./NewConnectionDialog";
+import * as aftcConsole from "../../ui/aftc-console";
+import { registerHelpEntry } from "../../help-registry";
 
 const TITLE = "AFTC SSH Connection manager";
 /** Maximum rows rendered in the list viewport. Larger lists scroll. */
@@ -368,7 +370,7 @@ export class ConnectionManagerScreen implements Focusable {
 async function runEditConnectionFlow(ctx: ExtensionCommandContext, name: string): Promise<void> {
     const existing = findSshConnection(name);
     if (!existing) {
-        ctx.ui.notify("That saved connection no longer exists.", "warning");
+        aftcConsole.warn(ctx, "That saved connection no longer exists.");
         return;
     }
     const updated = await editConnectionSettings(ctx, existing);
@@ -387,7 +389,7 @@ async function runEditConnectionFlow(ctx: ExtensionCommandContext, name: string)
         removeSshConnection(existing.name);
     }
     saveSshConnection(updated);
-    ctx.ui.notify(`SSH connection updated: ${updated.name}`, "info");
+    aftcConsole.emphasis(ctx, `SSH connection updated: ${updated.name}`);
 }
 
 /**
@@ -399,7 +401,7 @@ async function runEditConnectionFlow(ctx: ExtensionCommandContext, name: string)
  */
 async function runDeleteConnectionFlow(ctx: ExtensionCommandContext, name: string): Promise<void> {
     if (!findSshConnection(name)) {
-        ctx.ui.notify("That saved connection no longer exists.", "warning");
+        aftcConsole.warn(ctx, "That saved connection no longer exists.");
         return;
     }
     const sure = await confirmOverlay(ctx, {
@@ -410,7 +412,7 @@ async function runDeleteConnectionFlow(ctx: ExtensionCommandContext, name: strin
     });
     if (!sure) return; // Back to the connection list.
     removeSshConnection(name);
-    ctx.ui.notify(`SSH connection deleted: ${name}`, "info");
+    aftcConsole.emphasis(ctx, `SSH connection deleted: ${name}`);
 }
 
 /**
@@ -430,7 +432,7 @@ async function runDeleteConnectionFlow(ctx: ExtensionCommandContext, name: strin
  */
 export async function openConnectionManager(ctx: ExtensionCommandContext): Promise<void> {
     if (!ctx.hasUI || ctx.mode !== "tui") {
-        ctx.ui.notify("The SSH connection manager requires Pi's TUI mode.", "warning");
+        aftcConsole.warn(ctx, "The SSH connection manager requires Pi's TUI mode.");
         return;
     }
     for (;;) {
@@ -463,6 +465,13 @@ export function createConnectionManager(pi: ExtensionAPI): void {
     const handler = async (_args: string, ctx: ExtensionCommandContext): Promise<void> => {
         await openConnectionManager(ctx);
     };
+    registerHelpEntry({
+        command: "ssh-connection-manager",
+        description: "Open the full-screen connection manager",
+        category: "SSH",
+        aliases: ["ssh-cm"],
+    });
+
     pi.registerCommand("ssh-connection-manager", {
         description: "Open the full-screen SSH connection manager. Alias for /ssh-cm.",
         handler,

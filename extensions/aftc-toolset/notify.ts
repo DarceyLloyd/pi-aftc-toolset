@@ -46,15 +46,17 @@
  * and the AFTC UI leaf utility. Wired by the orchestrator (index.ts)
  * via createNotify(pi).
  *
- * See `notify.readme.md` for the full contract.
+ * See `notify-readme.md` for the full contract.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getPreference, setPreference } from "./config";
-import { showMenu } from "./ui/aftcUi";
+import { showMenu } from "./ui/aftc-ui";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -334,7 +336,7 @@ export function createNotify(pi: ExtensionAPI): void {
             if (choice === "__enabled__") {
                 const nowOn = !getPreference("notifyEnabled", false);
                 setPreference("notifyEnabled", nowOn);
-                ctx.ui.notify(`Audio notifications: ${nowOn ? "ON" : "OFF"}`, "info");
+                aftcConsole.emphasis(ctx, `Audio notifications: ${nowOn ? "ON" : "OFF"}`);
                 continue;
             }
 
@@ -348,7 +350,7 @@ export function createNotify(pi: ExtensionAPI): void {
                 else { cmd = "xdg-open"; args = [audioDir]; }
                 const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
                 child.unref();
-                ctx.ui.notify(`Opened: ${audioDir}`, "info");
+                aftcConsole.emphasis(ctx, `Opened: ${audioDir}`);
                 return; // close menu after opening dir
             }
 
@@ -389,17 +391,24 @@ export function createNotify(pi: ExtensionAPI): void {
             if (chosen === null) continue; // Esc -> back to choice menu
 
             setPreference(cat.pref, chosen);
-            ctx.ui.notify(
+            aftcConsole.emphasis(
+                ctx,
                 chosen
                     ? `${cat.label}: ${prettySoundLabel(chosen)}`
                     : `${cat.label}: NONE`,
-                "info",
             );
             // loop back to the choice menu
         }
     }
 
     // -- Command: /aftc-audio-notifications --------------------------------
+    registerHelpEntry({
+        command: "aftc-audio-notifications",
+        description: "Choose notification sounds",
+        category: "Audio notification",
+        aliases: ["aftc-notifications"],
+    });
+
     pi.registerCommand("aftc-audio-notifications", {
         description: "Choose notification sounds (startup, question, task-complete, error, aborted)",
         handler: handleAudioNotifications,
@@ -413,6 +422,13 @@ export function createNotify(pi: ExtensionAPI): void {
 
 
     // -- Command: /aftc-notify-time [seconds] ----------------------------
+    registerHelpEntry({
+        command: "aftc-notify-time",
+        args: "[sec]",
+        description: "Show or set the task-duration threshold (0 = off)",
+        category: "Audio notification",
+    });
+
     pi.registerCommand("aftc-notify-time", {
         description: "Show or set the task-duration threshold (seconds) for the completion sound",
         handler: async (args: string, ctx: ExtensionCommandContext) => {
@@ -425,7 +441,7 @@ export function createNotify(pi: ExtensionAPI): void {
                     ? "Time-based notification: disabled"
                     : `Time-based notification: ${current}s`;
                 if (ctx.hasUI) {
-                    ctx.ui.notify(msg, "info");
+                    aftcConsole.emphasis(ctx, msg);
                 } else {
                     console.log(`${LOG_PREFIX} ${msg}`);
                 }
@@ -436,7 +452,7 @@ export function createNotify(pi: ExtensionAPI): void {
             const sec = Number(trimmed);
             if (!Number.isFinite(sec) || sec < 0 || !Number.isInteger(sec)) {
                 if (ctx.hasUI) {
-                    ctx.ui.notify("Usage: /aftc-notify-time <seconds> (0 = disabled)", "warning");
+                    aftcConsole.warn(ctx, "Usage: /aftc-notify-time <seconds> (0 = disabled)");
                 }
                 return;
             }
@@ -446,7 +462,7 @@ export function createNotify(pi: ExtensionAPI): void {
                 ? "Time-based notification: disabled"
                 : `Time-based notification: ${sec}s`;
             if (ctx.hasUI) {
-                ctx.ui.notify(msg, "info");
+                aftcConsole.emphasis(ctx, msg);
             } else {
                 console.log(`${LOG_PREFIX} ${msg}`);
             }

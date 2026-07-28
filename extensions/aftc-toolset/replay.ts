@@ -27,11 +27,13 @@
  *
  * Wired in by the orchestrator (`index.ts`) via `createReplay(pi)`.
  *
- * See `replay.readme.md` for the full contract.
+ * See `replay-readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import type {
     ExtensionAPI,
     ExtensionCommandContext,
@@ -117,7 +119,7 @@ async function handleReplay(
     if (idle) {
         pi.sendUserMessage(saved);
         if (ctx.hasUI) {
-            ctx.ui.notify(`Replaying: ${preview}`, "info");
+            aftcConsole.emphasis(ctx, `Replaying: ${preview}`);
         } else {
             console.log(
                 `[aftc-toolset] /${cmdName}: sent (${saved.length} chars): ${preview}`,
@@ -126,10 +128,7 @@ async function handleReplay(
     } else {
         pi.sendUserMessage(saved, { deliverAs: "followUp" });
         if (ctx.hasUI) {
-            ctx.ui.notify(
-                `Replaying (queued as follow-up): ${preview}`,
-                "info",
-            );
+            aftcConsole.emphasis(ctx, `Replaying (queued as follow-up): ${preview}`);
         } else {
             console.log(
                 `[aftc-toolset] /${cmdName}: queued follow-up (${saved.length} chars): ${preview}`,
@@ -169,6 +168,13 @@ export function createReplay(pi: ExtensionAPI): void {
     });
 
     // ---- /save-replay-prompt <text> ----
+    registerHelpEntry({
+        command: "save-replay-prompt",
+        args: "<text>",
+        description: "Save a prompt string for later replay",
+        category: "Replay",
+    });
+
     pi.registerCommand("save-replay-prompt", {
         description:
             "Save text as a replay prompt: /save-replay-prompt <text>. Then /replay (or /r) re-sends it as a fresh user message.",
@@ -192,6 +198,13 @@ export function createReplay(pi: ExtensionAPI): void {
     });
 
     // ---- /replay ----
+    registerHelpEntry({
+        command: "replay",
+        description: "Re-send the saved prompt",
+        category: "Replay",
+        aliases: ["r"],
+    });
+
     pi.registerCommand("replay", {
         description: REPLAY_DESCRIPTION,
         handler: async (args: string, ctx: ExtensionCommandContext) => {

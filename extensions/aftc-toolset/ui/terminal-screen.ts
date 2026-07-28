@@ -31,9 +31,9 @@
 // skipped. Unsupported: wide (CJK/emoji) cells — every code point occupies
 // one column, and underline/dim attributes are dropped (AftcSpan has no
 // such channel). This module is a leaf utility: type-only import from
-// aftcUi, no feature-module imports.
+// aftc-ui, no feature-module imports.
 
-import { type AftcSpan } from "./aftcUi";
+import { type AftcSpan } from "./aftc-ui";
 
 /** One screen cell. fg/bg are #rrggbb or undefined (use palette default). */
 interface Cell {

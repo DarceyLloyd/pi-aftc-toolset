@@ -18,7 +18,7 @@
  * names the detected topics (step 4.2). Detection itself never touches the cached
  * system-prompt prefix (session-specific data stays out of it).
  *
- * See `codex-detect.readme.md` for the full contract.
+ * See `codex-detect-readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";

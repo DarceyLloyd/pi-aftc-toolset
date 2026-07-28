@@ -43,15 +43,17 @@
  * systems return `["/"]` (the single root). Path parsing uses Node's
  * `path` module so separators + drive letters are handled per-OS.
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: no
+ * Per AGENTS.md, this is a self-contained feature module: no
  * shared state with other feature modules, wired in by `index.ts`.
  *
- * See `cd.readme.md` for the full contract (events, commands,
+ * See `cd-readme.md` for the full contract (events, commands,
  * factory signature, failure modes).
  */
 
 import * as fs from "node:fs";
 import * as os from "node:os";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import * as path from "node:path";
 import type {
 	ExtensionAPI,
@@ -74,7 +76,7 @@ import {
 	terminalRows,
 	type AftcPalette,
 	type AftcSpan,
-} from "./ui/aftcUi";
+} from "./ui/aftc-ui";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
@@ -83,7 +85,7 @@ import {
 /** Default depth of descendants shown in the listing (children + N levels).
  * Mutable at runtime via `/cd-set-max-depth`. */
 const DEFAULT_MAX_DEPTH = 3;
-/** Cache TTL for directory reads (.dev/dev_guide.md section 4.3 intentional persistence). */
+/** Cache TTL for directory reads (intentional persistence). */
 const CACHE_TTL_MS = 500;
 /** Lower bound exposed by `/cd-set-max-depth`. */
 const MIN_DEPTH = 2;
@@ -930,10 +932,7 @@ async function handleCdCommand(
 	}
 
 	if (!ctx.hasUI || ctx.mode !== "tui") {
-		ctx.ui.notify(
-			"/cd requires interactive TUI mode (run with a path argument instead, e.g. /cd ~/projects)",
-			"error",
-		);
+		aftcConsole.error(ctx, "/cd requires interactive TUI mode (run with a path argument instead, e.g. /cd ~/projects)");
 		return;
 	}
 
@@ -976,10 +975,7 @@ async function resolveOrCreateDirectory(
 
 	const parentDir = path.dirname(targetPath);
 	if (!fs.existsSync(parentDir)) {
-		ctx.ui.notify(
-			`Cannot create "${path.basename(targetPath)}": parent directory does not exist`,
-			"error",
-		);
+		aftcConsole.error(ctx, `Cannot create "${path.basename(targetPath)}": parent directory does not exist`);
 		return null;
 	}
 
@@ -994,10 +990,7 @@ async function resolveOrCreateDirectory(
 		fs.mkdirSync(targetPath, { recursive: true });
 		return targetPath;
 	} catch (err) {
-		ctx.ui.notify(
-			`Failed to create directory: ${err instanceof Error ? err.message : String(err)}`,
-			"error",
-		);
+		aftcConsole.error(ctx, `Failed to create directory: ${err instanceof Error ? err.message : String(err)}`);
 		return null;
 	}
 }
@@ -1006,26 +999,20 @@ async function switchToNewSession(
 	targetDir: string,
 	ctx: ExtensionCommandContext,
 ): Promise<void> {
-	ctx.ui.notify(`Moving to ${targetDir}...`, "info");
+	aftcConsole.emphasis(ctx, `Moving to ${targetDir}...`);
 
 	try {
 		let newSession: SessionManager;
 		try {
 			newSession = SessionManager.create(targetDir);
 		} catch (err) {
-			ctx.ui.notify(
-				`Failed to create session in ${targetDir}: ${err instanceof Error ? err.message : String(err)}`,
-				"error",
-			);
+			aftcConsole.error(ctx, `Failed to create session in ${targetDir}: ${err instanceof Error ? err.message : String(err)}`);
 			return;
 		}
 
 		const sessionFile = newSession.getSessionFile();
 		if (!sessionFile) {
-			ctx.ui.notify(
-				"Failed to create new session (no session file path)",
-				"error",
-			);
+			aftcConsole.error(ctx, "Failed to create new session (no session file path)");
 			return;
 		}
 
@@ -1048,10 +1035,7 @@ async function switchToNewSession(
 
 		await ctx.switchSession(sessionFile);
 	} catch (err) {
-		ctx.ui.notify(
-			`Failed to move: ${err instanceof Error ? err.message : String(err)}`,
-			"error",
-		);
+		aftcConsole.error(ctx, `Failed to move: ${err instanceof Error ? err.message : String(err)}`);
 	}
 }
 
@@ -1088,6 +1072,13 @@ export function createCd(pi: ExtensionAPI): void {
 		}
 	});
 
+	registerHelpEntry({
+		command: "cd",
+		args: "[path]",
+		description: "Switch directory (picker or one-shot path)",
+		category: "Navigation",
+	});
+
 	pi.registerCommand("cd", {
 		description:
 			"Switch to a different directory. No args → interactive picker (always fresh session). With a path → direct switch (always fresh).",
@@ -1101,6 +1092,13 @@ export function createCd(pi: ExtensionAPI): void {
 	// directory picker listing. Accepts values 2..10 (the upper bound is
 	// wide enough for deep monorepos without flooding the listing).
 	// Without args → opens a picker over 2..10 with the current value marked.
+	registerHelpEntry({
+		command: "cd-set-max-depth",
+		args: "[2-10]",
+		description: "Set /cd picker depth (default 3)",
+		category: "Navigation",
+	});
+
 	pi.registerCommand("cd-set-max-depth", {
 		description: `Set the /cd picker listing depth (${MIN_DEPTH}-${MAX_DEPTH}, default ${DEFAULT_MAX_DEPTH})`,
 		getArgumentCompletions: (): null => null,
@@ -1111,24 +1109,15 @@ export function createCd(pi: ExtensionAPI): void {
 				const n = parseInt(trimmed, 10);
 				if (Number.isFinite(n) && n >= MIN_DEPTH && n <= MAX_DEPTH) {
 					maxDepth = n;
-					ctx.ui.notify?.(
-						`/cd picker depth set to ${n}`,
-						"info",
-					);
+					aftcConsole.emphasis(ctx, `/cd picker depth set to ${n}`);
 				} else {
-					ctx.ui.notify?.(
-						`Invalid depth "${trimmed}". Must be ${MIN_DEPTH}-${MAX_DEPTH}.`,
-						"error",
-					);
+					aftcConsole.error(ctx, `Invalid depth "${trimmed}". Must be ${MIN_DEPTH}-${MAX_DEPTH}.`);
 				}
 				return;
 			}
 			// No arg → picker over 2..10 with current value marked.
 			if (!ctx.hasUI || ctx.mode !== "tui") {
-				ctx.ui.notify?.(
-					`/cd-set-max-depth: current depth = ${maxDepth}. Pass a number ${MIN_DEPTH}-${MAX_DEPTH} to set.`,
-					"info",
-				);
+				aftcConsole.emphasis(ctx, `/cd-set-max-depth: current depth = ${maxDepth}. Pass a number ${MIN_DEPTH}-${MAX_DEPTH} to set.`);
 				return;
 			}
 			const items: { value: string; label: string; description?: string }[] = [];
@@ -1149,10 +1138,7 @@ export function createCd(pi: ExtensionAPI): void {
 			const n = parseInt(choice, 10);
 			if (Number.isFinite(n) && n >= MIN_DEPTH && n <= MAX_DEPTH) {
 				maxDepth = n;
-				ctx.ui.notify?.(
-					`/cd picker depth set to ${n}`,
-					"info",
-				);
+					aftcConsole.emphasis(ctx, `/cd picker depth set to ${n}`);
 			}
 		},
 	});

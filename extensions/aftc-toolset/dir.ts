@@ -16,8 +16,10 @@
  *   - linux  → `ls -la`
  *   - others → `ls -la` (fallback)
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: no
+ * Per AGENTS.md, this is a self-contained feature module: no
  * shared state with other feature modules, wired in by index.ts.
+ *
+ * See `dir-readme.md` for the full contract.
  */
 
 import * as os from "node:os";
@@ -26,6 +28,7 @@ import type {
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
+import { registerHelpEntry } from "./help-registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom entry type constant — shared between renderer and appender
@@ -168,6 +171,13 @@ export function createDir(pi: ExtensionAPI): void {
 		// via the registered renderer above, never pollutes LLM context.
 		pi.appendEntry(ENTRY_TYPE, data);
 	}
+
+	registerHelpEntry({
+		command: "dir",
+		description: "List the current directory",
+		category: "Navigation",
+		aliases: ["ls"],
+	});
 
 	pi.registerCommand("dir", {
 		description:

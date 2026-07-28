@@ -8,16 +8,16 @@
  * package so it survives `pi update --extensions`), eg
  *   %APPDATA%\pi-aftc-toolset\data\turns.db   (Windows)
  *
- * This is a utility module, NOT a feature module. Per .dev/dev_guide.md section 1.5,
+ * This is a utility module, NOT a feature module. Per AGENTS.md,
  * feature modules (usage-recording.ts, usage-report.ts, core.ts,
- * footer-widget.ts, input-clear.ts, etc.) must not import each other,
+ * footer-widget.ts, etc.) must not import each other,
  * but they're all free to import this file.
  *
  * better-sqlite3 is an optional runtime dependency — if it's not
  * installed, getDb() returns null forever and a single console.warn is
  * emitted at load time. Both callers handle null gracefully.
  *
- * See `db.readme.md` for schema, API, and failure modes.
+ * See `db-readme.md` for schema, API, and failure modes.
  */
 
 import * as fs from "node:fs";
@@ -61,7 +61,7 @@ const DB_FILE = getDbFile();
 //   - prompt_kind (text: "base" | "continuation" | "steer" |
 //     "followup" | "auto")
 //
-// See `usage-recording.readme.md` for the full column reference
+// See `usage-recording-readme.md` for the full column reference
 // and what each prompt-kind value means.
 const SCHEMA = `
     CREATE TABLE IF NOT EXISTS turns (

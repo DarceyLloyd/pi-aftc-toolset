@@ -5,7 +5,7 @@
  * operation:
  *
  *   - `/aftc-stop` — namespaced, follows the project's `/aftc-*` command
- *     convention (.dev/dev_guide.md section 6.2). For when you want to be explicit.
+ *     convention. For when you want to be explicit.
  *   - `/stfu`      — short alias for the same action. For when the model
  *     has gone into a 30-minute "wait…" loop and you just want out, fast.
  *
@@ -44,7 +44,7 @@
  * ---------------------------------------------------------------------------
  * ARCHITECTURE
  * ---------------------------------------------------------------------------
- * Self-contained feature module (.dev/dev_guide.md section 1.5):
+ * Self-contained feature module:
  *
  *   - No closure state.
  *   - No event subscriptions.
@@ -65,10 +65,12 @@
  *  4. `/aftc-help` → both `/stfu` and `/aftc-stop` should appear under
  *     the "Interrupt" section.
  *
- * See `stfu.readme.md` for the full contract.
+ * See `stfu-readme.md` for the full contract.
  */
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -114,7 +116,7 @@ async function handleStop(
     // feedback that the command was received.
     if (ctx.isIdle && ctx.isIdle()) {
         if (ctx.hasUI) {
-            ctx.ui.notify("Agent is already idle — nothing to stop.", "info");
+            aftcConsole.emphasis(ctx, "Agent is already idle — nothing to stop.");
         } else {
             console.log("[aftc-toolset] stfu: agent already idle — nothing to stop");
         }
@@ -130,7 +132,7 @@ async function handleStop(
     // it's fire-and-forget — so the notification is the user-visible
     // confirmation that the command fired.
     if (ctx.hasUI) {
-        ctx.ui.notify(`Stopped via /${cmdName}`, "warning");
+        aftcConsole.emphasis(ctx, `Stopped via /${cmdName}`);
     } else {
         console.log(`[aftc-toolset] stfu: aborted via /${cmdName}`);
     }
@@ -152,7 +154,14 @@ async function handleStop(
  */
 export function createStfu(pi: ExtensionAPI): void {
     // Namespaced command — follows the project's /aftc-* convention
-    // (.dev/dev_guide.md section 6.2). Use this when you want to be explicit.
+    // Use this when you want to be explicit.
+    registerHelpEntry({
+        command: "aftc-stop",
+        description: "Stop the current agent operation",
+        category: "Interrupt",
+        aliases: ["stfu"],
+    });
+
     pi.registerCommand("aftc-stop", {
         description: AFTC_STOP_DESCRIPTION,
         handler: async (_args: string, ctx: ExtensionCommandContext) => {

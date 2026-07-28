@@ -1,13 +1,15 @@
 // Reusable overlay-based connection form for the SSH feature.
 //
-// Both helpers are thin wrappers over the AFTC UI suite (ui/aftcUi.ts):
+// Both helpers are thin wrappers over the AFTC UI suite (ui/aftc-ui.ts):
 // `connectionFormOverlay` maps to showForm() (with the auth method as a
 // choice field) and `authMethodOverlay` maps to showMenu(). Outside the
 // TUI both resolve their fallback values so the caller can continue with
 // the per-field prompts in `connection-form.ts`.
+//
+// See `connection-form-overlay-readme.md` for the full contract.
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { showForm, showMenu, type AftcFormField } from "../../ui/aftcUi";
+import { showForm, showMenu, type AftcFormField } from "../../ui/aftc-ui";
 
 export type AuthMethod = "password" | "key";
 

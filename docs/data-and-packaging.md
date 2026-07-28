@@ -133,7 +133,7 @@ Source of truth: `DEFAULT_PREFERENCES` in `extensions/aftc-toolset/config.ts`.
 | `qwencloudPlanApiFormat` | string | `"openai-completions"` | plan API format |
 | `qwencloudPlanOpenAI` | string | (see code) | plan OpenAI base URL |
 | `qwencloudPlanAnthropic` | string | (see code) | plan Anthropic base URL |
-| `notifyEnabled` | boolean | `false` | audio notifications master on/off; migration enables only when sounds already configured |
+| `notifyEnabled` | boolean | `false` | audio notifications on/off; migration enables only when sounds already configured |
 | `notifySoundQuestion` | string | `"voc_question_07.mp3"` | filename in `question/`; `""` = none |
 | `notifySoundTaskComplete` | string | `"voc_task_complete_07.mp3"` | filename in `task-complete/`; `""` = none |
 | `notifyTimeSec` | number | `1` | min task duration before sound; `0` = off |
@@ -142,7 +142,7 @@ Source of truth: `DEFAULT_PREFERENCES` in `extensions/aftc-toolset/config.ts`.
 | `notifySoundStartup` | string | `"xp.mp3"` | filename in `startup/`; `""` = none |
 | `replayPrompt` | string | `""` | saved `/replay` prompt; `""` = none; only written by explicit `/save-replay-prompt` (never auto-stored, existing values never overwritten) |
 | `warGamesEnabled` | boolean | `false` | WarGames intro animation |
-| `aftcCodexEnabled` | boolean | `false` | codex master switch |
+| `aftcCodexEnabled` | boolean | `false` | codex on/off switch |
 | `aftcCodexInjectGuidance` | boolean | `true` | inject thinking guidance |
 | `aftcCodexAutoLoad` | boolean | `true` | auto-detect + fetch docs |
 | `aftcCodexSeeded` | boolean | `false` | first-run seed done |

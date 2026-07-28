@@ -5,7 +5,7 @@
  * ./db.ts) so the user can query historical per-turn stats via
  * /usage-report.
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: it owns
+ * Per AGENTS.md, this is a self-contained feature module: it owns
  * no shared state with other feature modules and is wired into pi by
  * the orchestrator in index.ts. It does not import core.ts or
  * usage-report.ts.
@@ -66,7 +66,7 @@
  * The /usage-report command lives in usage-report.ts; this file only
  * handles the SQLite recording.
  *
- * See `usage-recording.readme.md` for the full schema, history, and
+ * See `usage-recording-readme.md` for the full schema, history, and
  * failure modes.
  */
 

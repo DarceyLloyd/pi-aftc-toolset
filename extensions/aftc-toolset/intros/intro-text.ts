@@ -9,6 +9,8 @@
  * Preference key: "aftc-intro" (boolean, default true)
  *
  * Moved from intro.ts into intros/ folder. Path references adjusted.
+ *
+ * See `intro-text-readme.md` for the full contract.
  */
 
 import { readFileSync } from "node:fs";

@@ -19,7 +19,7 @@
  *                   queued until the current turn finishes. Safer
  *                   than "steer" which would interrupt mid-thought.
  *
- * Self-contained feature module (.dev/dev_guide.md section 1.5):
+ * Self-contained feature module:
  *   - No closure state (the prompt is a constant).
  *   - No event subscriptions.
  *   - No background resources.
@@ -27,7 +27,12 @@
  *
  * Wired in by the orchestrator (`index.ts`) via
  * `createKeepItShort(pi)`.
+ *
+ * See `keep-it-short-readme.md` for the full contract.
  */
+
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prompt text — fixed instruction sent to the model.
@@ -80,7 +85,7 @@ async function handleKeepItShort(
     if (idle) {
         pi.sendUserMessage(KIS_PROMPT);
         if (ctx.hasUI) {
-            ctx.ui.notify(`Sent: ${previewText}`, "info");
+            aftcConsole.emphasis(ctx, `Sent: ${previewText}`);
         } else {
             console.log(
                 `[aftc-toolset] /${cmdName}: sent (${KIS_PROMPT.length} chars): ${previewText}`,
@@ -93,7 +98,7 @@ async function handleKeepItShort(
         // to interrupt should use /aftc-stop first, then /kis.
         pi.sendUserMessage(KIS_PROMPT, { deliverAs: "followUp" });
         if (ctx.hasUI) {
-            ctx.ui.notify(`Sent (queued as follow-up): ${previewText}`, "info");
+            aftcConsole.emphasis(ctx, `Sent (queued as follow-up): ${previewText}`);
         } else {
             console.log(
                 `[aftc-toolset] /${cmdName}: queued follow-up (${KIS_PROMPT.length} chars): ${previewText}`,
@@ -108,6 +113,13 @@ async function handleKeepItShort(
 
 export function createKeepItShort(pi: ExtensionAPI): void {
     // ---- /keep-it-short ----
+    registerHelpEntry({
+        command: "keep-it-short",
+        description: "Tell the model to be terse",
+        category: "Keep it short",
+        aliases: ["kis"],
+    });
+
     pi.registerCommand("keep-it-short", {
         description: KEEP_IT_SHORT_DESCRIPTION,
         handler: async (args: string, ctx: ExtensionCommandContext) => {

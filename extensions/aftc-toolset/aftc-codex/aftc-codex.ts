@@ -20,7 +20,7 @@
  * This file also registers the `codex_load` model tool (step 2.4).
  *
  * Production-safety (spec Part G): off by default; fail-soft everywhere; never
- * destroys user data; seeding is copy-only. See `aftc-codex.readme.md`.
+ * destroys user data; seeding is copy-only. See `aftc-codex-readme.md`.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

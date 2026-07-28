@@ -23,6 +23,8 @@
  *
  * The MP3 lives at data/aftc-intro/audio/voc_greetings-professor-falcon.mp3
  * (user-supplied; the animation still works without it — just no sound).
+ *
+ * See `intro-wargames-readme.md` for the full contract.
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";

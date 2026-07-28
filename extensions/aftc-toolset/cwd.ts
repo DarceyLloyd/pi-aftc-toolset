@@ -9,8 +9,10 @@
  * appears as a clean inline card in the conversation transcript,
  * not as a modal dialog, and never pollutes the LLM context.
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: no
+ * Per AGENTS.md, this is a self-contained feature module: no
  * shared state with other feature modules, wired in by index.ts.
+ *
+ * See `cwd-readme.md` for the full contract.
  */
 
 import * as os from "node:os";
@@ -19,6 +21,7 @@ import type {
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
+import { registerHelpEntry } from "./help-registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom entry type constant — shared between renderer and appender
@@ -100,6 +103,12 @@ export function createCwd(pi: ExtensionAPI): void {
 		// via the registered renderer above, never pollutes LLM context.
 		pi.appendEntry(ENTRY_TYPE, data);
 	}
+
+	registerHelpEntry({
+		command: "cwd",
+		description: "Show the current working directory",
+		category: "Navigation",
+	});
 
 	pi.registerCommand("cwd", {
 		description: "Show the current working directory (inline card, same style as /dir).",

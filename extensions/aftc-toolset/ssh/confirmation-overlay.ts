@@ -4,9 +4,11 @@
 // full-screen takeover with the safe option highlighted by default.
 // Outside the TUI it falls back to `ctx.ui.confirm`, so non-interactive
 // callers behave exactly like the built-in confirm.
+//
+// See `confirmation-overlay-readme.md` for the full contract.
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { showConfirm } from "../../ui/aftcUi";
+import { showConfirm } from "../../ui/aftc-ui";
 
 export interface ConfirmationOptions {
     title: string;

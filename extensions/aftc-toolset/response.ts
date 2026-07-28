@@ -28,7 +28,7 @@
  *   - The renderer's `render(width)` returns `[]` → existing dividers
  *     collapse on the next TUI paint (forced via setStatus → requestRender)
  *
- * Per .dev/dev_guide.md section 1.5, this is a self-contained feature module: it owns no
+ * Per AGENTS.md, this is a self-contained feature module: it owns no
  * shared state, shares nothing with the other feature modules, and is
  * wired into pi by the orchestrator in index.ts.
  *
@@ -49,11 +49,13 @@
  *  8. After toggling OFF, send a new prompt → no divider above the reply.
  * ---------------------------------------------------------------------------
  *
- * See `response.readme.md` for the full contract and configuration knobs.
+ * See `response-readme.md` for the full contract and configuration knobs.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import { getPreference, setPreference } from "./config";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,6 +233,12 @@ export function createResponseDivider(pi: ExtensionAPI): void {
     //    setStatus() also calls tui.requestRender() internally, which
     //    forces a re-paint so existing dividers collapse (or reappear)
     //    immediately, not on the next natural re-render.
+    registerHelpEntry({
+        command: "aftc-response-divider",
+        description: "Toggle the divider above each reply",
+        category: "Response",
+    });
+
     pi.registerCommand("aftc-response-divider", {
         description:
             "Toggle the full-width response divider above each assistant reply (default: on)",
@@ -244,10 +252,10 @@ export function createResponseDivider(pi: ExtensionAPI): void {
                     STATUS_KEY,
                     ctx.ui.theme.fg("success", "│ divider"),
                 );
-                ctx.ui.notify("Response divider: ON", "info");
+                aftcConsole.emphasis(ctx, "Response divider: ON");
             } else {
                 ctx.ui.setStatus(STATUS_KEY, undefined);
-                ctx.ui.notify("Response divider: OFF", "warning");
+                aftcConsole.emphasis(ctx, "Response divider: OFF");
             }
         },
     });

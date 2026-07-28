@@ -9,7 +9,7 @@
  * Per AGENTS.md this is a self-contained feature module: it owns no shared
  * state and is wired into pi by the orchestrator in index.ts.
  *
- * See `keys.readme.md` for the full contract.
+ * See `keys-readme.md` for the full contract.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";

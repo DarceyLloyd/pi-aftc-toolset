@@ -1,15 +1,17 @@
 # CRITICAL GLOBAL RULES
 - IMPORTANT: Never use the character '§' in any code comment, file or documentation (excluding in this line, do not remove the character '§' from this line).
+- Never use the word "master" for on/off switches or enable flags (no "master on/off", "master switch", "master toggle"). Naming convention: a feature's enable flag is `featureNameEnabled = true/false` in code and `{"feature_name_enabled": true/false}` in JSON (this project's config.json uses camelCase keys, eg `warGamesEnabled`). In prose say "on/off", "true/false", or "<feature> enabled".
 - Never create NUL files.
 - Never read or process any files in folders named ".bak", ".old", ".git", unless specifically asked.
 - Keep answers short and to the point. Only give detailed responses when asked or when planning. It is fine to just say "done" or "ready". Never leave the user wondering if you are finished.
 - Any script or command you run must be self-terminating: add exit/escape timers (or timeouts) to tests, servers, watchers and one-off scripts so they can never hold the session in an infinite wait. Never run anything that blocks on stdin or runs indefinitely without a guaranteed exit path.
 - If you need to ask a question, ask immediately. Never assume.
 - Edit tool rules (learned from repeated failures):
-  - `lines` holds literal file content ONLY — never paste `LINE#HASH:` anchors into it.
-  - A multi-edit batch is atomic: if ANY edit fails, NONE applied. Re-apply ALL edits from the failed batch (not just the one that errored), then read the file to verify.
-  - Use `prepend`/`append` for insert intent, not `replace` whose payload repeats neighbouring lines (causes boundary duplications). Treat the tool's duplication warnings as errors — inspect immediately.
-  - Re-read a file before editing it again after any edit shifted its line numbers; never reuse stale anchors.
+  - `lines` holds literal file content ONLY — never paste `LINE#HASH:` anchors, op names, or any JSON keys into it.
+  - INSERTING lines (nothing deleted) = `prepend`/`append` ONLY. Never use a single-anchor `replace` with a multi-line payload to insert — it works but warns, and normalising that warning hides real mistakes.
+  - REPLACING lines = `replace` with `pos`+`end` spanning EXACTLY the lines to delete, both anchors copied verbatim from the SAME fresh read. If the payload's first/last line resembles a neighbour you want to keep, your range is wrong — stop.
+  - One edit call per file, then STOP: read the edited region before the next edit call on that file. Line numbers shift on every edit; anchors from before the latest edit are stale by definition.
+  - On ANY warning or `[E_STALE_ANCHOR]`: do not retry blindly. Re-read the region first, verify what actually applied (a failed batch applies NOTHING — re-apply the whole batch, not just the failed entry), then edit with fresh anchors.
 - Never overwrite user settings in config.json: only ADD missing keys via the write-back migration; existing values are sacred. Never auto-store a saved replay prompt (default empty). New user-facing features are disabled by default.
 
 ---
@@ -41,7 +43,7 @@ Do NOT guess event names, payloads, or return shapes.
 tools). `agent_end` is NOT final (pi may retry/compact after it).
 
 **User dialogs:** most AI models make a mess of these. See `cd.ts` for the
-reference implementation. Read `docs/aftc-ui-dialogs.md` before building any UI.
+reference implementation. Read `docs/aftc-ui-documentation.md` before building any UI.
 
 ---
 
@@ -49,18 +51,34 @@ reference implementation. Read `docs/aftc-ui-dialogs.md` before building any UI.
 
 | Feature | Read this first |
 | --- | --- |
-| AFTC UI dialogs | `docs/aftc-ui-dialogs.md` |
+| aftc-ui (dialogs & overlays) | `docs/aftc-ui-documentation.md` |
+| aftc-console (console output) | `docs/aftc-console-documentation.md` |
 | Usage report | `docs/usage-report-rules.md` |
 | Data dir, packaging, config | `docs/data-and-packaging.md` |
 | aftc-codex knowledge base | `docs/aftc-codex-documentation.md` |
 | Footer widget | `docs/footer-widget-documentation.md` |
 | SSH | `docs/ssh-documentation.md` |
 | Audio notifications | `docs/aftc-notifications.md` |
+| Slash commands (create/edit/delete) | `docs/help-registry.md` |
 
 If any modifications or changes are requested or needed to be made to a feature,
 you must read its documentation file listed above before making them.
 
 ---
+
+## aftc-console — transcript + diagnostic output
+
+Every feature writes to the user's console through `ui/aftc-console.ts` — never raw
+`ctx.ui.notify` or `console.log("[aftc-toolset]…")`. Read
+`docs/aftc-console-documentation.md` before using it. Quick map:
+
+- `aftcConsole.init(pi)` — once per session (`index.ts` only).
+- `aftcConsole.emphasis(ctx, text)` — accent/emphasis line for status / success / state-change (NOT a warning).
+- `aftcConsole.warn(ctx, text)` — yellow; the action could not proceed (nothing selected, missing args, not connected).
+- `aftcConsole.error(ctx, text)` — red; hard failure.
+- `aftcConsole.info(ctx, text)` — dim; rare neutral aside.
+- `aftcConsole.log(text)` — `[aftc-toolset]` stdout diagnostic.
+
 
 # Code structure rules
 
@@ -74,7 +92,7 @@ you must read its documentation file listed above before making them.
   descriptive name (eg `intro-factory.ts`) — never `index.ts`.
 - **Shipped defaults** live under `extensions/aftc-toolset/data/`, one subfolder
   per feature. Never mix two features' files. See `docs/data-and-packaging.md`.
-- Each `.ts` module needs a sibling `.readme.md`. Keep both current.
+- Each `.ts` module needs a sibling `<module-name>-readme.md`. Keep both current.
 - Re-read only the relevant documentation when needed. Do not reload everything.
 - Never read/modify files under `.old`, `.bak`, or `.git` unless asked.
 - Do not use Git unless the user explicitly asks.
@@ -94,7 +112,7 @@ you must read its documentation file listed above before making them.
 - Wrap file-mutating tools in `withFileMutationQueue()` (absolute target path).
 - Use `StringEnum` from `@earendil-works/pi-ai` for tool string enums.
 - Throw from tool `execute()` to report errors.
-- Prefix logs with `[aftc-toolset]`.
+- Send all console output through `ui/aftc-console.ts` (`aftcConsole.warn/error/info/emphasis` for the transcript, `aftcConsole.log` for `[aftc-toolset]` stdout). See `docs/aftc-console-documentation.md`.
 - Give every tool a `promptSnippet`. Make `promptGuidelines` bullets name the tool
   explicitly ("Use my_tool when...", never "Use this tool when...").
 - Strip a leading `@` from path parameters (some models add it).
@@ -121,7 +139,7 @@ you must read its documentation file listed above before making them.
 
 - `package.json` `pi` manifest points at `./extensions`, `./skills`, `./themes`.
 - Root `README.md` is user-facing (not a changelog). Changelog: `change-log.txt`.
-- Technical detail belongs in per-module `*.readme.md` files and `docs/`.
+- Technical detail belongs in per-module `*-readme.md` files and `docs/`.
 
 ---
 
@@ -184,7 +202,7 @@ Never push container state/credentials to any registry.
 
 # PROJECT RULES
 
-- Every `*.ts` file has a matching `*.readme.md`. Keep it current.
+- Every `*.ts` file has a matching `*-readme.md`. Keep it current.
 - **CRITICAL — NON-OPTIONAL.** Before writing or modifying ANY pi extension code,
   you MUST read and understand
   `extensions/aftc-toolset/data/aftc-codex/resources/tools/pi-extension.md`.

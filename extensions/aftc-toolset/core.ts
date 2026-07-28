@@ -7,8 +7,8 @@
  * Rendering lives in footer-widget.ts; this file never imports it and
  * never calls `ctx.ui.setWidget`. The orchestrator (index.ts) wires
  * this module's returned `FooterDataProvider` to the widget so the
- * footer reads the latest data via cheap getters (.dev/dev_guide.md section 1.5,
- * section 7.2 — never block in render).
+ * footer reads the latest data via cheap getters (never block in
+ * render).
  *
  * Hit-rate formula (matches OpenAI usage shape):
  *   hit% = cacheRead / (cacheRead + input)
@@ -41,17 +41,19 @@
  * Model and thinking-level changes update footer labels only; they do
  * not reset the context-window clock or accumulated cost.
  *
- * Layout (per .dev/dev_guide.md section 1.4):
+ * Layout (per AGENTS.md):
  *   - index.ts          — orchestrator
  *   - core.ts           — this file: data + events + commands
  *   - footer-widget.ts  — widget rendering + /aftc-footer toggle
  *   - input-clear.ts    — Alt+C shortcut to clear the input editor
  *
- * See `core.readme.md` for the full contract (events, commands,
+ * See `core-readme.md` for the full contract (events, commands,
  * public factory signature, closure state).
  */
 
 import type { ExtensionAPI, ExtensionCommandContext, ToolInfo } from "@earendil-works/pi-coding-agent";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 import type {
     AccumulatorView,
     AllowanceProvider,
@@ -65,7 +67,7 @@ import type {
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import * as path from "node:path";
 import { getDb } from "./db";
-import { showViewer } from "./ui/aftcUi";
+import { showViewer } from "./ui/aftc-ui";
 import {
     getPreference,
     setPreference,
@@ -627,7 +629,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         // thinkingLevel is NOT on the Model object - it's separate agent
         // state. Seed it from pi.getThinkingLevel() so the level is known
         // from the first render, not only after the user changes it.
-        // (.dev/dev_guide.md section 10)
         model.thinkingLevel = pi.getThinkingLevel();
 
         refreshToolCache();
@@ -944,7 +945,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             const cmp = shape.update(lastSysPrompt, tools);
             if (cmp.changed) {
                 console.log(`[aftc-toolset] prefix churn: ${cmp.reasons.join("+")}`);
-                (_ctx as any)?.ui?.notify?.(`Cache prefix changed: ${cmp.reasons.join("+")}`, "warning");
+                aftcConsole.warn(_ctx, `Cache prefix changed: ${cmp.reasons.join("+")}`);
             }
         }
 
@@ -975,6 +976,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     // -----------------------------------------------------------------------
     // Commands
     // -----------------------------------------------------------------------
+
+    registerHelpEntry({
+        command: "cache-profile",
+        description: "Per-tool token costs + prefix churn analysis",
+        category: "Footer / cache / timing",
+    });
 
     pi.registerCommand("cache-profile", {
         description: "Per-tool token costs, prefix shape, churn analysis",
@@ -1014,6 +1021,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             lines.push(`Last turn: ${fmt(acc.lastTurnInput)} in (${fmt(acc.lastTurnCacheRead)} cached / ${fmt(Math.max(0, acc.lastTurnInput - acc.lastTurnCacheRead))} new) / ${fmt(acc.lastTurnOutput)} out`);
             if (ctx.hasUI) await showViewer(ctx, { title: "Cache profile", lines });
         },
+    });
+
+    registerHelpEntry({
+        command: "cache-stats",
+        description: "Session cache stats + spend",
+        category: "Footer / cache / timing",
     });
 
     pi.registerCommand("cache-stats", {
@@ -1075,12 +1088,18 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         },
     });
 
+    registerHelpEntry({
+        command: "cache-reset",
+        description: "Zero accumulators (debugging)",
+        category: "Footer / cache / timing",
+    });
+
     pi.registerCommand("cache-reset", {
         description: "Reset current-context cache accumulators and footer timer (debugging)",
         handler: async (_a: string, ctx: ExtensionCommandContext) => {
             resetAccumulators();
             resetTiming();
-            ctx.ui.notify("Current-context cache accumulators and timer reset", "info");
+            aftcConsole.emphasis(ctx, "Current-context cache accumulators and timer reset");
         },
     });
 
@@ -1121,18 +1140,25 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         if (chosen === undefined) return;
         const key = labelToKey[chosen];
         if (!key || !setTimeframe(key)) {
-            ctx.ui.notify?.("Invalid timeframe selection", "error");
+            aftcConsole.error(ctx, "Invalid timeframe selection");
             return;
         }
         // setTimeframe already calls setPreference internally, so
         // no separate save is needed here.
         const stats = getTimeframeStats();
-        ctx.ui.notify?.(
+        aftcConsole.emphasis(
+            ctx,
             `Footer timeframe set to ${stats.timeframeLabel}` +
                 ` (cost=$${stats.costUsd.toFixed(2)}, ${stats.totalTurns} turns)`,
-            "info",
         );
     }
+
+    registerHelpEntry({
+        command: "aftc-set-costs-timeframe",
+        description: "Set the footer costs time window (default: Last 3 Days)",
+        category: "Footer / cache / timing",
+        aliases: ["aftc-footer-report-timeframe"],
+    });
 
     pi.registerCommand("aftc-set-costs-timeframe", {
         description: "Set the time window the footer 4th line aggregates over (default: Last 3 Days)",
@@ -1147,6 +1173,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
 
     // -- Miscellaneous commands -----------------------------------------------
 
+    registerHelpEntry({
+        command: "cls",
+        description: "Clear the terminal screen",
+        category: "General",
+    });
+
     pi.registerCommand("cls", {
         description: "Clear the terminal screen",
         handler: async (_a: string, ctx: ExtensionCommandContext) => {
@@ -1154,7 +1186,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             // any TUI terminal that respects escape codes. Same effect as
             // the shell `cls` (Windows) / `clear` (Unix) commands.
             console.log("\x1b[2J\x1b[H");
-            if (ctx.hasUI) ctx.ui.notify?.("Screen cleared", "info");
+            if (ctx.hasUI) aftcConsole.emphasis(ctx, "Screen cleared");
         },
     });
 
@@ -1163,7 +1195,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     // Return the data provider so the orchestrator (index.ts) can wire
     // it to footer-widget.ts. The widget reads from these getters on
     // every render; the underlying state is updated by the event
-    // handlers above. View types live in types.ts (.dev/dev_guide.md section 1.5:
+    // handlers above. View types live in types.ts (AGENTS.md:
     // structural interfaces, no module imports).
     const accView: AccumulatorView = acc;
     const modelView: ModelView = model;

@@ -1,6 +1,27 @@
 pi-aftc-toolset - Change Log
 ============================
 
+Updates v1.15.x
+---------------
+
+- Removed aftc-deep-thought entirely (module, docs, tests, preferences).
+- Footer allowance line fix: the 5-hour segment no longer flickers off. When a provider response omits the 5-hour window (seen with Kimi), the last good window is kept until its reset time passes instead of the segment vanishing for a refresh cycle.
+- New: help registry. /aftc-help is now generated from a live registry that each module feeds next to its command registration, so the help screen always matches the real commands (drift fails the test suite). Also added the previously missing /aftc-footer-report-timeframe alias entry.
+- Housekeeping: module companion docs renamed from *.readme.md to *-readme.md, stale internal doc references cleaned up.
+
+
+Updates v1.14.x
+---------------
+
+- aftc-codex redesign: codex-rules.md, markdown-guidance.md, AND thought-and-action-guidance.md are all FIXED maintainer docs — /codex-sync now force-overwrites all three from the shipped seed so updates always reach you, and /aftc-codex-learn no longer writes to them (it records TECH gotchas into resources/ only). The out-of-sync notice is generalised: any content drift in the fixed docs (not just missing files) triggers the "run /codex-sync" warning. Also fixed codex-rules.md typos, split a run-on rule, and clarified (in three places) that thought-and-action-guidance.md uses prose leads with NO [ID]s.
+
+- New feature: aftc-console — one centralised console-output module (ui/aftc-console.ts).
+  Every feature now writes transcript messages through aftcConsole.emphasis (accent/emphasis colour for status, success, and state changes — the colour ctx.ui.notify could not produce), aftcConsole.warn (yellow), aftcConsole.error (red), and aftcConsole.info (dim); load/diagnostic stdout goes through aftcConsole.log ("[aftc-toolset]" prefix). Wired once via aftcConsole.init(pi) in the orchestrator. The old ad-hoc / per-feature notify calls and the throwaway ssh/info-entry.ts are gone. See docs/aftc-console-documentation.md.
+- Renamed ui/aftcUi.ts -> ui/aftc-ui.ts and docs/aftc-ui-dialogs.md -> docs/aftc-ui-documentation.md (kebab-case file names); all importers and references updated. Exported identifiers (AftcUi, AftcPalette, etc.) are unchanged.
+
+- SSH command output now uses the theme accent (emphasis) colour.
+  Status, success, and state-change messages from /ssh-* commands (e.g. /ssh-status, /ssh-connect, transfers, shell/interrupt confirmations, and the connection manager's saved/updated/deleted notices) render in the accent colour instead of the warning yellow or dim info they used before. Genuine warnings (no session connected, missing args, not a file) and failures stay yellow/red. This needed a new accent-coloured transcript entry because ctx.ui.notify only supports info/warning/error, none of which is the accent colour.
+
 Updates v1.13.x
 ---------------
 

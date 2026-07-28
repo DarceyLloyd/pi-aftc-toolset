@@ -27,7 +27,7 @@ from `message_end` (assistant messages), then check it at `agent_settled`.
 ```
 extensions/aftc-toolset/
 ├── notify.ts                   # Feature module: events, playback, commands, menu
-├── notify.readme.md            # Companion doc
+├── notify-readme.md            # Companion doc
 ├── bin/
 │   ├── play_sound-win-x64.exe  # Windows x64 player
 │   ├── play_sound-linux-x64    # Linux x64 player
@@ -42,7 +42,7 @@ extensions/aftc-toolset/
     └── startup/*.mp3           # Sounds for "session start"
 ```
 
-Self-contained module. Imports only `config` (preferences) and `ui/aftcUi`
+Self-contained module. Imports only `config` (preferences) and `ui/aftc-ui`
 (showMenu). Wired by the orchestrator via `createNotify(pi)`.
 
 ---
@@ -78,7 +78,7 @@ in an aligned column. Selecting a row opens a sound picker for that category:
 
 ```
 Notification sounds
-├── Enabled ......................... | Yes/No   [master toggle; OFF by default; Enter toggles, selection preserved]
+├── Enabled ......................... | Yes/No   [on/off; OFF by default; Enter toggles, selection preserved]
 ├── Choose sound for startup ........ | <current or NONE>
 ├── Choose sound for question ....... | <current or NONE>
 ├── Choose sound for task complete .. | <current or NONE>

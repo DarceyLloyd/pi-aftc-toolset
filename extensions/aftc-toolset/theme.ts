@@ -2,7 +2,7 @@
  * pi-aftc-toolset — theme-selector shortcut feature module.
  *
  * Registers the `/theme` slash command which opens an AFTC UI menu
- * (ui/aftcUi.ts `showMenu`) with extended keyboard navigation AND live
+ * (ui/aftc-ui.ts `showMenu`) with extended keyboard navigation AND live
  * theme preview:
  *
  *   - ↑ / ↓              move selection by 1 (applies as preview)
@@ -17,14 +17,14 @@
  * `ctx.ui.setTheme` (visible once the picker closes); Enter commits,
  * Esc reverts to the theme that was active when the picker opened.
  *
- * Self-contained feature module (.dev/dev_guide.md section 1.5):
+ * Self-contained feature module:
  *   - No closure state outside the picker invocation.
  *   - No event subscriptions.
  *   - Imports only the AFTC UI leaf utility.
  *
  * Wired in by the orchestrator (`index.ts`) via `createTheme(pi)`.
  *
- * See `theme.readme.md` for the full contract (commands, keys,
+ * See `theme-readme.md` for the full contract (commands, keys,
  * failure modes).
  */
 
@@ -33,7 +33,9 @@ import type {
     ExtensionCommandContext,
     Theme,
 } from "@earendil-works/pi-coding-agent";
-import { showMenu } from "./ui/aftcUi";
+import { showMenu } from "./ui/aftc-ui";
+import * as aftcConsole from "./ui/aftc-console";
+import { registerHelpEntry } from "./help-registry";
 
 /**
  * Best-effort read of the active theme's name. Returns undefined if:
@@ -53,6 +55,12 @@ function readCurrentThemeName(ui: { theme?: Theme }): string | undefined {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function createTheme(pi: ExtensionAPI): void {
+    registerHelpEntry({
+        command: "theme",
+        description: "Open the theme picker",
+        category: "General",
+    });
+
     pi.registerCommand("theme", {
         description: "Open a theme picker and switch to the selected theme",
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
@@ -71,7 +79,7 @@ export function createTheme(pi: ExtensionAPI): void {
             // ---- 2. Discover themes ----
             const themes = ctx.ui.getAllThemes?.() ?? [];
             if (themes.length === 0) {
-                ctx.ui.notify?.("No themes discovered", "warning");
+                aftcConsole.warn(ctx, "No themes discovered");
                 return;
             }
 
@@ -105,10 +113,7 @@ export function createTheme(pi: ExtensionAPI): void {
             const previewTheme = (name: string) => {
                 const result = ctx.ui.setTheme(name);
                 if (result && !result.success) {
-                    ctx.ui.notify?.(
-                        `Failed to preview theme '${name}': ${result?.error ?? "unknown error"}`,
-                        "warning",
-                    );
+                    aftcConsole.warn(ctx, `Failed to preview theme '${name}': ${result?.error ?? "unknown error"}`);
                     return;
                 }
                 hasChangedTheme = true;
@@ -139,12 +144,9 @@ export function createTheme(pi: ExtensionAPI): void {
             // and retries cleanly if a preview failed mid-navigation.
             const result = ctx.ui.setTheme(chosen);
             if (result && result.success) {
-                ctx.ui.notify(`Switched to theme: ${chosen}`, "info");
+                aftcConsole.emphasis(ctx, `Switched to theme: ${chosen}`);
             } else {
-                ctx.ui.notify?.(
-                    `Failed to switch theme: ${result?.error ?? "unknown error"}`,
-                    "error",
-                );
+                aftcConsole.error(ctx, `Failed to switch theme: ${result?.error ?? "unknown error"}`);
             }
         },
     });

@@ -2,7 +2,18 @@
 
 One folder per check: `tests/<test-name>/<test-name>.mjs` plus its own
 README and any fixtures/helpers. Every script registers a global
-watchdog timeout near the top (see `.dev/dev_guide.md` — non-negotiable).
+watchdog timeout near the top (see `AGENTS.md` — non-negotiable).
+
+## Philosophy
+
+- Not everything can be tested: TUI visuals, live provider behaviour,
+  and pi's own rendering are verified manually by the user, not by
+  automation. Some modules have no test folder — that is deliberate,
+  not a gap.
+- Every test must VERIFY behaviour. When touching a test, ask: does
+  this actually assert something meaningful? A test that only exercises
+  code without checking outcomes (coverage theatre) should be pruned,
+  not kept.
 
 ## How they are built
 
@@ -21,6 +32,7 @@ watchdog timeout near the top (see `.dev/dev_guide.md` — non-negotiable).
 
 | Suite | Class | Covers |
 | --- | --- | --- |
+| `help-registry-check` | 20s local | Help registry sync: every registerCommand covered by an entry, every entry real, no duplicates. |
 | `allowance-check` | 15s local | Footer line-5 allowance providers, Codex regression. |
 | `keys-check` | 20s local | Shortcuts: alt+c clear, alt+n newline at caret. |
 | `install-check` | 15s local | `/aftc-install` redaction, recovery guidance, concurrency, and the intelligent session-start dependency warning. |

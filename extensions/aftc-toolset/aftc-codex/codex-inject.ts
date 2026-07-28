@@ -27,7 +27,7 @@
  *
  * The `context`-event prune filter lives here too (added in step 3.1).
  *
- * See `codex-inject.readme.md` for the full contract.
+ * See `codex-inject-readme.md` for the full contract.
  */
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -112,7 +112,7 @@ export function createCodexInject(
         const noticeData = (_entry.data ?? {}) as { outOfSync?: boolean };
         if (noticeData.outOfSync === true) {
             box.addChild(new Text(
-                theme.fg("mdHeading", "NOTICE: Your AFTC codex resources are out of sync with the latest resource, run /codex-sync"),
+                theme.fg("mdHeading", "NOTICE: Your AFTC codex is out of sync with the shipped version (rules/resources differ). Run /codex-sync to update."),
                 0, 0,
             ));
         }

@@ -7,6 +7,8 @@
  *
  * The main orchestrator (../index.ts) calls createProviders(pi) — this
  * is the only function the rest of the extension knows about.
+ *
+ * See `index-readme.md` for the full contract.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

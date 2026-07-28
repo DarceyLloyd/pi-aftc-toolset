@@ -23,7 +23,7 @@
  * Production-safety (spec Part G): every I/O op is best-effort try/catch -> fall
  * back to a safe default / no-op; seeding never overwrites an existing file.
  *
- * See `codex-store.readme.md` for the full contract.
+ * See `codex-store-readme.md` for the full contract.
  */
 
 import * as fs from "node:fs";

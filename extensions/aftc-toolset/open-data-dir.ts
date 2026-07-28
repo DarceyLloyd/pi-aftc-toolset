@@ -13,12 +13,14 @@
  */
 
 import { spawn } from "node:child_process";
+import * as aftcConsole from "./ui/aftc-console";
 import { existsSync, mkdirSync } from "node:fs";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import { getDataDir } from "./paths";
+import { registerHelpEntry } from "./help-registry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -68,8 +70,15 @@ export function createOpenDataDir(pi: ExtensionAPI): void {
 		}
 
 		openInFileManager(dir);
-		ctx.ui.notify(`Opened data dir: ${dir}`, "info");
+		aftcConsole.emphasis(ctx, `Opened data dir: ${dir}`);
 	}
+
+	registerHelpEntry({
+		command: "aftc-open-data-dir",
+		description: "Open the data directory in your OS file manager",
+		category: "General",
+		aliases: ["aftc-odd"],
+	});
 
 	pi.registerCommand("aftc-open-data-dir", {
 		description: "Open the pi-aftc-toolset data directory in your OS file manager.",
