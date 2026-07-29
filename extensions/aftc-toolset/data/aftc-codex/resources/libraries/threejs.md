@@ -1,5 +1,12 @@
 # Three.js
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[gHIMJP] TS7016: Could not find a declaration file for module 'three'` (or 'three/webgpu')
   Cause: three 0.185 ships zero .d.ts files (nothing in package exports, build/ or src/).
   Fix: add `// @ts-nocheck` as line 1 of any TS file importing three (template convention), or install @types/three for real checking. (2026-07)

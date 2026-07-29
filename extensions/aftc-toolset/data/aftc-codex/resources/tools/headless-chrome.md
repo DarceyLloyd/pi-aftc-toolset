@@ -5,6 +5,13 @@ screenshot of a page without a display server. Same flags work for both — the 
 binary lives at `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe` and
 Chrome at `C:\Program Files\Google\Chrome\Application\chrome.exe`.
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [Q8rK2c] `msedge.exe --headless --screenshot=foo.png URL` exits with `Failed to write file foo.png: The system cannot find the path specified` even though `foo.png` is in the cwd
   Cause: the `--screenshot=PATH` flag is parsed against the file-system CWD at the moment the browser starts, AND a relative `PATH` is resolved by the browser, not by your shell — if your shell CWD differs from the browser's CWD (different drive on Windows, sandboxed Chromium), the relative path 404s silently. The browser logs the failure and exits with no rendered screenshot.
   Fix: pass an ABSOLUTE Windows path to `--screenshot`, e.g. `--screenshot="C:\Users\me\Desktop\out.png"`. Quote it because the backslashes are otherwise consumed by the shell. On bash, forward slashes work too (`/c/Users/me/out.png`) as long as the path is absolute. (2026-07)

@@ -1,5 +1,12 @@
 # Godot 4.x (GDScript)
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[CxjhZi] Parse Error: Unexpected identifier "X" in class body`
   Cause: a stray character outside any function at script body level, usually an editing leftover.
   Fix: remove it at the reported line; the error is SILENT in the GUI (scene shows a black screen), visible only in editor log or headless compile output. (2026-07)

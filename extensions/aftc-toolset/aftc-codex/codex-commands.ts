@@ -11,11 +11,9 @@
  *   /aftc-codex-refresh  Strip all codex from context, then re-init (clean restart).
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
- *   /aftc-codex-sync     Merge new seed entries into the live codex (alias /codex-sync).
- *   /aftc-codex-status   Quick status viewer.
  *
- * Sync-first wrapper (spec C4 / M-I1): the resources menu and /aftc-codex-learn
- * spawn the list-regeneration script first; pure toggles skip the spawn.
+ * List-regeneration: Start Fresh (resources menu) and /aftc-codex-learn spawn
+ * the list-regeneration script; pure toggles skip the spawn.
  *
  * Menus use ONLY the aftc-ui primitives (showMenu/showConfirm/showInput/showViewer) —
  * never hand-built chrome (AGENTS.md AFTC UI rules). All guard ctx.hasUI / mode==="tui";
@@ -26,7 +24,6 @@
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { getPreference, setPreference } from "../config";
 import { showConfirm, showMenu, showViewer } from "../ui/aftc-ui";
@@ -35,7 +32,6 @@ import { registerHelpEntry } from "../help-registry";
 import type { CodexContext } from "./aftc-codex";
 import { isCommandBusy, type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
-import { mergeCodexSeedIntoLive } from "./codex-merge";
 import { CODEX_CATEGORIES } from "./codex-store";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +77,25 @@ async function ensureSeededWithChoice(ctx: CodexContext, cctx: ExtensionCommandC
         await store.runSyncScript();
     }
     return seeded;
+}
+
+/** Central version guard for commands (mirrors ctx.checkCompat). Returns true
+ *  when the live codex matches the shipped version. When out of date, shows the
+ *  guard message (aftc-ui modal in the TUI — Enter/Esc closes — a stdout line
+ *  otherwise) and returns false: the caller MUST stop. /codex-install is the
+ *  fix (unguarded); /codex-disable and /codex-status stay available. */
+async function guardCompat(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<boolean> {
+    const compat = ctx.checkCompat();
+    if (compat.isSafe) return true;
+    if (isTui(cctx)) {
+        await showViewer(cctx, {
+            title: "AFTC Codex — update required",
+            lines: [compat.message, "", "Press Enter / Esc to close."],
+        });
+    } else {
+        console.log(`[aftc-toolset] ${compat.message}`);
+    }
+    return false;
 }
 
 /** Screen 1.9 — seed / re-seed choice. Returns true if seeded. */
@@ -153,81 +168,31 @@ function openDir(dir: string): void {
 }
 
 
-/** Run the /codex-sync merge, regenerate the resource list, and report.
- *  Shared by the /aftc-codex-sync command and the Resources & updates menu. */
-async function runCodexSync(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<void> {
-    const { store } = ctx;
-    const report = mergeCodexSeedIntoLive(store.getSeedDir(), store.getRoot());
-    // Always regenerate the resource list, even when nothing changed.
-    await store.runSyncScript();
-
-    const totalMerged = report.merged.reduce((n, m) => n + m.ids.length, 0);
-    const lines: string[] = [];
-    if (report.createdLiveDir) lines.push("Codex dir was missing — full seed copied over.");
-    if (report.createdResourcesDir) lines.push("resources/ was missing — full seed resources copied over.");
-    if (report.copiedFiles.length > 0) {
-        lines.push(`Files copied (${report.copiedFiles.length}):`);
-        for (const f of report.copiedFiles) lines.push(`  ${f}`);
-    }
-    if (report.merged.length > 0) {
-        lines.push(`Entries merged (${totalMerged}):`);
-        for (const m of report.merged) lines.push(`  ${m.file}: +${m.ids.length} (${m.ids.join(", ")})`);
-    }
-    if (report.errors.length > 0) {
-        lines.push("Errors:");
-        for (const e of report.errors) lines.push(`  ${e}`);
-    }
-    if (lines.length === 0) lines.push("Already up to date — no files copied, no entries merged.");
-    lines.push("Resource list regenerated.");
-
-    const summary = report.createdLiveDir
-        ? `aftc-codex sync: full seed installed (${report.copiedFiles.length} files).`
-        : `aftc-codex sync: ${report.copiedFiles.length} files copied, ${totalMerged} entries merged.`;
-
-    if (isTui(cctx)) {
-        notify(cctx, summary, report.errors.length > 0 ? "warning" : "info");
-        await showViewer(cctx, { title: "aftc-codex sync", lines });
-    } else {
-        for (const line of lines) console.log(`[aftc-toolset] ${line}`);
-    }
-}
-
-/** Screen 1.6 — Resources & updates. */
-async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<"sync" | void> {
+/** Screen 1.6 — Resources & updates (Start Fresh + open dir only). */
+async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<void> {
     const { store } = ctx;
     while (true) {
         const choice = await showMenu(cctx, {
             title: "Menu:",
             labelWidth: 24,
             items: [
-                { value: "reseed", label: "Re-Seed Resources", description: " copy-only, never overwrites" },
-                { value: "fresh", label: "Start Fresh", description: " Clear and restore default codex resources" },
+                { value: "fresh", label: "Start Fresh", description: " Wipe users codex files and start fresh" },
                 { value: "opendir", label: "Open Codex Resource Dir" },
-                { value: "sync", label: "Sync Codex Resources", description: " merge new seed entries, keep yours" },
             ],
         });
         if (!choice) return;
-        if (choice === "reseed") {
-            const seeded = await openSeedChoice(ctx, cctx);
-            if (seeded) { await store.runSyncScript(); notify(cctx, "Re-seeded (copy-only).", "info"); }
-            return;
-        }
         if (choice === "fresh") {
             const ok = await showConfirm(cctx, {
                 title: "Start fresh?",
-                body: "Wipe your current codex resources and restore the shipped defaults? This cannot be undone.",
+                body: "Wipe ALL your codex files (rules, guidance and every resource doc, including your learned entries) and restore the full shipped defaults? This cannot be undone.",
             });
             if (ok) {
-                // Wipe resources + top-level guidance, then seed fresh.
-                try { fs.rmSync(store.getResourcesDir(), { recursive: true, force: true }); } catch { /* ignore */ }
-                // Remove top-level guidance files so they get re-seeded clean.
-                for (const name of ["codex-rules.md", "thought-and-action-guidance.md", "markdown-guidance.md"]) {
-                    try { fs.rmSync(path.join(store.getRoot(), name), { force: true }); } catch { /* ignore */ }
-                }
-                setPreference("aftcCodexSeeded", false);
-                store.seed("fresh");
+                // Full wipe of the live codex dir, then a complete fresh seed copy.
+                try { fs.rmSync(store.getRoot(), { recursive: true, force: true }); } catch { /* ignore */ }
+                store.seed("pretrained");
+                await store.runEnsureIds();
                 await store.runSyncScript();
-                notify(cctx, "Codex resources cleared and restored to defaults.", "info");
+                notify(cctx, "Codex wiped and restored to the shipped defaults.", "info");
             }
             return;
         }
@@ -238,7 +203,6 @@ async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContex
             notify(cctx, `Opened ${dir}`, "info");
             return;
         }
-        if (choice === "sync") return "sync"; // main menu closes, then runs the sync
     }
 }
 
@@ -253,7 +217,6 @@ const HELP_LINES = [
     "  /aftc-codex-refresh      Strip all codex, then re-init (clean restart)",
     "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
     "  /aftc-codex-learn        Record durable lessons into the codex",
-    "  /aftc-codex-sync         Merge new seed entries into your codex (alias /codex-sync)",
     "  /aftc-codex-status       Show status",
     "",
     "Model tool:",
@@ -320,13 +283,6 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             if (autoAdd === "auto") setPreference("aftcCodexAutoAddEntries", true);
             else if (autoAdd === "manual") setPreference("aftcCodexAutoAddEntries", false);
         } else if (choice === "resources") {
-            const action = await openResourcesMenu(ctx, cctx);
-            if (action === "sync") {
-                // Close the menu tree, then run the merge + report.
-                await runCodexSync(ctx, cctx);
-                return;
-            }
-        } else if (choice === "help") {
             await openResourcesMenu(ctx, cctx);
         } else if (choice === "help") {
             await showViewer(cctx, { title: "aftc-codex help", lines: HELP_LINES });
@@ -348,6 +304,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             console.log("[aftc-toolset] codex: the config menu needs the TUI; use the /aftc-codex-* commands here (try /aftc-codex-status).");
             return;
         }
+        if (!(await guardCompat(ctx, cctx))) return;
         await openMainMenu(ctx, cctx, inject);
     };
     registerHelpEntry({ command: "aftc-codex", description: "Open the aftc-codex config menu", category: "aftc-codex", aliases: ["codex"] });
@@ -356,6 +313,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
 
     // ---- /aftc-codex-enable (alias /codex-enable) ----
     const enableHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (!(await guardCompat(ctx, cctx))) return;
         if (getPreference("aftcCodexEnabled", false)) {
             notify(cctx, "AFTC Codex is already enabled. Run /codex-init to prep the AI.", "info");
             return;
@@ -390,6 +348,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             notify(cctx, "AFTC-Codex is not running. Turn it on via /aftc-codex-enable or /codex-enable.", "warning");
             return;
         }
+        if (!(await guardCompat(ctx, cctx))) return;
         // Already active in context? Warn and do nothing.
         if (state.prepped && !state.silent) {
             notify(cctx,
@@ -422,6 +381,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             notify(cctx, "AFTC-Codex is not running. Turn it on via /codex-enable.", "warning");
             return;
         }
+        if (!(await guardCompat(ctx, cctx))) return;
         state.silent = true;
         inject.persistState();
         const seeded = await ensureSeededWithChoice(ctx, cctx);
@@ -444,6 +404,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             notify(cctx, "aftc-codex is OFF. Enable it with /codex-enable first.", "warning");
             return;
         }
+        if (!(await guardCompat(ctx, cctx))) return;
         await store.runSyncScript();
         learn.injectLearnPrompt(isCommandBusy(cctx));
         notify(cctx, "aftc-codex-learn: instructions sent.", "info");
@@ -458,7 +419,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         const embedded = enabled && state.prepped && !state.silent;
         const counts = store.getCounts();
         const total = counts.languages + counts.libraries + counts.frameworks +
-            counts.engines + counts.tools;
+            counts.engines + counts.tools + counts.runtimes;
         const read = countReadTopicDocs(cctx);
         const yn = (b: boolean) => (b ? "Yes" : "No");
         if (!isTui(cctx)) {
@@ -477,14 +438,22 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     const installHandler = async (_args: string, cctx: ExtensionCommandContext) => {
         const alreadyInstalled = store.isSeeded();
         if (alreadyInstalled) {
-            if (isTui(cctx)) {
+            // Out of date (live version != shipped version): the guard has
+            // been telling the user to run exactly this command, so typing it
+            // IS the confirmation — wipe + re-seed without the modal, in TUI
+            // and headless alike. Matching versions = a destructive re-install
+            // for no reason, so the confirm stays.
+            const versionMismatch = !ctx.checkCompat().isSafe;
+            if (versionMismatch) {
+                notify(cctx, "Your AFTC Codex is out of date — re-installing a fresh copy (no confirmation needed on a version mismatch).", "info");
+            } else if (isTui(cctx)) {
                 const ok = await showConfirm(cctx, {
-                    title: "Re-install aftc-codex?",
-                    body: "aftc-codex is already installed. Re-installing will DELETE your current codex data and copy a fresh set from the package. Continue?",
+                    title: "Re-install AFTC Codex?",
+                    body: "AFTC Codex is already installed. Re-installing will DELETE your current codex data and install a fresh copy. Continue?",
                 });
                 if (!ok) return;
             } else {
-                notify(cctx, "aftc-codex is already installed. Use the TUI to confirm a re-install.", "warning");
+                notify(cctx, "AFTC Codex is already installed. Use the TUI to confirm a re-install.", "warning");
                 return;
             }
             try {
@@ -502,14 +471,5 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     registerHelpEntry({ command: "aftc-codex-install", description: "Fresh install the codex to the data dir", category: "aftc-codex", aliases: ["codex-install"] });
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
     pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
-
-    // ---- /aftc-codex-sync (alias /codex-sync) — seed -> live merge ----
-    const syncHandler = async (_args: string, cctx: ExtensionCommandContext) => {
-        await runCodexSync(ctx, cctx);
-    };
-    registerHelpEntry({ command: "aftc-codex-sync", description: "Merge new seed entries into the live codex", category: "aftc-codex", aliases: ["codex-sync"] });
-    pi.registerCommand("aftc-codex-sync", { description: "Merge new seed entries into the live codex", handler: syncHandler });
-    pi.registerCommand("codex-sync", { description: "Merge new seed entries into the live codex (alias)", handler: syncHandler });
-
 
 }

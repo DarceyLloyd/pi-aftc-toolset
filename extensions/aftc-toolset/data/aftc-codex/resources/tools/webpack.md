@@ -1,5 +1,12 @@
 # Webpack
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[YyG6BA] Critical dependency: the request of a dependency is an expression` from three/examples/jsm/inspector
   Cause: three 0.185 uses dynamic expression imports which webpack cannot statically analyse.
   Fix: suppress with `module.exprContextCritical: false` in the webpack config (vite and bun handle it natively). (2026-07)

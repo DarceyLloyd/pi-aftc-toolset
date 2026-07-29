@@ -45,9 +45,9 @@
 
 There is a self-improvement process for you to follow on every project — it is all in
 this file now (no separate rules file). The codex is a shared knowledge base of hard-won
-fixes and gotchas: one markdown file per technology/topic under `resources/`, organised
-into `languages/`, `libraries/`, `frameworks/`, `engines/`, `tools/`, plus the top-level
-guidance files. The file name is the topic. Read the relevant resource when you hit a
+fixes, gotchyas and rules: one markdown file per technology/topic under `resources/`, organised
+into `languages/`, `libraries/`, `frameworks/`, `engines/`, `tools/`, `runtimes/`, plus the
+top-level guidance files. The file name is the topic. Read the relevant resource when you hit a
 problem; add an entry when you solve a non-obvious one.
 
 ### The codex resources (how to read them)
@@ -112,18 +112,23 @@ a sync can't break anything.
 
 When the user tells you a codex entry is wrong, outdated, or has a better fix:
 1. Update the entry in the resource file IMMEDIATELY — do NOT wait for `/aftc-codex-learn`.
-2. Edit the Cause/Fix in place. Keep the entry format (lead token, Cause, Fix, date).
-3. Update the date to current (YYYY-MM). If completely wrong, replace; if needs nuance, amend.
+2. Edit the entry in place, keeping it under its section and in its kind's format (Rule /
+   Gotcha single line, or Issue lead + Cause + Fix). Keep the `[ID]`.
+3. If it is an Issue entry, update the Fix date to current (YYYY-MM). If completely wrong,
+   replace; if needs nuance, amend.
 4. Run the sync script after editing.
 
-### Record a new issue (max 3 steps)
+### Record a new entry (max 3 steps)
 
 1. Pick the obvious resource (tool > framework > language; file by the cause when known).
    If it seems to be missing, check the resource list first — a parallel session may have
    created it. Don't overthink: entries lead with the grep hook, so search finds them even
    in a slightly-wrong file.
-2. Add the entry. If you spot a duplicate while in the file, merge it. Never run dedupe
-   sweeps. Prune an entry only when you notice it is stale. Then run the sync script.
+2. Classify the entry's KIND (Rule / Gotcha / Issue & Solution — see `### Entry format`,
+   answer the three questions IN ORDER), then add the entry at the END of the matching
+   section (`## Rules`, `## Gotchyas` or `## Issues & Solutions`), in that kind's format.
+   If you spot a duplicate while in the file, merge it. Never run dedupe sweeps. Prune an
+   entry only when you notice it is stale. Then run the sync script.
 3. If you expect a lesson in some bucket but honest analysis finds none, record NOTHING
    there and say so — never fabricate or pad an entry to fill an expected file. An
    honestly-reported empty result beats a contrived entry.
@@ -146,66 +151,116 @@ Pick the BEST-fit file in ONE pass and move on — do not agonise over borderlin
 hook finds an entry even in a slightly-wrong file, and a later `-learn` can relocate it.
 If a lesson genuinely spans two scopes, file it where a searcher will grep first and
 cross-reference the other file in the Fix line; never duplicate the full entry in both.
-### Which KIND of lesson? (-learn records TECH GOTCHAS only)
+### Which KIND of lesson? (recorded vs not recorded)
 
-`/aftc-codex-learn` records **technology gotchas into `resources/` only** — it NEVER
-writes to the fixed top-level docs. Classify a lesson before writing:
+`/aftc-codex-learn` records **technology lessons into `resources/` only** — it NEVER
+writes to the fixed top-level docs. FIRST decide whether the lesson is recordable at all:
 
-- **Thought / process guidance** → NOT recorded by `-learn`. `thought-and-action-guidance.md`
-  is a FIXED maintainer doc (curated by hand in the package seed; `/codex-sync` overwrites
-  the live copy from the seed). If a process rule belongs in the codex, tell the user to
+- **Thought / process guidance**  NOT recorded by `-learn`. `thought-and-action-guidance.md`
+  is a FIXED maintainer doc (curated by hand in the package seed; the live copy is
+  only replaced by a full reinstall — Start Fresh or `/codex-install`). If a process rule belongs in the codex, tell the user to
   add it to the seed — do not write it via `-learn`.
-- **Tech gotcha** → the ONLY kind `-learn` records: the right
-  `resources/{languages|libraries|frameworks|engines|tools}/<topic>.md`. A symptom/error →
-  cause → fix tied to a specific technology (create the folder/file if missing).
-- **Design / planning deliberation** → NOT a codex entry. Architectural tradeoffs, "X vs Y"
+- **Tech lesson** > the ONLY kind `-learn` records: the right
+  `resources/{languages|libraries|frameworks|engines|tools|runtimes}/<topic>.md` (create the
+  folder/file if missing). THEN classify it as a Rule, a Gotcha or an Issue & Solution —
+  see `### Entry format` below.
+- **Design / planning deliberation** > NOT a codex entry. Architectural tradeoffs, "X vs Y"
   decisions, feature specs and discussion conclusions are project/task-specific and
   ephemeral — they belong in the project's plan/spec doc or the relevant module readme,
   not the general codex.
 
-### Entry format
+### Entry format (three KINDS: Rules, Gotchyas, Issues & Solutions)
 
-One entry per issue/solution, structured across lines so the issue, cause and fix are each
-described properly. **Lead token first** — it is the grep hook:
+Every resource file is divided into THREE sections with these EXACT headings, in this
+order. All three headings are ALWAYS present, even when empty — never delete one:
+
+```
+# <Topic>
+
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+```
+
+Write your entry at the END of the matching section (just before the next `## ` heading,
+or at the end of the file for the last section). Each kind has its OWN format — never
+mix formats across kinds:
+
+**1. RULE — one single line, a directive.** A convention WE choose to enforce (style,
+naming, safety, best practice). No Cause:/Fix: lines, no date:
+
+```
+- [ID] Never/Always <do or don't do X> — <one short reason or clarification>.
+```
+
+Example: `- [kR9mQ2] Never base64-embed an SVG — inline the SVG in the HTML or use a real .svg file.`
+
+**2. GOTCHA — one single line with TWO required parts: the trap AND the countermeasure.**
+A trap built INTO the technology (a silent default, surprising behaviour) — you cannot
+change it, only know it and avoid it. One physical line, no Cause:/Fix: lines, no date.
+A gotcha WITHOUT the countermeasure is trivia — never write one:
+
+```
+- [ID] LEAD — <the trap: what the technology does that bites you>; <what to do / watch for>.
+```
+
+Example: `- [01k8yP] Google Fonts & — a bare & silently drops the 2nd+ family; give each family its own &family=.`
+
+**3. ISSUE & SOLUTION — three parts across lines, dated.** A concrete failure that was
+OBSERVED (an error message, broken output, wrong behaviour) with a diagnosis. This is
+the ONLY kind with Cause:/Fix: lines and a date:
 
 ```
 - [ID] LEAD_TOKEN — one-line symptom (what you see / the situation)
   Cause: why it happens.
   Fix: what to do. (YYYY-MM)
 ```
+
+**WHICH KIND? Answer these three questions IN ORDER and use the FIRST that matches:**
+
+1. Did you OBSERVE a concrete failure (error message, broken output, wrong behaviour)
+   and find the diagnosis? > **Issue & Solution**. Test: is there a greppable symptom
+   or error string? If yes it is ALWAYS an Issue, never a Gotcha.
+2. Is it a convention WE decide to follow ("always/never do X", naming, style)? Could
+   someone CHOOSE to violate it? > **Rule**.
+3. Is it behaviour the TECHNOLOGY forces on you (a trap you can only avoid, not
+   change)? > **Gotcha**.
+
 > **EXCEPTION — `thought-and-action-guidance.md` uses NO `[ID]`s.** The `[ID]` format here
-> is for files under `resources/` ONLY (`languages|libraries|frameworks|engines|tools/<topic>.md`).
+> is for files under `resources/` ONLY (`languages|libraries|frameworks|engines|tools|runtimes/<topic>.md`).
 > Entries in `thought-and-action-guidance.md` are PLAIN PROSE LEADS — `- one-line symptom`
 > then `  Cause:` / `  Fix:` — with **no `[ID]` and no brackets**. For that file: write the
 > prose lead, check it is not a duplicate of an existing lead, stop. Never add an `[ID]`
 > to `thought-and-action-guidance.md`.
 
-- **`[ID]` (required on NEW entries in `resources/**/*.md` files ONLY).** A short (~6-char)
-  alphanumeric token in square brackets, unique within the file (eg `[aB3xY9]`). It lets the
-  uniqueness check and any cross-reference target one specific entry. Pick any unused token;
-  never reuse one already in the same file. **NOT used in `thought-and-action-guidance.md`**
-  (see the EXCEPTION above the bullet list).
-- **Line 1 — `[ID]` + lead token + symptom (required).** After the `[ID]`, the literal
-  unique part of an error message (`TS7016`, `ERR_MODULE_NOT_FOUND`); for a non-error
-  gotcha, the most greppable symptom / feature / class / function name. Keep the lead
-  token early on line 1 so grep finds the entry.
-- **`Cause:` line(s) (required).** Why it happens; one or more indented lines.
-- **`Fix:` line(s) (required).** What to do, ending with the date `(YYYY-MM)`; one or more
-  indented lines. A fresh session must be able to apply the fix without guessing — never
-  sacrifice meaning for brevity.
+- **`[ID]` (required on ALL new entries in `resources/**/*.md`, every kind).** A short
+  (~6-char) alphanumeric token in square brackets, unique within the file (eg `[aB3xY9]`).
+  It lets the uniqueness check and any cross-reference target one specific entry. Pick any
+  unused token; never reuse one already in the same file. **NOT used in
+  `thought-and-action-guidance.md`** (see the EXCEPTION above).
+- **Lead token first (every kind).** Right after the `[ID]`, put the most greppable thing:
+  the literal unique part of an error message (`TS7016`, `ERR_MODULE_NOT_FOUND`) for an
+  Issue; the feature / class / function name for a Rule or Gotcha. Grep must find the entry.
+- **`Cause:` / `Fix:` lines (Issues only, both required).** Why it happens, then what to
+  do, ending the Fix with the date `(YYYY-MM)`. A fresh session must be able to apply the
+  fix without guessing — never sacrifice meaning for brevity.
 - **Not only errors.** Anything that took more than 2–3 attempts to work out, framework
-  behaviour, and non-obvious methods that save future thought-loops all belong here.
+  behaviour, and non-obvious methods that save future thought-loops all belong here
+  (classified by the three questions above).
 - **No project names** — only the date.
 - **No project-specific content.** Entries must be GENERAL and reusable across any project.
   Never include: project/page/file names, specific URLs, design names, client names, or
   context that only makes sense in one codebase. Write the symptom/cause/fix so a developer
   on a completely different project can understand and apply it. Bad: "Gallery page crashes".
   Good: "Web page with many iframes crashes the browser tab."
-- **Legacy entries** in the old single-line `A — cause — fix (date)` form, or without an
-  `[ID]`, are still valid and grep-able; write NEW entries in the `[ID]` structured form
-  above and add an ID to a legacy entry in a `resources/**/*.md` file when you next touch
-  it. Do NOT mass-reformat existing entries just to add IDs. **`thought-and-action-guidance.md`
-  is prose-only by design — never add an `[ID]` there** (not even to its "legacy" entries).
+- **Legacy entries** predating this layout (single-line `A — cause — fix` form, no `[ID]`,
+  or sitting outside the three sections) are still valid and grep-able; write NEW entries
+  under the sections in the formats above, and when you next TOUCH a legacy entry, give it
+  an `[ID]`, classify its kind, and move it under the right section. Do NOT mass-reformat
+  files just to relocate entries. **`thought-and-action-guidance.md` is prose-only by
+  design — never add an `[ID]` there** (not even to its "legacy" entries).
 
 ### MANDATORY: contributing back (never wait to be asked)
 
@@ -225,8 +280,10 @@ docs. Two triggers:
 `/aftc-codex-learn` injects instructions for you to persist durable, GENERAL lessons (not
 project-specific) into the codex resources, using your standard tools (read/edit/write +
 bash to run the sync script). It: syncs first; checks the resource list to avoid
-duplicates; writes TECH gotchas to the right
-`languages|libraries|frameworks|engines|tools/<topic>.md` ONLY (creating the file in the
-correct category folder if missing); proposes entries and writes only after user
+duplicates; classifies each lesson (Rule / Gotcha / Issue & Solution) and writes it under
+the matching section of the right
+`languages|libraries|frameworks|engines|tools|runtimes/<topic>.md` ONLY (creating the file
+with the three-section skeleton in the correct category folder if missing); proposes entries
+and writes only after user
 confirmation; then syncs after. `codex-rules.md`, `markdown-guidance.md`, and
 `thought-and-action-guidance.md` are FIXED maintainer docs — `-learn` does NOT modify them.

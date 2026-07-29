@@ -1,5 +1,12 @@
 # Bash
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [hQ7nW3] A large inline bash command (a few KB+, eg a multi-heredoc blob) stops part-way with `warning: here-document ... delimited by end-of-file (wanted 'EOF')` — blocks BEFORE the cut ran, everything AFTER silently did not (files half-written, the trailing sync/verify never ran), with NO error on the parts that ran
   Cause: the agent's bash tool feeds the command to bash via stdin and TRUNCATES inline input beyond a few KB, so bash reads and executes incrementally up to the cut and never receives the closing heredoc delimiter (hence the warning) nor anything after it. The heredoc is not actually missing its `EOF` — the command was cut off before it. Body content, `set -e`, `tee`, and quoting are NOT the cause (small blobs using all of those run fine); size is. In pi this is the core `bash` tool (`dist/core/tools/bash.js`): in its stdin-transport mode it writes the whole command with a single `child.stdin.end(command)` and swallows the write error — which is why the truncation is silent.
   Fix: never send one giant inline bash blob. The cleanest workaround is to write the script to a temp file and run `bash <file>` — the only inline command is then the tiny `bash /tmp/x.sh`, so nothing truncates (this is what a dedicated run-script-style tool does). Otherwise write files with the file tools (no shell parsing or transmission limit) or split the work into several small commands kept well under a couple of KB each, and ALWAYS re-verify the final state (counts / greps) instead of trusting that a multi-block script ran to completion. If you see "here-document delimited by end-of-file", assume the command was truncated and check what actually landed before continuing. (2026-07)

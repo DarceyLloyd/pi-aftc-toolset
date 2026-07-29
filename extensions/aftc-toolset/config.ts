@@ -3,8 +3,14 @@
  *
  * One file, one concern: `config.json` holds cross-session USER
  * PREFERENCES that persist forever (until the user changes the
- * value). Loaded on every session start. Survives /reload, /new,
- * fresh pi startup, and machine reboot.
+ * value). Survives /reload, /new, fresh pi startup, and machine reboot.
+ *
+ * NO IN-MEMORY CACHE (binding rule, see docs/working-with-config.md):
+ * every read hits the file on disk. pi keeps extension modules alive
+ * across /new, so a module-level cache would serve stale values after
+ * the user hand-edits the file — and a later setPreference would
+ * silently clobber those edits by flushing the stale cache back.
+ * The file is tiny and local; reading it each time is free.
  *
  * Currently tracked preferences:
  *   - footerTimeframe        (Today / 3h / 6h / 24h / 2d / 3d / 7d / 28d)
@@ -110,6 +116,12 @@ export interface Preferences {
     aftcCodexSeeded?: boolean;
     /** aftc-codex: auto-add entries without confirmation (true) or propose-then-confirm (false). */
     aftcCodexAutoAddEntries?: boolean;
+    /** aftc-codex: version of the user's live codex copy. Compared against the
+     *  shipped seed version (data/extension-config.json codexVersion); a mismatch means the live
+     *  AFTC Codex is out of date and /codex-install wipes + re-seeds it. 0 = unknown
+     *  (pre-versioning installs) — always treated as out of date. Internal bookkeeping,
+     *  not user-facing. */
+    aftcCodexVersion?: number;
     /** run_script tool: reliable large-script execution (workaround for a pi bash-tool
      *  truncation bug). On = tool registered; off = tool absent. /run-script-on|off. */
     runScriptEnabled?: boolean;
@@ -159,20 +171,19 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexAutoLoad: true,
     aftcCodexSeeded: false,
     aftcCodexAutoAddEntries: true,
+    aftcCodexVersion: 0,
     runScriptEnabled: true,
 };
 // ─────────────────────────────────────────────────────────────────────────────
-// Preferences (config.json) - ensure, read, write, cache
+// Preferences (config.json) - ensure, read, write (NO cache)
 // ─────────────────────────────────────────────────────────────────────────────
-
-let cachedPreferences: Preferences | null = null;
 
 /**
  * Create config.json with `DEFAULT_PREFERENCES` if it doesn't exist
  * yet. Called lazily on the first `loadPreferencesInternal`. Also
  * creates the parent data dir if needed. Best-effort: any I/O error
- * is logged and swallowed so pi still boots (the in-memory cache
- * falls back to defaults).
+ * is logged and swallowed so pi still boots (callers fall back to
+ * defaults).
  */
 function ensureConfigFile(): void {
     const filePath = getConfigJson();
@@ -195,15 +206,14 @@ function ensureConfigFile(): void {
 }
 
 function loadPreferencesInternal(): Preferences {
-    if (cachedPreferences !== null) return cachedPreferences;
+    // Fresh read on EVERY call — no in-memory cache (see module header).
     ensureConfigFile();
     const filePath = getConfigJson();
     try {
         const raw = fs.readFileSync(filePath, "utf-8");
         const parsed = JSON.parse(raw) as Preferences;
         if (!parsed || typeof parsed !== "object") {
-            cachedPreferences = { ...DEFAULT_PREFERENCES };
-            return cachedPreferences;
+            return { ...DEFAULT_PREFERENCES };
         }
         // Merge so missing keys still get their defaults. Existing
         // saved values are preserved even if the file has extra
@@ -230,6 +240,7 @@ function loadPreferencesInternal(): Preferences {
         const needsReplayPromptMigration = typeof parsed.replayPrompt !== "string";
         const needsRunScriptMigration = typeof parsed.runScriptEnabled !== "boolean";
         const needsNotifyEnabledMigration = typeof parsed.notifyEnabled !== "boolean";
+        const needsCodexVersionMigration = typeof parsed.aftcCodexVersion !== "number";
         // When adding the notifyEnabled key to an existing config.json: users
         // who already had notification sounds configured keep the feature ON
         // (their setup is never silenced); everyone else starts disabled.
@@ -246,9 +257,10 @@ function loadPreferencesInternal(): Preferences {
             needsCodexGuidanceMigration ||
             needsCodexAutoLoadMigration ||
             needsCodexSeededMigration || needsCodexAutoAddMigration ||
-            needsRunScriptMigration || needsNotifyEnabledMigration;
+            needsRunScriptMigration || needsNotifyEnabledMigration ||
+            needsCodexVersionMigration;
 
-        cachedPreferences = {
+        const merged: Preferences = {
             ...DEFAULT_PREFERENCES,
             ...parsed,
             ...(needsIntroMigration ? { "aftc-intro": DEFAULT_PREFERENCES["aftc-intro"] } : {}),
@@ -267,20 +279,19 @@ function loadPreferencesInternal(): Preferences {
             ...(needsCodexAutoAddMigration ? { aftcCodexAutoAddEntries: DEFAULT_PREFERENCES.aftcCodexAutoAddEntries } : {}),
             ...(needsRunScriptMigration ? { runScriptEnabled: DEFAULT_PREFERENCES.runScriptEnabled } : {}),
             ...(needsNotifyEnabledMigration ? { notifyEnabled: migratedNotifyEnabled } : {}),
+            ...(needsCodexVersionMigration ? { aftcCodexVersion: DEFAULT_PREFERENCES.aftcCodexVersion } : {}),
         };
         // Strip obsolete keys from older versions
-        delete (cachedPreferences as any).notifySound;
-        if (needsMigration) savePreferencesInternal(cachedPreferences);
-        return cachedPreferences;
+        delete (merged as any).notifySound;
+        if (needsMigration) savePreferencesInternal(merged);
+        return merged;
     } catch (err) {
         console.log(`[aftc-toolset] config.json read/parse error: ${(err as Error).message}`);
-        cachedPreferences = { ...DEFAULT_PREFERENCES };
-        return cachedPreferences;
+        return { ...DEFAULT_PREFERENCES };
     }
 }
 
 function savePreferencesInternal(prefs: Preferences): void {
-    cachedPreferences = prefs;
     const filePath = getConfigJson();
     const dataDir = path.dirname(filePath);
     try {
@@ -293,11 +304,6 @@ function savePreferencesInternal(prefs: Preferences): void {
     } catch (err) {
         console.log(`[aftc-toolset] config.json write error: ${(err as Error).message}`);
     }
-}
-
-/** Clear the in-memory cache so the next read hits disk. Test-only. */
-export function _resetPreferencesCacheForTests(): void {
-    cachedPreferences = null;
 }
 
 /**
@@ -318,12 +324,12 @@ export function getPreference<K extends keyof Omit<Preferences, "version">>(
 }
 
 /**
- * Persist a single preference. Updates the cache and writes
- * config.json atomically. Best-effort: errors are logged, never
- * thrown. This is the ONLY path that writes config.json after the
- * initial ensure — call it when footerEnabled / footerTimeframe /
- * responseDividerEnabled, thinkProcessingEnabled, or "aftc-intro"
- * actually changes.
+ * Persist a single preference. Fresh read-modify-write of config.json
+ * (the merge in loadPreferencesInternal preserves any hand edits made
+ * since the last write), saved atomically. Best-effort: errors are
+ * logged, never thrown. This is the ONLY path that writes config.json
+ * after the initial ensure and the missing-key migration — call it
+ * when a preference actually changes.
  */
 export function setPreference<K extends keyof Omit<Preferences, "version">>(
     key: K,

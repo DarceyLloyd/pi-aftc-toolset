@@ -1,5 +1,12 @@
 # JavaScript
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[yWpNrY] arr.sort((a,b)=>Number(a)-Number(b))` silently returns the wrong order for filename arrays like `["99.html","100.html"]`
   Cause: `Number("99.html")` is `NaN`, so the comparator returns `NaN` and the sort is implementation-defined/unstable.
   Fix: strip the extension first: `Number(a.replace(/\.html$/,''))`. (2026-07)
@@ -18,3 +25,12 @@
 - [J4bV6M] `<svg class="i"><use href="#i-x"/></svg>` icons render as broken-image placeholders or show a "?" instead of the icon, even though `#i-x` is in the page's SVG sprite at the top of the body
   Cause: the `<symbol>` has a `viewBox` but no explicit `width`/`height`, AND the `<svg class="i">` parent has CSS `width: 1em` / `height: 1em`. Browsers vary on whether `<use>` of a symbol with a viewBox but no intrinsic size picks up the parent SVG's size (Chrome yes, Firefox yes, Safari historically no). When the parent is `1em` and the symbol has no size, Safari in particular may show a "?" because it cannot determine the intrinsic ratio.
   Fix: set BOTH `width="24"` AND `height="24"` on the `<symbol>` itself (matching the viewBox), and ALSO keep the `.i` class sizing on the parent SVG. This guarantees every browser has an intrinsic size to use. Alternatively, give the symbol `preserveAspectRatio="xMidYMid meet"` and a fill colour on the `<use>` element to be explicit. (2026-07)
+- [qR7tY4] SVG viewBox pan/zoom hit-tests are offset vertically (or horizontally) even though rendering looks perfect — screenToWorld math is wrong when the viewBox aspect differs from the viewport aspect
+  Cause: with `preserveAspectRatio="xMidYMin meet"` (or any meet/slice), the viewBox is scaled UNIFORMLY by `min(vw/vbW, vh/vbH)` and letterboxed; computing screen<->world with independent per-axis scales (`vbW/vw` for x, `vbH/vh` for y) is silently wrong on the non-binding axis. Worse: if app code and test code share the same wrong formula they are self-consistent, so gestures "pass" in tests while real users are off by the aspect factor.
+  Fix: one shared conversion using the meet scale: `k = min(vw/vbW, vh/vbH)`, `offsetX = (vw - vbW*k)/2` for xMid (0 for xMin), `offsetY = (vh - vbH*k)/2` for yMid (0 for YMin); `world = vb + (client - rect.topLeft - offset)/k`. Use the same k for pan deltas. Unit-test round-trips with an aspect-mismatched viewport. (2026-07)
+- [pHovR9] A pause-on-hover component that RE-RENDERS while the pointer is stationary over it silently loses its hover state — no `mouseenter`/`mouseleave` fires for the new element
+  Cause: replacing the DOM node under a stationary pointer (innerHTML re-render) fires no hover events; those only fire on pointer MOVEMENT. A carousel that pauses autoplay on hover and re-renders per slide (eg an arrow click while hovering) un-pauses even though the pointer never left.
+  Fix: after each re-render, restore the hover state explicitly with `newEl.matches(":hover")` (CSS :hover tracks the element under the pointer regardless of events) and start/stop the timer accordingly. Drive a pausable autoplay clock with requestAnimationFrame + accumulated elapsed ms (pause = bank the elapsed and cancel the rAF; resume = restart from the banked value) so a mid-slide pause resumes seamlessly and a progress bar can render from the same elapsed value. (2026-07)
+- [wP2nB8] `preventDefault()` on `pointerdown` suppresses the compatibility mouse events, so `dblclick` never fires; and with `setPointerCapture`, puppeteer's `click(x,y,{clickCount:2})` doesn't produce a dblclick either
+  Cause: canceling pointerdown kills the mousedown/mouseup compat stream that dblclick detection uses; pointer capture retargets events so the browser's double-click target matching breaks.
+  Fix: don't rely on native dblclick for editor gestures — detect double-click in the gesture state machine (two pointer-ups on the same target within ~400ms). Deterministic and immune to capture/preventDefault quirks. (2026-07)

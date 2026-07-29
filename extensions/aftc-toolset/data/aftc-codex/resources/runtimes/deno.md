@@ -1,5 +1,12 @@
 # Deno
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [K7mP2X] Responses from `Deno.serve` are sent uncompressed even though older code relied on automatic gzip
   Cause: automatic response compression was changed to opt-in in Deno 2.9 (previously on by default).
   Fix: pass `automaticCompression: true` in the serve options, or set `DENO_SERVE_AUTOMATIC_COMPRESSION=1`. (2026-07)
@@ -18,3 +25,7 @@
 - [H8kF4V] `import chalk from "npm:chalk"` fails lint even though it runs
   Cause: the `no-unversioned-import` lint rule (on by default since 2.5) requires a version in every `npm:`/`jsr:` specifier; the `workspace`-set `no-import-prefix` rule also pushes deps into `deno.json` instead of inline specifiers.
   Fix: declare deps in `deno.json` `imports` with a version (`"chalk": "npm:chalk@^5"`) and import the bare specifier. (2026-07)
+
+- [mN6pQ2] `Deno.readFile` on a directory throws `Error: Incorrect function. (os error 1)` (code EISDIR), NOT `Deno.errors.IsADirectory`
+  Cause: on Windows the platform error from reading a directory does not map to the typed `Deno.errors.IsADirectory`, so `error instanceof Deno.errors.IsADirectory` is false and the error escapes a catch that relies on it (breaks static file servers that probe paths).
+  Fix: `Deno.stat()` the path first and return early when `stat.isDirectory`; keep the catch only for `Deno.errors.NotFound`. Never rely on `IsADirectory` cross-platform. (2026-07)

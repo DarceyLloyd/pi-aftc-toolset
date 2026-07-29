@@ -1,6 +1,6 @@
 # CRITICAL GLOBAL RULES
 - IMPORTANT: Never use the character '§' in any code comment, file or documentation (excluding in this line, do not remove the character '§' from this line).
-- Never use the word "master" for on/off switches or enable flags (no "master on/off", "master switch", "master toggle"). Naming convention: a feature's enable flag is `featureNameEnabled = true/false` in code and `{"feature_name_enabled": true/false}` in JSON (this project's config.json uses camelCase keys, eg `warGamesEnabled`). In prose say "on/off", "true/false", or "<feature> enabled".
+- Never use the word "master" for on/off switches or enable flags (no "master on/off", "master switch", "master toggle"). Naming convention: a feature's enable flag is `featureNameEnabled = true/false` in code and `{"feature_name_enabled": true/false}` in JSON (this project's live config.json uses camelCase keys, eg `warGamesEnabled`). In prose say "on/off", "true/false", or "<feature> enabled".
 - Never create NUL files.
 - Never read or process any files in folders named ".bak", ".old", ".git", unless specifically asked.
 - Keep answers short and to the point. Only give detailed responses when asked or when planning. It is fine to just say "done" or "ready". Never leave the user wondering if you are finished.
@@ -54,15 +54,28 @@ reference implementation. Read `docs/aftc-ui-documentation.md` before building a
 | aftc-ui (dialogs & overlays) | `docs/aftc-ui-documentation.md` |
 | aftc-console (console output) | `docs/aftc-console-documentation.md` |
 | Usage report | `docs/usage-report-rules.md` |
-| Data dir, packaging, config | `docs/data-and-packaging.md` |
+| Data dir & packaging | `docs/data-and-packaging.md` |
+| Config files (live + shipped) | `docs/working-with-config.md` |
 | aftc-codex knowledge base | `docs/aftc-codex-documentation.md` |
 | Footer widget | `docs/footer-widget-documentation.md` |
 | SSH | `docs/ssh-documentation.md` |
 | Audio notifications | `docs/aftc-notifications.md` |
 | Slash commands (create/edit/delete) | `docs/help-registry.md` |
+| Keyboard shortcuts (add/change) | `extensions/aftc-toolset/keys-readme.md` |
+| Quick dir access (/qd) | `extensions/aftc-toolset/quick-open-dir-readme.md` |
 
 If any modifications or changes are requested or needed to be made to a feature,
 you must read its documentation file listed above before making them.
+
+**Adding a keyboard shortcut.** All global shortcuts live in ONE place:
+`extensions/aftc-toolset/keys.ts` — never register a shortcut in another module
+(component-scoped keys inside dialogs/overlays stay with their component).
+How: `pi.registerShortcut("alt+x", { description, handler })`, guard handlers
+with `ctx.hasUI`. Shortcuts are NOT help-registry material — add a static row to
+`SHORTCUT_ROWS` in `help.ts` instead, update `keys-readme.md`, and extend
+`tests/keys-check/`. If the action also gets a companion slash command, that
+command follows `docs/help-registry.md`. Key/chord format and the built-in
+defaults to avoid colliding with: pi's `docs/keybindings.md`.
 
 ---
 
@@ -78,6 +91,34 @@ Every feature writes to the user's console through `ui/aftc-console.ts` — neve
 - `aftcConsole.error(ctx, text)` — red; hard failure.
 - `aftcConsole.info(ctx, text)` — dim; rare neutral aside.
 - `aftcConsole.log(text)` — `[aftc-toolset]` stdout diagnostic.
+
+
+# Live vs seed (terminology)
+
+- **live** = the user's per-user copy in the persistent OS data dir
+  (`<dataDir>/`, eg `%APPDATA%\pi-aftc-toolset\data\` on Windows;
+  `AFTC_TOOLSET_DATA_ROOT` override). Holds `config.json`, `aftc-codex/`,
+  `turns.db`, `ssh.json`, `report.html`. Survives `pi update`.
+- **seed / shipped** = source-only defaults + assets inside the package
+  (`extensions/aftc-toolset/data/`): `extension-config.json`, the `aftc-codex/`
+  seed, audio MP3s, intro assets. Replaced on every `pi update`. Flow is
+  one-way: seed -> live, copy-only.
+
+# Config files — read `docs/working-with-config.md` FIRST
+
+Two config files, never to be confused:
+
+- **LIVE** `<dataDir>/config.json` — user preferences. API:
+  `getPreference`/`setPreference` (`config.ts`). "config.json" in docs and
+  conversation means THIS file.
+- **SHIPPED** `<packageRoot>/extensions/aftc-toolset/data/extension-config.json`
+  — package-shipped values (`codexVersion` today). Never copied to live.
+
+BINDING: never cache either file in module memory — read from disk on EVERY
+access. pi keeps extension modules alive across `/new`, so a cache serves
+stale values after a hand edit, and a later `setPreference` would flush the
+stale cache back and clobber the user's edits. `setPreference` is a fresh
+read-modify-write. Full contract + edge cases: `docs/working-with-config.md`.
 
 
 # Code structure rules

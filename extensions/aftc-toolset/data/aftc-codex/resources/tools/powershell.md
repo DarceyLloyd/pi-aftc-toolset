@@ -1,5 +1,12 @@
 # PowerShell
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[Yan4fM] The '<' operator is reserved for future use`
   Cause: PowerShell has no stdin file/string redirect (`python x.py < $null` is a parse error).
   Fix: pipe instead: `echo "" | python x.py`, or use `cmd /c "python x.py < nul"`. (2026-07)

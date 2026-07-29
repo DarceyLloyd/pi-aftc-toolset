@@ -1,5 +1,12 @@
 # CSS
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [CvqlBV] SVG icon renders hollow/outlined instead of filled, even though its `<path>`/`<symbol>` defines solid shapes
   Cause: a global icon utility class such as `.ic{fill:none;stroke:currentColor;stroke-width:2}` forces every icon to stroke-render (outline).
   Fix: scope a filled override only where solid glyphs are needed, e.g. `.p-btn .ic{fill:currentColor;stroke:none}` (higher-specificity descendant selector wins over the bare `.ic`). (2026-07)
@@ -18,6 +25,10 @@
 - [hN4kB7] A cart-drawer / off-canvas panel opens but is invisible — the close (X) button does not appear either, the page is just blank on the right edge
   Cause: the drawer's open state is wired to a CSS transform (`transform: translateX(0)` vs `transform: translateX(102%)`), but the drawer's `width` is left at `100%` of the viewport. When off-screen, the 100%-wide panel is translated 102% to the right so it sits outside the viewport, but the panel's box still takes layout space at 100% — pushing the page to render at double the viewport width and causing a horizontal scrollbar (or just being clipped without any visual feedback).
   Fix: (a) make the off-screen transform `translateX(100%)` (NOT 102%) so the panel sits flush at the right edge of the viewport when closed, (b) give the drawer an explicit width `width: min(420px, 96vw)` AND set the off-screen translate to `100%` so it never exceeds its own width, (c) add `overflow-x: hidden` (or `clip`) on the body to belt-and-brace prevent a horizontal scrollbar. Combine with `transition: transform 0.3s` for the slide. (2026-07)
+- [kF2hD8] A newly added full-page view renders UNDERNEATH the site's `position:fixed` header (top of the page hidden behind it)
+  Cause: the existing top-level views each carry a header-height offset (eg `padding-top:calc(var(--hdr-h) + 30px)`), but the new view was given only a small cosmetic `padding-top`. When it swaps in (siblings set to `display:none`) its content starts at viewport y=0, sliding under the fixed header — no console error, reads as "misaligned".
+  Fix: copy the header-height compensation pattern from the sibling views (typically `padding-top:calc(var(--hdr-h) + N)`), not an arbitrary value. When verifying, measure the first CONTENT element's top against the header's bottom — the section box itself is at y=0 by design because padding lives inside its border-box. (2026-07)
 - [T2bX8P] A "Buy box" / sidebar element sticks to the top of the viewport on scroll, but its `position: sticky` "stops working" once the page scrolls past the section above it
   Cause: the page is wrapped in a `display: flex` column with the sidebar as a sibling. The flex container makes each child a `flex item`, and `position: sticky` on a flex item only sticks within ITS flex item's bounds — which is the entire column height, so the sticky behaviour never triggers. (Same trap with grid items.)
   Fix: keep the sticky element OUTSIDE the flex/grid layout — render it as a regular block sibling, or wrap just the sticky item in a non-flex/grid container, or use `align-self: start` on the sticky child so it does not stretch to fill the flex column (a stretched element has no "scroll within me" boundary). Alternatively use `position: sticky` with a `top: 0` and verify the closest scroll container is the viewport (not a flex item with its own overflow). (2026-07)
+

@@ -1,5 +1,12 @@
 # PHP
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[4A061p] Function curl_close() is deprecated since 8.5` — also `curl_share_close()`, `curl_multi_close()`, `imagedestroy()`, `finfo_close()`
   Cause: no-ops since 8.0 (objects self-free).
   Fix: delete the calls (verified on 8.5.8). (2026-07)

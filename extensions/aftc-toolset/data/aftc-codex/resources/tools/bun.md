@@ -1,5 +1,12 @@
 # Bun
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [8Rv8iD] Bun cannot compile scss
   Cause: a TS entry importing `.scss` fails `Bun.build`.
   Fix: stub the import with plugin `build.onLoad({ filter: /\.scss$/ }, () => ({ contents: "", loader: "js" }))` and compile the css separately with the `sass` npm package. (2026-07)

@@ -8,8 +8,9 @@ Persistent configuration for the extension. One file, one concern:
   knowledge-base preferences (`aftcCodex*` — master switch, guidance
   inject, auto-load, seeded
   flag; off by default).
-  Loaded on every `session_start` regardless of reason. Survives
-  `/reload`, `/new`, fresh pi startup, and machine reboot.
+  Read FRESH FROM DISK on every access (no in-memory cache — see
+  "No in-memory cache" below). Survives `/reload`, `/new`, fresh pi
+  startup, and machine reboot.
 
 There is no per-session resumption data. Cache accumulators, timing,
 model info, and the context-window clock are all per-session and live
@@ -35,9 +36,10 @@ ONLY re-written when a tracked value actually changes via
 // create config.json.
 const timeframe = getPreference("footerTimeframe", "3d");
 
-// Persist a single preference. Cache is updated and the file is
-// written atomically. Errors are logged, never thrown. This is the
-// ONLY path that writes config.json after the initial ensure.
+// Persist a single preference. Fresh read-modify-write of the file
+// (hand edits made since the last write survive), written atomically.
+// Errors are logged, never thrown. This is the ONLY path that writes
+// config.json after the initial ensure and the missing-key migration.
 setPreference("footerTimeframe", "7d");
 
 // The default object - used to generate a fresh config.json and to
@@ -54,6 +56,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexInjectGuidance: true,  // inject thought-and-action-guidance.md
     aftcCodexAutoLoad: true,        // auto-detect techs + fetch their docs
     aftcCodexSeeded: false,         // first-run seed choice done
+    aftcCodexVersion: 0,            // live codex version (vs shipped data/extension-config.json)
 };
 
 ```
@@ -90,13 +93,18 @@ on POSIX and Windows), so we never see half-written state. No
 throttling is needed — writes only happen on user actions (toggle,
 set timeframe), which are rare.
 
-## Cache
+## No in-memory cache (BINDING)
 
-Preferences are cached in-memory. `loadPreferencesInternal` reads
-disk once (creating the file with defaults if missing), then every
-`getPreference` returns the cached value. `setPreference` updates
-the cache and writes through to disk. Restarting pi invalidates the
-cache (process restart).
+Preferences are NEVER cached in module memory. Every `getPreference`
+reads the file from disk (creating it with defaults if missing), and
+every `setPreference` is a fresh read-modify-write. Rationale: pi
+keeps extension modules alive across `/new`, so a cache would serve
+stale values after the user hand-edits config.json — worse, the next
+`setPreference` would flush the stale cache back and silently clobber
+those edits. The file is tiny and local; reading it each time is
+free. The same rule applies to the shipped
+`data/extension-config.json` (read fresh by codex-compat.ts).
+See `docs/working-with-config.md` for the full contract.
 
 ## SSH connection records
 
@@ -115,9 +123,9 @@ contains no SSH connection data.
   from an earlier release) - silently ignored. Only known keys are
   surfaced through `getPreference`. The user's saved values for
   known keys are never lost.
-- **Disk write fails** - logs an error, the in-memory cache reflects
-  the new value but the file is stale. Next successful save will
-  catch up.
+- **Disk write fails** - logs an error; the file keeps its previous
+  content. The next read returns the old on-disk value (there is no
+  cache to drift), and the next successful save catches up.
 - **Permission denied on read** - logs an error, falls back to
   defaults. pi does not crash.
 

@@ -11,7 +11,8 @@
  *   - help.ts         — /aftc-help (commands and shortcuts help)
  *   - ssh/index.ts    — local stdio-carrier SSH tools + slash commands
  *   - response.ts     — full-width <hr> divider above each assistant reply
- *   - keys.ts         — keyboard shortcuts: Alt+C clear editor, Alt+N newline at caret
+ *   - keys.ts         — keyboard shortcuts: Alt+C clear editor, Alt+N newline at caret,
+ *                        Alt+X cut input to clipboard (+ /aftc-cut-input)
  *   - intros/         — AFTC text startup intro (factory disconnected; only intro-text wired)
  *   - theme.ts        — /theme: shortcut to pi's theme picker
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
@@ -25,8 +26,8 @@
  *                        blocks (no commands, no UI — pure message-content transform)
  *   - notify.ts       — audio notification: plays MP3 on task completion (after a
  *                        configurable threshold) and when the AI asks a question
- *   - open-data-dir.ts — /aftc-open-data-dir + /aftc-odd: opens the persistent
- *                        data directory in the OS file manager
+ *   - quick-open-dir.ts — /qd: quick dir access menu (data dir, .pi dir,
+ *                        toolset dir — the last gated by a .dev marker folder)
  *   - aftc-codex/     — opt-in knowledge base: injects codex rules + guidance +
  *                        resource list into the system prompt; codex_load tool;
  *                        /aftc-codex-* commands (off by default)
@@ -72,7 +73,7 @@ import { createReplay } from "./replay";
 import { createKeepItShort } from "./keep-it-short";
 import { createThinkParser } from "./think-parser";
 import { createNotify } from "./notify";
-import { createOpenDataDir } from "./open-data-dir";
+import { createQuickOpenDir } from "./quick-open-dir";
 import { createAftcCodex } from "./aftc-codex/aftc-codex";
 import { createRunScript } from "./run-script";
 import { migrateLegacyData } from "./paths";
@@ -148,7 +149,7 @@ export default function (pi: ExtensionAPI): void {
 	createKeepItShort(pi);
 	createThinkParser(pi);
 	createNotify(pi);
-	createOpenDataDir(pi);
+	createQuickOpenDir(pi);
 	createAftcCodex(pi);
 	createRunScript(pi);
 	// createProviders(pi); // disabled — see note at the import above

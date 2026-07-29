@@ -1,5 +1,12 @@
 # JUCE (C++ audio plugin framework)
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [jH7kLm] JuceHeader.h not generated / `Cannot open include file: 'JuceHeader.h'` on a `juce_add_plugin` target
   Cause: JUCE only auto-generates `JuceHeader.h` for PIP targets; a normal `juce_add_plugin` target must opt in.
   Fix: call `juce_generate_juce_header(<target>)` immediately after `juce_add_plugin(<target> ...)`. It emits `<build>/<target>_artefacts/JuceLibraryCode/JuceHeader.h` via juceaide. (2026-07)

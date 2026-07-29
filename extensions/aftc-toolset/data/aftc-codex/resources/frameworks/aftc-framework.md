@@ -1,5 +1,12 @@
 # AFTC Framework (PHP MVC)
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[CR0pvf] QueryVo->insertId` is 0 after `PDOQueryLib::execute()` on an INSERT
   Cause: execute() does not populate insertId.
   Fix: use `PDOQueryLib::insert()` for INSERT statements when you need the new row id. (2026-07)

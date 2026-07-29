@@ -15,9 +15,17 @@ run the sync script). No separate model tool. The prompt enforces:
    duplicate an existing entry.
 3. **Write the entries** — auto-add with uniqueness checks by default
    (`aftcCodexAutoAddEntries`), or propose-then-confirm when that pref is off (M-I8).
-   Uses the canonical entry format (`[ID] LEAD_TOKEN — symptom` / `Cause:` /
-   `Fix: (YYYY-MM)`; the `[ID]` is a short token unique within the file), routing TECH
-   gotchas → the correct category doc under `resources/` only. The fixed top-level docs
+   Each lesson is classified into one of the THREE entry kinds and written under the
+   matching section of the target file (every resource file always carries all three
+   headings, in this order: `## Rules`, `## Gotchyas`, `## Issues & Solutions`):
+   - **Rule** — a convention WE enforce; one line, no date:
+     `- [ID] Never/Always X — one short reason.`
+   - **Gotcha** — a trap built INTO the technology; ONE line with BOTH the trap AND
+     the countermeasure; no date: `- [ID] LEAD — the trap; what to do / watch for.`
+   - **Issue & Solution** — an OBSERVED failure with a diagnosis; the only dated kind:
+     `[ID] LEAD_TOKEN — symptom` / `Cause:` / `Fix: (YYYY-MM)`
+   The `[ID]` is a short token unique within the file (every kind). Routing: TECH
+   lessons > the correct category doc under `resources/` only. The fixed top-level docs
    (`codex-rules.md`, `markdown-guidance.md`, `thought-and-action-guidance.md`) are never
    written by `-learn`.
 4. **Sync after** writing.

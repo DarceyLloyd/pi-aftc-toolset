@@ -1,5 +1,12 @@
 # Puppeteer
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [ADCp4i] Form submit never fires in e2e (no fetch, no error)
   Cause: the login template ships prefilled input values and `page.type` APPENDS, producing an invalid email so native HTML5 validation silently blocks the submit event.
   Fix: clear inputs via `page.evaluate(() => input.value = "")` before typing. (2026-07)
@@ -36,3 +43,7 @@
 - [GaSCOg] Need to screenshot / visually QA a LOCAL html file (eg an extension-generated report) on a Windows box without polluting the project with a dep or a Chromium download
   Cause: a local html file needs runtime visual QA, but adding `puppeteer` (with its Chromium download) to the project pollutes it.
   Fix: install `puppeteer-core` (NOT `puppeteer`, so no browser download) into a scratch temp dir outside the repo, point `executablePath` at the already-installed system browser (`C:/Program Files/Google/Chrome/Application/chrome.exe`, or Edge at `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`), `puppeteer.launch({ executablePath, headless:"new", args:["--no-sandbox"] })`, then `page.goto("file:///C:/abs/path.html")`. To verify a resize/overflow bug, drive the EXACT sequence the user described as TWO scenarios (setViewport full→narrow→full on one page; load at narrow→full on a second page) and MEASURE `document.documentElement.scrollWidth > clientWidth` plus `getBoundingClientRect` of the suspect element instead of eyeballing; capture a full-page shot AND an element crop via `(await page.$(sel)).screenshot()`. This is what proves runtime layout that `node --check` and a static CSS read cannot see. (2026-07)
+
+- [tM5vR2] e2e checks an async save/fetch result but intermittently fails — fixed `sleep(300)` loses the race
+  Cause: keyboard/click-triggered async actions (a save PUT, a fetch) complete on the server's schedule, not the test's; a fixed sleep that "usually works" flakes under load and fails non-deterministically, sending you hunting for app bugs that don't exist.
+  Fix: after triggering the action, `await page.waitForResponse((r) => r.url().includes("/api/...") && r.request().method() === "PUT")` (or waitForFunction on the DOM state) before asserting. Reserve fixed sleeps for animations only. (2026-07)

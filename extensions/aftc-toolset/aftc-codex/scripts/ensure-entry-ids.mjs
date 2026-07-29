@@ -3,7 +3,10 @@
  * ensure-entry-ids.mjs — ensure every entry in aftc-codex resource files has a
  * unique 6-character alphanumeric ID.
  *
- * Entry format (the ID sits inside the backtick, at the start):
+ * Entry formats (the ID sits at the start of the entry bullet, any section):
+ *   Rules / Gotchyas (single line):
+ *   - `[xY3zA1] Never do X / LEAD — trap; countermeasure`
+ *   Issues & Solutions (three lines):
  *   - `[xY3zA1] Symptom or lead token`
  *     Cause: ...
  *     Fix: ... (YYYY-MM)
@@ -137,12 +140,20 @@ function processFile(absPath) {
     return added;
 }
 
-/** Recursively find all .md files in category subfolders. */
+/** Recursively find all .md files in category subfolders. Category folders are
+ *  discovered DYNAMICALLY (any subdirectory of the resources dir) so new
+ *  categories (eg runtimes/) are picked up without a code change. */
 function findResourceFiles(dir) {
     const files = [];
-    const categories = ["languages", "libraries", "frameworks", "engines", "tools"];
+    let categories;
+    try {
+        categories = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return files;
+    }
     for (const cat of categories) {
-        const catDir = path.join(dir, cat);
+        if (!cat.isDirectory()) continue;
+        const catDir = path.join(dir, cat.name);
         let entries;
         try {
             entries = fs.readdirSync(catDir);

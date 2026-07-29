@@ -1,5 +1,12 @@
 # MySQL
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - `[7b9rFb] Specified key was too long; max key length is 3072 bytes`
   Cause: a UNIQUE KEY/INDEX on VARCHAR(N) with utf8mb4 needs N <= 768 (4 bytes per char x 768 = 3072, the InnoDB max).
   Fix: use VARCHAR(255) for indexed columns (eg email), or TEXT without an index. (2026-07)

@@ -28,7 +28,9 @@ live codex root, and only when the live file does not already exist (copy-only).
 - `seed(mode)` — copy-only seed. `"pretrained"` copies the whole seed tree;
   `"fresh"` copies only the top-level guidance files (rules + guidance) and
   creates empty category folders. Never overwrites an existing file. Sets
-  `aftcCodexSeeded = true`.
+  `aftcCodexSeeded = true` AND records the shipped version into
+  `aftcCodexVersion` (any seed path leaves the live copy at the shipped
+  version, so the version bookkeeping lives here centrally).
 - `ensureSeeded(mode)` — seed only if not already seeded.
 - `readResource(topic)` — resolve a topic across ALL category folders +
   top-level; fuzzy aliases (`ts`→typescript, `py`→python, `js`→javascript,

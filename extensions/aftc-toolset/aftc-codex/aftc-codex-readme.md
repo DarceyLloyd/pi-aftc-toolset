@@ -129,13 +129,30 @@ category doc; sync after. The prompt names the live OS-data copy as the write ta
 pass and report empty buckets honestly rather than pad — guardrails added after a
 session whose learn loop burned most of its budget on meta-deliberation.
 
-## Updates (one-way copy)
+## Updates (one-way copy + version)
 
-There is no merge / drift / backup machinery. The codex is a strict one-way
-copy from the shipped seed to your live data-dir copy; your live edits (e.g.
-via `/aftc-codex-learn`) are never auto-overwritten. To take the shipped
-defaults again, use Start Fresh (or `/aftc-codex-install`), which deletes the
-live copy and re-seeds it (irreversible, confirmed).
+The codex is a one-way copy from the shipped seed to your live data-dir copy;
+your live edits (e.g. via `/aftc-codex-learn`) are never auto-overwritten.
+To take the shipped defaults again, use Start Fresh (or `/aftc-codex-install`),
+which deletes the whole live codex dir and re-seeds a full fresh copy of the
+seed (irreversible, confirmed).
+
+## Version + central guard
+
+The shipped codex carries an integer version in
+`extensions/aftc-toolset/data/extension-config.json` (`codexVersion`; package-shipped,
+never copied to the OS data dir). The live copy's version is the
+`aftcCodexVersion` preference (0 = pre-versioning). The coordinator wires
+`ctx.checkCompat()` (backed by `checkCodexCompatibility()` in codex-compat.ts),
+returning `{ isSafe, message }` — EVERY codex feature calls it: injection and
+`codex_load` pause when unsafe; the `/aftc-codex-*` commands show `message` in
+an aftc-ui modal (Enter/Esc closes) and refuse — except `/codex-install` (the
+fix), `/codex-disable` and `/codex-status`. On a mismatch `/codex-install`
+DELETES the live codex dir (no backup) and installs a full fresh seed copy,
+then the new version is recorded by the seed. A
+missing seed version disables all version logic (fail-soft). An unseeded live
+copy is always safe (first-time install proceeds; `store.seed()` records the
+version centrally).
 
 ## The codex_load tool
 
@@ -151,13 +168,15 @@ list. Has a `promptSnippet` + `promptGuidelines` naming the tool.
 `/aftc-codex` (menu), `-enable` (enable + prep; warns if already active; alias
 `/codex-enable`), `-disable` (disable + strip all codex from context; alias
 `/codex-disable`), `-install` (fresh install or re-install), `-init`, `-refresh`,
-`-learn`, `-status`. The resources menu, `-learn` and `-install` run the
+`-learn`, `-status`. The resources menu, `-learn` and
+`-install` run the
 list-regeneration script first; pure toggles skip the spawn.
 
 ## Config preferences (config.json)
 
 `aftcCodexEnabled` (false), `aftcCodexInjectGuidance` (true), `aftcCodexAutoLoad`
-(true), `aftcCodexSeeded` (false), `aftcCodexAutoAddEntries` (true). All migrated
+(true), `aftcCodexSeeded` (false), `aftcCodexAutoAddEntries` (true),
+`aftcCodexVersion` (0 — live codex version, internal bookkeeping). All migrated
 into an existing config.json via the write-back pattern.
 
 ## Sub-modules

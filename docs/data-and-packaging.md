@@ -56,11 +56,12 @@ tarball. Distinct from the persistent OS data dir.
 
 ```
 extensions/aftc-toolset/data/
+├── extension-config.json          # PACKAGE-SHIPPED config (codexVersion + future keys; never copied to the OS data dir)
 ├── aftc-codex/                    # SHIPPED SEED for the knowledge base
 │   ├── codex-rules.md
 │   ├── thought-and-action-guidance.md
 │   ├── markdown-guidance.md
-│   └── resources/{languages,libraries,frameworks,engines,tools}/*.md
+│   └── resources/{languages,libraries,frameworks,engines,tools,runtimes}/*.md
 ├── aftc-audio-notifications/      # MP3s (read at runtime)
 │   └── {question,task-complete,error,aborted,startup}/*.mp3
 └── aftc-intro/                    # Startup intro assets
@@ -103,6 +104,10 @@ file type.
 
 `config.json` holds cross-session preferences in the persistent OS data dir.
 Source of truth: `DEFAULT_PREFERENCES` in `extensions/aftc-toolset/config.ts`.
+
+**Read `docs/working-with-config.md` before touching either config file** — it
+is the binding contract (live vs shipped, the NO in-memory cache rule, write
+rules, edge cases).
 
 ### How defaults work
 

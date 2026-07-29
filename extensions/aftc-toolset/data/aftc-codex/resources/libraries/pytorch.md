@@ -1,5 +1,12 @@
 # PyTorch
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [lUOREt] Training step time explodes (eg 1.3s -> 90s/step) and system RAM keeps climbing
   Cause: VRAM exhausted, Windows pages GPU memory to shared/system RAM and every step thrashes over PCIe.
   Fix: free VRAM (close other GPU apps, unload resident models) and re-run; do not tune code; warn when free VRAM drops below ~8 GiB. (2026-07)

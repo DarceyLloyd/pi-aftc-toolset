@@ -49,6 +49,7 @@ const SKILL_ROWS: Array<[string, string]> = [
 const SHORTCUT_ROWS: Array<[string, string]> = [
 	["alt+c", "Clear the input editor"],
 	["alt+n", "Insert a new line at the cursor"],
+	["alt+x", "Cut all input text to the clipboard"],
 	["Ctrl+T", "Toggle thinking block visibility (pi built-in)"],
 ];
 

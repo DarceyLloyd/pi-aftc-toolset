@@ -1,5 +1,12 @@
 # Apache
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [yv0n6X] Document root `/` serves the framework index.php instead of the SPA index.html even with `DirectoryIndex index.html index.php` in dir.conf
   Cause: mod_dir picks index.php in practice (vhost/`.htaccess` interaction).
   Fix: add an explicit `RewriteRule ^$ /index.html [L]` at the top of the docroot .htaccess. (2026-07)

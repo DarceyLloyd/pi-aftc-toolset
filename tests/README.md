@@ -34,7 +34,8 @@ watchdog timeout near the top (see `AGENTS.md` — non-negotiable).
 | --- | --- | --- |
 | `help-registry-check` | 20s local | Help registry sync: every registerCommand covered by an entry, every entry real, no duplicates. |
 | `allowance-check` | 15s local | Footer line-5 allowance providers, Codex regression. |
-| `keys-check` | 20s local | Shortcuts: alt+c clear, alt+n newline at caret. |
+| `keys-check` | 20s local | Shortcuts: alt+c clear, alt+n newline at caret, alt+x / /aftc-cut-input cut to clipboard. |
+| `quick-open-dir-check` | 30s local | /qd menu: title/body, dev-gate option visibility, dir resolution, open dispatch, Esc. |
 | `install-check` | 15s local | `/aftc-install` redaction, recovery guidance, concurrency, and the intelligent session-start dependency warning. |
 | `install-platform-uv-check` | 15s local | Platform-native uv resolution. |
 | `npm-package-check` | 15s local | Published package contents (carrier source included; credentials/venv excluded). |

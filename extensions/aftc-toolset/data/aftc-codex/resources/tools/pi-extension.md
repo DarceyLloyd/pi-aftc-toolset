@@ -2,6 +2,16 @@
 
 Gotchas and conventions for building extensions for the pi CLI coding agent (`@earendil-works/pi-coding-agent`). Official docs: `docs/extensions.md` under the installed package. Entries lead with the greppable symptom.
 
+## Rules
+
+## Gotchyas
+
+- [cL1pBd] Clipboard write from an extension — hand-rolling clip/pbcopy/wl-copy/OSC 52 per platform is error-prone and unnecessary; import { copyToClipboard } from "@earendil-works/pi-coding-agent" (pi's own cross-platform helper: native addon, platform tools, OSC 52 fallback — it throws "Failed to copy to clipboard" when every method fails, so await it in try/catch and only clear the source text AFTER it resolves).
+- [kQ7vX2] Caching a JSON config/preferences file in module memory — pi keeps extension modules alive across /new (the factory does NOT re-run), so the cache goes stale when the user hand-edits the file mid-process and the next write flushes the stale cache back over their edits; read the file fresh from disk on EVERY access (small local file, sync read is free) and make writes a fresh read-modify-write so external edits survive.
+
+## Issues & Solutions
+
+
 - [h3YB8Y] Trailing text shows on every row of a showMenu / selectable list (eg every option ends with "NONE")
   Cause: the item `description` field renders to the right of the label on the same row, so a placeholder like "NONE" for "unset" clutters every line.
   Fix: only set `description` when there is a real value; spread it in conditionally (`...(cur ? { description: label } : {})`), omit it otherwise. (2026-07)
@@ -113,3 +123,21 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [wQ4nXt] Need to identify/filter custom messages (from pi.sendMessage) in the `context` event's messages array
   Cause: the shape is not obvious from the sendMessage API alone.
   Fix: custom messages in `event.messages` have `role: "custom"` and a `customType: string` field (confirmed against session-format.md `CustomMessage` interface); filter with `m.role === "custom" && m.customType === "your-type"`; they can be freely removed (no tool_use pairing needed, unlike assistant toolCall + toolResult pairs); `content` is `string | (TextContent | ImageContent)[]`. (2026-07)
+- [jT9dNm] Test comparing a module-resolved path against a test-computed path fails on Windows with separator mismatch (C:/x vs C:\x)
+  Cause: under jiti, __dirname inside the loaded .ts module uses FORWARD slashes on Windows, while the test's own fileURLToPath(import.meta.url)/path.join produce BACKslashes — same dir, different string.
+  Fix: path.normalize() BOTH sides before asserting equality in any test that compares a path coming out of a jiti-loaded module (eg getPackageRoot()) against one the test built itself. (2026-07)
+- [eD7aRw] pi edit tool: oldText fails to match when the target contains a Unicode arrow (→) but you typed ASCII ">" / "->"
+  Cause: docs in this ecosystem use the U+2192 arrow heavily; composing oldText from memory produces ">" which never matches the literal "→". A failed edit batch applies NOTHING (every edit in the call is rolled back), and the same rollback happens when one call mixes edits for TWO different files (the second path's oldText can't be found in the first).
+  Fix: copy oldText verbatim from a FRESH read of the exact region (never from memory), keep it small, and run ONE edit call per file. On any "oldText must match exactly" failure: re-read the region, fix the anchor, re-apply the whole batch. (2026-07)
+
+- [sK9fQ2] Need to edit the ACTIVE session .jsonl while pi is running (compact/redact/rewrite entries) — is the file locked, does pi notice?
+  Cause: pi appends one JSONL line per entry with appendFileSync and closes the handle immediately (NO lock, NO file watcher); _rewriteFile (truncate + full rewrite) runs ONLY at load time (version migration / empty-file init), never mid-session on the active file; pi keeps the whole session in memory and never re-reads the file.
+  Fix: there is no lock to wait for — rewrite via tmp + rename at any time, keep every other line byte-identical, and re-read the file before the rename to merge a pi append that landed mid-rewrite (pi only ever appends, so raw2.startsWith(raw) means merge the tail). Disk edits are invisible to the RUNNING session until /reload or /resume; for a LIVE effect mutate the entry objects returned by ctx.sessionManager.getBranch()/getEntries()/getEntry() — they are SHARED references to pi's internal entries, so the next buildSessionContext picks the mutation up (verified in dist; do a read-back check and degrade to disk-only if a future pi deep-copies). Unknown extra fields on an entry object (eg a "processed" marker) survive both in memory and on disk. (2026-07)
+
+- [tH4xW8] Editing an assistant thinking block's TEXT breaks the next provider call (Anthropic invalid thinking signature)
+  Cause: ThinkingContent carries a cryptographic thinkingSignature that Anthropic validates on replay; pi-ai's transformMessages keeps same-model thinking blocks WITH signatures and converts them to plain text only cross-model, so a mutated text + old signature = API error.
+  Fix: never edit thinking text in place — replace the whole thinking block with a {type:"text"} block (pi's own cross-model shape), and never touch the most recent assistant turn's thinking (it must stay intact for tool-call replay — keep a safe distance of several entries from the session leaf). (2026-07)
+
+- [pi7Qa2] Want status/success output in the theme's accent (emphasis) colour, but ctx.ui.notify renders it dim or yellow
+  Cause: ctx.ui.notify(msg, type) accepts only "info"|"warning"|"error" and maps them to dim / yellow+"Warning:" / red+"Error:" — there is NO severity for the theme's `accent` token, so emphasised status/success/state-change text is impossible through notify (info reads as a faint aside, warning mislabels ordinary output as a caution).
+  Fix: emit an accent-coloured transcript ENTRY instead — register once with pi.registerEntryRenderer(customType, (entry, _opts, theme) => new Text(theme.fg("accent", text), 1, 0)), then pi.appendEntry(customType, { text }) per message (display-only, never in LLM context — see [AbgNKI]; valid theme.fg keys in [Qf8Wn2]). appendEntry/registerEntryRenderer live on `pi` (ExtensionAPI), NOT on `ctx`, so a reusable output module caches `pi` in an init(pi) and has its line methods take `ctx`. (2026-07)

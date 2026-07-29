@@ -1,5 +1,12 @@
 # ffmpeg
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [hkRUmk] Trim is off by a few frames
   Cause: `-ss` before `-i` is a fast seek, not frame-accurate.
   Fix: put `-ss` after `-i` for accuracy (slower, decodes). (2026-07)

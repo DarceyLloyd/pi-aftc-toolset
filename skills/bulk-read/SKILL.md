@@ -36,7 +36,7 @@ single markdown document that can be read in one tool call.
 
 ## How it works
 
-This skill ships a bundled Node.js helper at `scripts/bulk-read.js`
+This skill ships a bundled Node.js helper at `scripts/bulk-read.mjs`
 (relative to this `SKILL.md`). Node.js is used because pi already
 requires it, it has built-in cross-platform path handling, and it avoids
 shell escaping issues for paths and content.
@@ -58,17 +58,24 @@ or the target folder.
    working directory if not specified.
 2. Resolve the bundled script path against THIS skill's directory. You
    know the absolute path of this `SKILL.md`; the script is
-   `<directory-of-this-SKILL.md>/scripts/bulk-read.js`. For example, if
+   `<directory-of-this-SKILL.md>/scripts/bulk-read.mjs`. For example, if
    this file is `/X/skills/bulk-read/SKILL.md`, the script is
-   `/X/skills/bulk-read/scripts/bulk-read.js`.
+   `/X/skills/bulk-read/scripts/bulk-read.mjs`.
 3. Run the script with bash (quote the path — it may contain spaces):
    ```bash
-   node "<skill-dir>/scripts/bulk-read.js" [rootDir] [outFile] [maxBytesKB]
+   node "<skill-dir>/scripts/bulk-read.mjs" [rootDir] [outFile] [maxBytesKB]
    ```
    - `rootDir` defaults to `process.cwd()`
    - `outFile` defaults to `<os.tmpdir()>/bulk-read-<timestamp>.md`
    - `maxBytesKB` defaults to 1024 (1 MB per file)
-4. The script prints the output path. Read that path with `read`.
+4. The script prints the output path plus the output's exact line count
+   and size. **If it prints a WARNING, the output exceeds a single read
+   (pi's read tool truncates at 2000 lines / 50 KB). Do NOT read the
+   file in one call — you would silently get a truncated slice and
+   analyse only a fraction of the files.** Read it in chunks with the
+   read tool's `offset`/`limit` (about 1500 lines per call: offset 1,
+   then 1501, 3001, ...) until every line is consumed — or re-run the
+   script per subfolder so each output stays under the limit.
 5. Proceed with the user's actual task against the loaded content.
 6. Once done, optionally delete the temp output file (the bundled script
    is permanent — do not delete it):
@@ -98,7 +105,8 @@ The output manifest lists how many files were skipped and why.
 - For a subset of files, pass a more specific `rootDir` (for example
   only `src/` or `extensions/aftc-toolset/`).
 - For 100+ files, prefer running the script on subfolders one at a
-  time so the resulting markdown is easier to navigate.
+  time so each output stays under the single-read limit (2000 lines /
+  50 KB) and is easier to navigate.
 - Tell the user where the temp output file lives so they can inspect it
   themselves or grep it from their shell.
 - After analysis, clean up the temp output with `rm` to keep the
@@ -115,18 +123,18 @@ Read everything in the current working directory with defaults (output
 goes to the OS temp dir):
 
 ```bash
-node "<skill-dir>/scripts/bulk-read.js"
+node "<skill-dir>/scripts/bulk-read.mjs"
 ```
 
 Read only `extensions/` with a 2 MB per-file cap, writing to a chosen
 file:
 
 ```bash
-node "<skill-dir>/scripts/bulk-read.js" extensions/ extensions.md 2048
+node "<skill-dir>/scripts/bulk-read.mjs" extensions/ extensions.md 2048
 ```
 
 Read the user's home directory's `notes/` folder:
 
 ```bash
-node "<skill-dir>/scripts/bulk-read.js" ~/notes ~/bulk-notes.md
+node "<skill-dir>/scripts/bulk-read.mjs" ~/notes ~/bulk-notes.md
 ```

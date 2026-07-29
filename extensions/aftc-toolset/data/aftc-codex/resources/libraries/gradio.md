@@ -1,5 +1,12 @@
 # Gradio
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [XBeBhU] theme/css/head ignored or error with `Blocks()` in Gradio 6
   Cause: API moved.
   Fix: pass theme/css/head to `launch()`, not `Blocks()`. (2026-07)

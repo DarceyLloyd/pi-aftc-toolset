@@ -1186,7 +1186,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             // any TUI terminal that respects escape codes. Same effect as
             // the shell `cls` (Windows) / `clear` (Unix) commands.
             console.log("\x1b[2J\x1b[H");
-            if (ctx.hasUI) aftcConsole.emphasis(ctx, "Screen cleared");
+            // if (ctx.hasUI) aftcConsole.emphasis(ctx, "Screen cleared");
         },
     });
 

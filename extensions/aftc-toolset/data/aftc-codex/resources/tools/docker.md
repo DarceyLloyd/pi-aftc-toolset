@@ -1,5 +1,12 @@
 # Docker
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [vB3nC9] Cross-compiling in a container is slow to iterate because the source/build dir is COPY'd into the image (every code change rebuilds from scratch)
   Cause: COPY-ing the source into the image and building in-image makes the build directory ephemeral - each `docker build` restarts the compile, and the large source tree is re-sent as build context.
   Fix: keep the image as a TOOLCHAIN only; at `docker run` bind-mount the source read-only (`-v <src>:/work:ro`), put the CMake build dir on a Docker NAMED VOLUME (`-v myproj-build:/build` - native FS, incremental across runs), and copy only the final artefacts to a host-mounted output dir (`-v <out-dir>:/out`). Add a `.dockerignore` excluding the heavy dirs (e.g. the framework clone, build dirs) so the build context stays tiny - the source arrives via the mount, not the context. (2026-07)

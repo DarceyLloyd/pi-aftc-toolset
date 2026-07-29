@@ -1,5 +1,12 @@
 # Python
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [egIWMk] Multiple python procs at 100% CPU, work duplicated, zero training progress
   Cause: Windows multiprocessing spawn re-imports and re-runs the whole script per worker (DataLoader, Lightning Fabric).
   Fix: wrap the body of any script that reaches DataLoader workers in `if __name__ == "__main__":`. (2026-07)

@@ -2,14 +2,7 @@
 
 Migrated from AFTT v1.0 docs/Issues and Solutions.md (2026-07).
 
-## Quick qualifier map
-
-- `[wB5Ksh] const`: compile-time fixed value.
-- `[CrUSEk] input`: user setting value.
-- `[7oSpQg] simple`: stable scalar type, not bar-by-bar series.
-- `[Gjaoy7] series`: value that can change on each bar.
-
-## Performance checklist
+## Rules
 
 - [hr0hym] Decide first: must this run every bar, or only for final rendered state?
 - [aSA56B] Keep required tracking/calculation outside `barstate.islast`.
@@ -18,7 +11,14 @@ Migrated from AFTT v1.0 docs/Issues and Solutions.md (2026-07).
 - [QCOeJh] Re-profile after each optimization.
 - [i6d1zE] NEVER draw excessive `plot*()` calls to emulate dynamic style/size behavior.
 
-## Issues and fixes
+## Gotchyas
+
+- [wB5Ksh] Qualifier "const" — compile-time fixed value; required for `plot*()` size/style args (they reject series/simple).
+- [CrUSEk] Qualifier "input" — user setting value; only known once the user confirms settings, not at compile time.
+- [7oSpQg] Qualifier "simple" — stable scalar type, not a bar-by-bar series; required by args like `ta.valuewhen()` `occurrence`.
+- [Gjaoy7] Qualifier "series" — value that can change on each bar; the default, and the one const/simple args reject.
+
+## Issues & Solutions
 
 - `[0c8auL] Cannot call ... with argument "size" ... "simple string" used but "const string" expected`
   Cause: `size`/`style` for `plotshape()`/`plotchar()` must be fixed constants.

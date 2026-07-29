@@ -36,6 +36,8 @@ import { createCodexInject, type CodexInjectApi, CODEX_READ_ENTRY } from "./code
 import { createCodexDetect } from "./codex-detect";
 import { createCodexLearn, type CodexLearnApi } from "./codex-learn";
 import { createCodexCommands } from "./codex-commands";
+import { checkCodexCompatibility, type CodexCompatResult } from "./codex-compat";
+import { getPreference } from "../config";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types (sub-modules import these type-only from "./aftc-codex")
@@ -58,13 +60,18 @@ export interface CodexContext {
     state: CodexState;
     /** Detect codex topics relevant to a cwd (Phase 4). Set after detect is built. */
     detectTopics?(cwd: string): string[];
+    /** CENTRAL version-compatibility guard. Every codex feature calls this before
+     *  touching the live codex: isSafe=false means the live copy is out of
+     *  date — hold off, show `message`, and let /codex-install wipe + re-seed.
+     *  Set by the coordinator. */
+    checkCompat(): CodexCompatResult;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // codex_load tool (step 2.4)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Set<string>): void {
+function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Set<string>, checkCompat: () => CodexCompatResult): void {
     pi.registerTool({
         name: "codex_load",
         label: "Codex Load",
@@ -88,6 +95,18 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Se
             }),
         }),
         async execute(_toolCallId, params) {
+            // Version guard: an out-of-date live codex is wiped + re-seeded by
+            // /codex-install; until then serve the guard message instead of
+            // stale docs (a normal result, not a tool error, so the
+            // model can relay the instruction to the user).
+            const compat = checkCompat();
+            if (!compat.isSafe) {
+                return {
+                    content: [{ type: "text", text: `${compat.message}\n\nTell the user to run /codex-install, then try codex_load again.` }],
+                    details: { compatBlocked: true },
+                };
+            }
+
             const read = store.readResource(params.topic);
             if (!read) {
                 const topics = store.listTopics();
@@ -134,7 +153,16 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Se
 export function createAftcCodex(pi: ExtensionAPI): void {
     const store = createCodexStore();
     const state: CodexState = { prepped: false, silent: false, noticedThisSession: false };
-    const ctx: CodexContext = { pi, store, state };
+    // Central version-compatibility guard (checkCompat): compares the shipped
+    // seed version (data/extension-config.json) against the user's recorded live
+    // version. Every codex feature calls it before touching the live codex.
+    const ctx: CodexContext = {
+        pi,
+        store,
+        state,
+        checkCompat: () =>
+            checkCodexCompatibility(store.getSeedDir(), getPreference("aftcCodexVersion", 0) ?? 0, store.isSeeded()),
+    };
 
     // Project technology auto-detection (Phase 4). Wired onto ctx so inject/commands
     // can name detected topics without importing codex-detect directly.
@@ -151,7 +179,7 @@ export function createAftcCodex(pi: ExtensionAPI): void {
     // The codex_load model tool. readSeen dedupes the durable read-tracking
     // entries appended within this process (the count is rebuilt from entries).
     const readSeen = new Set<string>();
-    registerCodexLoadTool(pi, store, readSeen);
+    registerCodexLoadTool(pi, store, readSeen, ctx.checkCompat);
 
     // The /aftc-codex-* commands + config menu (sync-first wrapper).
     createCodexCommands(ctx, inject, learn);

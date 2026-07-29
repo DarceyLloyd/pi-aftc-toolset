@@ -1,5 +1,12 @@
 # CMake
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [zQ3wE8] Setting `CMAKE_RUNTIME/LIBRARY/ARCHIVE_OUTPUT_DIRECTORY` globally breaks bundle / per-target output layout (binaries land flat, bundle folders end up missing their platform subdir)
   Cause: those variables set the *default* output dir that every target created afterwards inherits, and they desync any build system that computes per-target or bundle-relative paths from them vs the actual target output. Targets that assemble a bundle (e.g. a plugin wrapper that expects its binary under `Contents/<arch>/`) silently produce an incomplete bundle.
   Fix: do not override them globally when targets manage their own per-target output dirs or bundle assembly; let the build system own output layout and read artefacts from each target's own output path. In JUCE this manifests as an empty VST3 bundle (see frameworks/juce.md). (2026-07)

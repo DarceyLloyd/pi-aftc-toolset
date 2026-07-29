@@ -20,7 +20,7 @@ extensions/aftc-toolset/aftc-codex/
 ├── codex-inject.ts            # before_agent_start injection, session lifecycle, context prune
 ├── codex-detect.ts            # Project technology auto-detection
 ├── codex-learn.ts             # /aftc-codex-learn prompt injection
-├── codex-merge.ts             # /aftc-codex-sync seed -> live merge (pure TS)
+├── codex-compat.ts            # Version compatibility guard (pure TS)
 ├── codex-commands.ts          # /aftc-codex-* commands + config menu
 ├── codex-commands.ts          # /aftc-codex-* commands + config menu
 ├── scripts/
@@ -43,6 +43,7 @@ interface CodexContext {
     store: CodexStore;
     state: CodexState;
     detectTopics?(cwd: string): string[];  // Set after detect module is built
+    checkCompat(): { isSafe: boolean; message: string };  // Central version guard
 }
 ```
 
@@ -71,24 +72,16 @@ extensions/aftc-toolset/data/aftc-codex/   →   <dataDir>/aftc-codex/
 ```
 
 **Rules:**
-- Strict one-way copy: seed → live. The seed never AUTO-overwrites a live file at
-  runtime; the THREE fixed maintainer docs (`codex-rules.md`, `markdown-guidance.md`,
-  `thought-and-action-guidance.md`) are the exception — `/aftc-codex-sync` force-overwrites
-  them from the seed so shipped rule/guidance updates always reach the user.
+- Strict one-way copy: seed → live. The seed never overwrites a live file at
+  runtime; shipped rule/guidance/resource updates reach the user only through a
+  full reinstall ("Start Fresh" in the /codex menu, or `/aftc-codex-install`),
+  which deletes the live copy and installs a full fresh copy of the seed.
 - Seeding is copy-only for LEARNED content: existing live `resources/` files are never
-  overwritten; user entries persist. The three fixed docs above ARE overwritten by
-  `/aftc-codex-sync`.
+  overwritten; user entries persist.
 - The seed is SOURCE only: no generated/runtime files (`codex-resource-list.md`).
 - User edits (via `/aftc-codex-learn` or manual) live only in the live copy.
-- "Start Fresh" / re-install: delete the live copy and re-seed (confirmed, irreversible).
-- `/aftc-codex-sync` (manual, `codex-merge.ts`): brings the live copy up to date
-  after a package update. It FORCE-OVERWRITES the three fixed maintainer docs
-  (`codex-rules.md`, `markdown-guidance.md`, `thought-and-action-guidance.md`) from the seed
-  so shipped rule/guidance updates always win; copies seed-only resource files; and appends
-  seed entries whose `[ID]` is absent from a live file. An ID present in both
-  (even with edited text) keeps the USER'S version; ID-less legacy seed entries
-  are skipped; live-only files/folders are never touched. Always regenerates
-  `codex-resource-list.md` afterwards.
+- "Start Fresh" / re-install: delete the whole live codex dir and re-seed the
+  full shipped copy (confirmed, irreversible).
 
 **Data dir resolution** (`paths.ts`):
 | OS | Path |
@@ -143,8 +136,8 @@ Uses `session_start.reason` (no `getEntries()` heuristic):
 
 The notice is a durable custom entry (`aftc-codex-prep-notice`) rendered via
 `registerEntryRenderer` — no timer, no TUI-ready wait. When the live copy is
-behind the shipped seed (`codexNeedsSync` in `codex-merge.ts`), the notice
-gains a white `NOTICE: ... run /codex-sync` line.
+behind the shipped version (the central guard, `ctx.checkCompat()`), the notice
+gains a white `NOTICE: ... run /codex-install` line.
 
 ---
 
@@ -204,18 +197,58 @@ using its standard tools (read/edit/write + bash). No separate model tool.
 Steps enforced by the prompt:
 1. Sync first (`node sync-codex-resources.mjs`).
 2. Consult `codex-resource-list.md` — update existing docs, never duplicate.
-3. Write entries in canonical format (auto-add with uniqueness checks by default,
-   or propose-then-confirm when `aftcCodexAutoAddEntries` is false):
-   ```
-   - [ID] LEAD_TOKEN — one-line symptom
-     Cause: why it happens.
-     Fix: what to do. (YYYY-MM)
-   ```
-   Routing: TECH gotchas → the correct `resources/{category}/<topic>.md` only
-   (`-learn` never writes to the fixed top-level docs).
+3. Classify each lesson into one of the THREE entry kinds and write it under the
+   matching section (auto-add with uniqueness checks by default, or
+   propose-then-confirm when `aftcCodexAutoAddEntries` is false):
+   - **Rule** (`## Rules`) — a convention WE enforce; one line, no date:
+     `- [ID] Never/Always X — one short reason.`
+   - **Gotcha** (`## Gotchyas`) — a trap built INTO the technology; ONE line with
+     BOTH the trap AND the countermeasure; no date:
+     `- [ID] LEAD — the trap; what to do / watch for.`
+   - **Issue & Solution** (`## Issues & Solutions`) — an OBSERVED failure with a
+     diagnosis; the only dated kind:
+     ```
+     - [ID] LEAD_TOKEN — one-line symptom
+       Cause: why it happens.
+       Fix: what to do. (YYYY-MM)
+     ```
+   All three headings are always present in every resource file (canonical order,
+   even when empty). Routing: TECH lessons > the correct
+   `resources/{category}/<topic>.md` only (`-learn` never writes to the fixed
+   top-level docs).
 4. Sync after writing.
 
 The prompt names the live OS-data copy as the write target (the package seed is read-only).
+
+---
+
+## Codex version + wipe-on-mismatch
+
+The shipped codex carries an integer version in
+`extensions/aftc-toolset/data/extension-config.json` (`codexVersion`; a package-shipped
+config file that is never copied to the user's data dir). The user's live copy
+records the version it was seeded from in the `aftcCodexVersion` config
+preference (default 0 = pre-versioning installs).
+
+- **Central guard:** `ctx.checkCompat()` (coordinator-wired, backed by
+  `checkCodexCompatibility()` in codex-compat.ts) returns
+  `{ isSafe: boolean; message: string }`. Every codex feature calls it:
+  `before_agent_start` injection and `codex_load` pause when unsafe (an
+  out-of-date copy is never injected/served), and the `/aftc-codex-*` commands show the
+  message in an aftc-ui modal (Enter/Esc closes) and refuse to run — EXCEPT
+  `/codex-install` (the fix), `/codex-disable` and `/codex-status`.
+- **Wipe-on-mismatch:** when the versions differ, `/codex-install` (or Start
+  Fresh in the /codex menu) DELETES the live codex dir (no backup, by design)
+  and installs a full fresh copy of the seed, then `aftcCodexVersion` is set
+  to the shipped version by the seed. On a mismatch there is NO confirmation
+  prompt — the guard has been telling the user to run exactly this command,
+  so typing it is the confirmation (works headless too). The confirmation
+  modal only appears when the versions MATCH (a destructive re-install for
+  no version reason).
+- A missing/unreadable seed version disables all version logic (fail-soft:
+  never wipes when unsure).
+- The fresh-session NOTICE ("run /codex-install") is driven by the same guard,
+  so a version mismatch surfaces without the user running anything.
 
 ---
 
@@ -228,13 +261,12 @@ The prompt names the live OS-data copy as the write target (the package seed is 
 | `/aftc-codex-disable` | `/codex-disable` | Disable + strip ALL codex from context |
 | `/aftc-codex-init` | `/codex-init` | Prep: rules live + marker + model fetches docs |
 | `/aftc-codex-refresh` | `/codex-refresh` | Strip all codex, then re-init (clean restart) |
-| `/aftc-codex-install` | `/codex-install` | Fresh install or re-install (confirmed destructive) |
+| `/aftc-codex-install` | `/codex-install` | Fresh install or re-install (confirmed destructive when versions match; NO confirm on a version mismatch — the command itself is the confirmation) |
 | `/aftc-codex-learn` | `/codex-learn` | Self-education prompt injection |
-| `/aftc-codex-sync` | `/codex-sync` | Seed → live sync: force-overwrite the three fixed docs (codex-rules.md, markdown-guidance.md, thought-and-action-guidance.md), copy seed-only resource files, append missing `[ID]` resource entries (never overwrites user entries), then always regenerate the resource list |
 | `/aftc-codex-status` | `/codex-status` | Colored status: enabled, embedded, files read |
 
-**Sync-first:** the resources menu, `-learn`, `-install`, `-init`, and `-refresh`
-spawn the sync script first. Pure toggles (`-enable`/`-disable`/`-status`) skip it.
+**List-regeneration:** the resources menu (Start Fresh), `-learn`, `-install`, `-init`, and `-refresh`
+spawn the list-regeneration script. Pure toggles (`-enable`/`-disable`/`-status`) skip it.
 
 ### Config menu structure
 
@@ -245,10 +277,8 @@ spawn the sync script first. Pure toggles (`-enable`/`-disable`/`-status`) skip 
 ├── Auto-Detect & Load Docs ......... | ON/OFF     [toggle]
 ├── Task Addition Approval .......... | Auto/Manual [submenu]
 ├── Resources & Updates .............              [submenu]
-│   ├── Re-Seed Resources ........... copy-only, never overwrites → seed choice
-│   ├── Start Fresh ................. [confirm-destructive] wipe + re-seed
-│   ├── Open Codex Resource Dir ..... opens live resources/ in OS file manager
-│   └── Sync Codex Resources ........ closes menu, runs /codex-sync merge + report
+│   ├── Start Fresh ................. [confirm-destructive] wipe live codex dir + full fresh seed copy
+│   └── Open Codex Resource Dir ..... opens live resources/ in OS file manager
 └── Help & Commands ................. [viewer]
 ```
 
@@ -263,6 +293,7 @@ spawn the sync script first. Pure toggles (`-enable`/`-disable`/`-status`) skip 
 | `aftcCodexAutoLoad` | bool | `true` | Auto-detect project techs + name them in marker |
 | `aftcCodexSeeded` | bool | `false` | First-run seed choice done |
 | `aftcCodexAutoAddEntries` | bool | `true` | Auto-add entries (uniqueness-checked) vs propose-then-confirm |
+| `aftcCodexVersion` | int | `0` | Live codex version (internal bookkeeping; mismatch vs the shipped data/extension-config.json `codexVersion` = wipe + re-seed on next /codex-install) |
 
 All migrated into an existing `config.json` via the write-back pattern.
 
@@ -316,10 +347,8 @@ Idempotent. Processes only category subfolder `.md` files. Never throws.
 3. Fail soft — every I/O op is best-effort try/catch → safe default / no-op.
 4. Off by default.
 5. Idempotent + resumable — seed/list-regen re-run safely.
-6. Copy-only seeding — never overwrites an existing file, EXCEPT the three fixed
-   maintainer docs (codex-rules.md, markdown-guidance.md, thought-and-action-guidance.md)
-   which `/aftc-codex-sync` force-overwrites from the seed (shipped rule/guidance updates
-   win).
+6. Copy-only seeding — never overwrites an existing file; shipped updates reach
+   the live copy only via a confirmed full reinstall (Start Fresh / /codex-install).
 7. One-way copy — the seed never AUTO-overwrites a live file at runtime;
    user-learned content (resources/) always persists.
 8. Destructive actions (Start Fresh, re-install) are confirmed and irreversible by design.

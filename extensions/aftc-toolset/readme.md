@@ -22,7 +22,8 @@ commands/shortcuts/tools it registers. See `AGENTS.md`.
 | `providers/` | DISABLED (pi 0.81 added native provider support; kept on disk in case the built-in proves weaker — re-enable in `index.ts`). LLM provider features: `qwencloud.ts` registers Qwen Cloud (DashScope) + Qwen Coding Plan via pi's native `/login` (live catalogs, cache/seed fallbacks, `/qwencloud` command). |
 | `response.ts` | Full-width themed divider above every assistant reply. Toggled by `/aftc-response-divider`. |
 | `intros/` | Startup intro animations. Factory picks one random enabled intro on session start. Currently: AFTC text wordmark (`/aftc-intro-on`, `/aftc-intro-off`). |
-| `keys.ts` | All keyboard shortcuts: `alt+c` clears the input editor, `alt+n` inserts a newline at the caret. |
+| `keys.ts` | All keyboard shortcuts: `alt+c` clears the input editor, `alt+n` inserts a newline at the caret, `alt+x` cuts all input to the clipboard (also `/aftc-cut-input`). |
+| `quick-open-dir.ts` | `/qd` slash command - quick dir access menu (users data dir, .pi dir, pi-aftc-toolset dir). The toolset-dir option is gated by a `.dev` marker folder in the package root. Absorbs the retired open-data-dir.ts. |
 | `stfu.ts` | `/aftc-stop` and `/stfu` slash commands - emergency abort of the current agent operation (escape a runaway thinking loop). |
 | `theme.ts` | `/theme` slash command - shortcut to pi's theme picker. Lists all discovered themes, lets the user pick one, and switches the active theme. |
 | `cd.ts` | `/cd` slash command - switch to a fresh Pi session in another directory. Interactive directory-picker overlay, or one-shot path arg (`~`, absolute, relative). Cleans up empty sessions on shutdown. |

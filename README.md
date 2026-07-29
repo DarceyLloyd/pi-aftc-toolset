@@ -23,7 +23,7 @@ A bit of fun, also very useful for those long prompt wait times. Go do something
 BETA 2. Lots of adjustments, new data recorded, tooltips, bug fix on browser resize etc.
 
 ### **Persistent Data Storage**
-From this version onwards data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /aftc-open-data-dir should you want to go there. The extension will be acting as a seed from here on for relevant features.
+From this version onwards data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /qd (Open users data dir) should you want to go there. The extension will be acting as a seed from here on for relevant features.
 
 ### **AFTC CODEX (ALPHA)**
 Self training and self issue & resolution file loading with adaptive AI model thoughts and action guidance. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
@@ -400,7 +400,7 @@ It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, P
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
 - Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add with uniqueness checks by default; switch to propose-then-confirm in the config menu).
-- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. Run `/aftc-codex-sync` after an update to pull in new shipped entries without losing yours (missing files are copied; missing `[ID]` entries are appended; your edits always win). In the config menu, Start Fresh wipes the live copy and re-copies the shipped defaults, and Open Codex Resource Dir opens the live `resources/` folder in your file manager.
+- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. To take the shipped defaults again, Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
 - **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
 
 | Command | What it does |
@@ -412,7 +412,6 @@ It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, P
 | `/aftc-codex-refresh` | Strip all codex from context, then re-init (alias `/codex-refresh`) |
 | `/aftc-codex-install` | Fresh install (or re-install) the codex to the data dir (alias `/codex-install`) |
 | `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
-| `/aftc-codex-sync` | Merge package updates into your knowledge base: copies new/missing files and appends new `[ID]` entries — your own entries are never touched (alias `/codex-sync`) |
 | `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
 
 The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex-readme.md`.
@@ -478,9 +477,9 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/aftc-intro-on` | Enable and play the AFTC text startup animation |
 | `/cls` | Clear the terminal |
 | `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
-| `/aftc-open-data-dir` | Open the data directory in your OS file manager (alias `/aftc-odd`) |
 | `/run-script-on` | Enable the `run_script` tool (reliable large-script execution); `/reload` to apply |
 | `/run-script-off` | Disable the `run_script` tool (eg once pi fixes its bash truncation); `/reload` to apply |
+| `/aftc-cut-input` | Cut all input-editor text to the clipboard (same as `Alt+X`) |
 
 ### Interrupt
 
@@ -497,6 +496,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/cd-set-max-depth [2-10]` | Set the `/cd` picker listing depth (default 3) |
 | `/dir` (alias `/ls`) | Show the current directory name + platform-native listing |
 | `/cwd` | Show the current working directory as an inline card |
+| `/qd` | Quick dir access menu: open the users data dir, the `.pi` dir, or the pi-aftc-toolset dir |
 
 ### Footer, cache, timing
 
@@ -551,6 +551,7 @@ Currently **disabled** — pi now registers providers natively. The module stays
 | --- | --- |
 | `Alt+C` | Clear the input editor |
 | `Alt+N` | Insert a newline at the cursor |
+| `Alt+X` | Cut all input text to the clipboard |
 | `Ctrl+T` | Toggle thinking blocks |
 
 ### Bundled themes

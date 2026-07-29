@@ -31,6 +31,7 @@ import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { setPreference } from "../config";
 import { getDataDir, getPackageRoot } from "../paths";
+import { readCodexSeedVersion } from "./codex-compat";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -38,7 +39,7 @@ import { getDataDir, getPackageRoot } from "../paths";
 
 /** The five well-known category folders (listed first; ANY other folder found
  *  on disk, eg runtimes/, is appended after — retrieval never ignores folders). */
-export const CODEX_CATEGORIES = ["languages", "libraries", "frameworks", "engines", "tools"] as const;
+export const CODEX_CATEGORIES = ["languages", "libraries", "frameworks", "engines", "tools", "runtimes"] as const;
 export type CodexCategory = (typeof CODEX_CATEGORIES)[number];
 
 /** All category folders: known order first, then any extra dirs (sorted). */
@@ -80,6 +81,7 @@ export interface CodexCounts {
     frameworks: number;
     engines: number;
     tools: number;
+    runtimes: number;
     topLevel: number;
     total: number;
 }
@@ -263,6 +265,11 @@ export function createCodexStore(): CodexStore {
             // Fresh mode: only the top-level files (already copied above) + empty categories.
 
             setPreference("aftcCodexSeeded", true);
+            // Record the live version centrally: any seed path (first
+            // enable, fresh-session auto-seed, Start Fresh, re-install) makes
+            // the live copy the shipped version, so stamp it as such.
+            const v = readCodexSeedVersion(seedDir);
+            if (v !== null) setPreference("aftcCodexVersion", v);
         } catch (err) {
             console.log(`[aftc-toolset] codex seed: error: ${(err as Error).message}`);
         }
@@ -357,13 +364,13 @@ export function createCodexStore(): CodexStore {
     function getCounts(): CodexCounts {
         const counts: CodexCounts = {
             languages: 0, libraries: 0, frameworks: 0, engines: 0, tools: 0,
-            topLevel: 0, total: 0,
+            runtimes: 0, topLevel: 0, total: 0,
         };
         // Top-level guidance files at the codex root.
         counts.topLevel = listMarkdownNames(getRoot()).length;
         const resourcesDir = getResourcesDir();
-        // Known categories report into their named fields; extra folders (eg
-        // runtimes/) count towards the total only (CodexCounts has fixed fields).
+        // Known categories report into their named fields; extra folders added in
+        // future count towards the total only (CodexCounts has fixed fields).
         let allFolders = 0;
         for (const cat of listCategoryFolders(resourcesDir)) {
             const n = listMarkdownNames(path.join(resourcesDir, cat)).length;

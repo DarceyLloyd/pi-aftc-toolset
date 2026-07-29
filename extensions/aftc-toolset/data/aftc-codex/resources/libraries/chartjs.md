@@ -2,6 +2,13 @@
 
 Gotchas for Chart.js (the charting lib; in pi-aftc-toolset it renders the usage-report charts from the Chart.js CDN). Entries lead with the greppable symptom.
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [ha8EKa] Custom `generateLabels` legend items render BLACK text on a dark theme (canvas default) even though `Chart.defaults.color` is set light
   Cause: the legend renderer reads each item's text colour off `item.fontColor` with NO global fallback; the built-in default generator sets it, a custom one must too.
   Fix: return `fontColor: "<light>"` (and `color: "<light>"` for v4 safety) on every object from `generateLabels`, and also set `labels.color` for the non-custom path. (2026-07)

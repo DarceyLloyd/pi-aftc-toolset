@@ -1,5 +1,12 @@
 # HTML
 
+## Rules
+
+## Gotchyas
+
+## Issues & Solutions
+
+
 - [cLvCqV] SVG embedded as base64 (in `<img src>` or injected via JavaScript)
   Cause: base64 inflates size ~33%, cannot be cached, cannot be styled, trashes readability.
   Fix: never do it. If the SVG must be animated or manipulated (GSAP/CSS/JS targeting its elements) write the SVG code inline in the HTML so it lives in the DOM (an `<img>` tag SVG is not in the DOM and cannot be animated). If the SVG is static, create a real .svg file and reference it via `<img src>` or CSS `url()` so it caches. (2026-07)

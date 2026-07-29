@@ -5,8 +5,9 @@
  * GENERAL lessons into the codex resources using its STANDARD tools (read/edit/write
  * + bash to run the sync script). No separate model tool (KISS). The injected prompt:
  *   1. sync first, 2. check the resource list (update, never duplicate),
- *   3. PROPOSE entries and wait for confirmation (M-I8) in the established entry
- *      format, routing TECH gotchas -> the right category doc under resources/
+ *   3. PROPOSE entries and wait for confirmation (M-I8) in the established three-kind
+ *      section format (Rules / Gotchyas / Issues & Solutions), routing TECH lessons ->
+ *      the right category doc under resources/
  *      (the fixed top-level docs are never written by -learn), 4. sync after.
  *
  * See `codex-learn-readme.md` for the full contract.
@@ -57,20 +58,31 @@ export function createCodexLearn(ctx: CodexContext): CodexLearnApi {
             `1. Sync first — run: node "${script}"`,
             `2. Read "${path.join(resourcesDir, "codex-resource-list.md")}" to see what docs already exist. If a doc covers your topic, add to it (do not duplicate an existing entry). If NO doc covers your topic, CREATE a new .md file in the correct category folder.`,
             getPreference("aftcCodexAutoAddEntries", true)
-                ? "3. WRITE the entries directly. Before writing, scan the target file for duplicate lead tokens or entry IDs — never add a duplicate. Use this entry format exactly:"
-                : "3. PROPOSE the new lesson entries and WAIT for my confirmation before writing. Use this entry format exactly:",
-            "     - `[ID] LEAD_TOKEN` — one-line symptom",
+                ? "3. WRITE the entries directly. Before writing, scan the target file for duplicate lead tokens or entry IDs — never add a duplicate. Classify each lesson and use EXACTLY this format:"
+                : "3. PROPOSE the new lesson entries and WAIT for my confirmation before writing. Classify each lesson and use EXACTLY this format:",
+            "   Every resource file has THREE sections (always present, in this order): ## Rules, ## Gotchyas, ## Issues & Solutions",
+            "   Write the entry at the END of the matching section, in its kind's format:",
+            "   - RULE (a convention WE enforce; one line, no date):",
+            "     - [ID] Never/Always X — one short reason.",
+            "   - GOTCHA (a trap built INTO the technology; ONE line with BOTH parts — trap + what to do; no date):",
+            "     - [ID] LEAD — the trap; what to do / watch for.",
+            "   - ISSUE & SOLUTION (a concrete failure you OBSERVED, with diagnosis; dated):",
+            "     - [ID] LEAD_TOKEN — one-line symptom",
             "       Cause: why it happens.",
             "       Fix: what to do. (YYYY-MM)",
-            "     Where to write (TECH gotchas only — create folders/.md under resources/):",
-            `     - Technology gotchas -> "${resourcesDir}/{languages|libraries|frameworks|engines|tools}/<topic>.md"`,
+            "   WHICH KIND? Answer IN ORDER, first match wins:",
+            "     1) Observed failure (greppable error/symptom) with a diagnosis -> Issue.",
+            "     2) Convention we choose to follow (could be violated) -> Rule.",
+            "     3) Technology trap you can only avoid, not change -> Gotcha.",
+            "     Where to write (TECH lessons only — create folders/.md under resources/):",
+            `     - Technology lessons -> "${resourcesDir}/{languages|libraries|frameworks|engines|tools|runtimes}/<topic>.md"`,
             "     - Process / thinking guidance is NOT recorded by -learn (thought-and-action-guidance.md is a fixed maintainer doc).",
-            "     - If the file does not exist yet, CREATE it (with a # heading). If the category folder does not exist, CREATE it.",
+            "     - If the file does not exist yet, CREATE it with this exact skeleton (all three headings, each followed by a blank line): '# <Topic>', '## Rules', '## Gotchyas', '## Issues & Solutions'. If the category folder does not exist, CREATE it.",
             getPreference("aftcCodexAutoAddEntries", true)
                 ? `4. After writing, sync again — run: node "${script}"`
                 : `4. After I confirm and you have written the entries, sync again — run: node "${script}"`,
             "",
-            "RULES: Durable + general only. Keep the entry format. Decide routing in ONE pass and commit. If a topic has nothing durable to record, say so and move on (never pad).",
+            "RULES: Durable + general only. Keep the section formats. Decide routing in ONE pass and commit. If a topic has nothing durable to record, say so and move on (never pad).",
         ].join("\n");
     }
 

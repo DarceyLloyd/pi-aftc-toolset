@@ -31,10 +31,9 @@
  */
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Box, Text } from "@earendil-works/pi-tui";
+import { Box, Spacer, Text } from "@earendil-works/pi-tui";
 import { getPreference } from "../config";
 import type { CodexContext } from "./aftc-codex";
-import { codexNeedsSync } from "./codex-merge";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -90,36 +89,93 @@ export function createCodexInject(
     ctx: CodexContext,
     detect?: { detectTopics(cwd: string): string[]; resetCache(): void },
 ): CodexInjectApi {
-    const { pi, store, state } = ctx;
+    const { pi, store, state, checkCompat } = ctx;
+
+
+    const boldWhite = (text: string, theme: any) => {
+        try {
+            return theme.bold(text);
+        } catch {
+            return text;
+        }
+    }
+
+    const boldOrange = (text: string, theme: any) => {
+        try {
+            return theme.fg("mdHeading", theme.bold(text));
+        } catch {
+            return text;
+        }
+    }
+
+    const randSpaces = () => {
+        const count = Math.floor(Math.random() * 50) + 1; // 1 to 5 spaces
+        return " ".repeat(count);
+    }
+
 
     // ---- entry renderer: fresh-session prep notice (registered once) ----
     pi.registerEntryRenderer(CODEX_PREP_NOTICE_ENTRY, (_entry, _opts, theme) => {
         const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-        box.addChild(new Text(theme.fg("accent", theme.bold("⚡ AFTC CODEX (ALPHA 1)")), 0, 0));
-        box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
-        box.addChild(new Text(
-            "Run /codex-init to load the codex rules + the relevant docs for this project.",
-            0, 0,
-        ));
-        box.addChild(new Text(
-            theme.fg("warning", "WARNING: Uses ~29KB of context + on-demand doc loads. Can max out 5h allowance fast."),
-            0, 0,
-        ));
-        box.addChild(new Text(
-            theme.fg("warning", "Recommended: Kimi K3 (Allegretto or above plans), Qwen 3.8 Max (Pro plan)."),
-            0, 0,
-        ));
+        box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX (ALPHA 1)" + randSpaces())), 0, 0));
+
+
         const noticeData = (_entry.data ?? {}) as { outOfSync?: boolean };
         if (noticeData.outOfSync === true) {
             box.addChild(new Text(
-                theme.fg("mdHeading", "NOTICE: Your AFTC codex is out of sync with the shipped version (rules/resources differ). Run /codex-sync to update."),
+                theme.fg("warning", "WARNING: Your AFTC codex is outdated. Run /codex-install to replace it."),
                 0, 0,
             ));
+        } else {
+
+            box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
+            box.addChild(new Text(
+                "Run " + boldWhite("`/codex-init`", theme) + " to load the codex resources relevant for this project.",
+                0, 0,
+            ));
+            box.addChild(new Spacer(1));
+
+
+            box.addChild(new Text(
+                theme.fg("warning", boldOrange("WARNING:", theme)),
+                0, 0,
+            ));
+            box.addChild(new Text(
+                "Codex loads resources on-demand and can use low tier subscriptions hourly quotas fast.",
+                0, 0,
+            ));
+            box.addChild(new Spacer(1));
+
+
+            box.addChild(new Text(
+                theme.fg("warning", boldOrange("Recommended models & plans:", theme)),
+                0, 0,
+            ));
+            box.addChild(new Text(
+                theme.fg("warning", "- Kimi K3 (Vivace plan)"),
+                0, 0,
+            ));
+            box.addChild(new Text(
+                theme.fg("warning", "- ZAI GLM 5.2 (Max plan)"),
+                0, 0,
+            ));
+            box.addChild(new Text(
+                theme.fg("warning", "- Qwen 3.8 Max (Pro plan) etc."),
+                0, 0,
+            ));
+
+            box.addChild(new Spacer(1));
+            box.addChild(new Text(
+                "I find that GLM 5.2 Coding Pro and Kimi Allegretto plans 5 hour quota is used up in 1.5 to 2.5 hours.",
+                0, 0,
+            ));
+            box.addChild(new Text(
+                "This does depend on how complex or big the task and project is.",
+                0, 0,
+            ));
+
         }
-        box.addChild(new Text(
-            theme.fg("dim", "Options: /codex    ·    Disable: /codex-disable"),
-            0, 0,
-        ));
+
         return box;
     });
 
@@ -200,6 +256,9 @@ export function createCodexInject(
         try {
             if (!getPreference("aftcCodexEnabled", false)) return null;
             if (!state.prepped || state.silent) return null;
+            // Version guard: an out-of-date live codex must not be injected —
+            // codex features pause until /codex-install wipes + re-seeds.
+            if (!checkCompat().isSafe) return null;
 
             const rules = store.readRules();
             if (!rules.trim()) return null; // not seeded / no rules -> nothing to inject
@@ -373,9 +432,11 @@ export function createCodexInject(
             const isTui = sctx.hasUI && sctx.mode === "tui";
             if (isTui) {
                 if (!state.noticedThisSession) {
-                    // Out-of-sync with the shipped seed? The notice gains a NOTICE line.
+                    // Codex out of date? The notice gains a NOTICE line.
                     let outOfSync = false;
-                    try { outOfSync = codexNeedsSync(store.getSeedDir(), store.getRoot()); } catch { /* fail-soft */ }
+                    try {
+                        outOfSync = !checkCompat().isSafe;
+                    } catch { /* fail-soft */ }
                     pi.appendEntry(CODEX_PREP_NOTICE_ENTRY, { at: Date.now(), outOfSync });
                     state.noticedThisSession = true;
                 }
