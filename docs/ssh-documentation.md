@@ -141,6 +141,22 @@ values. All command output, file content, and carrier errors pass through
 redaction before reaching the model or TUI display. The boundary survives
 connection rename/removal and is cleared on disconnect.
 
+### Tradeoff: verbatim substring matching
+
+The redaction layer matches the saved connection metadata VERBATIM
+(case-sensitive exact substring). This is a deliberate safety-first
+choice: a substring that happens to be a common English word (e.g.
+a username `admin`, a host `mail`) will be redacted EVERYWHERE it
+appears in the carrier output. A remote command that prints
+"administrator" will be mangled to `[redacted]istrator`; a `cat /etc/hosts`
+listing that mentions `mail` alongside the real `mail` host will have
+that entry redacted.
+
+If this is a problem in practice, the saved metadata can be made
+unique (e.g. username `admin_user`, host `mail-prod-01`) at the cost
+of memorability. The redaction is a guard, not a parser — it errs
+on the side of over-redaction.
+
 ---
 
 ## Tests

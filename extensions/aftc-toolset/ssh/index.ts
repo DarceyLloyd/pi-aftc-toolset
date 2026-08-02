@@ -247,6 +247,18 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
         handler: async (args: string, ctx: ExtensionCommandContext) => {
             const id = args.trim() || sessions.selected()?.id;
             if (!id) return aftcConsole.warn(ctx, "No SSH session is connected.");
+            // Disambiguate "id was wrong" from "disconnect failed" before
+            // hitting the carrier - a stale id (from a previous session or
+            // a typo) used to surface as the unhelpful "SSH disconnect
+            // failed." The user just wants to know the id was wrong.
+            const activeIds = new Set(sessions.list().map((s) => s.id));
+            if (!activeIds.has(id)) {
+                const named = sessions.list().map((s) => `${s.name} (${s.id})`).join(", ");
+                return aftcConsole.warn(ctx,
+                    `SSH session not found (id may be stale or wrong).${
+                        named ? ` Active sessions: ${named}` : " No active sessions."
+                    }`);
+            }
             try {
                 await sessions.disconnect(id);
                 aftcConsole.emphasis(ctx, "SSH disconnected.");
@@ -333,7 +345,7 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
                 "/ssh-connect [name] connects to a saved connection (new ones are created in /ssh-cm).",
                 "/ssh-cm opens the connection manager (add / edit / delete saved connections).",
                 "/ssh-shell opens a full-screen interactive terminal on the selected session.",
-                "Use Ctrl+] to leave the terminal locally; Escape is sent to the remote program.",
+                "Use Ctrl+] to leave the terminal locally; Esc is sent to the remote program (use it to close remote dialogs).",
                 "/ssh-close-shell <id> closes a shell; /ssh-interrupt <id> sends recovery keys.",
                 "/ssh-upload and /ssh-download transfer files (--preserve keeps attributes).",
                 "/ssh-status shows connection status; /ssh-disconnect [id] closes a session.",

@@ -13,10 +13,13 @@ Migrated from AFTT v1.0 docs/Issues and Solutions.md (2026-07).
 
 ## Gotchyas
 
-- [wB5Ksh] Qualifier "const" — compile-time fixed value; required for `plot*()` size/style args (they reject series/simple).
-- [CrUSEk] Qualifier "input" — user setting value; only known once the user confirms settings, not at compile time.
-- [7oSpQg] Qualifier "simple" — stable scalar type, not a bar-by-bar series; required by args like `ta.valuewhen()` `occurrence`.
-- [Gjaoy7] Qualifier "series" — value that can change on each bar; the default, and the one const/simple args reject.
+- [wB5Ksh] Qualifier "const" - compile-time fixed value; required for `plot*()` size/style args (they reject series/simple).
+- [CrUSEk] Qualifier "input" - user setting value; only known once the user confirms settings, not at compile time.
+- [7oSpQg] Qualifier "simple" - stable scalar type, not a bar-by-bar series; required by args like `ta.valuewhen()` `occurrence`.
+- [Gjaoy7] Qualifier "series" - value that can change on each bar; the default, and the one const/simple args reject.
+- [uD3fR8] `for x in array<UDT>` - the loop variable IS a reference for user-defined types (unlike value-type arrays, where it is a copy); mutate UDT fields directly in the loop (`x.field := v`), no `array.set` needed.
+- [tV9sM2] input defval changes & saved settings - editing an input's `defval` does NOT update existing chart instances (TradingView keeps the saved settings); tell the user to reset the input to default or re-add the indicator to see a new default.
+- [lB5nQ7] label.style_label_up/down anchor - the label's y point is the arrow TIP and the body hangs on the opposite side (up = body below, tip pointing up at y; down = body above, tip pointing down at y); anchor the label at the exact point the tip should touch (e.g. the end of a connector line).
 
 ## Issues & Solutions
 
@@ -140,3 +143,6 @@ Migrated from AFTT v1.0 docs/Issues and Solutions.md (2026-07).
 - `[fahZ9m] Cannot assign a value of the "series int" type ... variable is declared with the "const bool" type` from `ta.change(...)`
   Cause: `ta.change(series)` returns a numeric delta, not a bool.
   Fix: use an explicit comparison (`seriesValue != seriesValue[1]`) or `timeframe.change(...)` for a direct rollover boolean. (2026-07)
+- [qT7wKp] `Mismatched input "<var>" expecting set "]"` on a typed tuple declaration `[float a, float b] = f()`
+  Cause: tuple declarations unpacking a function's return reject inline type keywords in this context.
+  Fix: declare the tuple untyped (`[a, b] = f()`), matching existing working tuple declarations; types are inferred from the function's return values. (2026-07)

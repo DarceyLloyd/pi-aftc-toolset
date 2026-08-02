@@ -2,14 +2,20 @@ import * as fs from "node:fs";
 import * as aftcConsole from "./ui/aftc-console";
 import { registerHelpEntry } from "./help-registry";
 import * as path from "node:path";
+import { createRequire } from "node:module";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { verifySshCarrierReady } from "./ssh/carrier";
 import { showConfirm, showViewer } from "./ui/aftc-ui";
+import { MAX_PARENT_WALK } from "./paths";
+
+// Explicit CommonJS require so the optional-dependency probe
+// doesn't rely on jiti's implicit require injection. Same
+// resolution semantics, clearer intent.
+const requireCjs = createRequire(import.meta.url);
 
 const NPM_INSTALL_TIMEOUT_MS = 300_000;
 const UV_SYNC_TIMEOUT_MS = 600_000;
 const UV_CHECK_TIMEOUT_MS = 30_000;
-const MAX_PARENT_WALK = 8;
 
 interface ExecResult {
     stdout: string;
@@ -38,7 +44,7 @@ function findCarrierDir(startDir: string): string | null {
 
 function isDependencyInstalled(name: string): boolean {
     try {
-        require.resolve(name);
+        requireCjs.resolve(name);
         return true;
     } catch {
         return false;
@@ -83,7 +89,7 @@ class InstallModule {
 
     /**
      * Detect what is actually missing: every dependency declared in
-     * package.json (resolvable via require.resolve) plus the packaged SSH
+     * package.json (resolvable via createRequire) plus the packaged SSH
      * carrier's Python environment (uv present AND the locked env synced,
      * checked with `uv run --no-sync` so the probe never installs anything).
      */

@@ -39,12 +39,18 @@ live codex root, and only when the live file does not already exist (copy-only).
   `{ absPath, relPath, content }` or `null`.
 - `listTopics()` — all valid topic names (basename without `.md`), sorted.
 - `readRules()` / `readGuidance()` / `readList()` — read the always-on files.
+- `listCategories()` — all category folders under `resources/` (known order
+  first, extras sorted; only folders that exist). Used by the codex entry tools
+  for new-topic guidance and by `listTopics()`/`getCounts()` internally.
 - `getCounts()` — resource counts by category + totals.
 - `runSyncScript()` — spawn `node sync-codex-resources.mjs` to regenerate
   `codex-resource-list.md` (arg array, no shell; falls back to
   `process.execPath` if `node` is not on PATH; 10s watchdog). Never throws.
+  Callers: the resource-touching commands AND `codex_add_entry` (internally,
+  only when it creates a new topic file). The model never runs the script.
 - `runEnsureIds()` — spawn `node ensure-entry-ids.mjs <resourcesDir>` to add
-  missing unique `[ID]`s to the live resources. Never throws.
+  missing unique `[ID]`s to the live resources. Never throws. Backstop for
+  hand-edits only — the codex entry tools generate IDs themselves.
 
 There is **no** drift detection, no `.sync.json`, no backup/restore and no
 merge-by-ID in this module any more — the codex is a one-way seed→live copy, and

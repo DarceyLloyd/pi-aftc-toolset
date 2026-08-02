@@ -7,10 +7,10 @@
  *   /aftc-codex-disable  Disable + strip all codex from context (alias /codex-disable).
  *   /aftc-codex-install  Fresh install (or re-install) the codex to the user data dir.
  *   /aftc-codex-init     Primary prep: rules live + marker + doc fetch (alias /codex-init).
- *   /aftc-codex-refresh  Prune all codex from context, THEN re-prep (clean restart).
  *   /aftc-codex-refresh  Strip all codex from context, then re-init (clean restart).
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
+ *   /aftc-codex-rules-only  Rules-only mode for this session (critical rules only).
  *
  * List-regeneration: Start Fresh (resources menu) and /aftc-codex-learn spawn
  * the list-regeneration script; pure toggles skip the spawn.
@@ -29,8 +29,8 @@ import { getPreference, setPreference } from "../config";
 import { showConfirm, showMenu, showViewer } from "../ui/aftc-ui";
 import * as aftcConsole from "../ui/aftc-console";
 import { registerHelpEntry } from "../help-registry";
-import type { CodexContext } from "./aftc-codex";
-import { isCommandBusy, type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
+import type { CodexContext, CodexDetectResult } from "./aftc-codex";
+import { type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
 import { CODEX_CATEGORIES } from "./codex-store";
 
@@ -49,19 +49,30 @@ function isTui(ctx: ExtensionCommandContext): boolean {
     return !!ctx.hasUI && ctx.mode === "tui";
 }
 
-function detectedTopics(ctx: CodexContext, cctx: ExtensionCommandContext): string[] | undefined {
+/** Command-context busy check (mirrors replay.ts). Returns true when
+ *  the agent is currently processing. Used by the init/refresh/learn
+ *  handlers to decide whether their marker should be queued (busy)
+ *  or sent inline (idle). Lives here (not in codex-inject.ts) because
+ *  the only caller is the command handlers - it has nothing to do
+ *  with the injection pipeline. */
+function isCommandBusy(ctx: ExtensionCommandContext | undefined): boolean {
+    if (!ctx) return false;
+    return ctx.isIdle ? !ctx.isIdle() : false;
+}
+
+function detectedTopics(ctx: CodexContext, cctx: ExtensionCommandContext): CodexDetectResult | undefined {
     if (!getPreference("aftcCodexAutoLoad", true)) return undefined;
-    if (!ctx.detectTopics || !cctx.cwd) return undefined;
+    if (!ctx.detect || !cctx.cwd) return undefined;
     try {
-        const topics = ctx.detectTopics(cctx.cwd);
-        return topics.length > 0 ? topics : undefined;
+        const result = ctx.detect(cctx.cwd);
+        return (result.topics.length > 0 || result.missing.length > 0) ? result : undefined;
     } catch {
         return undefined;
     }
 }
 
 /** Seed on first enable with the pre-trained vs fresh choice (spec E1 / M-C6).
- *  Returns false if the user cancelled (master stays as-is). */
+ *  Returns false if the user cancelled (the enabled flag stays as-is). */
 async function ensureSeededWithChoice(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<boolean> {
     const { store } = ctx;
     if (store.isSeeded()) return true;
@@ -218,9 +229,13 @@ const HELP_LINES = [
     "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
     "  /aftc-codex-learn        Record durable lessons into the codex",
     "  /aftc-codex-status       Show status",
+    "  /aftc-codex-rules-only   Rules-only mode for this session (critical rules only; /new for full)",
     "",
-    "Model tool:",
+    "Model tools:",
     "  codex_load(topic)        Load a resource on demand (eg codex_load(\"typescript\"))",
+    "  codex_add_entry          Add entries (batched; IDs/format/sections handled)",
+    "  codex_edit_entry         Edit one entry by its [ID]",
+    "  codex_remove_entry       Remove one entry by its [ID]",
     "",
     "Record durable lessons with /aftc-codex-learn (auto, or via the menu).",
 ];
@@ -236,7 +251,7 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             ? [`AFTC Codex is active — ${counts.total} resources loaded`]
             : ["AFTC Codex is disabled — enable to activate"];
         const items = [
-            { value: "master", label: "AFTC Codex Enabled", description: enabled ? " | Yes" : " | No" },
+            { value: "enabled", label: "AFTC Codex Enabled", description: enabled ? " | Yes" : " | No" },
             { value: "guidance", label: "Thinking Guidance Injection", description: ` | ${getPreference("aftcCodexInjectGuidance", true) ? "ON" : "OFF"}` },
             { value: "autoload", label: "Auto-Detect & Load Docs", description: ` | ${getPreference("aftcCodexAutoLoad", true) ? "ON" : "OFF"}` },
             { value: "autoadd", label: "Task Addition Approval", description: ` | ${getPreference("aftcCodexAutoAddEntries", true) ? "Auto add" : "Manual"}` },
@@ -253,7 +268,7 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
         if (!choice) return; // Esc closes the menu
         selectedIndex = Math.max(0, items.findIndex((i) => i.value === choice));
 
-        if (choice === "master") {
+        if (choice === "enabled") {
             if (!enabled) {
                 const seeded = await ensureSeededWithChoice(ctx, cctx);
                 if (!seeded) { notify(cctx, "Seed cancelled — AFTC Codex left disabled.", "warning"); continue; }
@@ -333,6 +348,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     const disableHandler = async (_args: string, cctx: ExtensionCommandContext) => {
         setPreference("aftcCodexEnabled", false);
         state.prepped = false;
+        state.rulesOnly = false; // off means off — clear a rules-only session too
         state.silent = true; // context filter strips ALL codex on next LLM call
         inject.persistState();
         notify(cctx, "AFTC Codex disabled and stripped from context/conversation.", "warning");
@@ -343,6 +359,10 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
 
     // ---- /aftc-codex-init (alias /codex-init) — primary prep command ----
     const initHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (state.rulesOnly) {
+            notify(cctx, "AFTC Codex has been injected in RULES mode only, you will have to start a new session to use the full AFTC Codex via /codex-init", "warning");
+            return;
+        }
         // Refuse if not enabled.
         if (!getPreference("aftcCodexEnabled", false)) {
             notify(cctx, "AFTC-Codex is not running. Turn it on via /aftc-codex-enable or /codex-enable.", "warning");
@@ -365,7 +385,8 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         state.silent = false;
         inject.persistState();
         const busy = isCommandBusy(cctx);
-        inject.injectMarker(busy, true, detectedTopics(ctx, cctx));
+        const det = detectedTopics(ctx, cctx);
+        inject.injectMarker(busy, true, det?.topics, det?.missing);
         notify(cctx,
             busy ? "aftc-codex initialised — marker queued (agent is busy)."
                 : "aftc-codex initialised — rules + guidance loaded; the AI will fetch relevant docs.",
@@ -377,6 +398,10 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
 
     // ---- /aftc-codex-refresh (alias /codex-refresh) ----
     const refreshHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (state.rulesOnly) {
+            notify(cctx, "AFTC Codex has been injected in RULES mode only, you will have to start a new session to use the full AFTC Codex via /codex-init", "warning");
+            return;
+        }
         if (!getPreference("aftcCodexEnabled", false)) {
             notify(cctx, "AFTC-Codex is not running. Turn it on via /codex-enable.", "warning");
             return;
@@ -391,7 +416,8 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         state.silent = false;
         inject.persistState();
         const busy = isCommandBusy(cctx);
-        inject.injectMarker(busy, true, detectedTopics(ctx, cctx));
+        const det = detectedTopics(ctx, cctx);
+        inject.injectMarker(busy, true, det?.topics, det?.missing);
         notify(cctx, "aftc-codex refreshed — old codex stripped; fresh rules + marker injected.", "info");
     };
     registerHelpEntry({ command: "aftc-codex-refresh", description: "Strip all codex, then re-init", category: "aftc-codex", aliases: ["codex-refresh"] });
@@ -400,6 +426,10 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
 
     // ---- /aftc-codex-learn (alias /codex-learn) ----
     const learnHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (state.rulesOnly) {
+            notify(cctx, "AFTC Codex has been injected in RULES mode only, you will have to start a new session to use the full AFTC Codex via /codex-init", "warning");
+            return;
+        }
         if (!getPreference("aftcCodexEnabled", false)) {
             notify(cctx, "aftc-codex is OFF. Enable it with /codex-enable first.", "warning");
             return;
@@ -417,9 +447,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     const statusHandler = async (_args: string, cctx: ExtensionCommandContext) => {
         const enabled = getPreference("aftcCodexEnabled", false);
         const embedded = enabled && state.prepped && !state.silent;
-        const counts = store.getCounts();
-        const total = counts.languages + counts.libraries + counts.frameworks +
-            counts.engines + counts.tools + counts.runtimes;
+        const total = store.getCategoryCount();
         const read = countReadTopicDocs(cctx);
         const yn = (b: boolean) => (b ? "Yes" : "No");
         if (!isTui(cctx)) {
@@ -471,5 +499,26 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     registerHelpEntry({ command: "aftc-codex-install", description: "Fresh install the codex to the data dir", category: "aftc-codex", aliases: ["codex-install"] });
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
     pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
+
+    // ---- /aftc-codex-rules-only (alias /codex-rules-only) ----
+    // Per-session rules-only mode: inject ONLY the Critical Global Rules
+    // section — no docs, list, guidance, marker or learn. Works even with the
+    // feature disabled (never touches the enabled pref). One-way: a fresh
+    // session (/new) clears it; init/refresh/learn refuse while it is active.
+    const rulesOnlyHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (state.rulesOnly) {
+            notify(cctx, "AFTC Codex rules-only mode is already active for this session.", "info");
+            return;
+        }
+        state.rulesOnly = true;
+        inject.persistState();
+        notify(cctx,
+            "AFTC Codex RULES-ONLY mode active for this session — only the Critical Global Rules inject " +
+            "(no docs, list, guidance or /codex-learn). Start a new session for the full codex.",
+            "info");
+    };
+    registerHelpEntry({ command: "aftc-codex-rules-only", description: "Rules-only injection for this session (critical rules only)", category: "aftc-codex", aliases: ["codex-rules-only"] });
+    pi.registerCommand("aftc-codex-rules-only", { description: "Rules-only codex injection for this session (critical rules only)", handler: rulesOnlyHandler });
+    pi.registerCommand("codex-rules-only", { description: "Rules-only codex injection for this session (alias)", handler: rulesOnlyHandler });
 
 }

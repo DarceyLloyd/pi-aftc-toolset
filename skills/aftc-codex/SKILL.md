@@ -43,6 +43,16 @@ files, so the folder does not matter.
 - codex_load("list") shows every available resource. Call it when you are unsure
   what exists.
 - An unknown topic returns the full valid list - pick from it.
+- An empty resource (headings, no entries) returns a one-line "no entries yet"
+  answer - nothing to load, but a candidate for codex_add_entry when you learn
+  a durable lesson about that topic.
+
+Project stack pinning: a project can declare its stack with an
+`<!-- AFTC-CODEX-STACK topics: typescript, vite, web-app -->` block in its
+auto-inject file (AGENTS.md, CLAUDE.md, .github/copilot-instructions.md, ...).
+Detection reads that block first - it is the only way design domains and target
+OS get detected. Help maintain it when you notice the stack drift (the codex
+rules define the format).
 
 Load the relevant resource BEFORE you rely on a technology's conventions, and
 before you edit a file in that technology. One load replaces many guess-and-check
@@ -63,29 +73,32 @@ The folder is only organisation. Retrieval searches all of them.
 
 ## Recording lessons - /aftc-codex-learn
 
-The user runs /aftc-codex-learn to start the self-education loop. You then:
+The user runs /aftc-codex-learn to start the self-education loop. Every write
+goes through the codex entry tools - never hand-edit resource files and never
+run a sync script (the tools handle [ID] generation, format validation, section
+placement, topic/category creation, and the resource list internally):
 
-1. Sync first - run the sync script named in the injected instructions.
-2. Read codex-resource-list.md before editing or creating anything. Update the
-   correct existing doc; never duplicate an existing entry.
-3. Propose the new entries and WAIT for the user to confirm before writing. Use the
-   established entry format exactly:
+1. Review the session for durable, general lessons (never project-specific).
+2. Consult the resource list (in the system prompt, or codex_load("list")).
+   Update the correct existing doc; create a new topic ("category/name", new
+   categories allowed) only when nothing covers it.
+3. codex_load each target topic and check the lesson is not already there. This
+   is enforced: the write tools refuse a topic not loaded this session and
+   reject exact duplicates.
+4. Classify each lesson (first match wins): observed failure with a diagnosis ->
+   kind "issue" (text = symptom lead, plus cause and fix - the tool appends the
+   current date); a convention we choose -> kind "rule" (one line); a technology
+   trap you can only avoid -> kind "gotcha" (one line with BOTH the trap and the
+   countermeasure). Write with codex_add_entry (batch several entries for the
+   same topic in ONE call). When propose-then-confirm is on, show the entries
+   and wait for the user before calling the tool.
+5. Correct or remove outdated entries with codex_edit_entry / codex_remove_entry
+   (by [ID]).
 
-   ```text
-   - LEAD_TOKEN - one-line symptom
-     Cause: why it happens.
-     Fix: what to do. (YYYY-MM)
-   ```
-
-   - Thinking, verification, and process lessons go in
-     thought-and-action-guidance.md.
-   - Technology gotchas go in the correct category doc
-     (languages|libraries|frameworks|engines|tools/<topic>.md). Create the file in
-     the right category folder if it is missing.
-4. After the user confirms and you have written, run the sync script again.
-
-Record only durable, general lessons - never project-specific facts. Prefer
-updating an existing doc over creating a new one.
+The fixed top-level docs (codex-rules, thought-and-action-guidance,
+markdown-guidance) are NEVER written by -learn. Record only durable, general
+lessons - never project-specific facts. Prefer updating an existing doc over
+creating a new one.
 
 ## Structure maps - documenting hierarchies
 

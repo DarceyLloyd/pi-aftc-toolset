@@ -46,6 +46,7 @@ watchdog timeout near the top (see `AGENTS.md` — non-negotiable).
 | `ssh-connect-headless-check` | 30s local | `ssh_connect` fails safely headless; unknown names throw. |
 | `ssh-connection-form-check` | 30s local | Credential whitespace preservation. |
 | `ssh-connection-form-overlay-check` | 30s local | Connection form overlay fields/validation. |
+| `ssh-connection-store-check` | 30s local | ssh.json fresh-read (no in-memory cache): external edits visible, save preserves unrelated edits, corruption recovered. |
 | `ssh-module-check` | 30s local | Command/tool registration, redaction, safe errors, destructive approvals. |
 | `ssh-auto-accept-check` | 30s local | Auto-accept store persistence + host-key dialog skip/refuse flow. |
 | `ssh-new-connection-dialog-check` | 30s local | Connection manager dialog: focus cycle, validation, password preservation, empty-password confirm, save flow (store restored after). |

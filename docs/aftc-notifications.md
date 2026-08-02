@@ -16,6 +16,7 @@ event handling.
 | Provider/network error | `agent_settled` | `stopReason === "error"`, immediate |
 | User aborts | `agent_settled` | `stopReason === "aborted"`, immediate |
 | Session starts | `session_start` | `reason === "startup"` or `"new"` |
+| Context window 25% / 50% / 75% | `message_end` (assistant) | `ctx.getContextUsage().percent` crosses the threshold upward; re-arms when usage drops back below |
 
 **Error/abort detection:** there is no error event in pi. Track `stopReason`
 from `message_end` (assistant messages), then check it at `agent_settled`.
@@ -39,7 +40,11 @@ extensions/aftc-toolset/
     ├── task-complete/*.mp3     # Sounds for "task done"
     ├── error/*.mp3             # Sounds for "error"
     ├── aborted/*.mp3           # Sounds for "user aborted"
-    └── startup/*.mp3           # Sounds for "session start"
+    ├── startup/*.mp3           # Sounds for "session start"
+    └── context-window/
+        ├── 25/*.mp3            # Sounds for "context usage crossed 25%"
+        ├── 50/*.mp3            # Sounds for "context usage crossed 50%"
+        └── 75/*.mp3            # Sounds for "context usage crossed 75%"
 ```
 
 Self-contained module. Imports only `config` (preferences) and `ui/aftc-ui`
@@ -84,6 +89,9 @@ Notification sounds
 ├── Choose sound for task complete .. | <current or NONE>
 ├── Choose sound for error .......... | <current or NONE>
 ├── Choose sound for aborted ........ | <current or NONE>
+├── Choose sound for context 25% .... | <current or NONE>
+├── Choose sound for context 50% .... | <current or NONE>
+├── Choose sound for context 75% .... | <current or NONE>
 └── Open notification sounds dir .... [opens OS file manager]
 ```
 
@@ -102,17 +110,31 @@ Selection preserved across re-renders (hub menu tracks `selectedIndex`).
 
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `notifyEnabled` | bool | `false` | Master on/off — nothing plays until enabled; migration preserves existing users' setups (enabled if sounds already configured) |
+| `notifyEnabled` | bool | `false` | Feature on/off - nothing plays until enabled; migration preserves existing users' setups (enabled if sounds already configured) |
 | `notifySoundQuestion` | string | `"voc_question_07.mp3"` | Filename in `question/` or empty |
 | `notifySoundTaskComplete` | string | `"voc_task_complete_07.mp3"` | Filename in `task-complete/` or empty |
 | `notifySoundError` | string | `"voc_we_got_a_problem_01.mp3"` | Filename in `error/` or empty |
 | `notifySoundAborted` | string | `""` | Filename in `aborted/` or empty |
 | `notifySoundStartup` | string | `"xp.mp3"` | Filename in `startup/` or empty |
+| `notifySoundContext25` | string | `""` | Filename in `context-window/25/` or empty |
+| `notifySoundContext50` | string | `""` | Filename in `context-window/50/` or empty |
+| `notifySoundContext75` | string | `""` | Filename in `context-window/75/` or empty |
 | `notifyTimeSec` | number | `1` | Min task duration (s) before completion sound; 0 = off |
 
 Preferences store a bare FILENAME only. Resolved at runtime:
 `path.join(getAudioDir(), <category>, filename)`. `getAudioDir()` is
-package-relative (`__dirname/data/aftc-audio-notifications`).
+package-relative (`__dirname/data/aftc-audio-notifications`). Context
+threshold categories resolve under `context-window/<25|50|75>`.
+
+## Context-window thresholds
+
+Checked on every assistant `message_end` via `ctx.getContextUsage().percent`
+(pi's own usage estimate - the same number the footer shows). A threshold
+fires once on the upward crossing, stays silent while usage remains above
+it, and re-arms when usage drops back below (e.g. after compaction). One
+message crossing several thresholds plays only the highest newly-crossed
+sound. All threshold state resets on `session_start`; everything is gated
+by `notifyEnabled`.
 
 ---
 
@@ -123,7 +145,7 @@ package-relative (`__dirname/data/aftc-audio-notifications`).
 | `session_start` | Play startup sound on fresh session |
 | `agent_start` | Record task start timestamp (first in a sequence only) |
 | `tool_call` | Detect `ask_user_question`, play question sound immediately |
-| `message_end` | Track last assistant `stopReason` |
+| `message_end` | Track last assistant `stopReason` + context-window threshold check |
 | `agent_settled` | Decide which sound: error/aborted immediate; task respects threshold |
 
 ---

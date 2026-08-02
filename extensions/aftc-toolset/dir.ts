@@ -23,6 +23,7 @@
  */
 
 import * as os from "node:os";
+import { execFileSync } from "node:child_process";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
@@ -41,16 +42,16 @@ const ENTRY_TYPE = "dir-listing";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Determine the platform listing command. */
-function listingCommand(): string {
+function listingCommand(): { file: string; args: string[] } {
 	switch (process.platform) {
 		case "win32":
-			return "dir";
+			return { file: "dir", args: [] };
 		case "darwin":
-			return "ls -la";
+			return { file: "ls", args: ["-la"] };
 		case "linux":
-			return "ls -la";
+			return { file: "ls", args: ["-la"] };
 		default:
-			return "ls -la";
+			return { file: "ls", args: ["-la"] };
 	}
 }
 
@@ -70,22 +71,21 @@ function platformLabel(): string {
 
 /**
  * Run a system command synchronously and return its output as a string.
- * Silently catches errors and returns the error message prefixed with
- * "[error]".
+ * Uses `execFileSync` (NOT `execSync`) so no shell is spawned — the
+ * command and its arguments are passed as an array, eliminating any
+ * shell-injection / quoting surprises. Silently catches errors and
+ * returns the error message prefixed with "[error]".
  */
-function runCommand(cmd: string): string {
+function runCommand(file: string, args: string[]): string {
 	try {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-		const { execSync } = require("node:child_process") as typeof import("node:child_process");
-		const result = execSync(cmd, {
+		const result = execFileSync(file, args, {
 			encoding: "utf-8",
 			stdio: ["ignore", "pipe", "pipe"],
-			shell: true,
 		});
 		return result;
 	} catch (err: unknown) {
 		const msg = err instanceof Error ? err.message : String(err);
-		return `[error] Failed to run "${cmd}": ${msg}`;
+		return `[error] Failed to run "${file}": ${msg}`;
 	}
 }
 
@@ -160,10 +160,10 @@ export function createDir(pi: ExtensionAPI): void {
 	// Shared handler for both /dir and /ls.
 	async function dirHandler(_args: string, ctx: ExtensionCommandContext): Promise<void> {
 		const cwd = ctx.cwd;
-		const cmd = listingCommand();
+		const { file, args } = listingCommand();
 		const label = platformLabel();
 
-		const output = runCommand(cmd);
+		const output = runCommand(file, args);
 		const isError = output.startsWith("[error]");
 		const data = buildListingData(cwd, output, label, isError ? output : undefined);
 

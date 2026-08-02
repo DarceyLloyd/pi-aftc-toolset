@@ -329,7 +329,12 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     let _pendingPromptKind = "auto";
     let _pendingStreamingBehavior: "steer" | "followUp" | undefined = undefined;
     let _currentPromptIndex = 0;
-    let _pendingPromptIndex = 0;
+    // The prompt index being processed right now (set on the input
+    // event, read by the next assistant message_end). Renamed from
+    // _pendingPromptIndex for clarity — "active" is what the next
+    // assistant turn is associated with; "_currentPromptIndex" is
+    // the monotonically increasing counter.
+    let _activePromptIndex = 0;
 
     // Timing state — context-window clock + per-turn thinking/response times.
     let sessionStarted = false;                       // true after first user prompt of a context window
@@ -371,7 +376,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         _pendingPromptKind = "auto";
         _pendingStreamingBehavior = undefined;
         _currentPromptIndex = 0;
-        _pendingPromptIndex = 0;
+        _activePromptIndex = 0;
         currentTurnStart = null;
         currentTurnFirstOutput = null;
         // Skill-usage tracking is per-session: a fresh session starts
@@ -692,7 +697,21 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         if (taskStartMs === 0) return;
         const taskMs = Math.max(0, Date.now() - taskStartMs);
         const raw = lastAssistantStopReason;
-        const stopReason = raw === "error" ? "error" : raw === "aborted" ? "aborted" : "complete";
+        // Only finish the task when the last assistant turn ended with a
+        // known final stopReason. per AGENTS.md: pi stopReason values are
+        // "stop" (done), "error" (provider failure), "aborted" (user
+        // cancelled), "toolUse" (calling tools — a MID-flow state). If the
+        // agent "settled" but the last assistant turn was "toolUse" that
+        // means a non-standard settle path (e.g. a tool that completes the
+        // task without a final assistant turn) — we record the duration
+        // but DO NOT report it as "complete" (the report's Timings tab only
+        // averages stop_reason='complete' rows, so mis-tagging would pollute
+        // the Task Time metric).
+        const stopReason = raw === "error" ? "error"
+            : raw === "aborted" ? "aborted"
+            : raw === "stop" ? "complete"
+            : raw === "toolUse" ? "toolUse"
+            : "complete"; // unknown / unset — record so the user still sees a duration
         // Show the last task's duration in the footer whatever its outcome, so a
         // failed task still displays how long the user waited before the error/abort.
         lastTaskMs = taskMs;
@@ -773,7 +792,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             _pendingUserTurn = true;
             const isFirstPromptInGroup = _currentPromptIndex === 0;
             _currentPromptIndex++;
-            _pendingPromptIndex = _currentPromptIndex;
+            _activePromptIndex = _currentPromptIndex;
             _pendingSteeringPrompt = _pendingStreamingBehavior === "steer";
             _pendingFollowupPrompt = _pendingStreamingBehavior === "followUp";
             _pendingBasePrompt = isFirstPromptInGroup && !_pendingSteeringPrompt && !_pendingFollowupPrompt;
@@ -872,7 +891,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         const isFollowupPrompt = isUserPrompt && _pendingFollowupPrompt;
         const isContinuationPrompt = isUserPrompt && _pendingContinuationPrompt;
         const promptKind = isUserPrompt ? _pendingPromptKind : "auto";
-        const promptIndex = _pendingPromptIndex || _currentPromptIndex || 0;
+        const promptIndex = _activePromptIndex || _currentPromptIndex || 0;
         if (isUserPrompt) {
             acc.userTurns++;
             _pendingUserTurn = false;

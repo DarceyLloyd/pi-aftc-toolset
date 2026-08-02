@@ -2,6 +2,9 @@
 
 ## Rules
 
+- [wG4uP1] Always target WebGPU first with a WebGL2 fallback for three.js/babylon.js work - unless the project docs or the user specifically ask otherwise.
+- [rN8kQ3] Always inspect the user's WebGPU/WebGL requirements in detail before building, and prove the result - zero console errors, and every requested feature actually renders and animates.
+
 ## Gotchyas
 
 ## Issues & Solutions
@@ -27,7 +30,7 @@
   Fix: To go WebGPU-first with a single consistent namespace, dynamically load it: `let THREE; try { if (navigator.gpu) THREE = await import('three/webgpu'); } catch {} if (!THREE) THREE = await import('three');` then `if (THREE.WebGPURenderer) { try { const r = new THREE.WebGPURenderer(opts); await r.init(); return r; } catch {} } return new THREE.WebGLRenderer(opts);`. Add `"three/webgpu":"https://cdn.jsdelivr.net/npm/three@<ver>/build/three.webgpu.js"` to the importmap. (2026-07)
 - `[i8uT6C] THREE.Renderer: Objects of type THREE.LineLoop are not supported. Please use THREE.Line or THREE.LineSegments.`
   Cause: three 0.185 dropped LineLoop rendering (logs the warning every frame and draws nothing).
-  Fix: Replace `new THREE.LineLoop(geo, mat)` with `new THREE.Line(geo, mat)` and close the loop by repeating the first vertex at the end of the position array; for a secondary ring that should mirror a primary animated ring, share the SAME BufferGeometry (do not `geo.clone()` then never update the clone — it renders as a frozen/invisible shape). (2026-07)
+  Fix: Replace `new THREE.LineLoop(geo, mat)` with `new THREE.Line(geo, mat)` and close the loop by repeating the first vertex at the end of the position array; for a secondary ring that should mirror a primary animated ring, share the SAME BufferGeometry (do not `geo.clone()` then never update the clone - it renders as a frozen/invisible shape). (2026-07)
 - [3LhrJv] Header/footer three.js renders as a tiny centred cluster in a wide thin band / does not fill the band
   Cause: a PerspectiveCamera with fixed-size content shows a small object ringed by huge empty margins when the canvas aspect is very wide (header/footer strips).
   Fix: Use an OrthographicCamera with a fixed design half-height HH and half-width HW = HH * (clientWidth/clientHeight); set left/right/top/bottom from -HW/HW/HH/-HH and update them on resize; author the scene to lay its content across [-HW,HW] x [-HH,HH] and REFLOW from the live HW each frame so it always fills edge-to-edge and scales with the band. Keep header/footer motion TIME-ONLY (never read scroll); reserve scroll-parallax for the separate background perspective scene. (2026-07)

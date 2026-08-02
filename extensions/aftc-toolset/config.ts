@@ -19,7 +19,7 @@
  *   - thinkProcessingEnabled (inline <think>…</think> → ThinkingContent block)
  *   - "aftc-intro" (AFTC startup wordmark animation on/off)
  *   - qwencloud* (QwenCloud provider prefs: cloud domain, API formats, plan endpoints)
- *   - aftcCodex* (aftc-codex knowledge-base feature: master switch, guidance inject,
+ *   - aftcCodex* (aftc-codex knowledge-base feature: on/off switch, guidance inject,
  *     auto-load, codex root override, seeded flag — off by default)
  *
  * SSH connection records are intentionally stored separately in `ssh.json`.
@@ -82,7 +82,7 @@ export interface Preferences {
     qwencloudPlanOpenAI?: string;
     /** QwenCloud: plan Anthropic-compatible base URL (region override). */
     qwencloudPlanAnthropic?: string;
-    /** Audio notifications master on/off. OFF by default (fresh installs are
+    /** Audio notifications on/off. OFF by default (fresh installs are
      *  silent); toggled in /aftc-audio-notifications. Migration enables it for
      *  users who already had sounds configured (preserves their behaviour). */
     notifyEnabled?: boolean;
@@ -102,13 +102,22 @@ export interface Preferences {
     /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/startup/ played
      *  when pi starts a fresh session, or "" for none. */
     notifySoundStartup?: string;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/context-window/25/
+     *  played when context-window usage crosses 25%, or "" for none. */
+    notifySoundContext25?: string;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/context-window/50/
+     *  played when context-window usage crosses 50%, or "" for none. */
+    notifySoundContext50?: string;
+    /** Audio notification: filename of the MP3 in data/aftc-audio-notifications/context-window/75/
+     *  played when context-window usage crosses 75%, or "" for none. */
+    notifySoundContext75?: string;
     /** Saved replay prompt text (previously in replay.json). Empty = none saved. */
     replayPrompt?: string;
     /** WarGames intro: full-screen typewriter animation on session start. */
     warGamesEnabled?: boolean;
-    /** aftc-codex: master on/off. Off = the feature does nothing. Off by default. */
+    /** aftc-codex: feature on/off. Off = the feature does nothing. Off by default. */
     aftcCodexEnabled?: boolean;
-    /** aftc-codex: inject thought-and-action-guidance.md when master is on. */
+    /** aftc-codex: inject thought-and-action-guidance.md when the feature is on. */
     aftcCodexInjectGuidance?: boolean;
     /** aftc-codex: auto-detect project techs and tell the model to fetch their docs. */
     aftcCodexAutoLoad?: boolean;
@@ -164,6 +173,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
     notifySoundError: "voc_we_got_a_problem_01.mp3",
     notifySoundAborted: "",
     notifySoundStartup: "xp.mp3",
+    notifySoundContext25: "",
+    notifySoundContext50: "",
+    notifySoundContext75: "",
     replayPrompt: "",
     warGamesEnabled: false,
     aftcCodexEnabled: false,
@@ -237,6 +249,9 @@ function loadPreferencesInternal(): Preferences {
         const needsNotifyErrorMigration = typeof parsed.notifySoundError !== "string";
         const needsNotifyAbortedMigration = typeof parsed.notifySoundAborted !== "string";
         const needsNotifyStartupMigration = typeof parsed.notifySoundStartup !== "string";
+        const needsNotifyContext25Migration = typeof parsed.notifySoundContext25 !== "string";
+        const needsNotifyContext50Migration = typeof parsed.notifySoundContext50 !== "string";
+        const needsNotifyContext75Migration = typeof parsed.notifySoundContext75 !== "string";
         const needsReplayPromptMigration = typeof parsed.replayPrompt !== "string";
         const needsRunScriptMigration = typeof parsed.runScriptEnabled !== "boolean";
         const needsNotifyEnabledMigration = typeof parsed.notifyEnabled !== "boolean";
@@ -252,7 +267,9 @@ function loadPreferencesInternal(): Preferences {
             needsIntroMigration || needsNotifyQuestionMigration ||
             needsNotifyTaskMigration || needsNotifyTimeMigration ||
             needsNotifyErrorMigration || needsNotifyAbortedMigration ||
-            needsNotifyStartupMigration || needsReplayPromptMigration ||
+            needsNotifyStartupMigration || needsNotifyContext25Migration ||
+            needsNotifyContext50Migration || needsNotifyContext75Migration ||
+            needsReplayPromptMigration ||
             needsWarGamesMigration || needsCodexEnabledMigration ||
             needsCodexGuidanceMigration ||
             needsCodexAutoLoadMigration ||
@@ -270,6 +287,9 @@ function loadPreferencesInternal(): Preferences {
             ...(needsNotifyErrorMigration ? { notifySoundError: DEFAULT_PREFERENCES.notifySoundError } : {}),
             ...(needsNotifyAbortedMigration ? { notifySoundAborted: DEFAULT_PREFERENCES.notifySoundAborted } : {}),
             ...(needsNotifyStartupMigration ? { notifySoundStartup: DEFAULT_PREFERENCES.notifySoundStartup } : {}),
+            ...(needsNotifyContext25Migration ? { notifySoundContext25: DEFAULT_PREFERENCES.notifySoundContext25 } : {}),
+            ...(needsNotifyContext50Migration ? { notifySoundContext50: DEFAULT_PREFERENCES.notifySoundContext50 } : {}),
+            ...(needsNotifyContext75Migration ? { notifySoundContext75: DEFAULT_PREFERENCES.notifySoundContext75 } : {}),
             ...(needsReplayPromptMigration ? { replayPrompt: DEFAULT_PREFERENCES.replayPrompt } : {}),
             ...(needsWarGamesMigration ? { warGamesEnabled: DEFAULT_PREFERENCES.warGamesEnabled } : {}),
             ...(needsCodexEnabledMigration ? { aftcCodexEnabled: DEFAULT_PREFERENCES.aftcCodexEnabled } : {}),
@@ -281,8 +301,17 @@ function loadPreferencesInternal(): Preferences {
             ...(needsNotifyEnabledMigration ? { notifyEnabled: migratedNotifyEnabled } : {}),
             ...(needsCodexVersionMigration ? { aftcCodexVersion: DEFAULT_PREFERENCES.aftcCodexVersion } : {}),
         };
-        // Strip obsolete keys from older versions
+        // Strip obsolete keys from older versions so the saved file
+        // matches the current Preferences schema. Removed keys:
+        //   - notifySound: pre-multi-category single-key for the
+        //     task-complete sound. Replaced by per-category keys
+        //     (notifySoundQuestion / notifySoundTaskComplete / etc.).
+        //   - aftcCodexInjectMode: dev-only v1.17.0 toggle that became
+        //     per-session state in /aftc-codex-rules-only.
+        // Mirror this table in docs/data-and-packaging.md when the
+        // list grows.
         delete (merged as any).notifySound;
+        delete (merged as any).aftcCodexInjectMode;
         if (needsMigration) savePreferencesInternal(merged);
         return merged;
     } catch (err) {

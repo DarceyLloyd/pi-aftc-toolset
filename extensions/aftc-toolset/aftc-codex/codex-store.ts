@@ -107,12 +107,23 @@ export interface CodexStore {
     listTopics(): string[];
     /** Read the always-on rules file ("" if missing). */
     readRules(): string;
+    /** Read the SEED rules file ("" if missing) — rules-only mode fallback when
+     *  the live copy was never seeded. */
+    readSeedRules(): string;
     /** Read thought-and-action-guidance.md ("" if missing). */
     readGuidance(): string;
     /** Read the generated codex-resource-list.md ("" if missing). */
     readList(): string;
+    /** All category folders under resources/ (known order first, extras sorted). */
+    listCategories(): string[];
     /** Resource counts by category. */
     getCounts(): CodexCounts;
+    /** Sum of category docs (excludes top-level guidance + the
+     *  generated resource list). Lasts only as long as the
+     *  match-condition `CODEX_CATEGORIES` covers known categories;
+     *  when a new category is added, the sum grows automatically
+     *  because the call here does not enumerate field names. */
+    getCategoryCount(): number;
     /** Spawn the sync script to regenerate codex-resource-list.md. Never throws. */
     runSyncScript(): Promise<void>;
     /** Spawn the ensure-entry-ids script on the live resources dir. Never throws. */
@@ -353,12 +364,26 @@ export function createCodexStore(): CodexStore {
         return safeRead(path.join(getRoot(), "codex-rules.md")) ?? "";
     }
 
+    function readSeedRules(): string {
+        return safeRead(path.join(getSeedDir(), "codex-rules.md")) ?? "";
+    }
+
     function readGuidance(): string {
         return safeRead(path.join(getRoot(), "thought-and-action-guidance.md")) ?? "";
     }
 
     function readList(): string {
         return safeRead(path.join(getResourcesDir(), "codex-resource-list.md")) ?? "";
+    }
+
+    function listCategories(): string[] {
+        try {
+            return listCategoryFolders(getResourcesDir()).filter((c) => {
+                try { return fs.statSync(path.join(getResourcesDir(), c)).isDirectory(); } catch { return false; }
+            });
+        } catch {
+            return [...CODEX_CATEGORIES];
+        }
     }
 
     function getCounts(): CodexCounts {
@@ -383,6 +408,47 @@ export function createCodexStore(): CodexStore {
         return counts;
     }
 
+    /** Sum of category docs (excludes topLevel guidance + the
+     *  generated resource list). Computed directly from the
+     *  resources dir walk so adding a new category grows the
+     *  total automatically (no enumeration of fixed fields). */
+    function getCategoryCount(): number {
+        const resourcesDir = getResourcesDir();
+        let n = 0;
+        for (const cat of listCategoryFolders(resourcesDir)) {
+            n += listMarkdownNames(path.join(resourcesDir, cat)).length;
+        }
+        return n;
+    }
+
+    /**
+     * Kill a spawned child AND its entire process tree. On Windows
+     * `child.kill()` only kills the direct child, so a stalled Node
+     * that has spawned its own subprocess would survive; we use
+     * `taskkill /T /F` for the whole tree. On POSIX, the child is
+     * a process-group leader (we spawn it detached when we care),
+     * and `process.kill(-pid, "SIGKILL")` kills the whole group.
+     */
+    function killTree(child: ReturnType<typeof spawn>): void {
+        if (child.pid == null) {
+            try { child.kill("SIGKILL"); } catch { /* ignore */ }
+            return;
+        }
+        if (process.platform === "win32") {
+            try {
+                spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+                    stdio: "ignore",
+                    windowsHide: true,
+                });
+            } catch {
+                try { child.kill("SIGKILL"); } catch { /* ignore */ }
+            }
+        } else {
+            try { process.kill(-child.pid, "SIGKILL"); }
+            catch { try { child.kill("SIGKILL"); } catch { /* ignore */ } }
+        }
+    }
+
     function runSyncScript(): Promise<void> {
         return new Promise<void>((resolve) => {
             try {
@@ -402,9 +468,10 @@ export function createCodexStore(): CodexStore {
                     env: process.env,
                 });
                 const fallback = setTimeout(() => {
-                    try { child.kill(); } catch { /* ignore */ }
+                    killTree(child);
                     resolve();
                 }, 10_000);
+                fallback.unref(); // do not keep the parent alive if pi exits
                 child.on("error", () => {
                     // `node` not on PATH — retry with the running executable.
                     clearTimeout(fallback);
@@ -446,9 +513,10 @@ export function createCodexStore(): CodexStore {
                     env: process.env,
                 });
                 const fallback = setTimeout(() => {
-                    try { child.kill(); } catch { /* ignore */ }
+                    killTree(child);
                     resolve();
                 }, 10_000);
+                fallback.unref();
                 child.on("error", () => {
                     clearTimeout(fallback);
                     try {
@@ -482,9 +550,12 @@ export function createCodexStore(): CodexStore {
         readResource,
         listTopics,
         readRules,
+        readSeedRules,
         readGuidance,
         readList,
+        listCategories,
         getCounts,
+        getCategoryCount,
         runSyncScript,
         runEnsureIds,
     };

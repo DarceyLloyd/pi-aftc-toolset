@@ -16,8 +16,11 @@
  *   - codex-commands.ts — the /aftc-codex-* commands (sync-first wrapper)
  *   - codex-detect.ts   — project technology auto-detection        (Phase 4)
  *   - codex-learn.ts    — /aftc-codex-learn                         (Phase 5)
+ *   - codex-entries.ts  — codex_add_entry / codex_edit_entry / codex_remove_entry tools
  *
- * This file also registers the `codex_load` model tool (step 2.4).
+ * This file also registers the `codex_load` model tool (step 2.4) and owns the
+ * shared read-tracker (durable read-entry dedup + the session-scoped set the
+ * entry tools' read-before-write guard enforces).
  *
  * Production-safety (spec Part G): off by default; fail-soft everywhere; never
  * destroys user data; seeding is copy-only. See `aftc-codex-readme.md`.
@@ -35,6 +38,7 @@ import { createCodexStore, type CodexStore } from "./codex-store";
 import { createCodexInject, type CodexInjectApi, CODEX_READ_ENTRY } from "./codex-inject";
 import { createCodexDetect } from "./codex-detect";
 import { createCodexLearn, type CodexLearnApi } from "./codex-learn";
+import { createCodexEntries, type CodexReadTracker } from "./codex-entries";
 import { createCodexCommands } from "./codex-commands";
 import { checkCodexCompatibility, type CodexCompatResult } from "./codex-compat";
 import { getPreference } from "../config";
@@ -49,8 +53,20 @@ export interface CodexState {
     prepped: boolean;
     /** Per-session suppression set by /codex-disable (cleared by -run). */
     silent: boolean;
+    /** Per-session rules-only mode set by /codex-rules-only: inject ONLY the
+     *  Critical Global Rules section; init/refresh/learn refuse; a fresh
+     *  session (/new) clears it. Works even when the feature is disabled. */
+    rulesOnly: boolean;
     /** Guard so the fresh-session notice is appended once per session. */
     noticedThisSession: boolean;
+}
+
+/** Detection result: topics with a live resource (loadable) and mapped topics
+ *  with no resource file yet (bootstrap-able via codex_add_entry). Defined here
+ *  so codex-detect/inject/commands share it type-only via the coordinator. */
+export interface CodexDetectResult {
+    topics: string[];
+    missing: string[];
 }
 
 /** Shared context handed to each sub-module factory. */
@@ -59,7 +75,7 @@ export interface CodexContext {
     store: CodexStore;
     state: CodexState;
     /** Detect codex topics relevant to a cwd (Phase 4). Set after detect is built. */
-    detectTopics?(cwd: string): string[];
+    detect?(cwd: string): CodexDetectResult;
     /** CENTRAL version-compatibility guard. Every codex feature calls this before
      *  touching the live codex: isSafe=false means the live copy is out of
      *  date — hold off, show `message`, and let /codex-install wipe + re-seed.
@@ -71,7 +87,7 @@ export interface CodexContext {
 // codex_load tool (step 2.4)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Set<string>, checkCompat: () => CodexCompatResult): void {
+function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker: CodexReadTracker, checkCompat: () => CodexCompatResult): void {
     pi.registerTool({
         name: "codex_load",
         label: "Codex Load",
@@ -116,13 +132,27 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Se
                 );
             }
 
+            // Session-scoped read set: the codex entry tools (codex-entries.ts)
+            // require a codex_load of the topic THIS session before any write.
+            readTracker.sessionReads.add(read.relPath);
             // Track the read durably so /aftc-codex-status can count files read.
-            // The entry survives /reload, resume and compaction; readSeen only
+            // The entry survives /reload, resume and compaction; durableSeen only
             // avoids appending duplicate entries within this process (the count
             // is rebuilt from the entries themselves).
-            if (!readSeen.has(read.relPath)) {
-                readSeen.add(read.relPath);
+            if (!readTracker.durableSeen.has(read.relPath)) {
+                readTracker.durableSeen.add(read.relPath);
                 try { pi.appendEntry(CODEX_READ_ENTRY, { relPath: read.relPath }); } catch { /* fail-soft */ }
+            }
+
+            // Empty skeleton (headings but no entry bullets): a fixed one-liner
+            // instead of the file content — no point spending context on an
+            // empty doc. The read above still counts for the entry tools'
+            // read-before-write guard (adding the FIRST entry needs it).
+            if (!/^- \S/m.test(read.content)) {
+                return {
+                    content: [{ type: "text", text: `codex resource "${read.relPath}" exists but has no entries yet.` }],
+                    details: { relPath: read.relPath, absPath: read.absPath, empty: true },
+                };
             }
 
             const truncation = truncateTail(read.content, {
@@ -152,7 +182,7 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readSeen: Se
 
 export function createAftcCodex(pi: ExtensionAPI): void {
     const store = createCodexStore();
-    const state: CodexState = { prepped: false, silent: false, noticedThisSession: false };
+    const state: CodexState = { prepped: false, silent: false, rulesOnly: false, noticedThisSession: false };
     // Central version-compatibility guard (checkCompat): compares the shipped
     // seed version (data/extension-config.json) against the user's recorded live
     // version. Every codex feature calls it before touching the live codex.
@@ -167,7 +197,7 @@ export function createAftcCodex(pi: ExtensionAPI): void {
     // Project technology auto-detection (Phase 4). Wired onto ctx so inject/commands
     // can name detected topics without importing codex-detect directly.
     const detect = createCodexDetect(ctx);
-    ctx.detectTopics = (cwd: string) => detect.detectTopics(cwd);
+    ctx.detect = (cwd: string) => detect.detect(cwd);
 
     // Injection + session lifecycle (+ marker). Registers the entry/message
     // renderers and the before_agent_start / session_start / context handlers.
@@ -176,10 +206,17 @@ export function createAftcCodex(pi: ExtensionAPI): void {
     // Self-education (-learn) (Phase 5).
     const learn: CodexLearnApi = createCodexLearn(ctx);
 
-    // The codex_load model tool. readSeen dedupes the durable read-tracking
-    // entries appended within this process (the count is rebuilt from entries).
-    const readSeen = new Set<string>();
-    registerCodexLoadTool(pi, store, readSeen, ctx.checkCompat);
+    // The codex_load model tool. readTracker.durableSeen dedupes the durable
+    // read-tracking entries appended within this process (the count is rebuilt
+    // from entries); readTracker.sessionReads backs the entry tools'
+    // read-before-write guard (maintained per session by codex-entries).
+    const readTracker: CodexReadTracker = { durableSeen: new Set<string>(), sessionReads: new Set<string>() };
+    registerCodexLoadTool(pi, store, readTracker, ctx.checkCompat);
+
+    // The codex entry write tools (add/edit/remove) — deterministic writes:
+    // TS-generated [ID]s, per-kind validation, canonical section placement,
+    // topic/category creation, internal list-sync on new topic files.
+    createCodexEntries(ctx, readTracker);
 
     // The /aftc-codex-* commands + config menu (sync-first wrapper).
     createCodexCommands(ctx, inject, learn);

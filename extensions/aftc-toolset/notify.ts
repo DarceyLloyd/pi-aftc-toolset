@@ -3,11 +3,15 @@
  *
  * Plays an MP3 sound when:
  *   1. A task completes (agent_settled) and its duration exceeds a
- *      configurable threshold (/aftc-notify-time, default 30 s).
+ *      configurable threshold (/aftc-notify-time, default 1 s).
  *   2. The AI asks the user a question via the ask_user_question tool
  *      (plays immediately regardless of duration).
  *   3. The agent ends with a provider/network error (stopReason "error").
  *   4. The user aborts the agent (stopReason "aborted").
+ *   5. Context-window usage crosses 25%, 50% or 75% (checked on each
+ *      assistant message_end via ctx.getContextUsage().percent; a threshold
+ *      fires once on the upward crossing and re-arms when usage drops back
+ *      below it, e.g. after compaction).
  *
  * The AI model is completely unaware of this feature. Detection is
  * pure TypeScript-side event handling -- no model tool, no prompt
@@ -21,10 +25,11 @@
  * SLASH COMMANDS
  * ---------------------------------------------------------------------------
  *   /aftc-audio-notifications  Open a menu to pick sounds for question,
- *                             task-complete, error, and aborted (MP3s in
+ *                             task-complete, error, aborted and context-
+ *                             window 25/50/75% (MP3s in
  *                             data/aftc-audio-notifications/{question,
- *                             task-complete,error,aborted}/). Stores
- *                             filenames in config.json.
+ *                             task-complete,error,aborted,context-window/{25,50,75}}/).
+ *                             Stores filenames in config.json.
  *                             Alias: /aftc-notifications
  *   /aftc-notify-time [sec]   Show or set the minimum task duration (in
  *                             seconds) before the completion sound plays.
@@ -37,7 +42,9 @@
  *   notifySoundTaskComplete   string   Filename in data/aftc-audio-notifications/task-complete/ or "" for none.
  *   notifySoundError          string   Filename in data/aftc-audio-notifications/error/ or "" for none.
  *   notifySoundAborted        string   Filename in data/aftc-audio-notifications/aborted/ or "" for none.
- *   notifyTimeSec             number   Threshold in seconds (default 30).
+ *   notifySoundContext25/50/75 string  Filenames in data/aftc-audio-notifications/context-window/{25,50,75}/
+ *                                      or "" for none.
+ *   notifyTimeSec             number   Threshold in seconds (default 1; owner = DEFAULT_PREFERENCES in config.ts).
  *
  * ---------------------------------------------------------------------------
  * ARCHITECTURE
@@ -63,6 +70,18 @@ import { showMenu } from "./ui/aftc-ui";
 // ---------------------------------------------------------------------------
 
 const LOG_PREFIX = "[aftc-toolset] notify:";
+
+/** Notification sound categories that can play. */
+type NotifyKind =
+    | "question" | "task" | "error" | "aborted" | "startup"
+    | "context25" | "context50" | "context75";
+
+/** Context-window usage thresholds that can play a sound (ascending). */
+const CONTEXT_THRESHOLDS: ReadonlyArray<{ pct: number; kind: NotifyKind }> = [
+    { pct: 25, kind: "context25" },
+    { pct: 50, kind: "context50" },
+    { pct: 75, kind: "context75" },
+];
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -108,11 +127,49 @@ function getPlayerBinary(): string | null {
 let previewChild: ReturnType<typeof spawn> | null = null;
 
 /**
+ * Kill a spawned child AND its entire process tree. POSIX spawns
+ * here are detached (session leaders), so `child.kill()` only sends
+ * a signal to the (already-detached) parent and the audio binary
+ * keeps playing. Use `process.kill(-pid, "SIGTERM")` to kill the
+ * whole process group. On Windows, `taskkill /T /F`.
+ */
+function killPreviewTree(child: ReturnType<typeof spawn>): void {
+    if (child.pid == null) {
+        try { child.kill("SIGTERM"); } catch { /* ignore */ }
+        return;
+    }
+    if (process.platform === "win32") {
+        try {
+            spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+                stdio: "ignore",
+                windowsHide: true,
+            });
+        } catch {
+            try { child.kill("SIGTERM"); } catch { /* ignore */ }
+        }
+    } else {
+        try { process.kill(-child.pid, "SIGTERM"); }
+        catch { try { child.kill("SIGTERM"); } catch { /* ignore */ } }
+    }
+}
+
+/** Test hook (tests/notify-check): observe playback instead of spawning
+ *  the audio binary. Pass null to restore real playback. */
+let playOverride: ((audioFilePath: string) => void) | null = null;
+export function _setPlayOverrideForTests(fn: ((audioFilePath: string) => void) | null): void {
+    playOverride = fn;
+}
+
+/**
  * Play an audio file using the bundled miniaudio binary.
  * Fire-and-forget: spawns detached, no window, process self-exits
  * when playback finishes. Errors are logged and swallowed.
  */
 function playSound(audioFilePath: string): void {
+    if (playOverride) {
+        playOverride(audioFilePath);
+        return;
+    }
     const bin = getPlayerBinary();
     if (!bin) {
         console.log(`${LOG_PREFIX} no player binary for ${process.platform}/${process.arch}`);
@@ -136,11 +193,13 @@ function playSound(audioFilePath: string): void {
 
 /**
  * Play a preview sound (picker browsing). Kills the previous preview
- * first so sounds don't overlap during navigation.
+ * first so sounds don't overlap during navigation. The kill uses
+ * the process-group tree (POSIX) or taskkill /T (Windows) so the
+ * detached audio binary actually stops.
  */
 function playPreview(audioFilePath: string): void {
     if (previewChild) {
-        try { previewChild.kill(); } catch { /* already exited */ }
+        killPreviewTree(previewChild);
         previewChild = null;
     }
     const bin = getPlayerBinary();
@@ -162,9 +221,9 @@ function playPreview(audioFilePath: string): void {
  * Resolves the filename from config to an absolute path in the
  * category's subfolder under the audio dir.
  */
-function playConfiguredSound(kind: "question" | "task" | "error" | "aborted" | "startup"): void {
-    // Master switch: audio notifications are OFF by default; nothing plays
-    // until the user enables the feature in /aftc-audio-notifications.
+function playConfiguredSound(kind: NotifyKind): void {
+    // Feature on/off switch: audio notifications are OFF by default; nothing
+    // plays until the user enables the feature in /aftc-audio-notifications.
     if (!getPreference("notifyEnabled", false)) return;
     const prefMap: Record<string, string> = {
         question: "notifySoundQuestion",
@@ -172,6 +231,9 @@ function playConfiguredSound(kind: "question" | "task" | "error" | "aborted" | "
         error: "notifySoundError",
         aborted: "notifySoundAborted",
         startup: "notifySoundStartup",
+        context25: "notifySoundContext25",
+        context50: "notifySoundContext50",
+        context75: "notifySoundContext75",
     };
     const dirMap: Record<string, string> = {
         question: "question",
@@ -179,6 +241,9 @@ function playConfiguredSound(kind: "question" | "task" | "error" | "aborted" | "
         error: "error",
         aborted: "aborted",
         startup: "startup",
+        context25: path.join("context-window", "25"),
+        context50: path.join("context-window", "50"),
+        context75: path.join("context-window", "75"),
     };
     const soundFile = getPreference(prefMap[kind], "");
     if (!soundFile) return;
@@ -219,10 +284,43 @@ export function createNotify(pi: ExtensionAPI): void {
     let taskStartMs = 0;
     let questionAsked = false;
     let lastStopReason: string | undefined;
+    // Context-window threshold state: true = usage is currently above that
+    // threshold (it has fired and stays silent until usage drops back below).
+    const contextCrossed: Record<number, boolean> = { 25: false, 50: false, 75: false };
+
+    // -- Context-window threshold check (assistant message_end) -----------
+    // Reads pi's own context-usage estimate and fires the configured sound
+    // for each threshold on the UPWARD crossing only; a threshold re-arms
+    // when usage drops back below it (e.g. after compaction). When one
+    // message crosses several thresholds at once, only the HIGHEST newly-
+    // crossed threshold plays (a 20% -> 80% jump plays the 75% sound, not
+    // all three), while every crossed threshold is marked so none re-fires
+    // while usage stays above it.
+    function checkContextThresholds(ctx: { getContextUsage?: () => { percent?: number | null } | null }): void {
+        if (!getPreference("notifyEnabled", false)) return;
+        const usage = typeof ctx.getContextUsage === "function" ? ctx.getContextUsage() : null;
+        const pct = usage && typeof usage.percent === "number" && Number.isFinite(usage.percent)
+            ? usage.percent
+            : null;
+        if (pct === null) return;
+        let highestNew: NotifyKind | null = null;
+        for (const t of CONTEXT_THRESHOLDS) {
+            if (pct >= t.pct) {
+                if (!contextCrossed[t.pct]) {
+                    contextCrossed[t.pct] = true;
+                    highestNew = t.kind; // ascending order: last one wins
+                }
+            } else {
+                contextCrossed[t.pct] = false; // dropped back below: re-arm
+            }
+        }
+        if (highestNew) playConfiguredSound(highestNew);
+    }
 
 
     // -- Event: startup sound on fresh session start ----------------------
     pi.on("session_start", async (event) => {
+        contextCrossed[25] = contextCrossed[50] = contextCrossed[75] = false;
         if (event.reason === "startup" || event.reason === "new") {
             playConfiguredSound("startup");
         }
@@ -250,9 +348,21 @@ export function createNotify(pi: ExtensionAPI): void {
     });
 
     // -- Event: track the last assistant message stopReason ---------------
-    pi.on("message_end", async (event) => {
+    // When the assistant turn ends with an error or abort, also reset
+    // the per-task state so the next agent_start is guaranteed to start
+    // fresh. agent_settled normally resets taskStartMs, but if the
+    // pipeline skips that hop (e.g. a crashed provider that fires
+    // message_end with an error but never reaches agent_settled) the
+    // next task would compute its duration against the failed
+    // timestamp - the B-005 bug. Resetting here is the safety net.
+    pi.on("message_end", async (event, ctx) => {
         if (event.message.role === "assistant") {
             lastStopReason = (event.message as any).stopReason;
+            if (lastStopReason === "error" || lastStopReason === "aborted") {
+                taskStartMs = 0;
+                questionAsked = false;
+            }
+            checkContextThresholds(ctx);
         }
     });
 
@@ -275,8 +385,11 @@ export function createNotify(pi: ExtensionAPI): void {
             return;
         }
 
-        // Normal completion: respect the time threshold.
-        const threshold = getPreference("notifyTimeSec", 30);
+        // Normal completion: respect the time threshold. The fallback
+        // (1) matches the shipped default in config.ts DEFAULT_PREFERENCES -
+        // both versions MUST stay in sync (the docs + the config
+        // defaults table are the source of truth).
+        const threshold = getPreference("notifyTimeSec", 1);
         if (threshold <= 0) return;
         if (durationSec < threshold) return;
 
@@ -285,13 +398,19 @@ export function createNotify(pi: ExtensionAPI): void {
 
     // -- Shared handler for /aftc-audio-notifications + alias ------------
     async function handleAudioNotifications(_args: string, ctx: ExtensionCommandContext): Promise<void> {
-        type Pref = "notifySoundQuestion" | "notifySoundTaskComplete" | "notifySoundError" | "notifySoundAborted" | "notifySoundStartup";
+        type Pref =
+            | "notifySoundQuestion" | "notifySoundTaskComplete" | "notifySoundError"
+            | "notifySoundAborted" | "notifySoundStartup"
+            | "notifySoundContext25" | "notifySoundContext50" | "notifySoundContext75";
         const categories: Array<{ id: string; label: string; pref: Pref; dir: string }> = [
             { id: "startup", label: "Choose sound for startup", pref: "notifySoundStartup", dir: "startup" },
             { id: "question", label: "Choose sound for question", pref: "notifySoundQuestion", dir: "question" },
             { id: "task", label: "Choose sound for task complete", pref: "notifySoundTaskComplete", dir: "task-complete" },
             { id: "error", label: "Choose sound for error", pref: "notifySoundError", dir: "error" },
             { id: "aborted", label: "Choose sound for aborted", pref: "notifySoundAborted", dir: "aborted" },
+            { id: "context25", label: "Choose sound for context 25%", pref: "notifySoundContext25", dir: path.join("context-window", "25") },
+            { id: "context50", label: "Choose sound for context 50%", pref: "notifySoundContext50", dir: path.join("context-window", "50") },
+            { id: "context75", label: "Choose sound for context 75%", pref: "notifySoundContext75", dir: path.join("context-window", "75") },
         ];
 
         if (!ctx.hasUI) {
@@ -310,7 +429,7 @@ export function createNotify(pi: ExtensionAPI): void {
             // column (the /codex convention); the current selection is also
             // shown inside each picker.
             const choiceItems = [
-                // Master toggle row first (codex-menu convention): Enter flips
+                // Enabled toggle row first (codex-menu convention): Enter flips
                 // Yes/No, the menu re-renders with selection preserved.
                 { value: "__enabled__", label: "Enabled", description: getPreference("notifyEnabled", false) ? " | Yes" : " | No" },
                 ...categories.map((c) => {
@@ -332,7 +451,7 @@ export function createNotify(pi: ExtensionAPI): void {
             if (choice === null) return; // Esc -> exit
             selectedIndex = Math.max(0, choiceItems.findIndex((i) => i.value === choice));
 
-            // Master toggle: flip and re-render (selection preserved).
+            // Enabled toggle: flip and re-render (selection preserved).
             if (choice === "__enabled__") {
                 const nowOn = !getPreference("notifyEnabled", false);
                 setPreference("notifyEnabled", nowOn);
@@ -410,7 +529,7 @@ export function createNotify(pi: ExtensionAPI): void {
     });
 
     pi.registerCommand("aftc-audio-notifications", {
-        description: "Choose notification sounds (startup, question, task-complete, error, aborted)",
+        description: "Choose notification sounds (startup, question, task-complete, error, aborted, context 25/50/75%)",
         handler: handleAudioNotifications,
     });
 
@@ -436,7 +555,7 @@ export function createNotify(pi: ExtensionAPI): void {
 
             // No argument: show current value.
             if (!trimmed) {
-                const current = getPreference("notifyTimeSec", 30);
+                const current = getPreference("notifyTimeSec", 1);
                 const msg = current <= 0
                     ? "Time-based notification: disabled"
                     : `Time-based notification: ${current}s`;

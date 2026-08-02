@@ -4,6 +4,8 @@
 
 ## Gotchyas
 
+- [uDrJKw] MODEL UNLOAD & background load - a background-thread model load finishing AFTER an unload request silently resurrects the model in GPU memory; set a disabled flag on unload and check it at load completion (discard instead of assigning), and free with del + torch.cuda.empty_cache().
+
 ## Issues & Solutions
 
 
@@ -22,3 +24,10 @@
 - [xzJc3E] Automated audio tests (RMS/duration/sample-rate) pass but the output audio is garbage
   Cause: RMS only proves non-silence, not structure.
   Fix: any audio pipeline change needs a human listen before it counts as verified. (2026-07)
+- [oMp1xT] OMP_NUM_THREADS=1 in the host environment silently forces single-threaded CPU inference (torch.get_num_threads() == 1, CPU time ~= wall time, ~7x slower)
+  Cause: torch respects OMP_NUM_THREADS; some machines have it set globally (user/machine env), and a spawned child process inherits it.
+  Fix: in any long-running inference process that owns its CPU workload, set threading explicitly: `torch.set_num_threads(os.cpu_count())` (or the desired count) before CPU jobs; never rely on inherited env defaults. (2026-07)
+
+- [TE7K6x] apply_chat_template(...return_tensors="pt") then model.generate fails with bare 'AttributeError' (transformers 5.x)
+  Cause: In transformers 5.x apply_chat_template returns a BatchEncoding (dict of input_ids/attention_mask), not a bare tensor; generate() then fails inside with AttributeError which stringifies empty, hiding the cause.
+  Fix: Call apply_chat_template(..., return_tensors="pt", return_dict=True) and pass the whole dict: model.generate(**{k: v.to(device) for k,v in encoded.items()}); decode output[:, encoded["input_ids"].shape[1]:]. Always log type(exc).__name__ with the message so empty-str exceptions stay diagnosable. (2026-08)

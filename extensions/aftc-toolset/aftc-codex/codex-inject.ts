@@ -33,7 +33,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Box, Spacer, Text } from "@earendil-works/pi-tui";
 import { getPreference } from "../config";
-import type { CodexContext } from "./aftc-codex";
+import type { CodexContext, CodexDetectResult } from "./aftc-codex";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -55,6 +55,18 @@ export const CODEX_STATUS_ENTRY = "aftc-codex-status";
  * caching (spec M-M5). The resource count lives in the system-prompt list,
  * not here.
  */
+
+/** Extract the "## Critical Global Rules" section (heading included) from a
+ *  codex-rules.md text — the rules-only injection block. "" when absent. */
+function extractCriticalRules(rules: string): string {
+    const m = /^## Critical Global Rules[ \t]*$/m.exec(rules);
+    if (!m) return "";
+    const rest = rules.slice(m.index);
+    const next = /^## /m.exec(rest.slice(m[0].length));
+    const body = next ? rest.slice(0, m[0].length + next.index) : rest;
+    return body.trim();
+}
+
 const MARKER_CONTENT =
     "AFTC-CODEX ACTIVE — the codex rules + guidance are loaded into your system prompt, " +
     "and the Codex Resource List is available there too.\n\n" +
@@ -73,8 +85,9 @@ const MARKER_CONTENT =
 export interface CodexInjectApi {
     /** Append the codex marker message. `busy` = agent currently streaming.
      *  `eager` = trigger a turn now (the /codex-init force). `topics` =
-     *  optional detected project topics named in the instruction (autoLoad). */
-    injectMarker(busy: boolean, eager: boolean, topics?: string[]): void;
+     *  optional detected project topics named in the instruction (autoLoad);
+     *  `missing` = mapped topics with no resource file yet (bootstrap hint). */
+    injectMarker(busy: boolean, eager: boolean, topics?: string[], missing?: string[]): void;
     /** Build the system-prompt block, or null when nothing should be injected. */
     buildPromptBlock(): string | null;
     /** Persist the current prepped/silent state as a durable custom entry. */
@@ -87,7 +100,7 @@ export interface CodexInjectApi {
 
 export function createCodexInject(
     ctx: CodexContext,
-    detect?: { detectTopics(cwd: string): string[]; resetCache(): void },
+    detect?: { detect(cwd: string): CodexDetectResult; resetCache(): void },
 ): CodexInjectApi {
     const { pi, store, state, checkCompat } = ctx;
 
@@ -109,7 +122,10 @@ export function createCodexInject(
     }
 
     const randSpaces = () => {
-        const count = Math.floor(Math.random() * 50) + 1; // 1 to 5 spaces
+        // 1 to 5 spaces — a small visual jitter so the prep-notice box
+        // looks hand-drawn. Used to be `Math.random() * 50 + 1` (50 max)
+        // which inflated the jitter and made the box look weirdly wide.
+        const count = Math.floor(Math.random() * 5) + 1;
         return " ".repeat(count);
     }
 
@@ -215,19 +231,24 @@ export function createCodexInject(
             pi.appendEntry(CODEX_STATE_ENTRY, {
                 prepped: state.prepped,
                 silent: state.silent,
+                rulesOnly: state.rulesOnly,
             });
         } catch (err) {
             console.log(`[aftc-toolset] codex persistState error: ${(err as Error).message}`);
         }
     }
 
-    function injectMarker(busy: boolean, eager: boolean, topics?: string[]): void {
+    function injectMarker(busy: boolean, eager: boolean, topics?: string[], missing?: string[]): void {
         try {
             // Detected-topics hint (autoLoad, step 4.2). Kept after the stable base so
             // the always-present instruction reads identically turn to turn.
             let content = MARKER_CONTENT;
             if (topics && topics.length > 0) {
                 content += `\n\nDetected project topics: ${topics.join(", ")}. Load these with codex_load first.`;
+            }
+            if (missing && missing.length > 0) {
+                content += `\n\nNo codex resource yet for: ${missing.join(", ")}. Do NOT codex_load these — ` +
+                    `if you learn a durable lesson about one, create the resource with codex_add_entry (topic "category/name").`;
             }
             if (busy) {
                 // Streaming: deliverAs is required or pi throws (spec M-I5).
@@ -254,6 +275,19 @@ export function createCodexInject(
 
     function buildPromptBlock(): string | null {
         try {
+            // Rules-only mode (per-session state, /codex-rules-only): inject
+            // ONLY the Critical Global Rules section. Zero ceremony: no
+            // enabled/prepped/silent/compat gates, no marker, no list, no
+            // guidance. Reads the live copy when seeded (user-customised rules
+            // honoured), else the seed (works unseeded; always current after
+            // pi update).
+            if (state.rulesOnly) {
+                const rulesOnly = store.readRules() || store.readSeedRules();
+                const critical = extractCriticalRules(rulesOnly);
+                if (!critical) return null;
+                return "\n\n---\n\n# AFTC Codex — Critical Rules\n\n" + critical;
+            }
+
             if (!getPreference("aftcCodexEnabled", false)) return null;
             if (!state.prepped || state.silent) return null;
             // Version guard: an out-of-date live codex must not be injected —
@@ -392,28 +426,38 @@ export function createCodexInject(
         try {
             state.noticedThisSession = false;
 
-            if (!getPreference("aftcCodexEnabled", false)) return;
-
-            // Restore prepped/silent from the latest aftc-codex-state entry.
+            // Restore prepped/rulesOnly from the latest aftc-codex-state entry.
+            // Runs even when the feature is disabled: rules-only mode works
+            // without the enabled pref, so its state must survive /reload.
+            // Fresh sessions have no entries -> everything resets to false.
             state.prepped = false;
             state.silent = false;
+            state.rulesOnly = false;
             if (detect) detect.resetCache();
             try {
                 const entries = sctx.sessionManager.getEntries() as Array<{
                     type?: string;
                     customType?: string;
-                    data?: { prepped?: boolean; silent?: boolean };
+                    data?: { prepped?: boolean; silent?: boolean; rulesOnly?: boolean };
                 }>;
                 for (const entry of entries) {
                     if (entry.type === "custom" && entry.customType === CODEX_STATE_ENTRY && entry.data) {
                         state.prepped = entry.data.prepped === true;
+                        state.rulesOnly = entry.data.rulesOnly === true;
                         // `silent` resets each session (spec H Q1) — only `prepped`
-                        // is restored from the durable entry.
+                        // and `rulesOnly` are restored from the durable entry.
                     }
                 }
             } catch {
-                // leave defaults (false/false)
+                // leave defaults (all false)
             }
+
+            // Rules-only mode: no prep ceremony, ever (no notice, no marker, no
+            // auto-prep) — buildPromptBlock injects the critical rules section
+            // without any gate.
+            if (state.rulesOnly) return;
+
+            if (!getPreference("aftcCodexEnabled", false)) return;
 
             const reason = event.reason;
             const isRestore = reason === "resume" || reason === "reload" || reason === "fork";
@@ -445,10 +489,10 @@ export function createCodexInject(
                 state.prepped = true;
                 state.silent = false;
                 persistState();
-                const topics = (getPreference("aftcCodexAutoLoad", true) && detect && sctx.cwd)
-                    ? detect.detectTopics(sctx.cwd)
+                const detected = (getPreference("aftcCodexAutoLoad", true) && detect && sctx.cwd)
+                    ? detect.detect(sctx.cwd)
                     : undefined;
-                injectMarker(false, false, topics);
+                injectMarker(false, false, detected?.topics, detected?.missing);
             }
         } catch (err) {
             console.log(`[aftc-toolset] codex session_start error: ${(err as Error).message}`);
@@ -456,10 +500,4 @@ export function createCodexInject(
     });
 
     return { injectMarker, buildPromptBlock, persistState };
-}
-
-/** Command-context busy check helper (mirrors replay.ts). */
-export function isCommandBusy(ctx: ExtensionCommandContext | undefined): boolean {
-    if (!ctx) return false;
-    return ctx.isIdle ? !ctx.isIdle() : false;
 }

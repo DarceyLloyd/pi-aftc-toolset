@@ -23,6 +23,20 @@ The cache-friendly "hybrid" injection (spec D1 / D7):
 Rules inject only when `aftcCodexEnabled && prepped && !silent` and the rules
 file is non-empty (seeded).
 
+### Rules-only mode (`/codex-rules-only`)
+
+Per-SESSION state (not a preference — nothing is written to config). When
+`state.rulesOnly` is set, injection short-circuits BEFORE every gate (enabled,
+prepped, silent, compat): the block is just the `## Critical Global Rules`
+section extracted from codex-rules.md (heading -> next `## ` heading). No
+marker, no resource list, no guidance, no prep notice, no `/codex-init`
+requirement — the zero-ceremony "common do-nots" option. It works even with
+the feature disabled (the enabled pref is never touched). The rules text is
+read from the LIVE copy when seeded (user customisations honoured) and falls
+back to the SEED when not. The state rides the durable `aftc-codex-state`
+entry (survives `/reload`); a fresh session (`/new`) clears it — that plus
+`/codex-init` is the way back to the full codex.
+
 ## Events subscribed
 
 - `before_agent_start` — append the rules/guidance/list block to the system prompt.
@@ -30,7 +44,8 @@ file is non-empty (seeded).
 - `session_start` — restore `prepped`; on a fresh session
   (`reason` = `new` | `startup`) that is enabled + un-prepped, append a stand-out
   transcript notice (TUI) or auto-prep (print/headless). Restore reasons
-  (`resume` | `reload` | `fork`) never nag.
+  (`resume` | `reload` | `fork`) never nag. Rules-only mode returns early —
+  no notice, no auto-prep.
 
 ## Renderers registered
 
@@ -47,14 +62,17 @@ file is non-empty (seeded).
 `createCodexInject(ctx, detect?)` returns `CodexInjectApi` (the optional `detect`
 resets its cache on `session_start` and supplies topics for print auto-prep):
 
-- `injectMarker(busy, eager, topics?)` — append the marker. `busy` → `deliverAs: "followUp"`;
+- `injectMarker(busy, eager, topics?, missing?)` — append the marker. `busy` → `deliverAs: "followUp"`;
   idle + `eager` → `triggerTurn: true` (the `/codex-init` force); idle + lazy →
   append only (print auto-prep). When `topics` is supplied (autoLoad, step 4.2) a
-  "Detected project topics: …" line is appended after the stable base instruction.
+  "Detected project topics: …" line is appended after the stable base instruction;
+  `missing` (mapped topics with no resource file yet) adds a "No codex resource
+  yet for: …" bootstrap hint line.
 - `buildPromptBlock()` — the system-prompt block, or `null` when nothing injects.
 - `persistState()` — write the durable `aftc-codex-state` entry.
 
-Also exports `isCommandBusy(ctx)` and the entry/message type constants.
+Also exports the entry/message type constants. (`isCommandBusy`
+moved to `codex-commands.ts` - command handlers only.)
 
 ## Failure modes
 

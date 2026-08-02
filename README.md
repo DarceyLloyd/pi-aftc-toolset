@@ -17,16 +17,17 @@ Click [here](./change-log.txt) to read the change logs.
 ## **WHATS NEW**
 
 ### **Audio notification system**
-A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error. NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
+A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error, plus optional context-window usage alerts when the context crosses 25%, 50% or 75% full (re-arms after compaction). NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
 
 ### **Usage Reports**
-BETA 2. Lots of adjustments, new data recorded, tooltips, bug fix on browser resize etc.
+BETA 3. More changes, and more to come. User /usage-report
 
 ### **Persistent Data Storage**
-From this version onwards data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /qd (Open users data dir) should you want to go there. The extension will be acting as a seed from here on for relevant features.
+Data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /qd (Open users data dir) should you want to go there. The extension will be acting as a seed from here on for relevant features.
 
-### **AFTC CODEX (ALPHA)**
-Self training and self issue & resolution file loading with adaptive AI model thoughts and action guidance. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
+### **AFTC CODEX (BETA)**
+Self training (partial) and self resource file loading with model thoughts and action guidance.
+Codex is now in BETA, a lot of self training resources done on various models and added tooling to lower AI model turn usage. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
 
 ### **Added short cut "alt + n"**
 You can now enter new lines into your prompts in pi!
@@ -396,10 +397,10 @@ Prompt counts are split the same way as the footer widget: **User prompts** (wha
 
 An opt-in knowledge base that makes the model follow your curated coding conventions. When enabled, pi-aftc-toolset injects a unified rules file + thinking-and-action guidance + a generated resource list into the model's system prompt (the cached prefix, so it is cheap), and gives the model a `codex_load` tool to fetch the full topic doc for a technology only when it is relevant.
 
-It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, HTML, Three.js, Chart.js, GSAP, PyTorch, Gradio, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, WinRAR, PowerShell, pi-extension, and the AFTC framework), organised into `languages/ libraries/ frameworks/ engines/ tools/`. It auto-detects your project's technologies and tells the model which docs to load.
+It ships pre-trained with 57 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
-- Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add with uniqueness checks by default; switch to propose-then-confirm in the config menu).
+- Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add by default; switch to propose-then-confirm in the config menu). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
 - One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. To take the shipped defaults again, Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
 - **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
 
@@ -413,6 +414,7 @@ It ships pre-trained with ~27 topic docs (TypeScript, Python, JavaScript, PHP, P
 | `/aftc-codex-install` | Fresh install (or re-install) the codex to the data dir (alias `/codex-install`) |
 | `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
 | `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
+| `/aftc-codex-rules-only` | Rules-only mode for this session: inject ONLY the Critical Global Rules (no docs/list/guidance/learn; works even with codex disabled). Start a new session + `/codex-init` to return to the full codex (alias `/codex-rules-only`) |
 
 The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex-readme.md`.
 

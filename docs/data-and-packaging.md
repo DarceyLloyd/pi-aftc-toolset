@@ -154,6 +154,21 @@ rules, edge cases).
 | `aftcCodexAutoAddEntries` | boolean | `true` | auto-add vs propose-then-confirm |
 | `runScriptEnabled` | boolean | `true` | `run_script` tool on/off |
 
+### Removed keys (kept for migration reference)
+
+Keys that older versions of this toolset once wrote to `config.json`.
+`config.ts` strips them on every read so the saved file eventually
+matches the current schema; do NOT re-add them.
+
+| Key | Was | Replaced by |
+| --- | --- | --- |
+| `notifySound` | Single key for the task-complete sound (pre-multi-category audio) | `notifySoundTaskComplete` (and the rest of `notifySound*`) |
+| `aftcCodexInjectMode` | Dev-only v1.17.0 toggle for codex injection mode | Per-session state controlled by `/aftc-codex-rules-only` |
+
+When you remove a key, add a new row here AND a comment in
+`config.ts`'s `loadPreferencesInternal` cleanup block so the next
+maintainer has both breadcrumbs.
+
 ### Path-bearing entries
 
 - `notifySound*` store a bare FILENAME only; resolved at runtime via

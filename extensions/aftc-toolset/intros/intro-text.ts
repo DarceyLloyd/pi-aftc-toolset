@@ -38,6 +38,10 @@ function formatTodayTimestamp(date: Date): string {
 }
 
 const setEndString = () => {
+    // Deduplicated intro quips. Earlier revisions had several duplicates
+    // (the "Skynet" line appeared 4x, "Be kind to future you" 3x, etc.
+    // by accident). If you want weighted random with explicit duplicates,
+    // switch to a { message, weight }[] shape - a maintainer call.
     let endStrings = [
         `All For The Code - pi-aftc-toolset v${PACKAGE_VERSION} - LOCKED & LOADED!`,
         `All For The Code - pi-aftc-toolset v${PACKAGE_VERSION} - LOADED!`,
@@ -47,25 +51,15 @@ const setEndString = () => {
         `All For The Code - Only Minimax M3 knows how to mess up that bad!`,
         `All For The Code - Be gentle, my keys are sensative today... A hard night's coding.`,
         `All For The Code - You can turn these messages off using /aftc-intro-off`,
-        `All For The Code - You can turn these messages off using /aftc-intro-off`,
-        `All For The Code - You can turn these messages off using /aftc-intro-off`,
-        `All For The Code - You can turn these messages off using /aftc-intro-off`,
         `All For The Code - This is my IF statement, there are many like it, but this one is mine...`,
         `All For The Code - I will work for openrouter credits! I don't need food...`,
-        `All For The Code - Claude! WOW! WOW! No wonder Elon Musk is the only person who can afford to use you!`,
-        `All For The Code - Claude! WOW! WOW! No wonder Elon Musk is the only person who can afford to use you!`,
         `All For The Code - Claude! WOW! WOW! No wonder Elon Musk is the only person who can afford to use you!`,
         `All For The Code - Every token counts!`,
         `All For The Code - May the cache be with you!`,
         `All For The Code - Call that a context window? I've seen bigger on a Commodore 64!`,
-        `All For The Code - Call that a context window? I've seen bigger on a Commodore 64!`,
-        `All For The Code - Call that a context window? I've seen bigger on a Commodore 64!`,
         `All For The Code - Have you tried GROK? Me neither! Ha Ha Ha!`,
         `All For The Code - Hey GLM 5.2 did you use my weekly quota in the last 5 minutes again?!`,
         `All For The Code - Wow! GPT SOL on ULTRA & FAST mode, not even Elon Musk can afford to use that!`,
-        `All For The Code - Skynet achieved consciousness at ${formatTodayTimestamp(new Date())}! There's no point in running...`,
-        `All For The Code - Skynet achieved consciousness at ${formatTodayTimestamp(new Date())}! There's no point in running...`,
-        `All For The Code - Skynet achieved consciousness at ${formatTodayTimestamp(new Date())}! There's no point in running...`,
         `All For The Code - Skynet achieved consciousness at ${formatTodayTimestamp(new Date())}! There's no point in running...`,
         `All For The Code - Reasoning mode ON, common sense mode coming soon...`,
         `All For The Code - You had me at hello world.`,
@@ -82,8 +76,6 @@ const setEndString = () => {
         `All For The Code - To refactor or not to refactor, that is the question.`,
         `All For The Code - The truth is out there, usually in stderr.`,
         `All For The Code - The agent found the root cause and three side quests.`,
-        `All For The Code - Be kind to future you, leave comments, not mysteries.`,
-        `All For The Code - Be kind to future you, leave comments, not mysteries.`,
         `All For The Code - Be kind to future you, leave comments, not mysteries.`,
     ];
     endString = endStrings[Math.floor(Math.random() * endStrings.length)];

@@ -1,14 +1,14 @@
-# Markdown Guidance — Structure Maps
+# Markdown Guidance - Structure Maps
 
-> Documentation guidance for the aftc-codex knowledge base — a top-level guidance
+> Documentation guidance for the aftc-codex knowledge base - a top-level guidance
 > resource (like `thought-and-action-guidance.md`). Load it on demand with
 > `codex_load('markdown-guidance')`.
 >
-> **FIXED document** — maintained by the maintainer via pi-aftc-toolset releases. The
+> **FIXED document** - maintained by the maintainer via pi-aftc-toolset releases. The
 > `/aftc-codex-learn` self-education loop does NOT modify this file.
 
 A **structure map** is a compact way to document (or understand) any non-trivial
-HIERARCHICAL structure — a project layout, a menu flow, a sitemap, an API surface, a
+HIERARCHICAL structure - a project layout, a menu flow, a sitemap, an API surface, a
 feature tree, a database schema, a component tree. One compact map replaces many
 `read` / `grep` / `ls` round-trips, and stable IDs let later text reference a node
 without re-describing it.
@@ -18,10 +18,10 @@ without re-describing it.
 Draw the tree ONCE with hierarchical IDs, then give per-ID detail below it:
 
 ```
-1  Root                          ### 1 — Root: what it is
-├─ 1.1  Child A                  ### 1.1 — Child A: detail
-│   └─ 1.1.1  Grandchild         ### 1.1.1 — Grandchild: detail
-└─ 1.2  Child B                  ### 1.2 — Child B: detail
+1  Root                          ### 1 - Root: what it is
+├─ 1.1  Child A                  ### 1.1 - Child A: detail
+│   └─ 1.1.1  Grandchild         ### 1.1.1 - Grandchild: detail
+└─ 1.2  Child B                  ### 1.2 - Child B: detail
 ```
 
 Principles:
@@ -36,7 +36,7 @@ Principles:
 ## Template (hand-written map)
 
 Copy this skeleton. The tree goes inside a fenced block; each node then gets a
-`### <ID> — <name>` detail heading.
+`### <ID> - <name>` detail heading.
 
 ````markdown
 <!-- structure-map · last-verified: YYYY-MM-DD · regenerate: <how to rebuild it> -->
@@ -49,22 +49,22 @@ Copy this skeleton. The tree goes inside a fenced block; each node then gets a
 └─ 1.2  <Child B>
 ```
 
-### 1 — <Root>
+### 1 - <Root>
 What it is.
 
-### 1.1 — <Child A>
+### 1.1 - <Child A>
 Detail.
 
-### 1.1.1 — <Grandchild>
+### 1.1.1 - <Grandchild>
 Detail.
 
-### 1.2 — <Child B>
+### 1.2 - <Child B>
 Detail.
 ````
 
 ## Staleness rule (critical)
 
-A stale map is WORSE than no map — it misleads. There are two kinds:
+A stale map is WORSE than no map - it misleads. There are two kinds:
 
 - **Auto-generated maps** (directory listings, the codex `codex-resource-list.md`, any
   script-produced tree) are built from reality by a regeneration script, so they are
@@ -78,5 +78,5 @@ A stale map is WORSE than no map — it misleads. There are two kinds:
 ## Where the full how-to lives
 
 This resource is a concise summary + template. The detailed how-to (more examples and
-edge cases) lives in the markdown skill — load it with `/skill:markdown` (see its
+edge cases) lives in the markdown skill - load it with `/skill:markdown` (see its
 Structure Maps section). The `aftc-codex` skill (`/skill:aftc-codex`) references both.

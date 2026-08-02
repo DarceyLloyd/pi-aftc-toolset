@@ -1,0 +1,22 @@
+# Shoelace
+
+## Rules
+
+- [sH5nT3] Register ONLY the Shoelace components in use (each `dist/components/<name>/<name>.js` import self-registers its element) and call `setBasePath()` at the copied `assets/` folder - the whole bundle is heavy, and icons (select chevrons etc.) load as SVG files from that base path.
+
+## Gotchyas
+
+- [sL2xQ8] sl-select/sl-tooltip events + value - listen to `sl-change` (not `change`) and read/set the `.value` PROPERTY (`getAttribute("value")` does not track the current selection); options are populated by appending `<sl-option>` elements, then `.value = ""` resets to the placeholder.
+- [hT7mK4] `hoist` does NOT teleport the popup to document.body (Shoelace 2.20) - it only switches the floating-ui strategy from `absolute` to `fixed`, so a hoisted dropdown is STILL trapped by any ancestor with a `transform` (containing block + stacking context) and can render under later content; remove persistent transforms from ancestors (see css.md fill-mode `both` entry) rather than raising z-index.
+- [cP9wD6] Shoelace theming pierces the shadow DOM via `--sl-*` custom properties (and `::part()`), never descendant selectors - serve the stock theme css (e.g. `themes/dark.css`) as a plain `<link>` and override the `--sl-*` tokens in your own later-loading stylesheet.
+
+## Issues & Solutions
+
+- [dD3bV7] sl-select dropdown opens but renders UNDER a table/section below it, even with `hoist` set
+  Cause: the enter animation on wrapper elements used `animation: … both`, whose fill keeps the final `transform: translateY(0)` applied forever; the transformed wrapper traps the fixed-position popup (hoist only changes strategy to fixed, it does not teleport).
+  Fix: change wrapper enter animations to fill-mode `backwards` (end state = natural, no transform) and set `--sl-z-index-dropdown` above the content layers; verify with elementFromPoint at the listbox position - it must hit an sl-option, not the underlying element. (2026-07)
+- [kT4rN8] sl-theme-dark missing = silent 0px spacing - `themes/dark.css` defines its tokens on `:host, .sl-theme-dark`, NOT `:root`, so a plain `<link>` alone leaves every `--sl-*` token empty and shadow-DOM declarations using them (eg sl-option's check-icon `padding-inline-end: var(--sl-spacing-2x-small)`) are invalid-at-computed-value-time and silently compute to 0 with no console error; add `class="sl-theme-dark"` to `<html>` (or define the tokens in your own :root overrides) and verify with getComputedStyle on a shadow part.
+- [mN6vB2] sl-select "current" option ignores ::part() attribute selectors - the moment the dropdown opens, Shoelace marks a current option (the selected one, or the FIRST option when value="") with solid `--sl-color-primary-600` bg + white text, and the host carries NO attribute for "current" (only an internal `.option--current` shadow class), so you cannot restyle it via `sl-option[...]::part(base)`; scope the shadow theme's tokens on the host instead: `sl-option { --sl-color-primary-600: <your-bg>; --sl-color-neutral-0: <your-text>; }` (hover uses neutral-100/1000, normal text neutral-700 - same trick).
+- [pY5mK2] sl-option with no value attribute - its value property defaults to `""` (NO text-content fallback like a native <option>), and sl-select selects the option whose value matches the select's value, so an empty-value option displays its LABEL when the select value is "" (instead of the placeholder text); use a no-value first option ("Please select") as an explicit empty choice that still validates as no-selection-made - but when rendering native <option> elements instead, set value="" EXPLICITLY (native DOES fall back to the text).
+- [gR2nT7] sl-select `.value` set programmatically - fires NO `sl-change` event, so app logic wired to `sl-change` (eg re-running a search when a scope select changes) never runs in e2e or scripted flows; set the value AND dispatch the event yourself (`el.dispatchEvent(new Event("sl-change"))`) whenever the app depends on it.
+- [fS8wQ1] Activating `sl-theme-dark` also wakes the BASE font-size tokens - before activation, shadow rules like sl-option's `font-size: var(--sl-font-size-medium)` computed empty and inherited your site size; after activation they resolve to Shoelace's own scale (1rem+), silently making dropdown options/tooltips LARGER than the control that opened them; map the base scale onto your site scale in your :root overrides (`--sl-font-size-small/medium/large`).

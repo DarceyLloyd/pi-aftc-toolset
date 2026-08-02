@@ -30,7 +30,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 const PACKAGE_NAME = "pi-aftc-toolset";
-const MAX_PARENT_WALK = 8;
+
+/**
+ * Maximum number of parent directories to walk when looking for
+ * the package root (or any other ancestor-relative lookup). Exported
+ * so other modules (e.g. `install.ts`) reuse the same number instead
+ * of duplicating the constant.
+ */
+export const MAX_PARENT_WALK = 8;
 
 let packageRootCache: string | null = null;
 
@@ -50,6 +57,10 @@ function hasPackageRootShape(dir: string): boolean {
 export function getPackageRoot(): string {
     if (packageRootCache) return packageRootCache;
 
+    // First pass: walk up MAX_PARENT_WALK levels (typical source/install
+    // layout — the package root is up to 8 levels above the extension
+    // file: e.g. node_modules/@scope/pi-aftc-toolset/extensions/aftc-toolset
+    // /ssh/carrier/foo.ts is 5 levels above the package root).
     let dir = __dirname;
     for (let i = 0; i < MAX_PARENT_WALK; i++) {
         if (hasPackageRootShape(dir)) {
@@ -61,10 +72,30 @@ export function getPackageRoot(): string {
         dir = parent;
     }
 
-    // Normal source/package layout is extensions/aftc-toolset/<file>.ts.
-    // Fall back to that deterministic package-relative path, never cwd.
-    packageRootCache = path.resolve(__dirname, "..", "..");
-    return packageRootCache;
+    // Second pass: walk further up looking for the shape. Some
+    // installations (deeply nested pnpm/yarn pnp linker, system-wide
+    // extensions) live many levels above the package root. The first
+    // pass should catch normal layouts; this is the safety net.
+    dir = __dirname;
+    for (let i = 0; i < 32; i++) {
+        if (hasPackageRootShape(dir)) {
+            packageRootCache = dir;
+            return packageRootCache;
+        }
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+
+    // No match found. Throwing is preferable to the previous fallback
+    // (`__dirname/../..`), which silently resolved to a wrong directory
+    // (e.g. `node_modules` as a package root) and led to misleading
+    // errors when the extension tried to read its own files.
+    throw new Error(
+        `getPackageRoot: could not find the pi-aftc-toolset package root ` +
+        `by walking up from ${__dirname}. The package.json or ` +
+        `extensions/aftc-toolset/index.ts shape was not found at any parent.`,
+    );
 }
 
 /** Hidden extension-owned runtime root under the package directory (LEGACY). */

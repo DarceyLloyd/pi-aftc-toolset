@@ -20,12 +20,14 @@ extensions/aftc-toolset/aftc-codex/
 ├── codex-inject.ts            # before_agent_start injection, session lifecycle, context prune
 ├── codex-detect.ts            # Project technology auto-detection
 ├── codex-learn.ts             # /aftc-codex-learn prompt injection
+├── codex-entries.ts           # codex_add_entry / codex_edit_entry / codex_remove_entry tools
 ├── codex-compat.ts            # Version compatibility guard (pure TS)
 ├── codex-commands.ts          # /aftc-codex-* commands + config menu
 ├── codex-commands.ts          # /aftc-codex-* commands + config menu
 ├── scripts/
 │   ├── sync-codex-resources.mjs   # Regenerates codex-resource-list.md (byte-stable)
-│   └── ensure-entry-ids.mjs       # Adds unique 6-char [ID]s to entries missing them
+│   ├── ensure-entry-ids.mjs       # Adds unique 6-char [ID]s to entries missing them
+│   └── live-to-seed-sync.mjs      # Maintainer-only release tool (never wired in)
 └── *-readme.md                # Per-module companion docs
 ```
 
@@ -163,18 +165,83 @@ Scans `ctx.cwd` and maps signals to topic docs:
 
 | Signal type | Examples |
 | --- | --- |
-| File extensions | `.ts`→typescript, `.py`→python, `.gd`→godot, `.css`→css, `.vue`→vue |
-| package.json deps | `three`→threejs, `chart.js`→chartjs, `gsap`, `puppeteer`, `vite` |
-| Marker files | `Dockerfile`→docker, `composer.json`→php+composer, `project.godot`→godot |
+| File extensions | `.ts`→typescript, `.cpp/.hpp/.h`→cpp, `.cs/.sln/.csproj`→cs, `.razor`→blazor, `.rs`→rs, `.java`→java, `.twig`→twig, `.sh`→bash, `.bat/.cmd`→batch, `.wxs`→wix, `.scss`/`.sass`→scss |
+| package.json deps | `three`→threejs, `chart.js`→chartjs, `gsap`, `puppeteer`, `vite`, `electron`, `@shoelace-style/shoelace`→shoelace |
+| package.json scripts/fields | keys + values word-scanned for `bun`/`bunx`/`vite`/`webpack`/`node`; `bin`/`engines.node`→nodejs |
+| Marker files | `Dockerfile`→docker, `composer.json`→php+composer, `project.godot`→godot, `deno.json`→deno, `nginx.conf`→nginx, `.htaccess`→apache, `CMakeLists.txt`→cmake, `Cargo.toml`→rs, `pom.xml`/`build.gradle`→java |
+| Marker dirs | `aftc-framework/`→aftc-framework |
+| Content scan (≤64 KB, ≤24 files) | `*.csproj`→blazor/dotnet-maui, `CMakeLists.txt`→juce, compose files→mysql/nginx |
+| Auto-inject docs | the `<!-- AFTC-CODEX-STACK topics: ... -->` block (explicit pins, unioned) + a stoplisted whole-word keyword scan of `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`.cursorrules`/`.windsurfrules`/`.github/copilot-instructions.md` |
 | Pi manifest | `package.json` with `pi` key → pi-extension |
+| Implied topics | any design domain→design-common, mysql→database-common |
 
-Result is intersected with resources actually present (`store.listTopics()`), guidance
-topics excluded, sorted, and cached per cwd for the session.
+Every `package.json` found in the walk is parsed (the root one first, guaranteed),
+so tools declared by a nested app (eg `web/package.json`) are still detected.
+The result SPLITS: `topics` (a live resource exists — loadable, named in the
+marker) and `missing` (mapped but no resource file yet — named in the marker as a
+"no codex resource yet" bootstrap hint). Guidance topics are excluded from both.
+Results are cached per cwd for the session.
+
+**The stack block** (`<!-- AFTC-CODEX-STACK` / `topics: a, b, c` / `-->`) is the
+ONLY detection path for the design domains and target OS (nothing in a file tree
+says "web-app") and doubles as user pinning — including for stoplisted topic
+names (`go`, `windows`, `bun`, ...) that the free-text keyword scan ignores.
+The codex rules instruct the model to create/maintain the block in the project's
+auto-inject files.
 
 **Bounded scan:** skips heavy dirs (`node_modules`, `.git`, `dist`, `.venv`,
 `__pycache__`, any dot-dir), caps depth (6) and files visited (8000).
 
 ---
+
+## Rules-only mode (`/codex-rules-only`)
+
+A PER-SESSION mode (state, not a preference — nothing persists to config):
+`/codex-rules-only` injects ONLY the `## Critical Global Rules` section
+extracted from codex-rules.md (heading → next `## ` heading). No
+enabled/prepped/silent/compat gates, no marker, no list, no guidance, no prep
+notice — the zero-ceremony "common do-nots" option (the alternative to
+hand-crafting per-project AGENTS.md rules). It works even with the feature
+disabled (the `aftcCodexEnabled` pref is never touched), reads the LIVE rules
+when seeded (user customisations honoured) and falls back to the SEED rules
+when not. While active, `/codex-init`, `/codex-refresh` and `/codex-learn`
+refuse with a warning. The state rides the durable `aftc-codex-state` entry so
+it survives `/reload`, but a fresh session (`/new`) clears it — that is the way
+back to the full codex: `/new`, then `/codex-init`.
+
+---
+
+## The codex entry tools (`codex-entries.ts`)
+
+Three model tools make resource WRITES deterministic (replacing the old
+hand-edit + hand-ID + bash-sync choreography):
+
+- `codex_add_entry(topic, category?, entries[])` — batched appends. Generates
+  the 6-char `[ID]` in TypeScript, strips wrapper noise (`- `, backticks,
+  hand-made IDs, `Cause:`/`Fix:` prefixes, stale dates), validates the per-kind
+  format (rule/gotcha = one line; issue = symptom + cause + fix with the current
+  `(YYYY-MM)` auto-appended; one bad entry fails the whole batch, labelled
+  `entries[i]`), inserts at the END of the matching canonical section, creates
+  missing topic files (three-heading skeleton) and category folders (any
+  well-formed lowercase name; new categories reported as a typo signal), and
+  runs the list-sync internally ONLY when a topic file was created.
+- `codex_edit_entry(topic, id, kind?, text?, cause?, fix?)` — targeted
+  replacement by `[ID]`; unsupplied fields keep existing values; a `kind`
+  change moves the entry to the matching section; issue dates refresh to
+  current; unknown ID throws with the IDs present.
+- `codex_remove_entry(topic, id)` — deletes the whole entry (an issue's
+  Cause:/Fix: lines included). Never deletes the topic file; never touches the
+  resource list.
+
+**Guards (binding):** the central version guard runs first (unsafe => guard
+message, no write); an EXISTING topic must have been read via `codex_load` THIS
+SESSION (read-before-write, enforced via the coordinator-owned tracker:
+`durableSeen` dedupes the durable `aftc-codex-read` entries, `sessionReads` is
+cleared on fresh sessions and rebuilt from the durable entries on
+resume/reload/fork); top-level fixed docs (rules/guidance/markdown/list) are
+refused; an exact normalized duplicate lead is rejected with the existing
+`[ID]` (semantic near-duplicates stay the model's job). Writes are atomic
+(tmp + rename) and serialised through `withFileMutationQueue(absPath)`.
 
 ## The `codex_load` Tool
 
@@ -183,6 +250,9 @@ topics excluded, sorted, and cached per cwd for the session.
 - Fuzzy aliases: `ts`→typescript, `py`→python, `js`→javascript, `pine`→pinescript, `gd`→godot.
 - Specials: `rules`, `guidance`, `list`, `markdown`.
 - Strips a leading `@`, drops a trailing `.md`, supports explicit `category/name`.
+- An empty resource (headings, no entries) returns a fixed one-liner ("exists but
+  has no entries yet") instead of the file content — and still counts as a read
+  for the entry tools' read-before-write guard.
 - Truncates huge files (`truncateTail`, 50 KB / 2000 lines), states the full path.
 - Throws on unknown topic with the valid list.
 - Tracks reads durably via `pi.appendEntry("aftc-codex-read", { relPath })` for `/aftc-codex-status`.
@@ -192,13 +262,19 @@ topics excluded, sorted, and cached per cwd for the session.
 ## Self-Education (`/aftc-codex-learn`)
 
 Injects a user message instructing the model to persist DURABLE, GENERAL lessons
-using its standard tools (read/edit/write + bash). No separate model tool.
+using the codex entry tools (above). No hand-edited files, no bash-run sync —
+the tools own every mechanical step; the prompt keeps only model judgement.
 
 Steps enforced by the prompt:
-1. Sync first (`node sync-codex-resources.mjs`).
-2. Consult `codex-resource-list.md` — update existing docs, never duplicate.
-3. Classify each lesson into one of the THREE entry kinds and write it under the
-   matching section (auto-add with uniqueness checks by default, or
+1. Review the session for durable, general lessons.
+2. Consult `codex-resource-list.md` (in the system prompt, or `codex_load("list")`)
+   — update existing docs, never duplicate; create a new topic
+   (`category/name`, new categories allowed) only when nothing covers it.
+3. `codex_load` each target topic and check the lesson is not already there —
+   ENFORCED: the write tools refuse a topic not loaded this session and reject
+   exact duplicates.
+4. Classify each lesson into one of the THREE entry kinds and write it with
+   `codex_add_entry` (batched per topic; auto-add by default, or
    propose-then-confirm when `aftcCodexAutoAddEntries` is false):
    - **Rule** (`## Rules`) — a convention WE enforce; one line, no date:
      `- [ID] Never/Always X — one short reason.`
@@ -206,19 +282,21 @@ Steps enforced by the prompt:
      BOTH the trap AND the countermeasure; no date:
      `- [ID] LEAD — the trap; what to do / watch for.`
    - **Issue & Solution** (`## Issues & Solutions`) — an OBSERVED failure with a
-     diagnosis; the only dated kind:
+     diagnosis; the only dated kind (the tool appends the current date):
      ```
      - [ID] LEAD_TOKEN — one-line symptom
        Cause: why it happens.
        Fix: what to do. (YYYY-MM)
      ```
    All three headings are always present in every resource file (canonical order,
-   even when empty). Routing: TECH lessons > the correct
-   `resources/{category}/<topic>.md` only (`-learn` never writes to the fixed
-   top-level docs).
-4. Sync after writing.
+   even when empty — created by the tool's skeleton). Routing: TECH lessons >
+   the correct `resources/{category}/<topic>.md` only (`-learn` never writes to
+   the fixed top-level docs).
+5. Correct or remove outdated entries noticed along the way
+   (`codex_edit_entry` / `codex_remove_entry`).
 
-The prompt names the live OS-data copy as the write target (the package seed is read-only).
+The prompt names the live OS-data copy as the write target (the package seed is
+read-only — the tools never touch it).
 
 ---
 
@@ -264,6 +342,7 @@ preference (default 0 = pre-versioning installs).
 | `/aftc-codex-install` | `/codex-install` | Fresh install or re-install (confirmed destructive when versions match; NO confirm on a version mismatch — the command itself is the confirmation) |
 | `/aftc-codex-learn` | `/codex-learn` | Self-education prompt injection |
 | `/aftc-codex-status` | `/codex-status` | Colored status: enabled, embedded, files read |
+| `/aftc-codex-rules-only` | `/codex-rules-only` | Rules-only mode for this session: critical rules only, no docs/learn; `/new` + `/codex-init` returns to full |
 
 **List-regeneration:** the resources menu (Start Fresh), `-learn`, `-install`, `-init`, and `-refresh`
 spawn the list-regeneration script. Pure toggles (`-enable`/`-disable`/`-status`) skip it.
@@ -288,7 +367,7 @@ spawn the list-regeneration script. Pure toggles (`-enable`/`-disable`/`-status`
 
 | Key | Type | Default | Purpose |
 | --- | --- | --- | --- |
-| `aftcCodexEnabled` | bool | `false` | Master on/off |
+| `aftcCodexEnabled` | bool | `false` | Feature on/off |
 | `aftcCodexInjectGuidance` | bool | `true` | Inject `thought-and-action-guidance.md` |
 | `aftcCodexAutoLoad` | bool | `true` | Auto-detect project techs + name them in marker |
 | `aftcCodexSeeded` | bool | `false` | First-run seed choice done |
@@ -303,10 +382,11 @@ All migrated into an existing `config.json` via the write-back pattern.
 
 ### `sync-codex-resources.mjs`
 
-Regenerates `codex-resource-list.md` from the live resources. Two callers:
+Regenerates `codex-resource-list.md` from the live resources. Callers:
 1. The extension spawns it (child_process, arg array, no shell; falls back to
    `process.execPath`) as the first step of resource-touching commands.
-2. The model runs it via bash after manual edits (path embedded in injected rules).
+2. `codex_add_entry` spawns it internally when it creates a new topic file.
+The model never runs the script by hand (the entry tools own every write).
 
 **Byte-stable** (cache-critical — the list rides the system-prompt prefix):
 deterministic code-unit sort, no timestamps, atomic write (tmp + rename), write
@@ -316,6 +396,17 @@ SKIPPED when content unchanged. Never throws (exit 0 with a note on error).
 
 Ensures every entry in resource files has a unique 6-char alphanumeric `[ID]`.
 Idempotent. Processes only category subfolder `.md` files. Never throws.
+Backstop for hand-edits — the codex entry tools generate IDs themselves.
+
+### `live-to-seed-sync.mjs` (maintainer-only)
+
+One-off release tool, run by hand from the dev repo — NEVER wired to any command,
+menu, or extension code. Reverses the normal flow: ports live-only resource
+entries (keyed by `[ID]`) and new live topic files into the package seed so
+learned entries ship with the release. Dry run by default; `--apply` writes.
+Seed-only entries are kept; same-ID text differences are reported as conflicts,
+never auto-overwritten; the generated `codex-resource-list.md` is never copied.
+Paths resolve like the extension (`AFTC_TOOLSET_DATA_ROOT` override honoured).
 
 ---
 
@@ -326,6 +417,7 @@ Idempotent. Processes only category subfolder `.md` files. Never throws.
 | `before_agent_start` | codex-inject | Append rules/guidance/list to system prompt |
 | `context` | codex-inject | Prune accumulated codex docs + markers |
 | `session_start` | codex-inject | Restore state; fresh-session notice / auto-prep |
+| `session_start` | codex-entries | Clear (fresh) / rebuild (restore) the session read set |
 
 ---
 
@@ -370,8 +462,11 @@ Idempotent. Processes only category subfolder `.md` files. Never throws.
   where `ctx.ui.custom()` overlays from `session_start` are flaky/dropped.
 - **`session_start.reason`** for fresh-vs-resume (no `getEntries().length` heuristic).
 - **Matched-pair pruning**: tool_use + tool_result removed together to avoid orphaning.
-- **No separate `codex_learn` tool**: the model uses its standard read/edit/write tools
-  (KISS); the learn command just injects instructions.
+- **Simplest solution that fully delivers the functionality.** Cut machinery the
+  feature doesn't need; never cut functionality for the sake of simplicity.
+  Deterministic code beats prompt-choreography for steps the model can get wrong
+  (why resource writes are tool-executed: `[ID]` generation, format validation,
+  section placement, list sync).
 - **Byte-stable list generation**: the resource list rides the cached prefix, so any
   non-determinism would cause cache misses every turn.
 - **Detection stays out of the prefix**: session-specific data (detected topics) goes in

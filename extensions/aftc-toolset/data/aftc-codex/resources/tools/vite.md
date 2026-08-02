@@ -4,6 +4,8 @@
 
 ## Gotchyas
 
+- [vM3cX6] `build.minify` also drives `build.cssMinify` when cssMinify is unset - a config that sets `minify: "esbuild"` intending JS-only minification silently minifies the CSS too; set `cssMinify: false` explicitly, or force `minify: false` for non-production builds in the config factory.
+
 ## Issues & Solutions
 
 

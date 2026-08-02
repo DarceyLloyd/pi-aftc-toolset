@@ -186,6 +186,13 @@ read-modify-write. Full contract + edge cases: `docs/working-with-config.md`.
 
 # Documentation and releases
 
+- **Codex live->seed release sync** (maintainer-only, never wired to any command
+  or menu): `node extensions/aftc-toolset/aftc-codex/scripts/live-to-seed-sync.mjs`
+  (dry run) / `--apply` (writes). Ports live-only resource entries + new topics
+  into the seed before a release so learned entries ship. Entry-level merge by
+  `[ID]`; conflicts are reported, never auto-overwritten; the generated
+  `codex-resource-list.md` is never copied to the seed.
+
 - Versioning: `major.minor.patch`.
 - Patch bump: fix or enhancement to existing behaviour.
 - Minor bump (reset patch): brand-new feature (new capability area).

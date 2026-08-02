@@ -14,6 +14,7 @@ The `/aftc-codex-*` slash commands + the config menu.
 | `/aftc-codex-refresh` | Prune all codex from context, then re-prep (clean restart). |
 | `/aftc-codex-learn` | Self-education prompt injection; refused while disabled. |
 | `/aftc-codex-status` | Compact colored status in the TUI transcript: `AFTC Codex Enabled`, `Embedded in context`, and `No' of codex files read: X/YY`. The read count is rebuilt from durable read-tracking entries, so it survives `/reload`, resume and compaction. |
+| `/aftc-codex-rules-only` | Rules-only mode for THIS session: injects ONLY the Critical Global Rules section (no docs, list, guidance, marker or learn; works even with the feature disabled). One-way per session — `/new` + `/codex-init` returns to the full codex. Alias `/codex-rules-only`. |
 
 (`/codex-*` are aliases of the matching `/aftc-codex-*` commands.)
 
@@ -28,7 +29,7 @@ list is fresh. Pure toggles (`-enable`/`-disable`/`-status`) skip the spawn.
 `/aftc-codex` opens a GRUB-style menu tree built ONLY from the `aftc-ui`
 primitives (`showMenu`/`showConfirm`/`showInput`/`showViewer`):
 
-- **1 Main** — inline toggles (Master switch · Inject thinking guidance ·
+- **1 Main** — inline toggles (Enabled · Inject thinking guidance ·
   Auto-load docs · Task Addition Approval) that re-render the screen, plus
   Resources & updates (→1.6) and Help (→1.8).
 - **1.6 Resources & updates** — Start fresh

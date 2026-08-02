@@ -2,6 +2,8 @@
 
 ## Rules
 
+- [rP4mX8] Always build Python applications relative-path-only - launchers, configs and scripts must resolve everything from their own location (script dir, __file__, %~dp0, $PSScriptRoot), never hardcoded absolute paths, so the project folder keeps working when moved between drives/machines; use absolute paths only where project documentation or the user explicitly states otherwise.
+
 ## Gotchyas
 
 ## Issues & Solutions

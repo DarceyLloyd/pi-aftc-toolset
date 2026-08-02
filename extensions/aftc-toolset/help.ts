@@ -41,9 +41,49 @@ import {
 // -----------------------------------------------------------------------------
 
 const SKILL_ROWS: Array<[string, string]> = [
+	// Workflows (the most useful starting points)
 	["/skill:cache-audit", "Cache diagnostics workflow"],
 	["/skill:bulk-read", "Concatenate many files into one doc"],
 	["/skill:aftc-codex", "Knowledge base: codex_load, lessons, structure maps"],
+	// Languages
+	["/skill:typescript", "TypeScript strict mode + AFTC singleton MVC"],
+	["/skill:javascript-mjs", "JavaScript ES modules + KISS"],
+	["/skill:javascript-transpiled", "Transpiled JS + build targets"],
+	["/skill:python", "Python + uv + stdlib-first"],
+	["/skill:go", "Go conventions + error handling"],
+	["/skill:php", "PHP 8.2+ strict types + Composer"],
+	["/skill:pinescript", "Pine Script v6 for TradingView"],
+	["/skill:bash", "Bash shell scripting"],
+	["/skill:bat", "Windows Batch scripting"],
+	["/skill:ps1", "PowerShell scripting"],
+	["/skill:markdown", "AI-friendly markdown for docs"],
+	// Frameworks / runtimes
+	["/skill:react", "React + Vite + Next.js"],
+	["/skill:vue", "Vue 3 + Composition API + Pinia"],
+	["/skill:angular", "Angular standalone + signals"],
+	["/skill:web-frontend", "HTML5 / CSS3 / accessibility / perf"],
+	["/skill:bun", "Bun runtime + package manager"],
+	["/skill:deno", "Deno + TypeScript-native"],
+	["/skill:nodejs", "Node.js + ESM + async"],
+	// Styling / markup
+	["/skill:html", "HTML5 semantic + a11y"],
+	["/skill:css", "CSS3 + custom properties"],
+	["/skill:scss", "SCSS/Sass + BEM"],
+	// Backend / typed
+	["/skill:csharp", "C# / .NET + EF + ASP.NET"],
+	// Container / OS / ops
+	["/skill:docker", "Docker + Compose + Dockerfile"],
+	["/skill:devops", "CI/CD pipelines + IaC"],
+	["/skill:nginx", "Nginx reverse proxy + SSL"],
+	["/skill:linux", "Linux sysadmin + systemd"],
+	// Media
+	["/skill:ffmpeg", "ffmpeg video/audio/image CLI"],
+	// Engines
+	["/skill:godot", "Godot 4.x + GDScript MVC"],
+	// Tooling
+	["/skill:git", "Git + GitHub CLI + Conventional Commits"],
+	["/skill:tmux", "tmux session control"],
+	["/skill:ssh", "SSH remote sessions + carriers"],
 ];
 
 const SHORTCUT_ROWS: Array<[string, string]> = [

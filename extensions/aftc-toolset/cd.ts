@@ -85,8 +85,13 @@ import {
 /** Default depth of descendants shown in the listing (children + N levels).
  * Mutable at runtime via `/cd-set-max-depth`. */
 const DEFAULT_MAX_DEPTH = 3;
-/** Cache TTL for directory reads (intentional persistence). */
-const CACHE_TTL_MS = 500;
+/** Cache TTL for directory reads (intentional persistence across
+ *  rapid navigation). 30s is long enough to keep BFS walks snappy
+ *  while typed-path edits / pressing Right through a tree still
+ *  refresh quickly. The cache is module-scoped and never shrinks —
+ *  a long-running session that walks many directories will grow it
+ *  without bound (see `invalidateDirCache` test helper to clear). */
+const CACHE_TTL_MS = 30_000;
 /** Lower bound exposed by `/cd-set-max-depth`. */
 const MIN_DEPTH = 2;
 /** Upper bound exposed by `/cd-set-max-depth`. */
@@ -101,7 +106,7 @@ interface DirEntry {
 	label: string;
 	description?: string;
 	/** Discriminator so confirm/tab can tell `..`, real dirs, and drives apart. */
-	kind?: "parent" | "drive" | "dir";
+	kind?: "parent" | "drive" | "dir" | "create";
 }
 
 // Two-level cache so repeated keystrokes never touch the filesystem.
@@ -235,9 +240,9 @@ function listDrives(): string[] {
  * navigating back to a deep folder when walking up the tree through
  * a parent directory that has many descendants (e.g. `node_modules/`).
  *
- * The cache (`subdirCache` + `direntCache`, 500ms TTL) ensures the
- * walker only reads the disk once per (dir, 500ms) pair, so the cost
- * of unbounded listings is paid at most twice per second.
+ * The cache (`subdirCache` + `direntCache`, CACHE_TTL_MS TTL) ensures
+ * the walker only reads the disk once per (dir, TTL) pair, so the
+ * cost of unbounded listings is paid at most twice per TTL window.
  *
  * Labels:
  *   - depth-1: leaf name + "/"  e.g. "src/"
@@ -286,8 +291,8 @@ function findDirectoriesAtDepth(
  * from "tests/core/" regardless of listing depth.
  *
  * No entry-count cap — the viewport in `CdOverlay.render` handles
- * scrolling. The cache (`subdirCache` + `direntCache`, 500ms TTL)
- * ensures the walker only reads the disk once per (dir, 500ms)
+ * scrolling. The cache (`subdirCache` + `direntCache`, CACHE_TTL_MS TTL)
+ * ensures the walker only reads the disk once per (dir, TTL)
  * pair, so the cost of unbounded listings is paid at most twice
  * per second.
  */
@@ -511,7 +516,12 @@ class CdOverlay implements Focusable {
 
 		// Dir mode. The current folder is prepended as entry[0] ("./")
 		// so the user can select it with Enter without navigating up.
-		// Left-arrow remains the only way to go to the parent.
+		// Left-arrow remains the only way to go to the parent. A
+		// "Create new folder..." entry is appended at the bottom so
+		// the user can spin up a fresh dir without leaving the picker.
+		// If the input has text, that text is the new folder name on
+		// confirm; if empty, the entry is still a valid target (the
+		// handler then prompts for a name).
 		const found = findDirectoriesAtDepth(this.currentDir, this.input, this.maxDepth);
 		const foundDirs = found.map((e) => ({ ...e, kind: "dir" as const }));
 		const currentEntry: DirEntry = {
@@ -519,7 +529,12 @@ class CdOverlay implements Focusable {
 			label: "./",
 			kind: "dir",
 		};
-		this.entries = [currentEntry, ...foundDirs];
+		const createEntry: DirEntry = {
+			value: this.input.trim() || "__new__",
+			label: "Create new folder...",
+			kind: "create",
+		};
+		this.entries = [currentEntry, ...foundDirs, createEntry];
 		this.selectedIndex = 0;
 		this.scrollOffset = 0;
 		this.clampScroll();
@@ -653,6 +668,16 @@ class CdOverlay implements Focusable {
 		// still drills in). Keeps Enter="select current" consistent.
 		if (this.isShowingDrives) {
 			if (entry) this.done({ kind: "picked", directory: entry.value });
+			return;
+		}
+
+		// "Create new folder..." entry at the bottom. Routes through the
+		// same typed-path flow as CLI args: if the input has text, that
+		// text is the new folder name (resolveOrCreateDirectory confirms
+		// and creates it); if the input is empty, it resolves to the
+		// current directory (same as selecting "./").
+		if (entry?.kind === "create") {
+			this.done({ kind: "typed", text: this.input.trim() });
 			return;
 		}
 
@@ -892,24 +917,43 @@ class CdOverlay implements Focusable {
 
 	/** Footer hint lines (unstyled — the takeover colours them muted). */
 	private renderHelp(): string[] {
-		let controlsLine: string;
-		let extraLine: string | null = null;
+		// Drives mode: no Up level (we're at the top), no Tab. Right-arrow
+		// drills into the highlighted drive AND Enter also selects it, so
+		// both are equally valid.
 		if (this.isShowingDrives) {
-			// Drives mode — no ← up (already at the top), no Tab. Page
-			// keys still apply since drives list can have many entries.
-			controlsLine =
-				"↑↓ = navigate | → = Enter | Enter = Select | Esc = cancel";
-			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom`;
-		} else {
-			// Dir mode — "./" at the top is the current folder; press
-			// Enter on it to switch to a fresh session right here, or use
-			// ← to go up a level. Tab autocompletes the highlighted entry
-			// into the input.
-			controlsLine =
-				"↑↓ = navigate | ← = Up level | → = Enter | Enter = Select | Tab = Auto complete | Esc = cancel";
-			extraLine = `PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom | ./ = current folder`;
+			return [
+				"↑↓ = navigate | → = Enter | Enter = Select | Esc = cancel",
+				`PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom`,
+			];
 		}
-		return extraLine ? [controlsLine, extraLine] : [controlsLine];
+
+		// Dir mode: only show navigation hints that actually work in the
+		// current state. When the listing is just the synthetic "./" entry
+		// (empty folder, or filter narrowed to nothing), the right-arrow
+		// drill is a no-op AND left-arrow up is the only way out — so
+		// promote those two and drop the rest.
+		const onlyCurrentEntry =
+			this.entries.length === 1 &&
+			this.entries[0]?.value === this.currentDir;
+
+		if (onlyCurrentEntry) {
+			return [
+				"Enter = select this folder | ← = up level | Esc = cancel",
+				"Type to fuzzy-match a deeper path, or Tab to autocomplete after navigation",
+			];
+		}
+
+		// Normal dir mode: "./" at the top is the current folder; press
+		// Enter on it to switch to a fresh session right here, or use
+		// ← to go up a level. Tab autocompletes the highlighted entry
+		// into the input. Right-arrow drills when the folder has children
+		// (a no-op on empty folders: see drillIntoSelected). The
+		// "Create new folder..." row at the bottom uses the typed input
+		// as the folder name when picked.
+		return [
+			"↑↓ = navigate | ← = Up level | → = Enter | Enter = Select | Tab = Auto complete | Esc = cancel",
+			`PgUp/PgDn = up/down ${this.viewportRowCount} | Ctrl+PgUp = top | Ctrl+PgDn = bottom | ./ = current | last row = create new folder`,
+		];
 	}
 }
 

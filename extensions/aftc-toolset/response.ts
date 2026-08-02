@@ -95,14 +95,6 @@ const HR_COLOR = "border";
  */
 const HR_CHAR = "\u2500"; // light horizontal rule ─
 
-/**
- * If true, add an extra backgrounded line below the bar for breathing
- * room before the assistant text starts.  Only applies when
- * HR_BG_COLOR is set; the blank carries the same bg so the color band
- * is uninterrupted.
- */
-const HR_TRAILING_BLANK = false;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // THEME COLOR REFERENCE  (for the HR_COLOR constant above and for hand-editing)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -187,16 +179,6 @@ export function createResponseDivider(pi: ExtensionAPI): void {
                 const rule = HR_BG_COLOR ? theme.bg(HR_BG_COLOR, fg) : fg;
 
                 const out: string[] = [truncateToWidth(rule, w, "")];
-
-                // Trailing blank: with a bg, we emit w spaces carrying the
-                // same bg so the color band extends flush to the response.
-                if (HR_TRAILING_BLANK) {
-                    if (HR_BG_COLOR) {
-                        out.push(truncateToWidth(theme.bg(HR_BG_COLOR, " ".repeat(w)), w, ""));
-                    } else {
-                        out.push("");
-                    }
-                }
 
                 return out;
             },
