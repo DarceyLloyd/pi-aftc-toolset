@@ -7,6 +7,8 @@
 
 ## Gotchyas
 
+- [BRJB2G] hand-written UPDATE rebinds every column - a controller `UPDATE t SET col=:col` that reads each value as `$data['col'] ?? default` rebinds EVERY column from the body, so a partial PUT (eg a sort-only reorder that swaps one field) silently resets the OMITTED columns to their defaults (wipes the text, flips enabled/flags, etc.); use `updateWhitelisted()` (it builds SET only for keys present in the payload) for partial-safe updates, or send the full row with only the changed field different.
+
 ## Issues & Solutions
 
 

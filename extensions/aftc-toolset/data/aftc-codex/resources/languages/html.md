@@ -6,6 +6,8 @@
 
 - [hT6rD4] <option> without a value attribute - the browser silently uses the option's TEXT as its value, so a "Please select" / empty choice submits its label instead of ""; always write `value=""` explicitly for placeholder or empty options.
 
+- [ZT45zF] Nested <form> tags - the inner <form> start tag is dropped by the HTML parser and the inner </form> then CLOSES THE OUTER form, orphaning every control after it (e.g. a submit button, or a whole product-picker row) OUTSIDE the form; the submit event then never fires so 'the save button does nothing' with zero console errors; never nest a <form> - group controls inside a form with a <div class="toolbar"> / <fieldset> instead (and give inner buttons type="button" so they can't submit).
+
 ## Issues & Solutions
 
 

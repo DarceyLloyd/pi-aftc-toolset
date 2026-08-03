@@ -4,6 +4,10 @@
 
 ## Gotchyas
 
+- [sjYzPL] CSS transition reads fine in source but is silently dead - a transition can be killed by a rule the source does not show (a global `@media (prefers-reduced-motion: reduce){*{transition-duration:.001ms!important}}` nuke, a `display:none` toggle, a transition-property mismatch) and "it should work" is unverifiable from a static read; prove it runs by sampling `getComputedStyle(el).opacity` (or the animated property) over time inside `page.evaluate` (a tight setTimeout loop) and asserting a mid-sample strictly between start and end - a snap jumps 0->1 in one tick, a real tween passes through intermediate values.
+
+- [7JLylr] A suite that creates + CONSUMES a finite resource (serial numbers, single-use codes, stock) and cleans up only the UNUSED instances leaves the USED ones to accumulate across runs - they eventually exhaust or block the resource (eg a serial bank left at 0 unused fails the NEXT run's checkout with 'out of stock'/'out of serial codes', even though THIS run passed); cleanup must reach the consumed instances too (delete the parent order/record so they cascade, or a DB-level sweep at suite start - many APIs can't delete a 'used' row), or design the test so a consumed instance can never block a re-run (a fresh throwaway resource each run).
+
 ## Issues & Solutions
 
 

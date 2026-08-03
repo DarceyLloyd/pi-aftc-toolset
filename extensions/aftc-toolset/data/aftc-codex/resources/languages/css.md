@@ -10,6 +10,8 @@
 
 - [9s6pyq] Global * { box-sizing: border-box } & JS size measurement - libs that read a container's getComputedStyle width/height to size content assume content-box and over-size by the padding (content runs under scrollbars/edges); give the measured container box-sizing: content-box (or zero padding). Concrete instance: xtermjs.md fit addon.
 
+- [z9Abuo] A global `@media (prefers-reduced-motion: reduce){ *,*::before,*::after{ transition-duration:.001ms!important; animation-duration:.001ms!important } }` nuke silently kills EVERY transition + animation (drawers, modals, hovers, carousels) on the many dev machines that have the OS reduce-motion flag ON - so the whole site reads as "transitions disappeared" even though every partial still declares them; if the project ships its motion, do NOT add this rule (and when debugging "no transitions", check getComputedStyle transition-duration + whether the flag is reduce before blaming the CSS).
+
 ## Issues & Solutions
 
 
