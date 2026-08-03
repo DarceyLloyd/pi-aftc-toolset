@@ -189,9 +189,9 @@ been `codex_load`ed this session), exact-duplicate backstop, atomic writes throu
 `/aftc-codex` (menu), `-enable` (enable + prep; warns if already active; alias
 `/codex-enable`), `-disable` (disable + strip all codex from context; alias
 `/codex-disable`), `-install` (fresh install or re-install), `-init`, `-refresh`,
-`-learn`, `-status`, `-rules-only` (per-session rules-only mode: ONLY the
-Critical Global Rules inject — no docs/learn; `/new` + `/codex-init` returns to
-full).
+`-learn`, `-status`, plus `/codex-inject-rules` (per-session rules-only mode:
+ONLY the Critical Global Rules inject — no docs/learn; `/new` + `/codex-init`
+returns to full).
 The resources menu, `-learn` and
 `-install` run the
 list-regeneration script first; pure toggles skip the spawn.

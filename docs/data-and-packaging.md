@@ -164,7 +164,7 @@ matches the current schema; do NOT re-add them.
 | Key | Was | Replaced by |
 | --- | --- | --- |
 | `notifySound` | Single key for the task-complete sound (pre-multi-category audio) | `notifySoundTaskComplete` (and the rest of `notifySound*`) |
-| `aftcCodexInjectMode` | Dev-only v1.17.0 toggle for codex injection mode | Per-session state controlled by `/aftc-codex-rules-only` |
+| `aftcCodexInjectMode` | Dev-only v1.17.0 toggle for codex injection mode | Per-session state controlled by `/codex-inject-rules` |
 
 When you remove a key, add a new row here AND a comment in
 `config.ts`'s `loadPreferencesInternal` cleanup block so the next

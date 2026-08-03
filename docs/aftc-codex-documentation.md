@@ -194,10 +194,10 @@ auto-inject files.
 
 ---
 
-## Rules-only mode (`/codex-rules-only`)
+## Rules-only mode (`/codex-inject-rules`)
 
 A PER-SESSION mode (state, not a preference — nothing persists to config):
-`/codex-rules-only` injects ONLY the `## Critical Global Rules` section
+`/codex-inject-rules` injects ONLY the `## Critical Global Rules` section
 extracted from codex-rules.md (heading → next `## ` heading). No
 enabled/prepped/silent/compat gates, no marker, no list, no guidance, no prep
 notice — the zero-ceremony "common do-nots" option (the alternative to
@@ -342,7 +342,7 @@ preference (default 0 = pre-versioning installs).
 | `/aftc-codex-install` | `/codex-install` | Fresh install or re-install (confirmed destructive when versions match; NO confirm on a version mismatch — the command itself is the confirmation) |
 | `/aftc-codex-learn` | `/codex-learn` | Self-education prompt injection |
 | `/aftc-codex-status` | `/codex-status` | Colored status: enabled, embedded, files read |
-| `/aftc-codex-rules-only` | `/codex-rules-only` | Rules-only mode for this session: critical rules only, no docs/learn; `/new` + `/codex-init` returns to full |
+| `/codex-inject-rules` | (none) | Rules-only mode for this session: critical rules only, no docs/learn; `/new` + `/codex-init` returns to full (standalone name, no `/aftc-` variant) |
 
 **List-regeneration:** the resources menu (Start Fresh), `-learn`, `-install`, `-init`, and `-refresh`
 spawn the list-regeneration script. Pure toggles (`-enable`/`-disable`/`-status`) skip it.

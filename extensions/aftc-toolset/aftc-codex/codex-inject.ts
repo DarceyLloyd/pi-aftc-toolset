@@ -275,7 +275,7 @@ export function createCodexInject(
 
     function buildPromptBlock(): string | null {
         try {
-            // Rules-only mode (per-session state, /codex-rules-only): inject
+            // Rules-only mode (per-session state, /codex-inject-rules): inject
             // ONLY the Critical Global Rules section. Zero ceremony: no
             // enabled/prepped/silent/compat gates, no marker, no list, no
             // guidance. Reads the live copy when seeded (user-customised rules

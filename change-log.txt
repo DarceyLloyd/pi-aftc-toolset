@@ -4,6 +4,7 @@ pi-aftc-toolset - Change Log
 Updates v1.18.x
 ---------------
 
+- aftc-codex: the rules-only session mode is now invoked with a single command, /codex-inject-rules. The old /aftc-codex-rules-only and /codex-rules-only names were removed; behaviour is unchanged (injects ONLY the Critical Global Rules for this session, works with codex disabled, cleared by a fresh session).
 - Updated the footer widget screenshot in the README to match the reworked bar.
 - README brought in line with the current release: footer line-4 documentation rewritten for the new averages format and the /aftc-footer menu, the removed /aftc-set-costs-timeframe row dropped from the command tables, codex stage labels made consistent (BETA everywhere), the shipped codex topic count corrected to 59, and a handful of typos fixed.
 - aftc-codex seed updated with what your live codex learned: 5 new entries ported into the aftc-framework, css, html and puppeteer resources (they reach users via a fresh install / Start Fresh).

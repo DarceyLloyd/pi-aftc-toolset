@@ -23,7 +23,7 @@ The cache-friendly "hybrid" injection (spec D1 / D7):
 Rules inject only when `aftcCodexEnabled && prepped && !silent` and the rules
 file is non-empty (seeded).
 
-### Rules-only mode (`/codex-rules-only`)
+### Rules-only mode (`/codex-inject-rules`)
 
 Per-SESSION state (not a preference — nothing is written to config). When
 `state.rulesOnly` is set, injection short-circuits BEFORE every gate (enabled,

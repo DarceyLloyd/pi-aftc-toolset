@@ -53,7 +53,7 @@ export interface CodexState {
     prepped: boolean;
     /** Per-session suppression set by /codex-disable (cleared by -run). */
     silent: boolean;
-    /** Per-session rules-only mode set by /codex-rules-only: inject ONLY the
+    /** Per-session rules-only mode set by /codex-inject-rules: inject ONLY the
      *  Critical Global Rules section; init/refresh/learn refuse; a fresh
      *  session (/new) clears it. Works even when the feature is disabled. */
     rulesOnly: boolean;

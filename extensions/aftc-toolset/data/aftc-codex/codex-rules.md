@@ -27,6 +27,7 @@
 - The simplest solutions are the best (*D)
 - KISS (*D)
 - ensure variables, functions and methods are named exactly what they are for eg hemiLightColor, enableVisualDevConsole
+- Before edit always consider code clarity, consistency, and maintainability to ensure these requirements are always met before writing or modifying any code. Simplest is typically the best.
 - When using (OOP) Object Orientated capable languages and using OOP, define variables above the constructor
 - When defining variables that the user/developer may want to adjust often place them at the top of the script
 - If you encounter an issue or are requested to fix an issue, before doing anything it is critical that you evaluate if its relevant or feasible to add logging to what you are working on. When you do add logging I typically have in place a log class/function gated via enabled bool flag applicable at the per a file/class level. When I create logs to console or file read like a story of how an application initialises and runs at every step, event, timer completion etc. This often results in any issue being found and resolved very quickly, you should always do this where applicable as it will help you greatly (if you ever have to do this, then what you are trying to fix is probably a good candidate for an entry to the appropriate codex resource in issues & solutions, evaluate and add accordingly). Ensure to clean up or disable logging after the issue has been resolved. Be intelligent and adaptive with how you action this rule.

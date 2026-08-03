@@ -14,9 +14,9 @@ The `/aftc-codex-*` slash commands + the config menu.
 | `/aftc-codex-refresh` | Prune all codex from context, then re-prep (clean restart). |
 | `/aftc-codex-learn` | Self-education prompt injection; refused while disabled. |
 | `/aftc-codex-status` | Compact colored status in the TUI transcript: `AFTC Codex Enabled`, `Embedded in context`, and `No' of codex files read: X/YY`. The read count is rebuilt from durable read-tracking entries, so it survives `/reload`, resume and compaction. |
-| `/aftc-codex-rules-only` | Rules-only mode for THIS session: injects ONLY the Critical Global Rules section (no docs, list, guidance, marker or learn; works even with the feature disabled). One-way per session — `/new` + `/codex-init` returns to the full codex. Alias `/codex-rules-only`. |
+| `/codex-inject-rules` | Rules-only mode for THIS session: injects ONLY the Critical Global Rules section (no docs, list, guidance, marker or learn; works even with the feature disabled). One-way per session — `/new` + `/codex-init` returns to the full codex. Standalone name — no `/aftc-codex-*` variant. |
 
-(`/codex-*` are aliases of the matching `/aftc-codex-*` commands.)
+(`/codex-*` are aliases of the matching `/aftc-codex-*` commands, except `/codex-inject-rules` which has no `/aftc-` variant.)
 
 ## List-regeneration wrapper
 

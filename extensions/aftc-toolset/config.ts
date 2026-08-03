@@ -318,7 +318,7 @@ function loadPreferencesInternal(): Preferences {
         //     task-complete sound. Replaced by per-category keys
         //     (notifySoundQuestion / notifySoundTaskComplete / etc.).
         //   - aftcCodexInjectMode: dev-only v1.17.0 toggle that became
-        //     per-session state in /aftc-codex-rules-only.
+        //     per-session state in /codex-inject-rules.
         // Mirror this table in docs/data-and-packaging.md when the
         // list grows.
         delete (merged as any).notifySound;

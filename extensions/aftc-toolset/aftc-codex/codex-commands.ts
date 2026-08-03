@@ -10,7 +10,7 @@
  *   /aftc-codex-refresh  Strip all codex from context, then re-init (clean restart).
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
- *   /aftc-codex-rules-only  Rules-only mode for this session (critical rules only).
+ *   /codex-inject-rules     Rules-only mode for this session (critical rules only).
  *
  * List-regeneration: Start Fresh (resources menu) and /aftc-codex-learn spawn
  * the list-regeneration script; pure toggles skip the spawn.
@@ -229,7 +229,7 @@ const HELP_LINES = [
     "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
     "  /aftc-codex-learn        Record durable lessons into the codex",
     "  /aftc-codex-status       Show status",
-    "  /aftc-codex-rules-only   Rules-only mode for this session (critical rules only; /new for full)",
+    "  /codex-inject-rules      Rules-only mode for this session (critical rules only; /new for full)",
     "",
     "Model tools:",
     "  codex_load(topic)        Load a resource on demand (eg codex_load(\"typescript\"))",
@@ -500,7 +500,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
     pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
 
-    // ---- /aftc-codex-rules-only (alias /codex-rules-only) ----
+    // ---- /codex-inject-rules ----
     // Per-session rules-only mode: inject ONLY the Critical Global Rules
     // section — no docs, list, guidance, marker or learn. Works even with the
     // feature disabled (never touches the enabled pref). One-way: a fresh
@@ -517,8 +517,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             "(no docs, list, guidance or /codex-learn). Start a new session for the full codex.",
             "info");
     };
-    registerHelpEntry({ command: "aftc-codex-rules-only", description: "Rules-only injection for this session (critical rules only)", category: "aftc-codex", aliases: ["codex-rules-only"] });
-    pi.registerCommand("aftc-codex-rules-only", { description: "Rules-only codex injection for this session (critical rules only)", handler: rulesOnlyHandler });
-    pi.registerCommand("codex-rules-only", { description: "Rules-only codex injection for this session (alias)", handler: rulesOnlyHandler });
+    registerHelpEntry({ command: "codex-inject-rules", description: "Rules-only injection for this session (critical rules only)", category: "aftc-codex" });
+    pi.registerCommand("codex-inject-rules", { description: "Rules-only codex injection for this session (critical rules only)", handler: rulesOnlyHandler });
 
 }
