@@ -1,6 +1,6 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.18.4",
+  "version": "1.18.5",
   "description": "Footer widget with costs, cache, turns, ctx window tracking etc. Detailed usage reports, Isolated SSH, Self learning & injecting issues & solutions, various skills, 3 themes, prompt repeater, shortcuts and more.",
   "keywords": [
     "pi-package",

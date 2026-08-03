@@ -20,7 +20,7 @@ Click [here](./change-log.txt) to read the change logs.
 A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error, plus optional context-window usage alerts when the context crosses 25%, 50% or 75% full (re-arms after compaction). NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
 
 ### **Usage Reports**
-BETA 3. More changes, and more to come. User /usage-report
+BETA 3. More changes, and more to come. Use /usage-report
 
 ### **Persistent Data Storage**
 Data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /qd (Open users data dir) should you want to go there. The extension will be acting as a seed from here on for relevant features.
@@ -65,11 +65,11 @@ Then in pi:
 
     > Reliable large/multi-line script execution. Works around a pi bash-tool truncation bug that silently drops inline commands past a few KB.
 
-- [**Usage Report**](#usage-report) (BETA 2)
+- [**Usage Report**](#usage-report) (BETA 3)
 - [**Cache diagnostics**](#cache-diagnostics)
-- [**AFTC Codex**](#aftc-codex-knowledge-base) (ALPHA 1)
+- [**AFTC Codex**](#aftc-codex-knowledge-base) (BETA)
 
-    > **WARNING**: AFTC Codex injects ~29KB of rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This consumes context window and provider allowance rapidly. The Z.AI Pro-Monthly Plan 5h allowance can be consumed very easily in a single session. Only enable it when you need thought guidance and pre-learned gotchas for complex or large tasks. Do NOT use it with low 5h/weekly allowance remaining, low OpenRouter credits, or on a low-tier subscription. Some models devour context (eg Z.AI GLM 5.2), others are more efficient. Recommended models: Kimi K3 (Allegretto or above plans), Qwen 3.8 Max (Pro plaan). MiniMax M3 is context-cheap but makes too many mistakes to trust with self-education.
+    > **WARNING**: AFTC Codex injects ~29KB of rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This consumes context window and provider allowance rapidly. The Z.AI Pro-Monthly Plan 5h allowance can be consumed very easily in a single session. Only enable it when you need thought guidance and pre-learned gotchas for complex or large tasks. Do NOT use it with low 5h/weekly allowance remaining, low OpenRouter credits, or on a low-tier subscription. Some models devour context (eg Z.AI GLM 5.2), others are more efficient. Recommended models: Kimi K3 (Allegretto or above plans), Qwen 3.8 Max (Pro plan). MiniMax M3 is context-cheap but makes too many mistakes to trust with self-education.
 
 - [**Audio notifications**](#slash-commands)
 - [**Slash commands**](#slash-commands)
@@ -120,12 +120,16 @@ Units: `t` = tokens, `Kt` = thousand tokens, `M` = million tokens (only used for
 
 ### Line 4 — long-term averages
 
-Shows your averages over a time window you pick with `/aftc-set-costs-timeframe` (default: last 3 days). Updates from a SQLite log on your disk. Use `/aftc-set-costs-timeframe` to adjust time frame window.
+Shows totals and averages over a time window you pick in the `/aftc-footer` menu -> **Set averages timeframe** (default: 3 Days); hide the whole line with **Show recorded averages** in the same menu. Updates from a SQLite log on your disk.
 
-- **`Cost <window>: $X.XX`** — total spend in that window.
-- **`Prompts: User X / AI Y`** — prompt counts in that window.
-- **`Cache X%`** — average cache hit rate in that window.
-- **`Think time X`** and **`Response time X`** — average speeds in that window.
+Format: `<Window> Averages: cost $X.XX | Prompts: User X / AI Y | Avg Cache X% | Avg Task Time X` — the prefix names the window (eg `3 Hour Averages:`, `Today Averages:`, `This Month Averages:`).
+
+- **`cost`** — total spend in that window (money-formatted: `$0.00` / 4 decimals under $1 / 2 decimals / thousands separators at $1,000+).
+- **`Prompts: User / AI`** — prompt SUMS in that window (AI = tool-call continuation turns).
+- **`Avg Cache`** — average cache hit rate in that window.
+- **`Avg Task Time`** — average wall-clock of COMPLETED tasks in that window (failed/aborted tasks excluded).
+
+Two window families: rolling "Last ..." windows (1, 2, 3, 4, 5, 6, 12, 24, 48 and 72 hours — measured back from your current time) and calendar windows (1 Day = since midnight, 2/3/5/7 Days = calendar days including today, Month / 3 Months / 6 Months = since the 1st of the month, 1 Year = since January 1st).
 
 ### Line 5 — subscription quota (some providers only)
 
@@ -140,9 +144,9 @@ Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax
 
 ## **SSH**
 
-The old SSH GUI and features are gone, a new more fully featured SSH feature has been build and tested from the ground up windows first and then for linux (I don't have a mac, so lets hope the linux testing gets it working for the OSX peeps). 
+The old SSH GUI and features are gone, a new more fully featured SSH feature has been built and tested from the ground up windows first and then for linux (I don't have a mac, so lets hope the linux testing gets it working for the OSX peeps). 
 
-**Remember this is for AI models to use so if you manually want to use ssh then use you local ssh command in terminal or any of various free software out there, but still I built you `/ssh-shell` so you can mosly use SSH in pi.**
+**Remember this is for AI models to use so if you manually want to use ssh then use your local ssh command in terminal or any of various free software out there, but still I built you `/ssh-shell` so you can mostly use SSH in pi.**
 
 Connect to remote machines over SSH from inside pi - run commands, open interactive shells (Nano, Vi, htop, tmux), transfer files, manage remote files, and open port forwards. The feature runs a packaged Paramiko carrier as a local process that talks JSON-RPC over its own standard input and output; it never opens a listening socket, an HTTP service, or a local GUI bridge. It supports multiple simultaneous in-memory connections, password and private-key (including encrypted-key) authentication, host-key approval, non-interactive commands with bounded standard input, recursive SFTP transfers, remote file operations, interactive PTY shells, and local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding.
 
@@ -397,7 +401,7 @@ Prompt counts are split the same way as the footer widget: **User prompts** (wha
 
 An opt-in knowledge base that makes the model follow your curated coding conventions. When enabled, pi-aftc-toolset injects a unified rules file + thinking-and-action guidance + a generated resource list into the model's system prompt (the cached prefix, so it is cheap), and gives the model a `codex_load` tool to fetch the full topic doc for a technology only when it is relevant.
 
-It ships pre-trained with 57 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
+It ships pre-trained with 59 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
 - Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add by default; switch to propose-then-confirm in the config menu). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
@@ -504,8 +508,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 | Command | What it does |
 | --- | --- |
-| `/aftc-footer` | Toggle the footer dashboard widget on/off |
-| `/aftc-set-costs-timeframe` | Set the footer AVG-window (default: Last 3 Days; options: Today, Last 3 Hours, Last 6 Hours, Last 24 Hours, Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days). Alias: `/aftc-footer-report-timeframe` |
+| `/aftc-footer` | Open the footer dashboard menu: Enable footer (ON/OFF), Show recorded averages (ON/OFF — the line-4 averages), Set averages timeframe (19 rolling / calendar windows) |
 | `/cache-profile` | Per-tool token costs, prefix shape, churn analysis |
 | `/cache-stats` | Current-context cache diagnostics + cost rate |
 | `/cache-reset` | Zero accumulators and timer (debugging) |
@@ -518,7 +521,7 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 
 | Command | What it does |
 | --- | --- |
-| `/usage-report` | Write + open `report.html` (ALPHA) |
+| `/usage-report` | Write + open `report.html` (BETA) |
 | `/usage-clear` | Delete all SQLite rows (with confirmation) |
 
 ### Replay
@@ -573,6 +576,7 @@ Switch themes with `/theme`.
 | Feature | Default state |
 | --- | --- |
 | Footer widget | Enabled |
+| Footer averages line (line 4) | Enabled |
 | SSH | Available (command-driven) |
 | Usage recording | Enabled (when SQLite installed) |
 | aftc-codex knowledge base | Disabled |
@@ -722,7 +726,7 @@ committed, and the whole data dir is excluded from git and npm publishing.
 
 | File | Purpose |
 | --- | --- |
-| `config.json` | Cross-session extension configuration: footer AVG timeframe, footer on/off, response divider on/off, and intro animation on/off. Created with defaults on first access; only re-written when a value actually changes. |
+| `config.json` | Cross-session user preferences: footer (on/off, averages line on/off, timeframe window), response divider, think-tag processing, intro animation, audio notifications, replay prompt, run_script tool and aftc-codex switches. Created with defaults on first access; only re-written when a value actually changes. |
 | `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password). Local-only, never shipped. |
 | `turns.db` | SQLite usage database |
 | `report.html` | Latest generated usage report |
