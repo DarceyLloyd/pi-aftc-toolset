@@ -222,13 +222,26 @@ export interface SessionView {
  * the database is unavailable or no turns fall in the timeframe.
  */
 export interface TimeframeStatsView {
-    timeframeLabel: string;
+    timeframeLabel: string;   // full label, eg "Last 3 Days" (console output)
+    timeframeShort: string;   // footer prefix, eg "3 Day" ("3 Day Averages:")
     costUsd: number;
     userPrompts: number;
     totalTurns: number;
     avgCacheHit: number;      // 0..1 — average cache hit rate over the timeframe
-    avgThinkingMs: number;    // 0 if no turns with thinking data
-    avgResponseMs: number;    // 0 if no turns
+    avgTaskMs: number;        // avg wall-clock of COMPLETED tasks in the window (0 if none)
+}
+
+/** One selectable timeframe for the footer line-4 averages (menu row). */
+export interface TimeframeOption {
+    key: string;
+    /** Menu text, eg "Last 3 hours" / "3 Days" / "Month". */
+    label: string;
+    /** Rolling-window hint shown next to "Last" options; "" for
+     *  date-based options. */
+    description: string;
+    /** True = rolling window from the current time; false = anchored
+     *  to calendar boundaries (start of day/month/year). */
+    rolling: boolean;
 }
 
 /**
@@ -256,11 +269,19 @@ export interface FooterDataProvider {
     getAvgThinkingMs(): number;
     getLastResponseMs(): number;
     getAvgResponseMs(): number;
-    /** Aggregate stats for the active timeframe (configurable via
-     * `/aftc-footer-report-timeframe`) from the SQLite turns table.
+    /** Aggregate stats for the active timeframe (configurable via the
+     *  /aftc-footer menu) from the SQLite turns + tasks tables.
      * Cached and refreshed at most every 10s, or immediately on
      * timeframe change. */
     getTimeframeStats(): TimeframeStatsView;
+    /** All selectable timeframes for the footer averages, in menu
+     *  order (rolling "Last" options first, then date-based). */
+    getTimeframeOptions(): TimeframeOption[];
+    /** Key of the currently active timeframe. */
+    getTimeframeKey(): string;
+    /** Set the active timeframe by key (persists the preference).
+     *  Returns false for an unknown key. */
+    setTimeframe(key: string): boolean;
     /** Subscription allowance snapshot for line 5 (5h + weekly used %
      *  + reset countdown). Null for unsupported providers, after any
      *  fetch/parse failure, or before the first successful fetch.

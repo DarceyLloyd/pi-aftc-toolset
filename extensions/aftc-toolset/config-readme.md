@@ -48,6 +48,7 @@ setPreference("footerTimeframe", "7d");
 export const DEFAULT_PREFERENCES: Preferences = {
     footerTimeframe: "3d",
     footerEnabled: true,
+    footerAveragesEnabled: true,
     responseDividerEnabled: true,
     thinkProcessingEnabled: false,
     "aftc-intro": true,

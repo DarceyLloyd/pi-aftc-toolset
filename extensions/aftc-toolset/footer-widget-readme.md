@@ -34,16 +34,22 @@ Renders a 4-line bar showing:
   `/skill:name` command or a successful `read` of a skill file, vs
   the count in the system prompt's `<available_skills>` block),
   thinking time (last / avg), response time (last / avg).
-- **Line 4**: aggregates from the SQLite `turns` table over a
-  configurable time window (default: Last 3 Days).
-  Shows cost, prompts/turns, **average** cache hit rate over the
-  window, average thinking time, average response time. The window
-  is set by `/aftc-set-costs-timeframe` (Today, Last 3 Hours,
-  Last 6 Hours, Last 24 Hours, Last 2 Days, Last 3 Days, Last 7 Days,
-  Last 28 Days) and persists across `/resume` and `/reload`. The
-  legacy alias `/aftc-footer-report-timeframe` still works.
-  Refreshed at most every 10s by core.ts so the DB isn't hammered
-  on every render tick.
+- **Line 4** (hideable via the menu): aggregates from the SQLite
+  `turns` and `tasks` tables over a configurable time window
+  (default: 3 Days), prefixed by the window name — `3 Hour Averages:
+  cost $X.XX | Prompts: User N / AI M | Avg Cache X% | Avg Task Time
+  Xh Ym Zs`. Prefixes: 1-72 Hour (rolling windows), Today, 2/3/5/7
+  Day, This Month, 3/6 Month, This Year (calendar-anchored windows).
+  Prompts are SUMS over the window (AI = total turns minus
+  user-prompted turns), cost is money-formatted per
+  `docs/usage-report-rules.md`, and Avg Task Time averages COMPLETED
+  tasks only (`stop_reason = 'complete'`, same rule as the usage
+  report) with the report's duration format. The window is set in the
+  `/aftc-footer` menu -> "Set averages timeframe" (10 rolling "Last"
+  options + 9 date-based options: 1 Day, 2/3/5/7 Days, Month,
+  3/6 Months, 1 Year) and persists across `/resume` and `/reload`.
+  Refreshed at most every 10s by core.ts so the DB isn't hammered on
+  every render tick.
 - **Line 5** (conditional): subscription allowance — 5-hour and weekly
   used % with live reset countdowns for supported providers
   (ChatGPT/Codex OAuth, MiniMax, Z.ai GLM, Kimi for Coding, Anthropic
@@ -114,5 +120,15 @@ The orchestrator passes `data` (a `FooterDataProvider` returned by
 
 ## Commands registered (1)
 
-- `/aftc-footer` - toggle the widget on/off. Disposes the active
-  component on hide so its 1Hz ticker stops.
+- `/aftc-footer` - open the footer dashboard menu (settings-screen
+  style: stable label + value column, selection preserved across
+  toggles, Esc closes):
+  - **Enable footer** — ` | ON`/`OFF`, Enter toggles. Disposes the
+    active component on hide so its 1Hz ticker stops.
+  - **Show recorded averages** — ` | ON`/`OFF`, Enter toggles line 4
+    visibility (`footerAveragesEnabled` preference, default ON).
+  - **Set averages timeframe** — the current window's label is shown
+    in the value column; Enter opens the timeframe picker (rolling
+    "Last" options first, then date-based; effective row marked
+    `(current)` and pre-selected; Esc returns to the menu).
+  Headless (`!ctx.hasUI`) prints the current settings to stdout.

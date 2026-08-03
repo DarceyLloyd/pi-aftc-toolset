@@ -10,8 +10,8 @@
  * regenerate the resource list internally when a topic file is created. The
  * injected prompt keeps only the work the tools CANNOT do: reviewing the session,
  * routing each lesson to the right topic doc (TECH lessons -> resources/), checking
- * for duplicates (the model must codex_load the target first — the tools enforce
- * it), and classifying the entry kind.
+ * for duplicates (loading an EXISTING target first IS the duplicate check and the
+ * write tools enforce it; new topics need no load), and classifying the entry kind.
  *
  * See `codex-learn-readme.md` for the full contract.
  */
@@ -39,28 +39,27 @@ export function createCodexLearn(ctx: CodexContext): CodexLearnApi {
         return [
             "You are running the aftc-codex self-education loop (/aftc-codex-learn).",
             "",
-            "GOAL: Record DURABLE, GENERAL lessons from this session into the codex knowledge base so future sessions benefit. Do NOT record project-specific facts.",
+            "GOAL: Save DURABLE, GENERAL lessons from this session into the codex knowledge base so future sessions benefit. Never save project-specific facts (no project names, paths or URLs).",
             "",
-            "HOW: Use the codex entry tools for EVERY write — never hand-edit resource files and never run any sync script (the tools handle IDs, format, section placement, topic/category creation and the resource list internally):",
-            "- codex_add_entry — new entries (batch several for the same topic in ONE call).",
-            "- codex_edit_entry — correct/amend an existing entry by its [ID].",
-            "- codex_remove_entry — delete a stale entry by its [ID] (state what you removed and why).",
-            "All three write to your LIVE per-user copy in the OS data dir. The package's data/aftc-codex seed is READ-ONLY — the tools never touch it.",
+            "WRITES go through the codex entry tools only — never hand-edit resource files:",
+            "- codex_add_entry — add new entries. Put all entries for one topic in ONE call.",
+            "- codex_edit_entry — fix an existing entry by its [ID].",
+            "- codex_remove_entry — delete a stale entry by its [ID].",
             "",
             "STEPS:",
-            "1. Review this session for lessons worth recording (anything that took real effort, a non-obvious method, a tooling/framework quirk, an observed failure with a diagnosis).",
-            "2. Consult the resource list (already in your system prompt, or codex_load(\"list\")) to pick the RIGHT topic doc for each lesson: update an existing doc; create a new one (topic \"category/name\", new categories allowed) only when no doc covers the topic.",
-            "3. codex_load each target topic and check your lesson is not already there (the write tools REFUSE to modify a topic you have not loaded this session, and reject exact duplicates).",
+            "1. Review this session for lessons worth keeping: anything that took real effort, a non-obvious method, a tooling/framework quirk, or a failure you diagnosed.",
+            "2. Pick the right topic doc for each lesson. The resource list is in your system prompt (or codex_load(\"list\")). Prefer an existing doc; create a new one (topic \"category/name\") only when nothing covers the topic.",
+            "3. BEFORE writing to an EXISTING topic, codex_load it. This is your duplicate check: read what is there. If your lesson already exists in any wording, amend it with codex_edit_entry or skip it — never add a near-duplicate. A NEW topic needs no load; codex_add_entry creates the file.",
             autoAdd
-                ? "4. WRITE the entries with codex_add_entry. Classify each lesson first (first match wins, IN ORDER):"
-                : "4. PROPOSE the new lesson entries to me and WAIT for my confirmation, then write them with codex_add_entry. Classify each lesson first (first match wins, IN ORDER):",
-            "   a) Observed failure (greppable error/symptom) with a diagnosis -> kind \"issue\" (text = one-line symptom, cause, fix — the tool appends the current date).",
-            "   b) Convention we choose to follow (could be violated) -> kind \"rule\" (one line).",
-            "   c) Technology trap you can only avoid, not change -> kind \"gotcha\" (ONE line with BOTH the trap AND the countermeasure).",
+                ? "4. WRITE the entries with codex_add_entry. If a write is refused because the topic was not loaded, codex_load it and retry — never drop a lesson over a refusal. Classify each lesson first (first match wins, IN ORDER):"
+                : "4. PROPOSE the entries to me and WAIT for my confirmation, then write them with codex_add_entry. If a write is refused because the topic was not loaded, codex_load it and retry — never drop a lesson over a refusal. Classify each lesson first (first match wins, IN ORDER):",
+            "   a) A failure you observed (greppable error/symptom) and diagnosed -> kind \"issue\" (text = one-line symptom, plus cause and fix).",
+            "   b) A convention we choose to follow -> kind \"rule\" (one line).",
+            "   c) A technology trap you can only avoid, not change -> kind \"gotcha\" (one line naming BOTH the trap and the countermeasure).",
             "   Routing: technology lessons -> resources/{languages|libraries|frameworks|engines|tools|runtimes|design|database}/<topic>.md. The fixed top-level docs (codex-rules, guidance, markdown) are NEVER written by -learn.",
-            "5. Correct or remove outdated entries you noticed (codex_edit_entry / codex_remove_entry) — do not wait for a future -learn.",
+            "5. If you saw an outdated entry while reading a topic, fix or remove it now (codex_edit_entry / codex_remove_entry).",
             "",
-            "RULES: Durable + general only (no project names/paths/URLs). Write for a weak reader: fewest plain words that still carry the full lesson. Never fabricate or pad — if nothing durable was learned, say so and stop.",
+            "RULES: Write short — fewest plain words that still carry the full lesson. Never fabricate or pad. If nothing durable was learned this session, say so and stop.",
         ].join("\n");
     }
 

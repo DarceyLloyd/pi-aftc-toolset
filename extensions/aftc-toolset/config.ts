@@ -13,8 +13,10 @@
  * The file is tiny and local; reading it each time is free.
  *
  * Currently tracked preferences:
- *   - footerTimeframe        (Today / 3h / 6h / 24h / 2d / 3d / 7d / 28d)
+ *   - footerTimeframe        (footer line-4 window key: 1h-72h rolling,
+ *                             1d/2d/3d/5d/7d/month/3m/6m/1y date-based)
  *   - footerEnabled          (footer widget on/off)
+ *   - footerAveragesEnabled  (footer line-4 recorded averages on/off)
  *   - responseDividerEnabled (response divider on/off)
  *   - thinkProcessingEnabled (inline <think>…</think> → ThinkingContent block)
  *   - "aftc-intro" (AFTC startup wordmark animation on/off)
@@ -59,10 +61,16 @@ import { getConfigJson, getDataDir } from "./paths";
  * defaults-merge in `loadPreferencesInternal`.
  */
 export interface Preferences {
-    /** Footer 4th-line time window: today | 3h | 6h | 24h | 2d | 3d | 7d | 28d. */
+    /** Footer 4th-line time window key: 1h | 2h | 3h | 4h | 5h | 6h |
+     *  12h | 24h | 48h | 72h (rolling) or 1d | 2d | 3d | 5d | 7d |
+     *  month | 3m | 6m | 1y (date-based). Legacy values (today, 28d)
+     *  are migrated by core.ts on load. */
     footerTimeframe?: string;
     /** Whether the footer widget is currently shown. */
     footerEnabled?: boolean;
+    /** Whether the footer's line 4 (recorded averages from turns.db)
+     *  is shown. Toggled in the /aftc-footer menu. */
+    footerAveragesEnabled?: boolean;
     /** Whether the response divider is currently shown. */
     responseDividerEnabled?: boolean;
     /** Whether the think-parser hook converts inline <think>…</think>
@@ -158,6 +166,7 @@ export interface Preferences {
 export const DEFAULT_PREFERENCES: Preferences = {
     footerTimeframe: "3d",
     footerEnabled: true,
+    footerAveragesEnabled: true,
     responseDividerEnabled: true,
     thinkProcessingEnabled: false,
     "aftc-intro": true,
@@ -237,6 +246,7 @@ function loadPreferencesInternal(): Preferences {
         // released before those preferences existed, making the defaults
         // explicit on disk and preserving them for later sessions.
         const needsIntroMigration = typeof parsed["aftc-intro"] !== "boolean";
+        const needsFooterAveragesMigration = typeof parsed.footerAveragesEnabled !== "boolean";
         const needsNotifyQuestionMigration = typeof parsed.notifySoundQuestion !== "string";
         const needsNotifyTaskMigration = typeof parsed.notifySoundTaskComplete !== "string";
         const needsNotifyTimeMigration = typeof parsed.notifyTimeSec !== "number";
@@ -264,7 +274,7 @@ function loadPreferencesInternal(): Preferences {
             parsed.notifySoundError, parsed.notifySoundAborted, parsed.notifySoundStartup,
         ].some((v) => typeof v === "string" && v.length > 0);
         const needsMigration =
-            needsIntroMigration || needsNotifyQuestionMigration ||
+            needsIntroMigration || needsFooterAveragesMigration || needsNotifyQuestionMigration ||
             needsNotifyTaskMigration || needsNotifyTimeMigration ||
             needsNotifyErrorMigration || needsNotifyAbortedMigration ||
             needsNotifyStartupMigration || needsNotifyContext25Migration ||
@@ -281,6 +291,7 @@ function loadPreferencesInternal(): Preferences {
             ...DEFAULT_PREFERENCES,
             ...parsed,
             ...(needsIntroMigration ? { "aftc-intro": DEFAULT_PREFERENCES["aftc-intro"] } : {}),
+            ...(needsFooterAveragesMigration ? { footerAveragesEnabled: DEFAULT_PREFERENCES.footerAveragesEnabled } : {}),
             ...(needsNotifyQuestionMigration ? { notifySoundQuestion: DEFAULT_PREFERENCES.notifySoundQuestion } : {}),
             ...(needsNotifyTaskMigration ? { notifySoundTaskComplete: DEFAULT_PREFERENCES.notifySoundTaskComplete } : {}),
             ...(needsNotifyTimeMigration ? { notifyTimeSec: DEFAULT_PREFERENCES.notifyTimeSec } : {}),

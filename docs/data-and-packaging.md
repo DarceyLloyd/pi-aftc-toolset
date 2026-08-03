@@ -128,8 +128,9 @@ rules, edge cases).
 
 | Key | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `footerTimeframe` | string | `"3d"` | `today`/`3h`/`6h`/`24h`/`2d`/`3d`/`7d`/`28d` |
+| `footerTimeframe` | string | `"3d"` | rolling `1h`/`2h`/`3h`/`4h`/`5h`/`6h`/`12h`/`24h`/`48h`/`72h` or date-based `1d`/`2d`/`3d`/`5d`/`7d`/`month`/`3m`/`6m`/`1y`; legacy `today`/`28d` migrated on load |
 | `footerEnabled` | boolean | `true` | footer widget on/off |
+| `footerAveragesEnabled` | boolean | `true` | footer line 4 (recorded averages) on/off |
 | `responseDividerEnabled` | boolean | `true` | divider above each reply |
 | `thinkProcessingEnabled` | boolean | `false` | inline `<think>` tag parsing |
 | `aftc-intro` | boolean | `true` | startup wordmark animation |

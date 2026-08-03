@@ -185,6 +185,120 @@ function hitRate(cached: number, input: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Footer line-4 timeframes (module scope — exported for tests)
+//
+// Two families:
+//   - ROLLING ("Last ..." options): the window slides with the clock —
+//     cut = now - N hours. Every DB row with timestamp >= cut is in.
+//   - DATE-BASED (1 Day, 2 Days, ..., Month, 3 Months, 6 Months,
+//     1 Year): anchored to LOCAL calendar boundaries, NOT rolling —
+//     "1 Day" = since today's midnight, "7 Days" = since the midnight
+//     that opened the 7th calendar day counting today, "Month" = since
+//     the 1st of the current month, "1 Year" = since January 1st.
+// ---------------------------------------------------------------------------
+
+export interface FooterTimeframeDef {
+    key: string;
+    /** Menu text, eg "Last 3 hours" / "3 Days" / "Month". */
+    label: string;
+    /** Rolling-window hint shown next to "Last" options; "" for
+     *  date-based options. */
+    description: string;
+    /** Footer line-4 prefix, eg "3 Hour" / "Today" / "This Month". */
+    short: string;
+    rolling: boolean;
+    /** Window start (ms epoch) for the DB query, given the current time. */
+    cut: (now: number) => number;
+}
+
+/** Local-time midnight of the day containing `ts`. */
+export function startOfDay(ts: number): number {
+    const d = new Date(ts);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** Local-time midnight `days` calendar days before the day containing
+ *  `now` (0 = today's midnight). JS Date normalises day overflow across
+ *  month and year boundaries automatically. */
+export function startOfDayNDaysAgo(now: number, days: number): number {
+    const d = new Date(now);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - days).getTime();
+}
+
+/** Local-time midnight on the 1st of the month `months` months before
+ *  the month containing `now` (0 = the current month). JS Date
+ *  normalises negative months across year boundaries automatically. */
+export function startOfMonthNMonthsAgo(now: number, months: number): number {
+    const d = new Date(now);
+    return new Date(d.getFullYear(), d.getMonth() - months, 1).getTime();
+}
+
+/** Local-time January 1st of the year containing `ts`. */
+export function startOfYear(ts: number): number {
+    const d = new Date(ts);
+    return new Date(d.getFullYear(), 0, 1).getTime();
+}
+
+const rollingHours = (h: number) => (now: number) => now - h * 3_600_000;
+
+export const FOOTER_TIMEFRAMES: FooterTimeframeDef[] = [
+    // Rolling windows — "Last" options slide with the current time.
+    { key: "1h",  label: "Last 1 hour",   description: "1 hour rolling window",  short: "1 Hour",  rolling: true, cut: rollingHours(1) },
+    { key: "2h",  label: "Last 2 hours",  description: "2 hour rolling window",  short: "2 Hour",  rolling: true, cut: rollingHours(2) },
+    { key: "3h",  label: "Last 3 hours",  description: "3 hour rolling window",  short: "3 Hour",  rolling: true, cut: rollingHours(3) },
+    { key: "4h",  label: "Last 4 hours",  description: "4 hour rolling window",  short: "4 Hour",  rolling: true, cut: rollingHours(4) },
+    { key: "5h",  label: "Last 5 hours",  description: "5 hour rolling window",  short: "5 Hour",  rolling: true, cut: rollingHours(5) },
+    { key: "6h",  label: "Last 6 hours",  description: "6 hour rolling window",  short: "6 Hour",  rolling: true, cut: rollingHours(6) },
+    { key: "12h", label: "Last 12 hours", description: "1/2 day rolling window", short: "12 Hour", rolling: true, cut: rollingHours(12) },
+    { key: "24h", label: "Last 24 hours", description: "1 day rolling window",   short: "24 Hour", rolling: true, cut: rollingHours(24) },
+    { key: "48h", label: "Last 48 hours", description: "2 day rolling window",   short: "48 Hour", rolling: true, cut: rollingHours(48) },
+    { key: "72h", label: "Last 72 hours", description: "3 day rolling window",   short: "72 Hour", rolling: true, cut: rollingHours(72) },
+    // Date-based windows — anchored to local calendar boundaries.
+    { key: "1d",    label: "1 Day",    description: "", short: "Today",      rolling: false, cut: (now) => startOfDayNDaysAgo(now, 0) },
+    { key: "2d",    label: "2 Days",   description: "", short: "2 Day",      rolling: false, cut: (now) => startOfDayNDaysAgo(now, 1) },
+    { key: "3d",    label: "3 Days",   description: "", short: "3 Day",      rolling: false, cut: (now) => startOfDayNDaysAgo(now, 2) },
+    { key: "5d",    label: "5 Days",   description: "", short: "5 Day",      rolling: false, cut: (now) => startOfDayNDaysAgo(now, 4) },
+    { key: "7d",    label: "7 Days",   description: "", short: "7 Day",      rolling: false, cut: (now) => startOfDayNDaysAgo(now, 6) },
+    { key: "month", label: "Month",    description: "", short: "This Month", rolling: false, cut: (now) => startOfMonthNMonthsAgo(now, 0) },
+    { key: "3m",    label: "3 Months", description: "", short: "3 Month",    rolling: false, cut: (now) => startOfMonthNMonthsAgo(now, 2) },
+    { key: "6m",    label: "6 Months", description: "", short: "6 Month",    rolling: false, cut: (now) => startOfMonthNMonthsAgo(now, 5) },
+    { key: "1y",    label: "1 Year",   description: "", short: "This Year",  rolling: false, cut: (now) => startOfYear(now) },
+];
+
+export const DEFAULT_FOOTER_TIMEFRAME = "3d";
+
+/** Map pre-rework footerTimeframe preference values onto the new keys. */
+const LEGACY_FOOTER_TIMEFRAME_MAP: Record<string, string> = {
+    today: "1d",
+    "3h": "3h",
+    "6h": "6h",
+    "24h": "24h",
+    "2d": "2d",
+    "3d": "3d",
+    "7d": "7d",
+    "28d": "month",
+};
+
+/** Resolve a stored footerTimeframe preference to a valid key: accept
+ *  current keys, translate legacy keys, fall back to the default. */
+export function resolveFooterTimeframeKey(value: unknown): string {
+    if (typeof value === "string") {
+        if (FOOTER_TIMEFRAMES.some((t) => t.key === value)) return value;
+        const mapped = LEGACY_FOOTER_TIMEFRAME_MAP[value];
+        if (mapped) return mapped;
+    }
+    return DEFAULT_FOOTER_TIMEFRAME;
+}
+
+/** Look up a timeframe definition by key (falls back to the default). */
+export function getFooterTimeframeDef(key: string): FooterTimeframeDef {
+    return (
+        FOOTER_TIMEFRAMES.find((t) => t.key === key) ??
+        FOOTER_TIMEFRAMES.find((t) => t.key === DEFAULT_FOOTER_TIMEFRAME)!
+    );
+}
+
+// ---------------------------------------------------------------------------
 // ToolCostCache — per-tool token cost, computed once, signature-invalidated
 // ---------------------------------------------------------------------------
 
@@ -449,35 +563,22 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
 
     // ------------------------------------------------------------------------
     // Timeframe stats (4th footer line) — aggregates from the SQLite
-    // `turns` table for a configurable time window. Labels use the
-    // same long form as the /aftc-footer-report-timeframe slash
-    // command (Today, Last 3 Hours, Last 6 Hours, Last 24 Hours,
-    // Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days) so the
-    // footer matches what the user typed to set it. Cached and
-    // refreshed on the 1Hz ticker, throttled to every 10s, OR
-    // refreshed immediately on timeframe change. DB unavailable /
-    // query failure → all zeros.
+    // `turns` + `tasks` tables for the active time window. Window
+    // definitions live at module scope (FOOTER_TIMEFRAMES); the choice
+    // is a user preference set via the /aftc-footer menu. Cached and
+    // refreshed on the 1Hz ticker, throttled to every 10s, OR refreshed
+    // immediately on timeframe change. DB unavailable / query failure
+    // → all zeros.
     // ------------------------------------------------------------------------
-    type TimeframeKey = "today" | "3h" | "6h" | "24h" | "2d" | "3d" | "7d" | "28d";
-    const TIMEFRAMES: Record<TimeframeKey, { label: string; cut: () => number }> = {
-        today: { label: "Today",          cut: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); } },
-        "3h":  { label: "Last 3 Hours",   cut: () => Date.now() - 3 * 3_600_000 },
-        "6h":  { label: "Last 6 Hours",   cut: () => Date.now() - 6 * 3_600_000 },
-        "24h": { label: "Last 24 Hours",  cut: () => Date.now() - 24 * 3_600_000 },
-        "2d":  { label: "Last 2 Days",    cut: () => Date.now() - 2 * 86_400_000 },
-        "3d":  { label: "Last 3 Days",    cut: () => Date.now() - 3 * 86_400_000 },
-        "7d":  { label: "Last 7 Days",    cut: () => Date.now() - 7 * 86_400_000 },
-        "28d": { label: "Last 28 Days",   cut: () => Date.now() - 28 * 86_400_000 },
-    };
-    let _timeframe: TimeframeKey = "3d";
+    let _timeframe: string = DEFAULT_FOOTER_TIMEFRAME;
     let cachedTimeframeStats: TimeframeStatsView = {
-        timeframeLabel: "Last 3 Days",
+        timeframeLabel: "3 Days",
+        timeframeShort: "3 Day",
         costUsd: 0,
         userPrompts: 0,
         totalTurns: 0,
         avgCacheHit: 0,
-        avgThinkingMs: 0,
-        avgResponseMs: 0,
+        avgTaskMs: 0,
     };
     let lastTimeframeStatsRefresh = 0;
     const TIMEFRAME_STATS_REFRESH_MS = 10_000;
@@ -487,18 +588,18 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         if (now - lastTimeframeStatsRefresh < TIMEFRAME_STATS_REFRESH_MS) return;
         lastTimeframeStatsRefresh = now;
 
-        const tf = TIMEFRAMES[_timeframe] ?? TIMEFRAMES.today;
-        const since = tf.cut();
+        const tf = getFooterTimeframeDef(_timeframe);
+        const since = tf.cut(now);
         const label = tf.label;
 
         const empty = {
             timeframeLabel: label,
+            timeframeShort: tf.short,
             costUsd: 0,
             userPrompts: 0,
             totalTurns: 0,
             avgCacheHit: 0,
-            avgThinkingMs: 0,
-            avgResponseMs: 0,
+            avgTaskMs: 0,
         };
 
         const db = getDb();
@@ -514,8 +615,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                         COALESCE(SUM(cost_usd), 0) AS total_cost,
                         COALESCE(SUM(user_prompt), 0) AS user_prompts,
                         COUNT(*) AS total_turns,
-                        COALESCE(AVG(thinking_ms), 0) AS avg_thinking,
-                        COALESCE(AVG(response_ms), 0) AS avg_response,
                         COALESCE(AVG(CAST(cache_read AS REAL) / NULLIF(cache_read + input_tokens, 0)), 0) AS avg_cache_hit
                     FROM turns
                     WHERE timestamp >= ?`,
@@ -525,20 +624,29 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                         total_cost: number;
                         user_prompts: number;
                         total_turns: number;
-                        avg_thinking: number;
-                        avg_response: number;
                         avg_cache_hit: number | null;
                     }
                     | undefined;
 
+            // Avg task time follows the usage-report rule (docs/usage-report-rules.md):
+            // failed tasks (error/abort) are recorded but NEVER averaged into
+            // Task Time — stop_reason = 'complete' rows only.
+            const taskTotals = db
+                .prepare(
+                    `SELECT COALESCE(AVG(task_ms), 0) AS avg_task_ms
+                    FROM tasks
+                    WHERE timestamp >= ? AND stop_reason = 'complete'`,
+                )
+                .get(since) as { avg_task_ms: number } | undefined;
+
             cachedTimeframeStats = {
                 timeframeLabel: label,
+                timeframeShort: tf.short,
                 costUsd: totals?.total_cost ?? 0,
                 userPrompts: totals?.user_prompts ?? 0,
                 totalTurns: totals?.total_turns ?? 0,
                 avgCacheHit: totals?.avg_cache_hit ?? 0,
-                avgThinkingMs: totals?.avg_thinking ?? 0,
-                avgResponseMs: totals?.avg_response ?? 0,
+                avgTaskMs: taskTotals?.avg_task_ms ?? 0,
             };
         } catch (err) {
             console.log(
@@ -550,16 +658,16 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
 
     /**
      * Set the active timeframe. Updates both the in-memory _timeframe
-     * cache AND state.json (via setPreference) so the user's choice
+     * cache AND config.json (via setPreference) so the user's choice
      * survives /new, /reload, and fresh pi startup.
      */
     function setTimeframe(key: string): boolean {
-        if (!(key in TIMEFRAMES)) return false;
+        if (!FOOTER_TIMEFRAMES.some((t) => t.key === key)) return false;
         if (_timeframe !== key) {
-            _timeframe = key as TimeframeKey;
+            _timeframe = key;
             lastTimeframeStatsRefresh = 0; // force refresh
-            // Persist as a user preference (state.json) so the choice
-            // survives across all session boundaries, not just resume.
+            // Persist as a user preference so the choice survives
+            // across all session boundaries, not just resume.
             setPreference("footerTimeframe", key);
         }
         return true;
@@ -613,11 +721,15 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         // session_start. There is no per-session resumption state.
 
         // ---- 1. Load preferences ----
-        const tf = getPreference("footerTimeframe", "today");
-        if (tf && tf in TIMEFRAMES) {
-            _timeframe = tf as TimeframeKey;
-            lastTimeframeStatsRefresh = 0; // force fresh query on next read
+        const tfRaw = getPreference("footerTimeframe", DEFAULT_FOOTER_TIMEFRAME);
+        const tfResolved = resolveFooterTimeframeKey(tfRaw);
+        if (tfResolved !== tfRaw) {
+            // One-time migration: rewrite a legacy key (today/28d/...)
+            // on disk so later loads see the current key.
+            setPreference("footerTimeframe", tfResolved);
         }
+        _timeframe = tfResolved;
+        lastTimeframeStatsRefresh = 0; // force fresh query on next read
 
         // ---- 2. Reset per-session accumulators + timing ----
         resetAccumulators();
@@ -1122,74 +1234,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         },
     });
 
-    // Pick the time window the 4th footer line aggregates over.
-    // Default is "Last 3 Days". The choice is persisted to state.json
-    // (a USER PREFERENCE that survives /new, /reload, and fresh pi
-    // startup). Registered under both /aftc-set-costs-timeframe
-    // (preferred) and /aftc-footer-report-timeframe (legacy alias).
-    async function handleCostsTimeframe(
-        _a: string,
-        ctx: ExtensionCommandContext,
-    ): Promise<void> {
-        const options = [
-            "Today",
-            "Last 3 Hours",
-            "Last 6 Hours",
-            "Last 24 Hours",
-            "Last 2 Days",
-            "Last 3 Days",
-            "Last 7 Days",
-            "Last 28 Days",
-        ];
-        const labelToKey: Record<string, string> = {
-            "Today": "today",
-            "Last 3 Hours": "3h",
-            "Last 6 Hours": "6h",
-            "Last 24 Hours": "24h",
-            "Last 2 Days": "2d",
-            "Last 3 Days": "3d",
-            "Last 7 Days": "7d",
-            "Last 28 Days": "28d",
-        };
-        const chosen = await ctx.ui.select(
-            "Footer 4th-line timeframe",
-            options,
-            { timeout: 0 },
-        );
-        if (chosen === undefined) return;
-        const key = labelToKey[chosen];
-        if (!key || !setTimeframe(key)) {
-            aftcConsole.error(ctx, "Invalid timeframe selection");
-            return;
-        }
-        // setTimeframe already calls setPreference internally, so
-        // no separate save is needed here.
-        const stats = getTimeframeStats();
-        aftcConsole.emphasis(
-            ctx,
-            `Footer timeframe set to ${stats.timeframeLabel}` +
-                ` (cost=$${stats.costUsd.toFixed(2)}, ${stats.totalTurns} turns)`,
-        );
-    }
-
-    registerHelpEntry({
-        command: "aftc-set-costs-timeframe",
-        description: "Set the footer costs time window (default: Last 3 Days)",
-        category: "Footer / cache / timing",
-        aliases: ["aftc-footer-report-timeframe"],
-    });
-
-    pi.registerCommand("aftc-set-costs-timeframe", {
-        description: "Set the time window the footer 4th line aggregates over (default: Last 3 Days)",
-        handler: handleCostsTimeframe,
-    });
-
-    // Legacy alias — kept so muscle memory / old scripts keep working.
-    pi.registerCommand("aftc-footer-report-timeframe", {
-        description: "Alias for /aftc-set-costs-timeframe — same action, old name.",
-        handler: handleCostsTimeframe,
-    });
-
     // -- Miscellaneous commands -----------------------------------------------
 
     registerHelpEntry({
@@ -1249,6 +1293,10 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         getToolCache: () => toolCacheView,
         getCachedSession,
         getTimeframeStats,
+        getTimeframeOptions: () =>
+            FOOTER_TIMEFRAMES.map((t) => ({ key: t.key, label: t.label, description: t.description, rolling: t.rolling })),
+        getTimeframeKey: () => _timeframe,
+        setTimeframe,
         getAllowance: () => allowance.getAllowance(),
         getUsedSkillCount: () => usedSkills.size,
         getLastThinkingMs: () => lastThinkingMs,

@@ -5,7 +5,7 @@
  * lines 1-4 (model/cache, prompts/cost, timing/tools, timeframe
  * averages) plus a conditional line 5 (subscription allowance, hidden
  * for unsupported providers). Owns rendering, show/hide lifecycle, the
- * 1Hz ticker, and the /aftc-footer toggle command.
+ * 1Hz ticker, and the /aftc-footer settings menu.
  *
  * Data comes from a FooterDataProvider passed in by the orchestrator
  * (index.ts); this file never imports core.ts. The provider is
@@ -42,6 +42,7 @@
 
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import * as aftcConsole from "./ui/aftc-console";
+import { showMenu } from "./ui/aftc-ui";
 import { registerHelpEntry } from "./help-registry";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import type { AllowanceView, FooterDataProvider, AllowanceWindow, ModelView } from "./types";
@@ -136,6 +137,17 @@ function trendArrow(recent: number, session: number): string {
 function formatCost(cost: number, decimalPlaces: number): string {
     if (cost < 0.0001) return "0";
     return cost.toFixed(decimalPlaces);
+}
+
+/** Money formatting per docs/usage-report-rules.md (same rules as the
+ *  usage report's fmtMoney): $0 renders "$0.00" (never "$0"); below $1
+ *  gets 4 decimals; $1 to below $1,000 gets 2 decimals with trailing
+ *  zeros; $1,000 and above is whole numbers with thousands separators. */
+function fmtMoney(cost: number): string {
+    if (!Number.isFinite(cost) || cost <= 0) return "$0.00";
+    if (cost < 1) return "$" + cost.toFixed(4);
+    if (cost < 1000) return "$" + cost.toFixed(2);
+    return "$" + Math.round(cost).toLocaleString("en-US");
 }
 
 /** Thinking-level label for line 1 (uppercase), or "" when the model
@@ -298,26 +310,31 @@ function buildTimingLine(data: FooterDataProvider, c: FooterColors): string {
     return parts.join(" ");
 }
 
-/** Line 4 — Averages: Cost <timeframe> | Prompts | Cache | Think time | Response time */
+/** Line 4 — <timeframe> Averages: cost | Prompts User/AI | Avg Cache | Avg Task Time */
 function buildAveragesLine(data: FooterDataProvider, c: FooterColors): string {
     const tf = data.getTimeframeStats();
 
     // ── Values ──────────────────────────────────────────────────────
-    const tfCost = `$${tf.costUsd.toFixed(2)}`;
+    const tfCost = fmtMoney(tf.costUsd);
     const tfPrompts = String(tf.userPrompts);
-    const tfTurns = String(tf.totalTurns);
+    // AI prompts = all turns in the window minus the user-prompted ones
+    // (a sum over the window, not an average; clamped so an empty
+    // window reads 0).
+    const tfAiPrompts = String(Math.max(0, tf.totalTurns - tf.userPrompts));
     const tfCacheHit = `${(tf.avgCacheHit * 100).toFixed(1)}%`;
-    const tfThink = fmtDurationHMS(tf.avgThinkingMs);
-    const tfResp = fmtDurationHMS(tf.avgResponseMs);
+    // Avg task time follows the report's duration rule (fmtDurationHMS):
+    // "0s" / "5s" / "1m 30s" / "2h 5m 3s" — no left-padding, zero
+    // leading units omitted.
+    const tfTask = fmtDurationHMS(tf.avgTaskMs);
 
     // ── Fragments ───────────────────────────────────────────────────
-    const costSeg = `${c.c1("Averages:")} ${c.c2(`Cost ${c.c1(tf.timeframeLabel)}:`)} ${c.c1(tfCost)}`;
-    const promptsSeg = `${c.c2("Prompts: User")} ${c.c1(tfPrompts)} / ${c.c2("AI")} ${c.c1(tfTurns)}`;
-    const cacheSeg = `${c.c2("Cache")} ${c.c1(tfCacheHit)}`;
-    const thinkSeg = `${c.c2("Think time")} ${c.c1(tfThink)}`;
-    const respSeg = `${c.c2("Response time")} ${c.c1(tfResp)}`;
+    const titleSeg = c.c1(`${tf.timeframeShort} Averages:`);
+    const costSeg = `${c.c2("cost")} ${c.c1(tfCost)}`;
+    const promptsSeg = `${c.c2("Prompts: User")} ${c.c1(tfPrompts)} / ${c.c2("AI")} ${c.c1(tfAiPrompts)}`;
+    const cacheSeg = `${c.c2("Avg Cache")} ${c.c1(tfCacheHit)}`;
+    const taskSeg = `${c.c2("Avg Task Time")} ${c.c1(tfTask)}`;
 
-    return ["│ " + costSeg, c.c3("|"), promptsSeg, c.c3("|"), cacheSeg, c.c3("|"), thinkSeg, c.c3("|"), respSeg].join(" ");
+    return ["│ " + titleSeg, costSeg, c.c3("|"), promptsSeg, c.c3("|"), cacheSeg, c.c3("|"), taskSeg].join(" ");
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -401,6 +418,7 @@ function createFooterComponent(
     data: FooterDataProvider,
     tui: { requestRender(): void },
     theme: Theme,
+    isAveragesVisible: () => boolean,
 ) {
     // 1Hz ticker: refreshes the cached context-window time + cost rates
     // (via data.onTick()), then requests a TUI re-render. Cleared in
@@ -433,8 +451,10 @@ function createFooterComponent(
                     buildModelLine(data, c),
                     buildCostLine(data, c),
                     buildTimingLine(data, c),
-                    buildAveragesLine(data, c),
                 ];
+
+                // Line 4 — recorded averages (user toggle in the /aftc-footer menu)
+                if (isAveragesVisible()) lines.push(buildAveragesLine(data, c));
 
                 // Line 5 — subscription allowance (only for supported providers)
                 const allowance = data.getAllowance();
@@ -459,10 +479,14 @@ function createFooterComponent(
 // ──────────────────────────────────────────────────────────────────────
 
 export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): void {
-    // Toggle state. Loaded from state.json (a USER PREFERENCE that
+    // Toggle state. Loaded from config.json (a USER PREFERENCE that
     // persists across /reload, /new, and fresh pi startup). Falls
-    // back to true (the historical default) if state.json is missing.
+    // back to true (the historical default) if config.json is missing.
     let active = getPreference("footerEnabled", true);
+    // Line-4 (recorded averages) visibility — user toggle in the
+    // /aftc-footer menu. Defaults to ON (the historical behaviour:
+    // the averages line was always shown).
+    let averagesVisible = getPreference("footerAveragesEnabled", true);
     // Track the live component so /aftc-footer (hide) and widget
     // recreation can dispose the previous one and stop its ticker.
     // Without this, recreating the widget (theme change, /reload,
@@ -492,7 +516,7 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
                 // Dispose the previous component (if any) before creating
                 // a new one — stops the old 1Hz timer.
                 disposeCurrent();
-                const component = createFooterComponent(data, tui, theme);
+                const component = createFooterComponent(data, tui, theme, () => averagesVisible);
                 currentComponent = component;
                 return component;
             }, { placement: "belowEditor" });
@@ -508,29 +532,100 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
         ctx.ui.setWidget("aftc-cache", undefined);
     }
 
-    // /aftc-footer — toggle the widget on/off at runtime.
+    // /aftc-footer — footer dashboard settings menu.
+    // Settings-screen convention (docs/aftc-ui-documentation.md): stable
+    // label + value in an aligned column, selection preserved across
+    // toggles, Esc closes.
+    async function openTimeframeMenu(ctx: ExtensionCommandContext): Promise<void> {
+        const options = data.getTimeframeOptions();
+        const currentKey = data.getTimeframeKey();
+        const current = options.find((o) => o.key === currentKey);
+        const labelWidth = options.reduce((m, o) => Math.max(m, o.label.length), 0) + 1;
+        const chosen = await showMenu(ctx, {
+            title: "Set averages timeframe",
+            body: [
+                "Please choose a timeframe for average report in footer widget.",
+                "NOTE: Options using `Last` are rolling windows from your current time.",
+                `Current: ${current ? current.label : "none"}`,
+            ],
+            labelWidth,
+            initialIndex: Math.max(0, options.findIndex((o) => o.key === currentKey)),
+            items: options.map((o) => {
+                // Rolling options carry their window hint; the effective
+                // row is additionally marked (current) and pre-selected.
+                const desc = [o.description, o.key === currentKey ? "(current)" : ""].filter(Boolean).join(" ");
+                return { value: o.key, label: o.label, description: desc || undefined };
+            }),
+            help: "Enter = select   Esc = back",
+        });
+        if (chosen === null) return; // Esc -> back to the footer menu
+        const def = options.find((o) => o.key === chosen);
+        if (!def || !data.setTimeframe(chosen)) {
+            aftcConsole.error(ctx, "Invalid timeframe selection");
+            return;
+        }
+        aftcConsole.emphasis(ctx, `Footer timeframe set to ${def.label}`);
+    }
+
+    async function handleFooterMenu(_args: string, ctx: ExtensionCommandContext): Promise<void> {
+        if (!ctx.hasUI) {
+            // Headless fallback: print the current settings.
+            const opts = data.getTimeframeOptions();
+            const cur = opts.find((o) => o.key === data.getTimeframeKey());
+            console.log(
+                `[aftc-toolset] footer: enabled=${active ? "ON" : "OFF"} ` +
+                `averages=${averagesVisible ? "ON" : "OFF"} ` +
+                `timeframe=${cur?.label ?? data.getTimeframeKey()}`,
+            );
+            return;
+        }
+        let selectedIndex = 0;
+        while (true) {
+            const tfLabel = data.getTimeframeOptions().find((o) => o.key === data.getTimeframeKey())?.label ?? "";
+            const items = [
+                { value: "enable", label: "Enable footer", description: ` | ${active ? "ON" : "OFF"}` },
+                { value: "averages", label: "Show recorded averages", description: ` | ${averagesVisible ? "ON" : "OFF"}` },
+                { value: "timeframe", label: "Set averages timeframe", description: ` | ${tfLabel}` },
+            ];
+            const choice = await showMenu(ctx, {
+                title: "Footer dashboard",
+                labelWidth: 24,
+                initialIndex: selectedIndex,
+                items,
+            });
+            if (choice === null) return; // Esc closes the menu
+            selectedIndex = Math.max(0, items.findIndex((i) => i.value === choice));
+
+            if (choice === "enable") {
+                if (active) {
+                    hide(ctx);
+                    setPreference("footerEnabled", false);
+                    aftcConsole.emphasis(ctx, "Footer dashboard widget hidden.");
+                } else {
+                    show(ctx);
+                    setPreference("footerEnabled", true);
+                    aftcConsole.emphasis(ctx, "Footer dashboard widget shown.");
+                }
+            } else if (choice === "averages") {
+                averagesVisible = !averagesVisible;
+                setPreference("footerAveragesEnabled", averagesVisible);
+                aftcConsole.emphasis(ctx, `Footer recorded averages line: ${averagesVisible ? "ON" : "OFF"}`);
+            } else if (choice === "timeframe") {
+                await openTimeframeMenu(ctx);
+            }
+            // loop re-renders so the value column stays current
+        }
+    }
+
     registerHelpEntry({
         command: "aftc-footer",
-        description: "Toggle the footer dashboard",
+        description: "Open the footer dashboard menu",
         category: "Footer / cache / timing",
     });
 
     pi.registerCommand("aftc-footer", {
-        description: "Toggle the footer dashboard widget on/off",
-        handler: async (_args: string, ctx: ExtensionCommandContext) => {
-            if (active) {
-                hide(ctx);
-                // Persist the new value as a user preference so the
-                // widget stays hidden across /reload, /new, and
-                // fresh pi startup.
-                setPreference("footerEnabled", false);
-                aftcConsole.emphasis(ctx, "Footer dashboard widget hidden.");
-            } else {
-                show(ctx);
-                setPreference("footerEnabled", true);
-                aftcConsole.emphasis(ctx, "Footer dashboard widget shown.");
-            }
-        },
+        description: "Open the footer dashboard menu (enable footer, averages line, timeframe)",
+        handler: handleFooterMenu,
     });
 
     // Show the widget on session_start (after the orchestrator has

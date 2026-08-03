@@ -78,7 +78,7 @@ Returns a `FooterDataProvider` (see `types.ts`) - the orchestrator
 hands this to `footer-widget.ts` so the widget can read all the
 above state via cheap getters on every render.
 
-## Commands registered (5)
+## Commands registered (4)
 
 - `/cache-profile` - per-tool token costs, prefix shape, churn
   analysis. Output to `ctx.ui.select`.
@@ -86,13 +86,15 @@ above state via cheap getters on every render.
   cache-write ROI, prefix hashes.
 - `/cache-reset` - zero in-memory accumulators and the in-memory
   context-window clock. Useful for benchmarking.
-- `/aftc-set-costs-timeframe` - set the footer 4th-line time
-  window: Today, Last 3 Hours, Last 6 Hours, Last 24 Hours,
-  Last 2 Days, Last 3 Days, Last 7 Days, Last 28 Days (default:
-  Last 3 Days). Persisted to `state.json` as a user preference
-  (survives /new, /reload, and fresh pi startup). Alias:
-  `/aftc-footer-report-timeframe`.
 - `/cls` - clear the terminal screen.
+
+The footer line-4 time window is no longer a command here: it is
+picked in the `/aftc-footer` menu (footer-widget.ts) through this
+module's provider surface (`getTimeframeOptions` / `getTimeframeKey`
+/ `setTimeframe`). Window definitions (rolling "Last" options vs
+calendar-anchored options) live at module scope in this file
+(`FOOTER_TIMEFRAMES`) and are persisted as the `footerTimeframe`
+user preference.
 
 ## Files persisted
 

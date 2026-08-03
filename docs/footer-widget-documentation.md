@@ -42,11 +42,47 @@ Turn Time L / Avg A │ Turn Response Time L / Avg A │ N Tools ~X.XKt │ Skil
 
 ### Line 4 — Long-term averages (from SQLite)
 ```
-Cost <window>: $X.XX │ Prompts: User X / AI Y │ Cache X% │ Think time X │ Response time X
+<Window> Averages: cost $X.XX | Prompts: User X / AI Y | Avg Cache X% | Avg Task Time X
 ```
-- Aggregates from `turns.db` over a configurable window (default: Last 3 Days)
-- Window set by `/aftc-set-costs-timeframe` (persists across resume/reload)
+- Prefix names the window: "Today Averages:", "3 Hour Averages:",
+  "24 Hour Averages:", "2 Day Averages:", "28 Day Averages:", etc.
+- `cost` — total spend in the window (money formatted per
+  `docs/usage-report-rules.md`: $0.00 / 4dp below $1 / 2dp / whole
+  numbers with thousands separators at $1,000+)
+- `Prompts: User / AI` — SUMS over the window, not averages; AI =
+  total turns minus user-prompted turns
+- `Avg Cache` — average per-turn cache hit rate over the window
+- `Avg Task Time` — average wall-clock of COMPLETED tasks only
+  (`stop_reason = 'complete'`, same rule as the usage report's
+  Task Time); duration formatted per the report rule
+  (`0s` / `1m 30s` / `2h 5m 3s`)
+- Aggregates from `turns.db` (`turns` + `tasks` tables) over a
+  configurable window (default: 3 Days)
+- Window set in the `/aftc-footer` menu -> "Set averages timeframe"
+  (persists across resume/reload)
+- Line hidden entirely when "Show recorded averages" is OFF in the
+  same menu
 - Refreshed at most every 10s (DB not hammered on every tick)
+
+#### Timeframe windows
+
+19 options, two families:
+
+- **Rolling** ("Last" options) — the window slides with the clock:
+  `timestamp >= now - N hours`.
+  Last 1 hour, Last 2 hours, Last 3 hours, Last 4 hours, Last 5 hours,
+  Last 6 hours, Last 12 hours, Last 24 hours, Last 48 hours,
+  Last 72 hours.
+- **Date-based** — anchored to LOCAL calendar boundaries, NOT rolling:
+  - 1 Day = since today's midnight
+  - 2 / 3 / 5 / 7 Days = since the midnight that opened the Nth
+    calendar day counting today (7 Days = today + previous 6 days)
+  - Month / 3 Months / 6 Months = since the 1st of the current month /
+    2 / 5 months back
+  - 1 Year = since January 1st of the current year
+
+Legacy preference keys migrate on load (`today` -> `1d`, `28d` ->
+`month`, ...); unknown values fall back to the default (`3d`).
 
 ### Line 5 — Subscription quota (conditional)
 ```
@@ -122,8 +158,14 @@ widget never imports core directly.
 
 | Command | Action |
 | --- | --- |
-| `/aftc-footer` | Toggle widget on/off (disposes component on hide) |
-| `/aftc-set-costs-timeframe` | Set the Line 4 averaging window |
+| `/aftc-footer` | Footer dashboard menu: **Enable footer** (ON/OFF toggle, disposes component on hide), **Show recorded averages** (ON/OFF toggle for line 4), **Set averages timeframe** (current window shown right; opens the timeframe picker submenu) |
+
+The timeframe picker lists the rolling "Last" options first, then the
+date-based ones, marks the effective row `(current)` and pre-selects
+it. Esc in the picker returns to the menu; Esc in the menu closes it.
+The old `/aftc-footer` toggle behaviour, `/aftc-set-costs-timeframe`
+and the legacy `/aftc-footer-report-timeframe` alias were removed and
+replaced by this menu.
 
 ---
 
