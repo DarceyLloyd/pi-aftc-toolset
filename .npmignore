@@ -59,6 +59,8 @@ AGENTS.md
 .dev/
 test/
 *.old
+*.zip
+*.rar
 
 # Archived skills (kept in repo, not shipped to npm)
 skills/*.rar

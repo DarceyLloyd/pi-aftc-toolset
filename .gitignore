@@ -58,6 +58,7 @@ dev.md
 tasks.md
 skills/cache-audit/SKILL.old
 *.zip
+*.rar
 
 # Archived skills
 skills/*.rar
@@ -94,3 +95,6 @@ tests/
 
 # Runtime debug logs
 temp/
+# aftc docx backup artifacts
+docx/old_docs/
+docx/old_docs.zip

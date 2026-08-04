@@ -61,7 +61,11 @@ AGENTS.md                     Auto-loading context at the PROJECT ROOT - pointer
   branch against source and fix both; (b) module-scoped context - a session
   loading one module's docs gets its whole map without the root map.
 - Annotate each ID in exactly one place: the root map annotates branches and
-  containers; leaf annotations live in the owning sub-map.
+  containers; leaf annotations live in the owning sub-map. Annotation links
+  use the FULL FILE NAME as the link text
+  (`[1.6.2_ssh_sessions_documentation.md](1.6.2_ssh_sessions_documentation.md)`,
+  never `[doc](...)`) - the filename is the discovery mechanism, so it must
+  be visible without following the link.
 - Annotations link to ID-prefixed deep docs. Status legend mandatory
   (`done` / `placeholder` / `missing` / `reserved`).
 - Map file layout (canonical, root map and sub-maps alike): H1 + one-line
@@ -133,24 +137,65 @@ are the destinations, not the deep docs.)
 
 ## 4. README.md (project root — GENERATED LAST)
 
-Classic GitHub readme at the PROJECT ROOT, short and scannable, in this
-order: title + one-paragraph description; project requirements; tech stack
-with versions; install guides (shortest path clone->running); quick project
-overview; lite project map ending with the link line *For more details
-please see `docx/project_documentation.md` and `docx/project_map.md`*. No
-per-ID sections, no rules - that is the master's job.
+The root README is the project's public face. It is generated LAST (step 10),
+when the project is fully understood, and its content must be rooted in the
+facts learned during the run — never guesswork.
 
-**Generated LAST** (step 11, after every other document exists): the root
-README sells the whole project to a newcomer, so it is written only when
-the project is fully understood - never early, never by the tooling.
+### 4.1 The previous README is the structural guide
 
-**Evaluate the previous README first** (readable in the backup at
-`docx/old_docs/README.md` when one existed). It may be a huge help or no
-help at all: mine it for accurate content (description, badges,
-requirements, install notes, screenshots), discard whatever is stale or
-wrong, and never copy it verbatim - re-verify every claim against source.
-The goal is a well-structured README covering the complete usage of the
-project, not a preservation exercise.
+FIRST read the previous README (`docx/old_docs/README.md` when one exists)
+and classify it:
+
+- **Extensive** (many feature sections, tables, images, badges): FOLLOW its
+  structure closely. It becomes the skeleton of the new README: same section
+  flow, same ordering, same tables — every entry re-verified against source
+  and refreshed with what the run learned. Keep its images: every referenced
+  image file must be confirmed to exist on disk (drop the reference only when
+  the file is gone). Discard only what is provably stale or wrong. Never
+  shrink an extensive README to a summary — that is a failure of the run.
+- **Thin or absent**: build from the archetype layout below that matches the
+  project type.
+- Either way: mine, verify, refresh — never copy verbatim without
+  re-verification, and never invent content the recon did not establish.
+
+### 4.2 Project-type archetypes
+
+Detect the project type from step-1 recon (manifests, entry points, compose
+files) and lay the README out for its AUDIENCE. Two archetypes are catered
+for; anything else takes the closest fit and the developer refines from
+there.
+
+**A. Tool / extension / plugin / library packages** (pi extension, editor
+plugin, npm/pip library, CLI tool). The reader is a USER of the tool: they
+need to know what it contains, what each part does, and how to use
+everything. Layout: title + badges + one-paragraph description; what's-new
+(highlights of the current release); install (shortest path, INCLUDING
+installing/enabling requirements and post-install steps); quick-links list
+to the feature sections; ONE SECTION PER MAJOR FEATURE with its usage
+(commands, options, screenshots where the old README had them); command and
+shortcut tables; configuration/defaults; data locations; license. A
+tech-stack table is NOT required for this archetype (implementation detail
+the user does not need).
+
+**B. Runtime applications / multi-service projects** (docker compose stacks,
+web apps, php/apache/mysql, services with scripts). The reader RUNS the
+project. Layout: title + one-paragraph description; project requirements;
+tech stack with EXACT versions; install (clone -> running); what every
+script is for and how to use it (`.bat`, `.sh`, `.ps1` — each one named
+with its purpose and example invocation); container/service overview (what
+each service is, ports, how to reach it); configuration/env vars; quick
+project overview.
+
+### 4.3 Universal rules
+
+- Include the lite (branch-level) project map near the end, matching the top
+  level of `project_map.md`.
+- End with the link line: *For more details please see
+  `docx/project_documentation.md` and `docx/project_map.md`*.
+- No per-ID sections, no rules — that is the master's job.
+- Badges only when they resolve (keep the old README's badge set when it
+  does).
+- The README carries the `last-reviewed` header like every generated doc.
 
 ## 5. project_documentation.md (Master)
 
@@ -189,6 +234,10 @@ Must work as a complete overview even if nothing else exists. In order:
 7. Documentation Index (Deep Documents / Sub-Maps / Cross-Cutting / Dev
    Tools, with links). Entries carry the ID:
    `- [docs/1.3.4_x_documentation.md](docs/1.3.4_x_documentation.md) - ID 1.3.4, \`dev-tool\``.
+   The index opens with a one-line instruction: *"Discovery index - find the
+   doc for the area you are about to work on and load ONLY that doc; do not
+   follow these links for areas you are not working on."* Every file in
+   `docx/docs/` MUST appear here (the link audit verifies completeness).
 8. Final note: new sections may be added by the AI or user as the project
    evolves; the future shape cannot be known in advance.
 
@@ -307,18 +356,25 @@ rewrite it wholesale. The generation run makes exactly two edits:
 
 ```markdown
 <!-- AFTC-DOCX
-Documentation lives in ./docx/ - read README.md (project root), then
-./docx/project_documentation.md, then ./docx/project_map.md, in that order.
-Open deep docs under ./docx/docs/ only when the work touches that area;
-honour the Only-read instructions in the master. Keep documentation updated
-in the SAME change as the code - a stale doc is a bug. A last-reviewed stamp
-records when content was verified against source, not a freshness deadline;
-re-validate on code changes, never on elapsed time alone.
+Documentation lives in ./docx/. Do NOT read documentation up front. When
+you are about to work on an area, find its doc: read the Documentation
+Index in ./docx/project_documentation.md or the annotations in
+./docx/project_map.md, then load ONLY that doc from ./docx/docs/. Never
+follow documentation links for areas you are not working on. When you
+change documented code, update its doc in the same change and refresh its
+last-reviewed stamp.
 -->
 ```
 
 2. Update any OTHER stale documentation references in the file to point at
    `./docx/` (eg an old `project_documentation.md` link at the root).
+
+The block's discovery contract (binding): AGENTS.md points at the master
+and the map as the ONLY two entry points; the model looks no further until
+it is about to work on an area, and then loads only that area's doc. The
+master and the map each carry a visible "do not follow these links until
+the work touches that area" instruction so a model opening them for
+discovery does not cascade-load the whole set.
 
 Every other character of the existing file - critical rules, conventions,
 do-not-touch lists - is preserved VERBATIM. If no `AGENTS.md` exists,
@@ -626,13 +682,15 @@ STEP 10 - ROOT README (GENERATED LAST on purpose)
 - Generate [PROJECT_PATH]/README.md per section 4. It comes after every
   other document on purpose: the root README sells the whole project to a
   newcomer, so it is written only now that the project is fully understood.
-- EVALUATE the previous README (docx/old_docs/README.md when one exists):
-  it may be a huge help or no help at all. Mine accurate content
-  (description, badges, requirements, install notes), discard what is stale,
-  never copy verbatim - re-verify every claim against source.
-- The result must be a well-structured GitHub README covering the complete
-  usage of the project, ending with the link line to
-  docx/project_documentation.md and docx/project_map.md.
+- CLASSIFY the previous README first (docx/old_docs/README.md when one
+  exists): if it is extensive (many sections, tables, images), FOLLOW its
+  structure closely - it is the skeleton of the new README; keep its images
+  (verify each file exists), refresh every fact against source, discard only
+  the provably stale. Never shrink an extensive README to a summary. If it
+  is thin or absent, build from the section 4.2 archetype that matches the
+  detected project type (tool/extension/library = feature sections + usage
+  for everything; runtime app / multi-container = requirements, install,
+  per-script usage, service overview).
 
 STEP 11 - LINK AUDIT (mechanical - run the shipped script)
 - node "[LINK_AUDIT_PATH]" "[PROJECT_PATH]"
@@ -681,7 +739,7 @@ STEP 12 - REPORT + FINALISE
 
 Fix any unchecked item, or document the gap in `docx/docs/known-gaps.md`.
 
-- [ ] `README.md` (project root): title, description, requirements, tech stack, install, overview, lite map, link line; generated LAST; old README evaluated, not copied.
+- [ ] `README.md` (project root): generated LAST; old README classified (extensive = structural skeleton, images kept + verified) or the section 4.2 archetype followed; feature/usage sections for tool packages or requirements/install/script-usage for runtime apps; lite map + link line.
 - [ ] `docx/project_documentation.md`: description, tech stack, lite map, guidance & rules incl. Maintaining This Documentation, one section per ID, Documentation Index.
 - [ ] `docx/project_map.md`: full tree every level, `last-verified` + regenerate command, status legend.
 - [ ] Lite maps in README and master match the top level of the map; the full tree lives only in the map and sub-maps.
@@ -693,7 +751,8 @@ Fix any unchecked item, or document the gap in `docx/docs/known-gaps.md`.
 - [ ] Dev tools: `dev-tool` tag, deep doc with host access + disable instructions, entry in `docx/docs/development.md`.
 - [ ] `docx/docs/dependency_map.md` exists: runtime graph, mount map, build-output contract, feature trace matrix, API consumer matrix - ID-keyed, `last-verified` header.
 - [ ] Cross-references use IDs, not paths.
-- [ ] `AGENTS.md`: under 200 lines, no secrets, managed AFTC-DOCX block present, prior critical rules preserved verbatim; copies at every AI tool location.
+- [ ] `AGENTS.md`: under 200 lines, no secrets, managed AFTC-DOCX block present (no upfront doc reads; discovery via master index / map annotations; load-on-demand), prior critical rules preserved verbatim; copies at every AI tool location.
+- [ ] Map annotations use full file names as link text; every `docx/docs/` file appears in the master's Documentation Index.
 - [ ] link-audit script prints PASS.
 - [ ] A new session can onboard from the root README + master + map + AGENTS.md + one deep doc.
 - [ ] `docx/old_docs.zip` exists (previous docs zipped, `docx/old_docs/` removed).

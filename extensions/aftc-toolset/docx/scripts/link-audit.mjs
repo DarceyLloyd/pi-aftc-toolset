@@ -109,7 +109,7 @@ for (const file of files) {
     //    (guide: file name AND title carry the ID at every level): an H1
     //    that starts with an ID requires the filename to carry it too.
     const base = basename(file);
-    const idMatch = base.match(/^(\d+(?:\.\d+)+)_[\w.-]+\.md$/);
+    const idMatch = base.match(/^(\d+(?:\.\d+)*)_[\w.-]+\.md$/);
     if (idMatch) {
         checks++;
         const h1 = text.match(/^# .+$/m);
@@ -117,7 +117,7 @@ for (const file of files) {
             fail(rel, `H1 does not start with its ID (${idMatch[1]})`);
         }
     } else if (file.includes(`${sep}docs${sep}`)) {
-        const h1Id = text.match(/^# (\d+(?:\.\d+)+) /m);
+        const h1Id = text.match(/^# (\d+(?:\.\d+)*) /m);
         if (h1Id) {
             checks++;
             fail(rel, `H1 has ID ${h1Id[1]} but the filename does not (rename to ${h1Id[1]}_${base})`);
@@ -150,23 +150,46 @@ for (const entry of docsDirEntries) {
     }
 }
 
+// 7. Discovery completeness: every file in docx/docs/ must be linked from
+//    the master's Documentation Index (the index is the on-demand discovery
+//    mechanism - an unlisted doc is unreachable).
+const masterFile = join(docxDir, "project_documentation.md");
+if (existsSync(masterFile) && existsSync(join(docxDir, "docs"))) {
+    const masterText = readFileSync(masterFile, "utf8");
+    for (const entry of docsDirEntries) {
+        if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) continue;
+        checks++;
+        if (!masterText.includes(entry.name)) {
+            fail("project_documentation.md", `Documentation Index does not list docs/${entry.name}`);
+        }
+    }
+}
+
 // 5. Every map ID has exactly one deep doc file, and vice versa.
 //    Sub-map files (<id>_<area>_map.md) are NOT deep docs: an ID may have
 //    one deep doc AND one sub-map. Count them separately (max one sub-map
 //    per ID).
 const mapFile = join(docxDir, "project_map.md");
 if (existsSync(mapFile)) {
-    const mapText = readFileSync(mapFile, "utf8");
+    // Collect map IDs from the root map AND every sub-map. IDs appear in two
+    // line shapes: annotation lines ("- 1.2.3 — ...") and ASCII-tree lines
+    // ("|-1.6.1 - Name", "| \\-1.7.9 - Name", nested "| | |-1.4.2 ...").
+    // The prefix class strips tree art (spaces, pipes, backslashes, dashes).
+    const ID_LINE_RE = /^[|\s\\-]*(\d+(?:\.\d+)*)\s+\S/;
     const mapIds = new Set();
-    // Annotation lines carry the ID at line start: "- 1.2.3 — ..." or "1.2.3 "
-    for (const m of mapText.matchAll(/^\s*(?:[-*]\s*)?(\d+(?:\.\d+)+)\s/mg)) {
-        mapIds.add(m[1]);
+    const mapFiles = [mapFile, ...files.filter((f) => /_map\.md$/.test(basename(f)) && f !== mapFile && basename(f) !== "dependency_map.md")];
+    for (const mf of mapFiles) {
+        const text = readFileSync(mf, "utf8");
+        for (const line of text.split("\n")) {
+            const m = ID_LINE_RE.exec(line);
+            if (m) mapIds.add(m[1]);
+        }
     }
     const docIds = new Map();
     const subMapIds = new Map();
     for (const file of files) {
         const base = basename(file);
-        const m = base.match(/^(\d+(?:\.\d+)+)_[\w.-]+\.md$/);
+        const m = base.match(/^(\d+(?:\.\d+)*)_[\w.-]+\.md$/);
         if (!m) continue;
         if (base.endsWith("_map.md")) {
             subMapIds.set(m[1], (subMapIds.get(m[1]) || 0) + 1);

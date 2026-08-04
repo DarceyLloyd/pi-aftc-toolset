@@ -19,7 +19,7 @@ Click [here](./change-log.txt) to read the change logs.
 ### **/docx project documentation generator**
 One command — `/docx` — generates a complete, cross-referenced documentation set for any project: a fresh GitHub README.md, a master document, a full ID'd structure map, and per-module deep docs under `./docx/`. Your old docs are never lost: they're moved aside with their folder structure intact and zipped to `docx/old_docs.zip`. See [/docx project documentation generator](#docx-project-documentation-generator).
 
-### **AFTC CODEX PATCHES**
+### **AFTC CODEX PATCHES & UPDATED CODEX RESOURCES**
 Fixed some bugs, adjusted learning process and model guidance. And brought synced my latest codex resources for you all to use..
 
 
@@ -49,30 +49,40 @@ Then in pi:
 
 <br><br>
 
-# **Quick Documentation links**
+# **Quick Documentation & Links**
 - [**Footer Widget**](#footer-widget)
 - [**SSH**](#ssh)
+
+- [**DOCX Documentation Generator (BETA)**](#docx-project-documentation-generator)
+    > **WARNING: This will re-write readme.md and move all existing documentation.**
+    If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating indepth modular documenation designed for AI use while being human friendlyalso. This can take a long time the larger the project is. 
+    
+    > **WARNING: Context compaction danger**. If you run this when your context use is high or nearing compaction this could corrupt the documentation process. It's best to start a fresh context window and run /docx to guarantee the best chance of success.
+
+- [**Usage Report**](#usage-report) (BETA 3)
+- [**AFTC Codex**](#aftc-codex-knowledge-base) (BETA)
+
+    > **WARNING**: AFTC Codex injects rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This results in the model having access to potentially a lot of rules, issues & solutions and gotchyas. Loading 1 to 5 is light enough, loading 20 can be costly but necessary when you have something complex that you want the AI to have its best shot at working out and one shotting it.
+    
+    > I recommend you create a plan.md and a tasks.md first so that you can maximise your use of the codex skills.
+
+    > Codex results: I've found it to be very beneficial when asking models to perform tasks on projects containing multiple projects eg docker, apache php, mysql containers with complex setups and containing inner php framework backend api and public and private websites. GLM 5.2, Kimi K3 and Qwen 3.8 Max (3.7 Max is good too) I find perform the best in these situations.
+    
+    > **WARNING**: If you are counting the cost of every token or have low tier 
+
+- [**Audio notifications**](#slash-commands) /aftc-notifications
+- [**Slash commands**](#slash-commands) /aftc-* /codex-*
+- [**Keyboard shortcuts**](#keyboard-shortcuts) Alt+C / Alt+N / Alt+X
 - [**run_script**](#run_script-reliable-large-scripts)
 
     > Reliable large/multi-line script execution. Works around a pi bash-tool truncation bug that silently drops inline commands past a few KB.
-
-- [**/docx documentation generator**](#docx-project-documentation-generator)
-
-    > Regenerates a project's full documentation set (README, master doc, structure map, deep docs) into `./docx/`. **Read the warnings first** — it moves your existing docs aside (recoverable via `docx/old_docs.zip`) and uses real model context.
-
-- [**Usage Report**](#usage-report) (BETA 3)
 - [**Cache diagnostics**](#cache-diagnostics)
-- [**AFTC Codex**](#aftc-codex-knowledge-base) (BETA)
-
-    > **WARNING**: AFTC Codex injects ~29KB of rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This consumes context window and provider allowance rapidly. The Z.AI Pro-Monthly Plan 5h allowance can be consumed very easily in a single session. Only enable it when you need thought guidance and pre-learned gotchas for complex or large tasks. Do NOT use it with low 5h/weekly allowance remaining, low OpenRouter credits, or on a low-tier subscription. Some models devour context (eg Z.AI GLM 5.2), others are more efficient. Recommended models: Kimi K3 (Allegretto or above plans), Qwen 3.8 Max (Pro plan). MiniMax M3 is context-cheap but makes too many mistakes to trust with self-education.
-
-- [**Audio notifications**](#slash-commands)
-- [**Slash commands**](#slash-commands)
 - [**/cd directory navigation**](#cd-directory-navigation)
 - [**Bundled skills**](#bundled-skills)
 - [**Feature defaults**](#pi-aftc-toolset-defaults)
 - [**Data location**](#data-location)
 - [**Advanced installation and uninstall guide**](#advanced-installation)
+- [**Project documentation**](#project-documentation)
 
 ---
 
@@ -767,9 +777,15 @@ recovered).
 In-memory only (per-session, not persisted): cache accumulators, model info, per-turn timings, context-window clock start time.
 
 SSH connections, shell buffers, credentials, and carrier processes are in-memory only and are cleared during shutdown.
-
+<br><br>
 
 ---
+## Project documentation
+
+*For more details please see [docx/project_documentation.md](docx/project_documentation.md) and [docx/project_map.md](docx/project_map.md).*
+
+---
+
 
 <br><br>
 

@@ -43,8 +43,10 @@ documentation set into `./docx/` per the shipped `documentation_guide.md`
 
 The root README is never written by the tooling: the model generates it as
 the final content step (guide step 10), when the project is fully
-understood, evaluating the old README in the backup for whatever it is
-worth.
+understood. An extensive old README becomes the structural skeleton of the
+new one (sections followed closely, images kept after verifying the files
+exist); a thin or absent one is built from the guide's project-type
+archetype (tool/extension/library vs runtime/multi-service app).
 
 ## Commands registered (1)
 
