@@ -6,6 +6,8 @@ server mechanics. For user-facing web apps see web-app.md; for content pages see
 
 ## Rules
 
+- [9ITLKx] Admin/back-office users are operators, not developers - never surface internal identifiers or file paths in editors (a "primary image path" text input is the classic mistake); show a rendered PREVIEW plus an action that does the work (upload-and-replace, make-primary), and auto-generate machine fields left blank (slugs, SKUs) instead of making the user invent them.
+
 ## Gotchyas
 
 ## Issues & Solutions

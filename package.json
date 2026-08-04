@@ -1,7 +1,7 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.18.7",
-  "description": "Footer widget with costs, cache, turns, ctx window tracking etc. Detailed usage reports, Isolated SSH, Self learning & injecting issues & solutions, various skills, 3 themes, prompt repeater, shortcuts and more.",
+  "version": "1.19.0",
+  "description": "Footer stats bar (model, costs, cache, turns etc). Usage reports & stats. Isolated SSH. Persistent self-educating cache-aware skills on demand (codex). Audio notifications. Documentation generator (docx). Skills. Themes ++",
   "keywords": [
     "pi-package",
     "pi",
@@ -36,6 +36,7 @@
     "typebox": "*"
   },
   "dependencies": {
+    "adm-zip": "^0.6.0",
     "better-sqlite3": "12.11.1"
   },
   "allowScripts": {

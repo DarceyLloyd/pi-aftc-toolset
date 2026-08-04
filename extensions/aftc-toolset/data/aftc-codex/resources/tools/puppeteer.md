@@ -8,6 +8,8 @@
 
 - [7JLylr] A suite that creates + CONSUMES a finite resource (serial numbers, single-use codes, stock) and cleans up only the UNUSED instances leaves the USED ones to accumulate across runs - they eventually exhaust or block the resource (eg a serial bank left at 0 unused fails the NEXT run's checkout with 'out of stock'/'out of serial codes', even though THIS run passed); cleanup must reach the consumed instances too (delete the parent order/record so they cascade, or a DB-level sweep at suite start - many APIs can't delete a 'used' row), or design the test so a consumed instance can never block a re-run (a fresh throwaway resource each run).
 
+- [TviiMQ] manager/list tables that render an empty state as a real <tr><td colspan> row pollute row-count assertions - an add-then-remove flow reads before=1 and after=1 (the empty-state row on both sides), so the remove check is silently SKIPPED and the suite still looks green; count DATA rows only (filter out tr containing td[colspan]) for every before/after comparison, and assert the skip-prone check can actually fire
+
 ## Issues & Solutions
 
 
@@ -56,7 +58,11 @@
   Fix: re-run the script SERIALLY with nothing heavy running before suspecting an app bug; for permanent robustness prefer `waitForSelector` over fixed sleeps (see [tM5vR2]). (2026-07)
 - [cR2mX8] e2e cleanup deletes "the first row" and the suite becomes permanently self-failing
   Cause: a cleanup that deletes by POSITION (first row / first matching button) removes the wrong row whenever a previous (interrupted) run left a duplicate fixture row behind; the leftover then fails every later run's "removed" assertion.
-  Fix: delete rows CONTAINING the fixture's unique text (find the tr whose textContent includes the fixture string, click ITS delete), never a positional row - and when duplicates can exist, LOOP the delete until no row matches; if a suite suddenly fails on removal checks with no code change, check the db for leftover fixture rows first. (2026-07)
+  Fix: delete rows CONTAINING the fixture's unique text (find the tr whose textContent includes the fixture string, click ITS delete), never a positional row - and when duplicates can exist, LOOP the delete until no row matches; the same goes for CLICK targets (find the row by its content, never nth-child/first-row - anything the user can reorder or filter makes positional selectors break later). If a suite suddenly fails on removal/drill checks with no code change, check the db for leftover fixture rows or user-changed ordering first. (2026-08)
 - [qT8wN2] A flow that navigates to a NEW page mid-test reads baseline counts as 0 - the "back to baseline" assertion then fails
   Cause: baseline row/element counts captured AFTER clicking the button that navigates away read 0 (those elements don't exist on the new page), so `count === before` compares against 0.
   Fix: capture every baseline BEFORE the action that navigates; re-read only after the flow returns to the original page. (2026-07)
+
+- [vuVRla] e2e add-then-remove flow silently corrupts seed state or fails the remove check - the cleanup row-match finds the wrong row or no row
+  Cause: Two independent mismatches: (1) the search term matched TWO entities and one was already present, so the add created a duplicate and the remove-by-text step deleted the ORIGINAL seeded row (suite green, seed state silently corrupted); (2) the remove matched the table cell against the DROPDOWN OPTION label, which was decorated ("Name (SKU)") while the cell rendered the bare name - includes() never matched, nothing was removed.
+  Fix: Fixture rules for add/remove list flows: the search term must match exactly ONE entity that is NOT already in the list; capture the exact text the TABLE CELL renders for the match (strip option-label decorations like suffixes); and add a pre-cleanup loop that removes any row containing the fixture text before the flow starts, so an interrupted previous run can never poison this one. (2026-08)

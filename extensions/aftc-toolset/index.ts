@@ -28,6 +28,9 @@
  *                        configurable threshold) and when the AI asks a question
  *   - quick-open-dir.ts — /qd: quick dir access menu (data dir, .pi dir,
  *                        toolset dir — the last gated by a .dev marker folder)
+ *   - docx/          — /docx: regenerate the project's full documentation set
+ *                        into ./docx/ per the shipped documentation guide;
+ *                        old docs backed up to docx/old_docs.zip
  *   - aftc-codex/     — opt-in knowledge base: injects codex rules + guidance +
  *                        resource list into the system prompt; codex_load tool;
  *                        /aftc-codex-* commands (off by default)
@@ -74,6 +77,7 @@ import { createKeepItShort } from "./keep-it-short";
 import { createThinkParser } from "./think-parser";
 import { createNotify } from "./notify";
 import { createQuickOpenDir } from "./quick-open-dir";
+import { createDocx } from "./docx/docx";
 import { createAftcCodex } from "./aftc-codex/aftc-codex";
 import { createRunScript } from "./run-script";
 import { migrateLegacyData } from "./paths";
@@ -150,6 +154,7 @@ export default function (pi: ExtensionAPI): void {
 	createThinkParser(pi);
 	createNotify(pi);
 	createQuickOpenDir(pi);
+	createDocx(pi);
 	createAftcCodex(pi);
 	createRunScript(pi);
 	// createProviders(pi); // disabled — see note at the import above

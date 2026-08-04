@@ -78,6 +78,25 @@ goes through the codex entry tools - never hand-edit resource files and never
 run a sync script (the tools handle [ID] generation, format validation, section
 placement, topic/category creation, and the resource list internally):
 
+**HARD LIMITS - every entry must be GLOBAL and SAFE (check BEFORE writing):**
+
+1. GENERALITY: the entry must make sense to a session working on ANY project.
+   No project names, no real paths/URLs, no terms only one project's docs or
+   workflow use. Project facts are NEVER saved. Reword generically or drop.
+   - BAD: "Add a References block and last-reviewed stamp to every deep doc;
+     keep map IDs stable" (one project's documentation vocabulary).
+   - GOOD: "When generating docs from source, verify every claimed
+     file/endpoint exists in code before documenting it as live - a reference
+     to a missing file means the feature is removed."
+2. SECRETS: NEVER save passwords, API keys, tokens, private keys, connection
+   strings or any credential - not even as examples. Describe the SHAPE only
+   ("the API key env var"), never a value.
+3. The write tools mechanically reject real absolute paths, URLs,
+   credential-looking values and the current project's name. A refusal means
+   reword generically - never try to force the entry through.
+
+When in doubt: reword generically or drop - never save as-is.
+
 1. Review the session for durable, general lessons (never project-specific).
 2. Consult the resource list (in the system prompt, or codex_load("list")).
    Update the correct existing doc; create a new topic ("category/name", new
@@ -85,13 +104,14 @@ placement, topic/category creation, and the resource list internally):
 3. codex_load each target topic and check the lesson is not already there. This
    is enforced: the write tools refuse a topic not loaded this session and
    reject exact duplicates.
-4. Classify each lesson (first match wins): observed failure with a diagnosis ->
-   kind "issue" (text = symptom lead, plus cause and fix - the tool appends the
-   current date); a convention we choose -> kind "rule" (one line); a technology
-   trap you can only avoid -> kind "gotcha" (one line with BOTH the trap and the
-   countermeasure). Write with codex_add_entry (batch several entries for the
-   same topic in ONE call). When propose-then-confirm is on, show the entries
-   and wait for the user before calling the tool.
+4. Apply the HARD LIMITS above to each entry (generality + no secrets), then
+   classify each lesson (first match wins): observed failure with a diagnosis
+   -> kind "issue" (text = symptom lead, plus cause and fix - the tool appends
+   the current date); a convention we choose -> kind "rule" (one line); a
+   technology trap you can only avoid -> kind "gotcha" (one line with BOTH the
+   trap and the countermeasure). Write with codex_add_entry (batch several
+   entries for the same topic in ONE call). When propose-then-confirm is on,
+   show the entries and wait for the user before calling the tool.
 5. Correct or remove outdated entries with codex_edit_entry / codex_remove_entry
    (by [ID]).
 

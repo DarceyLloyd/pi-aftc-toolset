@@ -16,6 +16,11 @@ resource-list sync internally). The prompt keeps only the work the tools cannot
 do:
 
 1. **Review the session** for durable, general lessons (never project-specific).
+   The prompt carries HARD LIMITS applied before every write: the generality
+   check (makes sense on ANY project? names a project, real path/URL or
+   project-invented term? reword or drop — with BAD/GOOD examples) and the
+   secrets ban (never passwords, API keys, tokens, private keys or any
+   credential — describe the shape, never a value).
 2. **Consult the resource list** (already in the system prompt, or
    `codex_load("list")`) — update the right existing doc; create a new topic
    (`category/name`, new categories allowed) only when nothing covers it.

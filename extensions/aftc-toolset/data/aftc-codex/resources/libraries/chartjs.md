@@ -1,6 +1,6 @@
 # Chart.js
 
-Gotchas for Chart.js (the charting lib; in pi-aftc-toolset it renders the usage-report charts from the Chart.js CDN). Entries lead with the greppable symptom.
+Gotchas for Chart.js (the charting lib, typically loaded from its CDN). Entries lead with the greppable symptom.
 
 ## Rules
 

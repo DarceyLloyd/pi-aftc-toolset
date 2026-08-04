@@ -63,6 +63,7 @@ reference implementation. Read `docs/aftc-ui-documentation.md` before building a
 | Slash commands (create/edit/delete) | `docs/help-registry.md` |
 | Keyboard shortcuts (add/change) | `extensions/aftc-toolset/keys-readme.md` |
 | Quick dir access (/qd) | `extensions/aftc-toolset/quick-open-dir-readme.md` |
+| docx documentation generator (/docx) | `extensions/aftc-toolset/docx/docx-readme.md` |
 
 If any modifications or changes are requested or needed to be made to a feature,
 you must read its documentation file listed above before making them.

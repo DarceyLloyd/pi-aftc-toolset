@@ -10,6 +10,8 @@
 
 - [lHP5Bm] npm v12 blocks dependency install scripts (postinstall, native builds) unless package.json allowScripts matches the EXACT installed version - after a dependency version bump the old entry silently stops covering it and scripts are blocked again; watch for the 'had install scripts blocked' warning and update the version in allowScripts.
 
+- [ljmCKT] execFileSync on a .cmd/.bat shim (node_modules/.bin/<tool>.cmd) fails silently on Windows without shell:true - the shim is not a real executable, and the child exits 1 with empty stdout/stderr; countermeasure that keeps the no-shell rule: execFileSync(process.execPath, [path/to/node_modules/<pkg>/bin/<entry>.cjs|.mjs, ...args]) so the current runtime (node or bun) runs the tool's JS entry directly.
+
 ## Issues & Solutions
 
 
@@ -20,3 +22,7 @@
 - [ntL8x3] createRequire(__filename) throws ERR_INVALID_ARG_VALUE ("...Received '[eval]'") under node -e / --eval
   Cause: in `node -e` / `--eval` there is no source file, so `__filename` is the literal string `[eval]`; module.createRequire needs a file URL / absolute path and rejects `[eval]`.
   Fix: don't bootstrap require/jiti inline with `-e`. Write the snippet to a temp .mjs and run `node tmp.mjs`, using createRequire(import.meta.url) (a valid file URL) - this is why one-off jiti-load checks are loaded from a file, not inline eval. (2026-07)
+
+- [9Ohp5A] ERR_FS_EISDIR from cpSync during a recursive directory copy
+  Cause: Dirent.isDirectory() returns false for a symlink pointing at a directory, so the entry falls through to the file-copy branch and cpSync dereferences it as a file.
+  Fix: In any recursive copy/walk, guard `entry.isSymbolicLink()` first (skip or handle explicitly) before the isDirectory/file branches; harden further by only copying when entry.isFile() so sockets/FIFOs are skipped too. (2026-08)

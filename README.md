@@ -16,6 +16,9 @@ Click [here](./change-log.txt) to read the change logs.
 
 ## **WHATS NEW**
 
+### **/docx project documentation generator**
+One command — `/docx` — generates a complete, cross-referenced documentation set for any project: a fresh GitHub README.md, a master document, a full ID'd structure map, and per-module deep docs under `./docx/`. Your old docs are never lost: they're moved aside with their folder structure intact and zipped to `docx/old_docs.zip`. See [/docx project documentation generator](#docx-project-documentation-generator).
+
 ### **Audio notification system**
 A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error, plus optional context-window usage alerts when the context crosses 25%, 50% or 75% full (re-arms after compaction). NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
 
@@ -64,6 +67,10 @@ Then in pi:
 - [**run_script**](#run_script-reliable-large-scripts)
 
     > Reliable large/multi-line script execution. Works around a pi bash-tool truncation bug that silently drops inline commands past a few KB.
+
+- [**/docx documentation generator**](#docx-project-documentation-generator)
+
+    > Regenerates a project's full documentation set (README, master doc, structure map, deep docs) into `./docx/`. **Read the warnings first** — it moves your existing docs aside (recoverable via `docx/old_docs.zip`) and uses real model context.
 
 - [**Usage Report**](#usage-report) (BETA 3)
 - [**Cache diagnostics**](#cache-diagnostics)
@@ -401,7 +408,7 @@ Prompt counts are split the same way as the footer widget: **User prompts** (wha
 
 An opt-in knowledge base that makes the model follow your curated coding conventions. When enabled, pi-aftc-toolset injects a unified rules file + thinking-and-action guidance + a generated resource list into the model's system prompt (the cached prefix, so it is cheap), and gives the model a `codex_load` tool to fetch the full topic doc for a technology only when it is relevant.
 
-It ships pre-trained with 59 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
+It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
 - Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add by default; switch to propose-then-confirm in the config menu). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
@@ -421,6 +428,37 @@ It ships pre-trained with 59 topic docs (TypeScript, Python, JavaScript, PHP, Pi
 | `/codex-inject-rules` | Rules-only mode for this session: inject ONLY the Critical Global Rules (no docs/list/guidance/learn; works even with codex disabled). Start a new session + `/codex-init` to return to the full codex |
 
 The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex-readme.md`.
+
+---
+
+<br><br>
+
+## **/docx project documentation generator**
+
+`/docx` regenerates your project's complete documentation set in one long model run, following the shipped documentation guide. It produces:
+
+- **`README.md`** at the project root — a real GitHub readme (requirements, tech stack with exact versions, install, overview), written LAST once the model understands the whole project. Your old README is evaluated and mined for whatever is still accurate — never copied blindly.
+- **`docx/project_documentation.md`** — the master document: what the project is (and is not), guidance and rules, one section per structure-map ID, and a documentation index.
+- **`docx/project_map.md`** — the full project structure map: one ID'd tree, every documented node at every level, with annotations and status legend.
+- **`docx/docs/`** — one ID-prefixed deep doc per map node, sub-maps for every major branch, drill-down leaf docs for pages/models/components, plus cross-cutting docs (contributing, deployment, development, the mandatory dependency map, and more as the project warrants).
+- **`AGENTS.md`** is never replaced — it gets a managed `<!-- AFTC-DOCX -->` pointer block (replaced in place on re-runs) and its existing rules are preserved verbatim.
+
+How to use it: open pi in the project root and run `/docx`. You get a context-window warning if your window is already 10%+ used (a fresh session via `/new` is recommended), then a confirmation modal. The model then does recon (a shipped scan script builds the tree/manifest inventory), plans the structure, writes every document, mechanically audits its own links/stamps/IDs with the shipped audit script, and finishes by zipping the old docs away. `/docx --yes` skips both confirmations for headless runs (`pi -p "/docx --yes"`).
+
+Re-running `/docx` later folds the previous `docx/` output AND the previous zip into the new backup, so history nests inside `old_docs.zip` instead of being lost.
+
+**WARNINGS — read before running:**
+
+- **Your existing documentation is moved aside.** Root `.md` files and everything under `./docs/` are moved to `docx/old_docs/` (folder structure preserved) and zipped to `docx/old_docs.zip` when generation completes. Restore by unzipping and copying files back. The zip is overwritten on each run (the previous zip is folded inside the new one). Make your own backup first if your docs matter.
+- **It is a long, context-hungry task.** Expect many model turns; the bigger and more complex the project, the more of your context window and provider allowance it uses. Run it in a fresh session.
+- **`AGENTS.md` is edited, not replaced** — its existing content is preserved; only the managed block and stale doc references change.
+- **Framework and sub-project documentation is never touched** — the backup only ever reads the project root and `./docs/`; sub-project folders are documented from the root docs and stay read-only.
+- **`docx/old_docs/` and `docx/old_docs.zip` are added to your `.gitignore`** automatically (the backup artifacts are not meant for version control).
+
+| Command | What it does |
+| --- | --- |
+| `/docx` | Regenerate the project's full documentation set into `./docx/` (context warning + confirm modal) |
+| `/docx --yes` | Same, skipping both confirmations (for headless / print-mode runs) |
 
 ---
 
@@ -486,6 +524,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/run-script-on` | Enable the `run_script` tool (reliable large-script execution); `/reload` to apply |
 | `/run-script-off` | Disable the `run_script` tool (eg once pi fixes its bash truncation); `/reload` to apply |
 | `/aftc-cut-input` | Cut all input-editor text to the clipboard (same as `Alt+X`) |
+| `/docx [--yes]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped to `docx/old_docs.zip` (`--yes` skips the confirmations) |
 
 ### Interrupt
 

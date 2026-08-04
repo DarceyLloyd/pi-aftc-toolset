@@ -72,7 +72,11 @@ extensions/aftc-toolset/data/
 
 Every feature's shipped files live in their OWN clearly-named subfolder. Never
 mix two features' files in one folder. Name folders after the feature, not the
-file type.
+file type. `data/<feature>/` is for assets that are COPIED to the user's live
+data dir (the codex seed) or read-only runtime assets the feature serves
+(notification MP3s, intro audio). A shipped reference asset that is only ever
+READ IN PLACE from the package (never copied to the live dir) may live in the
+feature's code folder instead — eg `extensions/aftc-toolset/docx/documentation_guide.md`.
 
 ### Paths table
 

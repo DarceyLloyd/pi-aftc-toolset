@@ -240,7 +240,15 @@ SESSION (read-before-write, enforced via the coordinator-owned tracker:
 cleared on fresh sessions and rebuilt from the durable entries on
 resume/reload/fork); top-level fixed docs (rules/guidance/markdown/list) are
 refused; an exact normalized duplicate lead is rejected with the existing
-`[ID]` (semantic near-duplicates stay the model's job). Writes are atomic
+`[ID]` (semantic near-duplicates stay the model's job). The **generality +
+secrets guard** (`guardGeneral`, add and edit) rejects project-specific
+content (real absolute machine paths, real URLs, the current project's
+directory name — placeholder shorthand like `/path/to/x` / `example.com`
+passes) and credential-looking content (concrete `KEY=value` assignments,
+JWTs, bearer literals, private-key blocks); the throw tells the caller to
+reword generically / drop the secret. It is a heuristic floor, not a
+ceiling: project-invented vocabulary is mechanically undetectable and
+stays the -learn prompt's generality check. Writes are atomic
 (tmp + rename) and serialised through `withFileMutationQueue(absPath)`.
 
 ## The `codex_load` Tool

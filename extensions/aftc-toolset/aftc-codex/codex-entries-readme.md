@@ -31,6 +31,18 @@ Appends one or more entries to `resources/<category>/<topic>.md` in ONE call:
 - Exact-duplicate backstop: a normalized (case/whitespace) identical lead already
   in the file is rejected with the existing `[ID]`. Semantic near-duplicates stay
   the model's job (it was forced to read the file — see below).
+- **Generality + secrets guard** (`guardGeneral`, both add and edit): rejects
+  entries that look project-specific or leak a credential. Mechanical checks:
+  real absolute machine paths (drive-letter or `/home/<name>/` / `/Users/<name>/`),
+  real URLs, the current project's directory name (>= 6 chars, whole-word,
+  skipped when it equals the topic name), credential assignments with a
+  concrete-looking value (`API_KEY=...`, `password: ...`), JWTs, bearer token
+  literals and private-key blocks. Placeholder shorthand passes
+  (`/path/to/x`, `C:\Users\me\`, `example.com`, `localhost`, `<token>`, `$VAR`,
+  `...`). TRADE-OFF: this only catches the obvious leaks; project-invented
+  VOCABULARY is mechanically undetectable and stays the /aftc-codex-learn
+  prompt's job (the generality check + BAD/GOOD examples). The throw message
+  tells the caller to reword generically / drop the secret and retry.
 
 ### `codex_edit_entry`
 

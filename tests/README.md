@@ -61,6 +61,7 @@ watchdog timeout near the top (see `AGENTS.md` — non-negotiable).
 | `usage-report-check` | 30s local | `/usage-report` tabbed HTML shell, JSON round-trip, client-JS syntax, projection math invariants. |
 | `intros-check` | 30s local | Intro factory: WarGames raw ANSI takeover starts on session_start (alt screen), restores pi on shutdown, commandless registration. |
 | `qwencloud-check` | 30s local | QwenCloud providers: heuristics, catalog parsing, registration shape, live refresh, offline/env fallbacks, oauth login flow. |
+| `docx` (`docx-check.mjs`) | 120s local | /docx deterministic parts: backup move/copy/partner/exclusion rules, re-run fold-in, first-run, docs/ leftovers, link-audit pass+fail, zip-old, repo-copy backup, map-scan, command end-to-end with mock pi. |
 | `pi-linux-ssh-verify` | Docker Compose (1500s) | Full Linux gate: `/aftc-install`, unit suites, carrier pytest, client→target end-to-end. No provider allowance consumed. |
 | `pi-linux-integration` | Docker Compose (1500s) | Live-prompt Linux integration. Consumes provider allowance; copies local `auth.json` transiently. |
 

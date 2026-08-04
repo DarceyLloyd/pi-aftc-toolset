@@ -39,3 +39,15 @@
   Cause: `docker exec` does not attach stdin by default; without `-i` the container's stdin is closed, so a heredoc/pipe-fed command (mysql, sh, php) reads EOF immediately and exits 0 having executed nothing - the "migration" looks done but no change landed.
   Fix: always add `-i` when piping or heredoc-ing into `docker exec` (`docker exec -i CONTAINER mysql ... <<'SQL'`), and verify the effect afterwards (row counts, SHOW COLUMNS) instead of trusting the silent success. (2026-07)
 - [dF6jN3] `/docker-entrypoint-initdb.d` is a READ-ONLY host bind-mount - `docker cp script.sh CONTAINER:/docker-entrypoint-initdb.d/` fails `mounted volume is marked read-only`; copy to `/tmp` instead and run from there (`docker cp` → `docker exec CONTAINER bash /tmp/x.sh` → `docker exec CONTAINER rm /tmp/x.sh`).
+
+- [KRQjM0] browser e2e / curl against a previously-working local dockerized stack suddenly fails with net::ERR_CONNECTION_REFUSED on every URL
+  Cause: the containers exited (often a graceful exit after a machine sleep/reboot or Docker Desktop restart) and nothing restarted them; the app code is fine, the URL just has no listener.
+  Fix: before suspecting a code regression, run `docker ps -a` (check the Status column for 'Exited') and start the stack (`docker compose up -d`), wait for the healthcheck, then re-run. Recognise the pattern: the same URL worked earlier in the session and the failure is connection-refused on page.goto, not a timeout or a 5xx. (2026-08)
+
+- [l7zf45] A container run with a read-write host bind-mount leaves Linux artifacts (.venv with symlinks, __pycache__) in the Windows working tree - later host-side tools die with EACCES stat on the symlinks
+  Cause: The containerised runtime's installers (npm install, uv sync, pip) resolve and write INTO the mounted host tree: a Linux-built node_modules or .venv lands in the Windows working dir, and its symlinks (eg .venv/bin/python) fail Windows stat with EACCES, breaking test walkers and other host tooling.
+  Fix: Bind-mount host source read-only (`-v <src>:/dst:ro`) whenever container-side package installs will run; let installs write container-local paths. If a Linux .venv/node_modules already polluted the host tree, delete it from the host (it is useless there) and re-run host tests. (2026-08)
+
+- [wx78lg] docker exec -w /abs/path fails "OCI runtime exec failed: Cwd must be an absolute path" even though the path IS absolute
+  Cause: A Docker Desktop (Windows) quirk: `docker exec -w <path>` rejects a valid absolute Linux path with that misleading error.
+  Fix: Drop `-w` and pass the working dir through the shell instead: `docker exec <name> sh -c "cd /work && <cmd>"`. (2026-08)

@@ -1,6 +1,12 @@
 pi-aftc-toolset - Change Log
 ============================
 
+Updates v1.19.x
+---------------
+
+- New feature: /docx — project documentation generator. Regenerates your project's full documentation set: a fresh GitHub README.md at the project root (written last, once the model understands the whole project — the old README is evaluated, never copied), plus ./docx/ (master documentation, structure map, ID-prefixed deep docs, sub-maps and cross-cutting docs) following the shipped documentation guide. Before anything is generated, all existing documentation (root .md files and ./docs/) is moved to ./docx/old_docs/ with its folder structure preserved, and zipped to ./docx/old_docs.zip when generation completes — restore by unzipping and copying back. AGENTS.md is never replaced: it gets a managed AFTC-DOCX pointer block and its existing rules are preserved verbatim. Safeguards: a context-window warning when your window is already 10%+ used, a confirmation modal (advises making your own backup first), verified move counts, and framework/sub-project documentation is structurally untouchable (the backup only ever reads the project root and ./docs/). Sub-projects get full docs generated at the root while their folders stay read-only. Run /docx --yes to skip the confirmations.
+- aftc-codex: the entry tools now enforce a generality + secrets guard. codex_add_entry and codex_edit_entry reject entries that look project-specific (real absolute machine paths, real URLs, the current project's directory name) or that contain anything credential-like (concrete KEY=value assignments, JWTs, bearer tokens, private-key blocks) — placeholder shorthand like /path/to/x and example.com still passes. The /codex-learn prompt and the aftc-codex skill now carry an explicit pre-write check with BAD/GOOD examples: entries must make sense on ANY project, and passwords/secrets/sensitive values are never saved, not even as examples.
+
 Updates v1.18.x
 ---------------
 

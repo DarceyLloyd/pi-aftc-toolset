@@ -286,6 +286,112 @@ function validateEntryInput(label: string, kind: EntryKind, text: string, cause:
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Generality guard
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Placeholder markers that make a path/URL generic documentation shorthand
+ * instead of a real machine location ("/path/to/x", "C:\\Users\\me\\...",
+ * "https://example.com/", "http://localhost:3000", "https://cdn...@<ver>/").
+ */
+const GENERIC_PLACEHOLDERS = [
+    "path/to", "/me/", "\\me\\", "example.", "localhost", "127.0.0.", "...", "<", "program files",
+];
+
+/** Real-looking absolute machine path: drive-letter or user-home with a name. */
+const ABS_PATH_RE = /[A-Za-z]:[\\\/]\S+|\/(?:home|Users)\/\S+/;
+const URL_RE = /https?:\/\/\S+/i;
+
+function escapeRegExp(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Secret-leak patterns. Assignment form requires a CONCRETE-looking value
+ * (>= 6 chars, no placeholder chars) so schema/code examples like
+ * `apiKey: credential.key` or `Authorization: Bearer <token>` still pass.
+ */
+const SECRET_ASSIGN_RE = /(?:password|passwd|secret|api[-_]?key|access[-_]?token|auth[-_]?token|private[-_]?key)\s*[:=]\s*["']?([^\s"']{6,})["']?/i;
+const SECRET_VALUE_PLACEHOLDER_RE = /[$<>{}[\]]|\.\.\.|^your[-_]|^x{3,}$|^\*{3,}$|^redacted$/i;
+const JWT_RE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/;
+const PRIVATE_KEY_BLOCK_RE = /BEGIN [A-Z ]*PRIVATE KEY/;
+const BEARER_LITERAL_RE = /\bBearer\s+(?!\.\.\.)[A-Za-z0-9._~+/=-]{10,}/;
+
+/** Returns a short description of the credential found, or null. */
+function findSecret(text: string): string | null {
+    if (JWT_RE.test(text)) return "a JWT";
+    if (PRIVATE_KEY_BLOCK_RE.test(text)) return "a private key block";
+    if (BEARER_LITERAL_RE.test(text)) return "a bearer token";
+    const assign = SECRET_ASSIGN_RE.exec(text);
+    if (assign && !SECRET_VALUE_PLACEHOLDER_RE.test(assign[1])) return assign[0];
+    return null;
+}
+
+/**
+ * Heuristic project-specificity guard. TRADE-OFF (documented, do not
+ * re-litigate): a mechanical check can only catch the OBVIOUS leaks - a real
+ * absolute machine path, a real URL, or the current project's directory
+ * name. Project-invented VOCABULARY (terms only one project's docs use) is
+ * mechanically undetectable; the /aftc-codex-learn prompt's generality
+ * check owns that layer. Patterns are tuned so legitimate generic entries
+ * still pass: placeholder paths/URLs are allowed (see GENERIC_PLACEHOLDERS),
+ * and the project-name check requires a distinctive name (>= 6 chars) and
+ * is skipped when it equals the topic (a project folder named "docker"
+ * must not block docker lessons about docker).
+ *
+ * Returns the offending fragment, or null when the text looks general.
+ */
+function findProjectSpecific(text: string, projectName: string, topicName: string): string | null {
+    const absPath = ABS_PATH_RE.exec(text);
+    if (absPath && !GENERIC_PLACEHOLDERS.some((m) => absPath[0].toLowerCase().includes(m))) {
+        return absPath[0];
+    }
+    const url = URL_RE.exec(text);
+    if (url && !GENERIC_PLACEHOLDERS.some((m) => url[0].toLowerCase().includes(m))) {
+        return url[0];
+    }
+    if (
+        projectName.length >= 6 &&
+        projectName.toLowerCase() !== topicName.toLowerCase()
+    ) {
+        const re = new RegExp(`\\b${escapeRegExp(projectName)}\\b`, "i");
+        if (re.test(text)) return projectName;
+    }
+    return null;
+}
+
+/**
+ * Run the generality guard over every supplied field of one entry. Throws
+ * with a labelled, actionable reason on a match.
+ */
+function guardGeneral(
+    label: string,
+    fields: Array<string | undefined>,
+    projectName: string,
+    topicName: string,
+): void {
+    for (const field of fields) {
+        if (!field) continue;
+        const secret = findSecret(field);
+        if (secret) {
+            throw new Error(
+                `${label}: appears to contain a credential (${secret}) — codex entries must NEVER ` +
+                `contain passwords, API keys, tokens, private keys or any secret, not even as ` +
+                `examples. Describe the shape only ("the API key env var"), never a value. Retry.`,
+            );
+        }
+        const hit = findProjectSpecific(field, projectName, topicName);
+        if (hit) {
+            throw new Error(
+                `${label}: looks project-specific ("${hit}") — codex entries must be GLOBAL: ` +
+                `no real absolute paths, URLs, or project names/terms. Reword generically ` +
+                `(placeholder paths like /path/to/x are fine) or drop the entry, then retry.`,
+            );
+        }
+    }
+}
+
 /** New-topic skeleton with the three canonical headings (always present). */
 function skeleton(topicName: string): string {
     const title = topicName.charAt(0).toUpperCase() + topicName.slice(1);
@@ -430,13 +536,16 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
             "one line; issue = symptom + cause + fix, date auto-appended), inserts under the " +
             "correct canonical section (## Rules / ## Gotchyas / ## Issues & Solutions), and " +
             "creates the topic file (three-heading skeleton) and category folder when missing " +
-            "(regenerating the resource list internally). The target topic must have been read " +
-            "with codex_load this session first (stale-content guard).",
+            "(regenerating the resource list internally). Entries must be GLOBAL and safe: " +
+            "project-specific content (real paths, URLs, project names) and credentials are " +
+            "rejected. The target topic must have been read with codex_load this session first " +
+            "(stale-content guard).",
         promptSnippet: "Add entries to an aftc-codex resource (IDs, format validation, section placement and list sync handled for you)",
         promptGuidelines: [
             "Use codex_add_entry to record a new codex lesson (never hand-edit resource files): codex_load the topic first, then call codex_add_entry with kind rule/gotcha/issue.",
             "Use codex_add_entry with a batch of entries when several lessons go to the same topic — one call writes them all.",
             "Use codex_add_entry with topic \"category/name\" (or the category param) to create a new topic file; a new category folder is created when the lesson fits no existing category.",
+            "codex_add_entry rejects project-specific content (real absolute paths, URLs, the current project's name) and anything that looks like a credential — write entries generically and never include secrets.",
         ],
         parameters: Type.Object({
             topic: Type.String({
@@ -456,12 +565,16 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
                 fix: Type.Optional(Type.String({ description: "issue only: what to do (no \"Fix:\" prefix, no date — the tool appends the current YYYY-MM)." })),
             }), { minItems: 1 }),
         }),
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, params, _signal, _onUpdate, ectx) {
             const blocked = compatBlock();
             if (blocked) return { content: [{ type: "text", text: blocked }], details: { compatBlocked: true } };
 
             const target = resolveTarget(params.topic, params.category);
             if (target.exists) requireRead(target.relPath, params.topic);
+            // Generality guard context: the current project's dir name (for the
+            // project-name check) and the topic name (for the topic exception).
+            const projectName = path.basename((ectx?.cwd ?? "").replace(/[\\\/]+$/, "")) || "";
+            const topicName = target.relPath.split("/").pop()?.replace(/\.md$/, "") ?? "";
 
             return withFileMutationQueue(target.absPath, async () => {
                 let lines: string[];
@@ -487,6 +600,7 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
                     const cause = raw.cause !== undefined ? cleanText(raw.cause, { stripCauseFix: true }) : undefined;
                     const fix = raw.fix !== undefined ? cleanText(raw.fix, { stripCauseFix: true, stripDate: true }) : undefined;
                     validateEntryInput(label, kind, text, cause, fix);
+                    guardGeneral(label, [text, cause, fix], projectName, topicName);
                     const norm = normalizeForDup(text);
                     const dup = leads.find((l) => l.norm === norm);
                     if (dup) {
@@ -568,7 +682,7 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
             cause: Type.Optional(Type.String({ description: "issue only: new Cause text. Omit to keep the current one." })),
             fix: Type.Optional(Type.String({ description: "issue only: new Fix text (no date — refreshed to current). Omit to keep the current one." })),
         }),
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, params, _signal, _onUpdate, ectx) {
             const blocked = compatBlock();
             if (blocked) return { content: [{ type: "text", text: blocked }], details: { compatBlocked: true } };
 
@@ -576,6 +690,8 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
             if (!target.exists) {
                 throw new Error(`Unknown codex topic "${params.topic}" — codex_edit_entry only edits existing files.`);
             }
+            const projectName = path.basename((ectx?.cwd ?? "").replace(/[\\\/]+$/, "")) || "";
+            const topicName = target.relPath.split("/").pop()?.replace(/\.md$/, "") ?? "";
             const id = (params.id ?? "").trim().replace(/^\[|\]$/g, "");
             if (!/^[a-zA-Z0-9]{6}$/.test(id)) {
                 throw new Error(`Invalid id "${params.id}" — a 6-char alphanumeric token (as shown in the entry's [ID]).`);
@@ -601,6 +717,7 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
                 let fix = params.fix !== undefined ? cleanText(params.fix, { stripCauseFix: true, stripDate: true }) : existing.fix;
                 if (kind !== "issue") { cause = undefined; fix = undefined; }
                 validateEntryInput(`entry [${id}]`, kind, text, cause, fix);
+                guardGeneral(`entry [${id}]`, [text, cause, fix], projectName, topicName);
 
                 const entryLines = formatEntryLines(kind, id, text, cause, fix);
                 const moving = SECTION_HEADINGS[kind] !== existing.section;
