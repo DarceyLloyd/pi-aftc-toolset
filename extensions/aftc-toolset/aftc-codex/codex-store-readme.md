@@ -51,6 +51,10 @@ live codex root, and only when the live file does not already exist (copy-only).
 - `runEnsureIds()` — spawn `node ensure-entry-ids.mjs <resourcesDir>` to add
   missing unique `[ID]`s to the live resources. Never throws. Backstop for
   hand-edits only — the codex entry tools generate IDs themselves.
+- `runLiveToSeedSync(apply)` — spawn `live-to-seed-sync.mjs` (dry run, or
+  `--apply` when `apply` is true) and return its captured stdout (`""` on
+  spawn failure; 30s watchdog). Maintainer-only: called by the dev-gated
+  `/codex-live-to-seed` command (1.7.8's command surface in codex-commands.ts).
 
 There is **no** drift detection, no `.sync.json`, no backup/restore and no
 merge-by-ID in this module any more — the codex is a one-way seed→live copy, and

@@ -424,6 +424,7 @@ It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pi
 | `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
 | `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
 | `/codex-inject-rules` | Rules-only mode for this session: inject ONLY the Critical Global Rules (no docs/list/guidance/learn; works even with codex disabled). Start a new session + `/codex-init` to return to the full codex |
+| `/codex-live-to-seed [--apply]` | Maintainer only (dev checkout): port live codex entries into the package seed — dry run first, confirm, then apply |
 
 The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex-readme.md`.
 
@@ -539,7 +540,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/cd-set-max-depth [2-10]` | Set the `/cd` picker listing depth (default 3) |
 | `/dir` (alias `/ls`) | Show the current directory name + platform-native listing |
 | `/cwd` | Show the current working directory as an inline card |
-| `/qd` | Quick dir access menu: open the users data dir, the `.pi` dir, or the pi-aftc-toolset dir |
+| `/qd` | Quick dir access menu: open the users data dir or the `.pi` dir |
 
 ### Footer, cache, timing
 

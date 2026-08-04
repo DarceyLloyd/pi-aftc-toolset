@@ -128,6 +128,8 @@ export interface CodexStore {
     runSyncScript(): Promise<void>;
     /** Spawn the ensure-entry-ids script on the live resources dir. Never throws. */
     runEnsureIds(): Promise<void>;
+    /** Spawn the live-to-seed release sync; returns captured stdout ("" on failure). Maintainer-only. */
+    runLiveToSeedSync(apply: boolean): Promise<string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -539,6 +541,53 @@ export function createCodexStore(): CodexStore {
         });
     }
 
+    function runLiveToSeedSync(apply: boolean): Promise<string> {
+        return new Promise<string>((resolve) => {
+            const finish = (out: string): void => resolve(out);
+            try {
+                const scriptPath = path.join(
+                    getPackageRoot(), "extensions", "aftc-toolset", "aftc-codex",
+                    "scripts", "live-to-seed-sync.mjs",
+                );
+                if (!fs.existsSync(scriptPath)) { finish(""); return; }
+                const args = [scriptPath];
+                if (apply) args.push("--apply");
+                const nodeExe = process.platform === "win32" ? "node.exe" : "node";
+                const spawnArgs = { env: process.env };
+                const collect = (child: ReturnType<typeof spawn>): void => {
+                    let out = "";
+                    child.stdout?.on("data", (d) => { out += String(d); });
+                    child.stderr?.on("data", (d) => { out += String(d); });
+                    const timeout = setTimeout(() => {
+                        killTree(child);
+                        finish(out + "\n[live-to-seed] timed out (30s)");
+                    }, 30_000);
+                    timeout.unref();
+                    child.on("error", () => finish(out));
+                    child.on("close", () => {
+                        clearTimeout(timeout);
+                        finish(out);
+                    });
+                };
+                let child: ReturnType<typeof spawn>;
+                try {
+                    child = spawn(nodeExe, args, spawnArgs);
+                } catch {
+                    child = spawn(process.execPath, args, spawnArgs);
+                }
+                // `node` not on PATH -> retry once with the running executable.
+                child.once("error", () => {
+                    try { collect(spawn(process.execPath, args, spawnArgs)); }
+                    catch { finish(""); }
+                });
+                collect(child);
+            } catch (err) {
+                console.log(`[aftc-toolset] live-to-seed spawn error: ${(err as Error).message}`);
+                finish("");
+            }
+        });
+    }
+
     return {
         getRoot,
         getResourcesDir,
@@ -558,6 +607,7 @@ export function createCodexStore(): CodexStore {
         getCategoryCount,
         runSyncScript,
         runEnsureIds,
+        runLiveToSeedSync,
     };
 }
 

@@ -11,33 +11,20 @@ Title:   AFTC Quick Dir Access
 Message: Choose your poison:
   - Open users data dir
   - Open .pi data dir
-  - Open pi-aftc-toolset dir   (dev only)
 ```
 
 | Option | Opens | Notes |
 | --- | --- | --- |
 | Open users data dir | `getDataDir()` — `%APPDATA%\pi-aftc-toolset\data` (win), `~/Library/Application Support/...` (mac), `$XDG_DATA_HOME/...` (linux) | Created with `mkdir -p` first if missing (it is lazy-created) |
 | Open .pi data dir | `join(homedir(), CONFIG_DIR_NAME)` — pi's own config dir | Uses pi's `CONFIG_DIR_NAME` export, never the literal `.pi` (rebrand-safe) |
-| Open pi-aftc-toolset dir | `getPackageRoot()` — resolved at runtime from the module's own file location | **Dev-gated**, see below. Works from the dev folder, an npm global install, or a `pi install` git package |
 
 Esc resolves `null` and does nothing. A successful open ends with an
 `aftcConsole.emphasis` line showing the full path; a missing directory
 warns instead of opening.
 
-## Dev gate (option 3)
-
-The pi-aftc-toolset option only appears when a **`.dev` marker folder**
-exists in the resolved package root:
-
-```ts
-existsSync(join(getPackageRoot(), ".dev"))
-```
-
-The marker only exists in the author's checkout, so end users (and the
-Linux container) never see the option. Caveat: in *installed* copies,
-`pi update --extensions` replaces the whole package dir — the marker is
-wiped and must be re-created there after an update. The dev folder is
-unaffected.
+The old third option ("Open pi-aftc-toolset dir", dev-gated by a `.dev`
+marker folder) was removed: it opened the wrong directory in installed
+copies. The `.dev` marker no longer gates anything in this module.
 
 ## Adding more options
 
@@ -48,8 +35,7 @@ Append one entry to the `TARGETS` array in `quick-open-dir.ts`:
 ```
 
 Fields: `value` (menu key), `label` (row text), `resolve()` (absolute
-dir), optional `ensure` (mkdir -p first), optional `devOnly` (behind the
-.dev gate). Nothing else to touch.
+dir), optional `ensure` (mkdir -p first). Nothing else to touch.
 
 ## Cross-platform open
 
@@ -62,7 +48,6 @@ unref'd so it never blocks pi.
 ```typescript
 export interface QuickOpenDirDeps {
     open?: (dir: string) => void;   // tests only
-    devGate?: () => boolean;        // tests only
     menu?: typeof showMenu;         // tests only
 }
 export function createQuickOpenDir(pi: ExtensionAPI, deps: QuickOpenDirDeps = {}): void

@@ -197,8 +197,9 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
 
 # Documentation and releases
 
-- **Codex live->seed release sync** (maintainer-only, never wired to any command
-  or menu): `node extensions/aftc-toolset/aftc-codex/scripts/live-to-seed-sync.mjs`
+- **Codex live->seed release sync** (maintainer-only, dev-gated by the `.dev`
+  marker): `/codex-live-to-seed [--apply]` in pi (dry run + confirm viewer)
+  or `node extensions/aftc-toolset/aftc-codex/scripts/live-to-seed-sync.mjs`
   (dry run) / `--apply` (writes). Ports live-only resource entries + new topics
   into the seed before a release so learned entries ship. Entry-level merge by
   `[ID]`; conflicts are reported, never auto-overwritten; the generated

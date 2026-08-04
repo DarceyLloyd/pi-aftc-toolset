@@ -15,8 +15,9 @@ The `/aftc-codex-*` slash commands + the config menu.
 | `/aftc-codex-learn` | Self-education prompt injection; refused while disabled. |
 | `/aftc-codex-status` | Compact colored status in the TUI transcript: `AFTC Codex Enabled`, `Embedded in context`, and `No' of codex files read: X/YY`. The read count is rebuilt from durable read-tracking entries, so it survives `/reload`, resume and compaction. |
 | `/codex-inject-rules` | Rules-only mode for THIS session: injects ONLY the Critical Global Rules section (no docs, list, guidance, marker or learn; works even with the feature disabled). One-way per session — `/new` + `/codex-init` returns to the full codex. Standalone name — no `/aftc-codex-*` variant. |
+| `/codex-live-to-seed [--apply]` | Maintainer-only, dev-gated by the `.dev` marker folder (refuses with a warning outside the dev checkout): runs the live->seed sync as a dry run (viewer/stdout), confirms, then applies. `--apply` skips the confirm. Conflicts are reported, never auto-overwritten - resolve by hand first. Reminds you to bump `codexVersion` in the same release. Standalone name - no `/aftc-` variant. |
 
-(`/codex-*` are aliases of the matching `/aftc-codex-*` commands, except `/codex-inject-rules` which has no `/aftc-` variant.)
+(`/codex-*` are aliases of the matching `/aftc-codex-*` commands, except `/codex-inject-rules` and `/codex-live-to-seed`, which have no `/aftc-` variant.)
 
 ## List-regeneration wrapper
 

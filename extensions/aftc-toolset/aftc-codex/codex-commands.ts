@@ -11,6 +11,8 @@
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
  *   /codex-inject-rules     Rules-only mode for this session (critical rules only).
+ *   /codex-live-to-seed   Maintainer-only (dev-gated): port live codex entries
+ *                            into the package seed (dry run + confirm; --apply).
  *
  * List-regeneration: Start Fresh (resources menu) and /aftc-codex-learn spawn
  * the list-regeneration script; pure toggles skip the spawn.
@@ -24,8 +26,10 @@
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { getPreference, setPreference } from "../config";
+import { getPackageRoot } from "../paths";
 import { showConfirm, showMenu, showViewer } from "../ui/aftc-ui";
 import * as aftcConsole from "../ui/aftc-console";
 import { registerHelpEntry } from "../help-registry";
@@ -498,6 +502,58 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     };
     registerHelpEntry({ command: "aftc-codex-install", description: "Fresh install the codex to the data dir", category: "aftc-codex", aliases: ["codex-install"] });
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
+
+    // ---- /codex-live-to-seed [--apply] (dev-gated maintainer sync) ----
+    // Ports live-only codex entries into the PACKAGE SEED, so it only makes
+    // sense in the maintainer's dev checkout (the seed of an installed copy
+    // is wiped on pi update). Gated by the .dev marker folder, same as the
+    // retired /qd toolset-dir option.
+    const liveToSeedHandler = async (args: string, cctx: ExtensionCommandContext) => {
+        const pkgRoot = getPackageRoot();
+        if (!fs.existsSync(path.join(pkgRoot, ".dev"))) {
+            notify(cctx, "/codex-live-to-seed is a maintainer tool (writes the package seed) and only runs in the dev checkout — .dev marker not found.", "warning");
+            return;
+        }
+        const apply = args.trim().split(/\s+/).includes("--apply");
+        const dry = await store.runLiveToSeedSync(false);
+        if (!dry.trim()) {
+            notify(cctx, "live-to-seed sync produced no output (script missing or failed to spawn).", "error");
+            return;
+        }
+        const nothingPending = /0 new topic file\(s\), 0 entr\(ies\) to merge/.test(dry);
+        if (nothingPending) {
+            notify(cctx, "live codex and package seed are already in sync — nothing to port.", "info");
+            return;
+        }
+        if (isTui(cctx)) {
+            await showViewer(cctx, { title: "live -> seed (dry run)", lines: dry.trim().split("\n") });
+        } else {
+            console.log(dry.trim());
+        }
+        if (/CONFLICT/.test(dry)) {
+            notify(cctx, "Conflicts reported (same [ID], different text) — resolve them by hand before applying; the seed version is kept on conflict.", "warning");
+        }
+        if (!apply) {
+            if (!isTui(cctx)) {
+                notify(cctx, "Dry run only — re-run as /codex-live-to-seed --apply to write.", "info");
+                return;
+            }
+            const ok = await showConfirm(cctx, {
+                title: "Apply live -> seed sync?",
+                body: "Port the live-only entries shown above into the package seed? (Conflicts are never auto-overwritten.)",
+            });
+            if (!ok) return;
+        }
+        const applied = await store.runLiveToSeedSync(true);
+        if (isTui(cctx)) {
+            await showViewer(cctx, { title: "live -> seed (applied)", lines: applied.trim().split("\n") });
+        } else {
+            console.log(applied.trim());
+        }
+        notify(cctx, "live -> seed sync applied. Bump codexVersion in the same release or users never receive the new content.", "info");
+    };
+    registerHelpEntry({ command: "codex-live-to-seed", args: "[--apply]", description: "Maintainer: port live codex entries into the package seed (dev checkout only)", category: "aftc-codex" });
+    pi.registerCommand("codex-live-to-seed", { description: "Maintainer: port live codex entries into the package seed (dev checkout only). Dry run first; --apply writes without the confirm.", handler: liveToSeedHandler });
     pi.registerCommand("codex-install", { description: "Fresh install the codex (alias)", handler: installHandler });
 
     // ---- /codex-inject-rules ----

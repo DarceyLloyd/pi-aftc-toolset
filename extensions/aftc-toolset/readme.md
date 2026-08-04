@@ -23,7 +23,7 @@ commands/shortcuts/tools it registers. See `AGENTS.md`.
 | `response.ts` | Full-width themed divider above every assistant reply. Toggled by `/aftc-response-divider`. |
 | `intros/` | Startup intro animations. Factory picks one random enabled intro on session start. Currently: AFTC text wordmark (`/aftc-intro-on`, `/aftc-intro-off`). |
 | `keys.ts` | All keyboard shortcuts: `alt+c` clears the input editor, `alt+n` inserts a newline at the caret, `alt+x` cuts all input to the clipboard (also `/aftc-cut-input`). |
-| `quick-open-dir.ts` | `/qd` slash command - quick dir access menu (users data dir, .pi dir, pi-aftc-toolset dir). The toolset-dir option is gated by a `.dev` marker folder in the package root. Absorbs the retired open-data-dir.ts. |
+| `quick-open-dir.ts` | `/qd` slash command - quick dir access menu (users data dir, .pi dir). Absorbs the retired open-data-dir.ts. The old dev-gated toolset-dir option was removed (it opened the wrong directory in installed copies). |
 | `docx/` | `/docx` slash command - project documentation generator. Backs up existing docs to `docx/old_docs/` (deterministic, whitelist-scoped), injects the shipped `documentation_guide.md` execution prompt, and the model generates a root README + `docx/` (master, structure map, deep docs). Ships `scripts/` (map-scan, link-audit, zip-old) the model runs mid-generation. |
 | `stfu.ts` | `/aftc-stop` and `/stfu` slash commands - emergency abort of the current agent operation (escape a runaway thinking loop). |
 | `theme.ts` | `/theme` slash command - shortcut to pi's theme picker. Lists all discovered themes, lets the user pick one, and switches the active theme. |
