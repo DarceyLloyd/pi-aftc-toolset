@@ -195,6 +195,10 @@ read-modify-write. Full contract + edge cases: `docs/working-with-config.md`.
   `codex-resource-list.md` is never copied to the seed.
 
 - Versioning: `major.minor.patch`.
+- If the codex seed changed (any entry/topic synced into
+  `data/aftc-codex/`), bump `codexVersion` in `data/extension-config.json`
+  in the SAME release — without the bump, users get no mismatch notice and
+  never receive the new content (the live copy is never auto-overwritten).
 - Patch bump: fix or enhancement to existing behaviour.
 - Minor bump (reset patch): brand-new feature (new capability area).
 - Major bump: overhaul or rewrite.

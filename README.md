@@ -19,21 +19,9 @@ Click [here](./change-log.txt) to read the change logs.
 ### **/docx project documentation generator**
 One command — `/docx` — generates a complete, cross-referenced documentation set for any project: a fresh GitHub README.md, a master document, a full ID'd structure map, and per-module deep docs under `./docx/`. Your old docs are never lost: they're moved aside with their folder structure intact and zipped to `docx/old_docs.zip`. See [/docx project documentation generator](#docx-project-documentation-generator).
 
-### **Audio notification system**
-A bit of fun, also very useful for those long prompt wait times. Go do something else while the AI model is working away. You will get audio notifications for complete, question and error, plus optional context-window usage alerts when the context crosses 25%, 50% or 75% full (re-arms after compaction). NOTE: It's turned OFF by default. Enable and configure it via /aftc-notifications menu
+### **AFTC CODEX PATCHES**
+Fixed some bugs, adjusted learning process and model guidance. And brought synced my latest codex resources for you all to use..
 
-### **Usage Reports**
-BETA 3. More changes, and more to come. Use /usage-report
-
-### **Persistent Data Storage**
-Data for this plugin will be stored in APP_DATA for pc users and whatever the equivalent is for linux and mac users. Use /qd (Open users data dir) should you want to go there. The extension will be acting as a seed from here on for relevant features.
-
-### **AFTC CODEX (BETA)**
-Self training (partial) and self resource file loading with model thoughts and action guidance.
-Codex is now in BETA, a lot of self training resources done on various models and added tooling to lower AI model turn usage. **DO NOT USE IF YOUR COUNTING THE COST OF EVERY TOKEN OR HAVE LOW USAGE PACKAGE TIERS**. 
-
-### **Added short cut "alt + n"**
-You can now enter new lines into your prompts in pi!
 
 ---
 
