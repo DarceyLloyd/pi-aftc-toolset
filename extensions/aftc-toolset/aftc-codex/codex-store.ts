@@ -32,6 +32,7 @@ import { spawn } from "node:child_process";
 import { setPreference } from "../config";
 import { getDataDir, getPackageRoot } from "../paths";
 import { readCodexSeedVersion } from "./codex-compat";
+import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -208,7 +209,7 @@ function copyTreeNoOverwrite(srcDir: string, destDir: string): number {
                 copied++;
             }
         } catch (err) {
-            console.log(`[aftc-toolset] codex seed: copy ${entry.name} failed: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex seed: copy ${entry.name} failed: ${(err as Error).message}`);
         }
     }
     return copied;
@@ -269,7 +270,7 @@ export function createCodexStore(): CodexStore {
                         copied++;
                     }
                 } catch (err) {
-                    console.log(`[aftc-toolset] codex seed: copy ${name} failed: ${(err as Error).message}`);
+                    aftcConsole.logError(`[aftc-toolset] codex seed: copy ${name} failed: ${(err as Error).message}`);
                 }
             }
 
@@ -286,7 +287,7 @@ export function createCodexStore(): CodexStore {
             const v = readCodexSeedVersion(seedDir);
             if (v !== null) setPreference("aftcCodexVersion", v);
         } catch (err) {
-            console.log(`[aftc-toolset] codex seed: error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex seed: error: ${(err as Error).message}`);
         }
         return { copied };
     }
@@ -495,7 +496,7 @@ export function createCodexStore(): CodexStore {
                     resolve();
                 });
             } catch (err) {
-                console.log(`[aftc-toolset] codex sync spawn error: ${(err as Error).message}`);
+                aftcConsole.logError(`[aftc-toolset] codex sync spawn error: ${(err as Error).message}`);
                 resolve();
             }
         });
@@ -537,7 +538,7 @@ export function createCodexStore(): CodexStore {
                     resolve();
                 });
             } catch (err) {
-                console.log(`[aftc-toolset] codex ensure-ids spawn error: ${(err as Error).message}`);
+                aftcConsole.logError(`[aftc-toolset] codex ensure-ids spawn error: ${(err as Error).message}`);
                 resolve();
             }
         });
@@ -594,7 +595,7 @@ export function createCodexStore(): CodexStore {
                 });
                 collect(child);
             } catch (err) {
-                console.log(`[aftc-toolset] ${tag} spawn error: ${(err as Error).message}`);
+                aftcConsole.logError(`[aftc-toolset] ${tag} spawn error: ${(err as Error).message}`);
                 finish("");
             }
         });

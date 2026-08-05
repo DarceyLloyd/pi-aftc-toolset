@@ -18,10 +18,11 @@
  *     registered once via init()). Falls back to a dim info line when the host
  *     has no entry-renderer API (tests / stripped hosts).
  *   - warn / error / info -> ctx.ui.notify (the three native severities).
- *   - log -> console.log with the "[aftc-toolset]" prefix (stdout diagnostics).
+ *   - log -> console.log with the "[aftc-toolset]" prefix (stdout diagnostics),
+ *     GATED by the debugLoggingEnabled preference (default off).
  *
  * Severity contract and usage guidance live in
- * docs/aftc-console-documentation.md - read it before relying on this module.
+ * docx/docs/1.3_ui_framework_documentation.md - read it before relying on this module.
  *
  * Per AGENTS.md, this is a shared UI utility (sibling to
  * aftc-ui.ts), not a feature module: every feature may import it.
@@ -29,6 +30,10 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { getPreference } from "../config";
+import { getDataDir } from "../paths";
 
 /** Custom entry type for emphasised (accent-coloured) transcript lines. */
 export const AFTC_CONSOLE_EMPHASIS_ENTRY = "aftc-console-emphasis";
@@ -100,10 +105,63 @@ export function info(ctx: ExtensionContext, text: string): void {
 
 /**
  * Stdout diagnostic line with the "[aftc-toolset]" prefix. For load /
- * diagnostic messages that go to the process console (NOT the transcript).
+ * diagnostic chatter that goes to the process console (NOT the transcript).
+ * The stdout echo is GATED by the `debugLoggingEnabled` preference (default
+ * OFF — a clean TUI; toggle with /aftc-debug-log-on|off), but the line is
+ * ALWAYS captured in the debug log file so evidence exists before you know
+ * you need it. NEVER use log() for failures — use logError() (never gated),
+ * or a real problem goes unreported.
  * Centralises the prefix so it stays consistent and greppable. If the text
  * already starts with the prefix it is emitted unchanged (no double prefix).
  */
 export function log(text: string): void {
+    appendToDebugFile("debug", text);
+    if (!getPreference("debugLoggingEnabled", false)) return;
     console.log(text.startsWith(AFTC_PREFIX) ? text : `${AFTC_PREFIX} ${text}`);
+}
+
+/**
+ * Error diagnostic line: ALWAYS printed to stdout AND captured in the debug
+ * log file — errors bypass the debugLoggingEnabled gate by design (a flag
+ * must never silence a real failure). For catch-block / failure diagnostics
+ * only; routine chatter belongs in log().
+ */
+export function logError(text: string): void {
+    appendToDebugFile("error", text);
+    console.log(text.startsWith(AFTC_PREFIX) ? text : `${AFTC_PREFIX} ${text}`);
+}
+
+/**
+ * Unconditional stdout line with the "[aftc-toolset]" prefix: the headless
+ * (print-mode) counterpart of a transcript line. For COMMAND RESPONSES only
+ * (status output, command results when there is no UI) — never gated, never
+ * captured to the debug file (a response is not a diagnostic). Routine
+ * chatter belongs in log(), failures in logError().
+ */
+export function print(text: string): void {
+    console.log(text.startsWith(AFTC_PREFIX) ? text : `${AFTC_PREFIX} ${text}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Debug log file (<dataDir>/debug.log)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Hard cap for the debug log. One-generation rotation: past the cap the file
+ *  is renamed to debug.log.old (overwritten) and a fresh file starts, so total
+ *  disk use stays under ~2x the cap. */
+export const DEBUG_LOG_MAX_BYTES = 5 * 1024 * 1024;
+
+function appendToDebugFile(level: "debug" | "error", text: string): void {
+    try {
+        const file = path.join(getDataDir(), "debug.log");
+        const dir = path.dirname(file);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        try {
+            if (fs.statSync(file).size > DEBUG_LOG_MAX_BYTES) {
+                try { fs.renameSync(file, file + ".old"); } catch { /* best-effort */ }
+            }
+        } catch { /* no file yet */ }
+        const line = `${new Date().toISOString()} [${level}] ${text}\n`;
+        fs.appendFileSync(file, line, "utf8");
+    } catch { /* logging must never break the host */ }
 }

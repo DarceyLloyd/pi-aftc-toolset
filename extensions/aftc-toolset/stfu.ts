@@ -177,5 +177,5 @@ export function createStfu(pi: ExtensionAPI): void {
         },
     });
 
-    console.log("[aftc-toolset] loaded — /aftc-stop, /stfu (interrupt current agent operation)");
+    aftcConsole.log("loaded — /aftc-stop, /stfu (interrupt current agent operation)");
 }

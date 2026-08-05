@@ -45,6 +45,7 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import type { CodexContext } from "./aftc-codex";
 import { CODEX_READ_ENTRY } from "./codex-inject";
+import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared read-tracking (owned by the coordinator, shared with codex_load)
@@ -810,5 +811,5 @@ export function createCodexEntries(ctx: CodexContext, readTracker: CodexReadTrac
         },
     });
 
-    log("loaded — codex entry tools (add/edit/remove)");
+    aftcConsole.log("codex-entries: loaded — codex entry tools (add/edit/remove)");
 }

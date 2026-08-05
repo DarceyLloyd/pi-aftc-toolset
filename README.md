@@ -489,6 +489,8 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
 | `/run-script-on` | Enable the `run_script` tool (reliable large-script execution); `/reload` to apply |
 | `/run-script-off` | Disable the `run_script` tool (eg once pi fixes its bash truncation); `/reload` to apply |
+| `/aftc-debug-log-on` | Turn on `[aftc-toolset]` diagnostic console output (off by default; errors always print) |
+| `/aftc-debug-log-off` | Turn diagnostic console output back off |
 | `/aftc-cut-input` | Cut all input-editor text to the clipboard (same as `Alt+X`) |
 | `/docx [--yes]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped to `docx/old_docs.zip` (`--yes` skips the confirmations) |
 

@@ -135,7 +135,7 @@ export function createKeepItShort(pi: ExtensionAPI): void {
         },
     });
 
-    console.log(
-        "[aftc-toolset] loaded — /keep-it-short, /kis (send a fixed 'be concise' prompt to the active model)",
+    aftcConsole.log(
+        "loaded — /keep-it-short, /kis (send a fixed 'be concise' prompt to the active model)",
     );
 }

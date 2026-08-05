@@ -230,12 +230,12 @@ export function createThinkParser(pi: ExtensionAPI): void {
     });
 
     if (enabled) {
-        console.log(
-            "[aftc-toolset] loaded — /aftc-enable-think-processing, /aftc-disable-think-processing (think-tag parsing: ON)",
+        aftcConsole.log(
+            "loaded — /aftc-enable-think-processing, /aftc-disable-think-processing (think-tag parsing: ON)",
         );
     } else {
-        console.log(
-            "[aftc-toolset] loaded — /aftc-enable-think-processing, /aftc-disable-think-processing (think-tag parsing: OFF; opt-in)",
+        aftcConsole.log(
+            "loaded — /aftc-enable-think-processing, /aftc-disable-think-processing (think-tag parsing: OFF; opt-in)",
         );
     }
 }

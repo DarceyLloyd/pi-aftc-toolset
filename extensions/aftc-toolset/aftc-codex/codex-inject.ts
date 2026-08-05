@@ -37,6 +37,7 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { Box, Spacer, Text } from "@earendil-works/pi-tui";
 import { getPreference } from "../config";
 import type { CodexContext, CodexDetectResult } from "./aftc-codex";
+import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -292,7 +293,7 @@ export function createCodexInject(
                 rulesOnly: state.rulesOnly,
             });
         } catch (err) {
-            console.log(`[aftc-toolset] codex persistState error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex persistState error: ${(err as Error).message}`);
         }
     }
 
@@ -327,7 +328,7 @@ export function createCodexInject(
                 );
             }
         } catch (err) {
-            console.log(`[aftc-toolset] codex injectMarker error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex injectMarker error: ${(err as Error).message}`);
         }
     }
 
@@ -383,7 +384,7 @@ export function createCodexInject(
 
             return parts.join("\n");
         } catch (err) {
-            console.log(`[aftc-toolset] codex buildPromptBlock error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex buildPromptBlock error: ${(err as Error).message}`);
             return null;
         }
     }
@@ -474,7 +475,7 @@ export function createCodexInject(
 
             return changed ? { messages: out } : undefined;
         } catch (err) {
-            console.log(`[aftc-toolset] codex context prune error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex context prune error: ${(err as Error).message}`);
             return undefined;
         }
     });
@@ -553,7 +554,7 @@ export function createCodexInject(
                 injectMarker(false, false, detected?.topics, detected?.missing);
             }
         } catch (err) {
-            console.log(`[aftc-toolset] codex session_start error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex session_start error: ${(err as Error).message}`);
         }
     });
 

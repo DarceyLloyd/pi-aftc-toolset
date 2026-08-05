@@ -151,5 +151,5 @@ export function createTheme(pi: ExtensionAPI): void {
         },
     });
 
-    console.log("[aftc-toolset] loaded — /theme (open pi's theme picker)");
+    aftcConsole.log("loaded — /theme (open pi's theme picker)");
 }

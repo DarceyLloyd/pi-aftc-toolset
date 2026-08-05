@@ -1075,7 +1075,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         if (tools.length > 0) {
             const cmp = shape.update(lastSysPrompt, tools);
             if (cmp.changed) {
-                console.log(`[aftc-toolset] prefix churn: ${cmp.reasons.join("+")}`);
+                aftcConsole.log(`prefix churn: ${cmp.reasons.join("+")}`);
                 aftcConsole.warn(_ctx, `Cache prefix changed: ${cmp.reasons.join("+")}`);
             }
         }
@@ -1089,7 +1089,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
 
     pi.on("session_compact", async () => {
         shape.reset("compaction");
-        console.log("[aftc-toolset] compaction — shape reset");
+        aftcConsole.log("compaction — shape reset");
     });
 
     pi.on("agent_end", async (_event, ctx) => {
@@ -1253,7 +1253,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         },
     });
 
-    console.log("[aftc-toolset] loaded — /cache-profile, /cache-stats, /cache-reset, /cls");
+    aftcConsole.log("loaded — /cache-profile, /cache-stats, /cache-reset, /cls");
 
     // Return the data provider so the orchestrator (index.ts) can wire
     // it to footer-widget.ts. The widget reads from these getters on

@@ -321,5 +321,5 @@ export function createDocx(pi: ExtensionAPI): void {
         },
     });
 
-    console.log("[aftc-toolset] loaded — /docx (project documentation generator)");
+    aftcConsole.log("loaded — /docx (project documentation generator)");
 }

@@ -27,6 +27,8 @@
  *                        configurable threshold) and when the AI asks a question
  *   - quick-open-dir.ts — /qd: quick dir access menu (data dir, .pi dir,
  *                        toolset dir — the last gated by a .dev marker folder)
+ *   - debug-log.ts    — /aftc-debug-log-on|off: gate the [aftc-toolset] stdout
+ *                        diagnostics (off by default — clean TUI)
  *   - docx/          — /docx: regenerate the project's full documentation set
  *                        into ./docx/ per the shipped documentation guide;
  *                        old docs backed up to docx/old_docs.zip
@@ -75,6 +77,7 @@ import { createKeepItShort } from "./keep-it-short";
 import { createThinkParser } from "./think-parser";
 import { createNotify } from "./notify";
 import { createQuickOpenDir } from "./quick-open-dir";
+import { createDebugLog } from "./debug-log";
 import { createDocx } from "./docx/docx";
 import { createAftcCodex } from "./aftc-codex/aftc-codex";
 import { createRunScript } from "./run-script";
@@ -151,6 +154,7 @@ export default function (pi: ExtensionAPI): void {
 	createThinkParser(pi);
 	createNotify(pi);
 	createQuickOpenDir(pi);
+	createDebugLog(pi);
 	createDocx(pi);
 	createAftcCodex(pi);
 	createRunScript(pi);
@@ -170,7 +174,7 @@ export default function (pi: ExtensionAPI): void {
 	void usage;
 	void help;
 	} catch (err) {
-		aftcConsole.log(`orchestrator error: ${(err as Error).message}`);
-		aftcConsole.log(`stack: ${(err as Error).stack}`);
+		aftcConsole.logError(`orchestrator error: ${(err as Error).message}`);
+		aftcConsole.logError(`stack: ${(err as Error).stack}`);
 	}
 }

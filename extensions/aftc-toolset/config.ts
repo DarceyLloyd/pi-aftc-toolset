@@ -148,6 +148,10 @@ export interface Preferences {
     /** run_script tool: reliable large-script execution (workaround for a pi bash-tool
      *  truncation bug). On = tool registered; off = tool absent. /run-script-on|off. */
     runScriptEnabled?: boolean;
+    /** Stdout diagnostics ([aftc-toolset] load/detection lines via aftcConsole.log).
+     *  OFF by default for a clean TUI; /aftc-debug-log-on|off. Error output is
+     *  never gated. */
+    debugLoggingEnabled?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,6 +204,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexAutoSync: true,
     aftcCodexVersion: 0,
     runScriptEnabled: true,
+    debugLoggingEnabled: false,
 };
 
 /**

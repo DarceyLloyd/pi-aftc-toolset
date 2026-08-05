@@ -101,7 +101,9 @@ Every feature writes to the user's console through `ui/aftc-console.ts` — neve
 - `aftcConsole.warn(ctx, text)` — yellow; the action could not proceed (nothing selected, missing args, not connected).
 - `aftcConsole.error(ctx, text)` — red; hard failure.
 - `aftcConsole.info(ctx, text)` — dim; rare neutral aside.
-- `aftcConsole.log(text)` — `[aftc-toolset]` stdout diagnostic.
+- `aftcConsole.log(text)` — `[aftc-toolset]` stdout diagnostic chatter; the stdout echo is gated by `debugLoggingEnabled` (default off, `/aftc-debug-log-on|off`) and every line is captured in `<dataDir>/debug.log` either way.
+- `aftcConsole.logError(text)` — failure diagnostics; never gated (stdout + debug.log).
+- `aftcConsole.print(text)` — headless command responses; never gated, not filed.
 
 
 # Live vs seed (terminology)

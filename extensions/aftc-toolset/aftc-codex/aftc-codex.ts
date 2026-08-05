@@ -255,10 +255,10 @@ export function createAftcCodex(pi: ExtensionAPI): void {
                 if (!result.output.trim()) return; // spawn failed — the guard stays as fallback
                 const msg = `AFTC Codex auto-synced v${liveBefore} -> v${result.newVersion ?? "?"} — new shipped resources merged in; your learned entries were kept.`;
                 if (sctx.hasUI) aftcConsole.emphasis(sctx, msg);
-                else aftcConsole.log(msg);
+                else aftcConsole.print(msg);
             })();
         } catch { /* fail-soft */ }
     });
 
-    console.log("[aftc-toolset] loaded — aftc-codex (off by default; /codex-enable to enable)");
+    aftcConsole.log("loaded — aftc-codex (off by default; /codex-enable to enable)");
 }

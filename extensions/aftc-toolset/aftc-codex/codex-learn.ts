@@ -17,6 +17,7 @@
  */
 
 import type { CodexContext } from "./aftc-codex";
+import * as aftcConsole from "../ui/aftc-console";
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,7 +77,7 @@ export function createCodexLearn(ctx: CodexContext): CodexLearnApi {
                 pi.sendUserMessage(prompt);
             }
         } catch (err) {
-            console.log(`[aftc-toolset] codex injectLearnPrompt error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] codex injectLearnPrompt error: ${(err as Error).message}`);
         }
     }
 

@@ -69,15 +69,25 @@ const entries: HelpEntry[] = [];
  * pi.registerCommand block for the same command (one call per primary,
  * aliases included in the entry).
  *
- * A duplicate `command` REPLACES the earlier entry and logs a diagnostic —
- * duplicates mean two modules are fighting over the same name.
+ * A duplicate `command` REPLACES the earlier entry. pi keeps extension
+ * modules alive and re-runs the factories on /reload, so an IDENTICAL
+ * re-registration is the normal reload path and stays silent; only a
+ * duplicate with DIFFERENT content logs (two modules genuinely fighting
+ * over the same name — a real bug, never gated by the debug flag).
  */
 export function registerHelpEntry(entry: HelpEntry): void {
     const existing = entries.findIndex((e) => e.command === entry.command);
     if (existing >= 0) {
-        console.log(
-            `[aftc-toolset] help-registry: duplicate entry for /${entry.command} — replacing`,
-        );
+        const prev = entries[existing];
+        const identical =
+            prev.description === entry.description &&
+            prev.category === entry.category &&
+            JSON.stringify(prev.aliases ?? []) === JSON.stringify(entry.aliases ?? []);
+        if (!identical) {
+            console.log(
+                `[aftc-toolset] help-registry: conflicting entry for /${entry.command} — replacing`,
+            );
+        }
         entries[existing] = entry;
         return;
     }

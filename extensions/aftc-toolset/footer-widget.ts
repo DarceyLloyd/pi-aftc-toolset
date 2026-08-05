@@ -429,7 +429,7 @@ function createFooterComponent(
             data.onTick();
             tui.requestRender();
         } catch (err) {
-            console.log(`[aftc-toolset] footer ticker error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] footer ticker error: ${(err as Error).message}`);
         }
     }, 1000);
 
@@ -465,7 +465,7 @@ function createFooterComponent(
 
                 return lines.map((l) => line(l, w));
             } catch (err) {
-                console.log(`[aftc-toolset] footer render error: ${(err as Error).message}`);
+                aftcConsole.logError(`[aftc-toolset] footer render error: ${(err as Error).message}`);
                 return [
                     theme.bg("customMessageBg", theme.fg("error", ` Footer error: ${(err as Error).message}`.padEnd(width, " "))),
                 ];
@@ -521,7 +521,7 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
                 return component;
             }, { placement: "belowEditor" });
         } catch (err) {
-            console.log(`[aftc-toolset] footer show error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] footer show error: ${(err as Error).message}`);
         }
     }
 

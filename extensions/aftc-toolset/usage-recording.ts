@@ -73,6 +73,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { TaskRecord, TurnRecord, TurnRecorder } from "./types";
 import { getDb } from "./db";
+import * as aftcConsole from "./ui/aftc-console";
 
 // -----------------------------------------------------------------------------
 // $0-cost turn policy
@@ -141,7 +142,7 @@ class UsageRecorder implements TurnRecorder {
                 record.promptKind,
             );
         } catch (err) {
-            console.log(`[aftc-toolset] SQLite insert error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] SQLite insert error: ${(err as Error).message}`);
         }
     }
 
@@ -167,7 +168,7 @@ class UsageRecorder implements TurnRecorder {
                 record.turnCount,
             );
         } catch (err) {
-            console.log(`[aftc-toolset] SQLite tasks insert error: ${(err as Error).message}`);
+            aftcConsole.logError(`[aftc-toolset] SQLite tasks insert error: ${(err as Error).message}`);
         }
     }
 }

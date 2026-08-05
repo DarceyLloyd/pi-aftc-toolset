@@ -46,7 +46,7 @@ import { CODEX_CATEGORIES } from "./codex-store";
 // ─────────────────────────────────────────────────────────────────────────────
 
 function notify(ctx: ExtensionCommandContext, msg: string, level: "info" | "warning" | "error" = "info"): void {
-    if (!ctx.hasUI) { aftcConsole.log(msg); return; }
+    if (!ctx.hasUI) { aftcConsole.print(msg); return; }
     if (level === "warning") aftcConsole.warn(ctx, msg);
     else if (level === "error") aftcConsole.error(ctx, msg);
     else aftcConsole.emphasis(ctx, msg);
@@ -199,7 +199,7 @@ function openDir(dir: string): void {
         const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
         child.unref();
     } catch (err) {
-        console.log(`[aftc-toolset] codex openDir error: ${(err as Error).message}`);
+        aftcConsole.logError(`[aftc-toolset] codex openDir error: ${(err as Error).message}`);
     }
 }
 

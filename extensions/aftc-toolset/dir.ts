@@ -30,6 +30,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Box, Text } from "@earendil-works/pi-tui";
 import { registerHelpEntry } from "./help-registry";
+import * as aftcConsole from "./ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Custom entry type constant — shared between renderer and appender
@@ -190,5 +191,5 @@ export function createDir(pi: ExtensionAPI): void {
 		handler: dirHandler,
 	});
 
-	console.log("[aftc-toolset] loaded — /dir, /ls");
+	aftcConsole.log("loaded — /dir, /ls");
 }

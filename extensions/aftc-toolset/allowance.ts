@@ -96,6 +96,7 @@
 import * as piApi from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AllowanceProvider, AllowanceView, AllowanceWindow } from "./types";
+import * as aftcConsole from "./ui/aftc-console";
 
 // ──────────────────────────────────────────────────────────────────────
 // Adaptive duration formatter
@@ -524,7 +525,7 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
                     // Clear the view so line 5 hides instead of showing
                     // stale numbers; the next successful fetch brings it
                     // back.
-                    console.log(`[aftc-toolset] allowance ${provider} HTTP ${res.status}`);
+                    aftcConsole.log(`allowance ${provider} HTTP ${res.status}`);
                     view = null;
                     return;
                 }
@@ -538,7 +539,7 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
                 // Network / abort / parse failure (including a response
                 // shape change): never render data we did not get — clear
                 // the view so line 5 hides until the next success.
-                console.log(`[aftc-toolset] allowance ${provider} error: ${(err as Error).message}`);
+                aftcConsole.logError(`[aftc-toolset] allowance ${provider} error: ${(err as Error).message}`);
                 view = null;
             } finally {
                 inFlight = null;
@@ -596,7 +597,7 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
             try {
                 onTimerTick();
             } catch (err) {
-                console.log(`[aftc-toolset] allowance timer error: ${(err as Error).message}`);
+                aftcConsole.logError(`[aftc-toolset] allowance timer error: ${(err as Error).message}`);
             }
         }, PERIODIC_REFRESH_MS);
         periodicTimer.unref?.();

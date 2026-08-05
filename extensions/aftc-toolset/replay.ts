@@ -220,7 +220,5 @@ export function createReplay(pi: ExtensionAPI): void {
         },
     });
 
-    console.log(
-        "[aftc-toolset] loaded — /save-replay-prompt, /replay, /r (save and re-send a prompt string)",
-    );
+    aftcConsole.log("loaded — /save-replay-prompt, /replay, /r (save and re-send a prompt string)");
 }

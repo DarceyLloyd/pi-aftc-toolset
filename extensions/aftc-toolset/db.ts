@@ -22,6 +22,7 @@
 
 import * as fs from "node:fs";
 import { getDataDir, getDbFile } from "./paths";
+import * as aftcConsole from "./ui/aftc-console";
 
 // -----------------------------------------------------------------------------
 // Optional SQLite (better-sqlite3) — loaded once; failure is non-fatal.
@@ -132,7 +133,7 @@ export function getDb(): any | null {
         }
         return _db;
     } catch (err) {
-        console.log(`[aftc-toolset] SQLite init error: ${(err as Error).message}`);
+        aftcConsole.logError(`[aftc-toolset] SQLite init error: ${(err as Error).message}`);
         return null;
     }
 }

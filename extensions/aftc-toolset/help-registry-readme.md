@@ -38,7 +38,7 @@ order on the help screen.
   the same factory, so the two can never be edited apart.
 - **Descriptions must not embed "(alias …)"** — the renderer appends
   aliases itself.
-- Duplicate `command` names replace the old entry and log a diagnostic.
+- Duplicate `command` names replace the old entry. An identical re-registration (the normal /reload factory re-run) is silent; only a duplicate with DIFFERENT content logs a diagnostic (a real name fight).
 - Not everything belongs here: pi built-ins, `/skill:*` entries, and
   keyboard shortcuts stay as static sections in `help.ts`.
 

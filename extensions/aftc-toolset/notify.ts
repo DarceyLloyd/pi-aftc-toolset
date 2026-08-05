@@ -588,5 +588,5 @@ export function createNotify(pi: ExtensionAPI): void {
         },
     });
 
-    console.log(`${LOG_PREFIX} loaded -- /aftc-audio-notifications, /aftc-notify-time`);
+    aftcConsole.log(`notify: loaded -- /aftc-audio-notifications, /aftc-notify-time`);
 }
