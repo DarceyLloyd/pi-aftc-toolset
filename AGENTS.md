@@ -228,6 +228,10 @@ When the user says any of these, do the full release WITHOUT asking again
 4. Commit everything with a clear message, push to the remote.
 5. Create the GitHub release: `gh release create vX.X.X --title "vX.X.X"`
    (tag name = title = `vX.X.X`), notes = the changelog entry for the release.
+6. Publishing the release triggers `.github/workflows/publish.yml`, which
+   publishes the package to npmjs.com automatically (npm trusted publishing
+   via OIDC — no token; the workflow fails safe if the tag and the
+   package.json version disagree). Confirm the run is green in Actions.
 
 ---
 
