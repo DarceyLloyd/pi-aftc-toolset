@@ -12,40 +12,39 @@ The npm/pi package surface: manifest, lockfiles, ignore rules, images, license, 
 
 ## Purpose
 
-**Owns:** `package.json` (name `pi-aftc-toolset`, version, `pi` manifest pointing at `./extensions`, `./skills`, `./themes`; deps `better-sqlite3` 12.11.1 + `adm-zip` ^0.6.0; peer deps on the pi packages + typebox), `package-lock.json`, `.gitignore` / `.npmignore` / `.dockerignore`, `.github/workflows/publish.yml` (npm publish automation), `images/` (README screenshots), `LICENSE` (MIT), `backup.ps1` (maintainer's pcloud backup), `change-log.txt`.
+**Owns:** `package.json` (name `pi-aftc-toolset`, version, `pi` manifest pointing at `./extensions`, `./skills`, `./themes`; deps `better-sqlite3` 12.11.1 + `adm-zip` ^0.6.0; peer deps on the pi packages + typebox; `publishConfig.access: public`), `package-lock.json`, `.gitignore` / `.npmignore` / `.dockerignore`, `publish.bat` (local npm publish) + `.env` (gitignored + npmignored npm token), `images/` (README screenshots), `LICENSE` (MIT), `backup.ps1` (maintainer's pcloud backup), `change-log.txt`.
 **Does not own:** runtime data (1.2/2), code (1).
 **Depends on:** npm/GitHub. **Dependents:** users (`pi install npm:pi-aftc-toolset`).
 
 ## Public API & contracts
 
-Install: `pi install npm:pi-aftc-toolset` then `/aftc-install` + `/reload`. Release flow: tests green → `change-log.txt` entry under `Updates v<major>.<minor>.x` (newest first) → version bump (patch = fix/enhancement, minor = new feature, major = overhaul) → if the codex seed changed, bump `codexVersion` in the SAME release → `npm pack --dry-run` sanity → commit `vX.X.X` (house style) → push → GitHub release with tag/name `vX.X.X` → publishing the release triggers `.github/workflows/publish.yml`, which publishes to npm automatically (see below).
+Install: `pi install npm:pi-aftc-toolset` then `/aftc-install` + `/reload`. Release flow: tests green → `change-log.txt` entry under `Updates v<major>.<minor>.x` (newest first) → version bump (patch = fix/enhancement, minor = new feature, major = overhaul) → if the codex seed changed, bump `codexVersion` in the SAME release → `npm pack --dry-run` sanity → commit `vX.X.X` (house style) → push → GitHub release with tag/name `vX.X.X` → publish to npm locally with `publish.bat` (see below).
 
-## npm publish automation (GitHub Actions + trusted publishing)
+## npm publishing (local token, no CI)
 
-`.github/workflows/publish.yml` publishes the package to npmjs.com on every
-**published GitHub release** (plus manual `workflow_dispatch` from the Actions
-tab). Auth is npm **trusted publishing** (OIDC + `--provenance`) — no
-`NPM_TOKEN` secret exists anywhere. The workflow: checkout → node 22 → npm
-upgraded to latest (trusted publishing needs npm >= 11.5.1) → tag/version
-guard (fails the run when the release tag != `package.json` version, so a
-mis-tagged release can never publish a wrong version) → `npm publish
---provenance --access public`. Tests do NOT run in CI: the suites are
-local-only (`tests/` is gitignored, 5), and the package needs no build
-(pi loads raw `.ts`).
+Publishing runs LOCALLY via `publish.bat` — no GitHub Actions, no Docker.
+The npm token lives in `.env` at the repo root (one line: the raw token or
+`NPM_TOKEN=<token>`; `.env` is gitignored AND npmignored — never committed,
+never shipped; `.npm-token` works as a fallback name). The script writes it
+into
+a TEMP `.npmrc` (`NPM_CONFIG_USERCONFIG`) for the publish call only and
+deletes it after, so the token never lands in the global or project .npmrc
+either. `publishConfig.access` in `package.json` is `public` (no
+`provenance` — provenance signing requires OIDC and fails with token auth).
 
-One-time npmjs.com setup (package → Settings → Trusted Publisher):
-select **GitHub Actions**, then:
-- Owner/user: `DarceyLloyd`
-- Repository: `pi-aftc-toolset`
-- **Workflow filename: `publish.yml`** (filename only; must exist at
-  `.github/workflows/publish.yml` in the repo)
-- **Environment name: leave EMPTY** — the workflow uses no GitHub
-  environment. That field is encouraged for team setups where a protected
-  environment gates publishing for maintainers without npm access; this is a
-  solo project, so it is not needed.
+One-time token setup (npmjs.com → Access Tokens → Generate New Token →
+**Granular Access Token**): publish permission for `pi-aftc-toolset` with
+**bypass 2FA** enabled; the package's "Publishing access" setting must allow
+bypass-2FA tokens (the "Require two-factor authentication OR a granular
+access token with bypass 2FA" option, not the strict disallow option). Paste
+the token into `.env`.
 
-After saving, every published GitHub release auto-publishes to npm; confirm
-the run is green under the repo's Actions tab.
+History: a GitHub Actions + npm trusted-publishing (OIDC) workflow was tried
+first and abandoned — the OIDC exchange kept failing (E404/ENEEDAUTH) despite
+a correct npmjs trusted-publisher entry, node 24 and latest npm (known
+footguns: setup-node's registry-url writes an empty `_authToken` that
+short-circuits OIDC — npm/documentation#1960; bundled npm < 11.5.1 silently
+falls back to token auth — npm/cli#8976, npm/cli#8730).
 
 ## Internal architecture & data flow
 

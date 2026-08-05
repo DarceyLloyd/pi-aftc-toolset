@@ -40,6 +40,9 @@ secrets.json
 *secrets*.toml
 
 # Manually added
+.npm-token
+publish.bat
+clear-docker.bat
 .github/
 .gitignore
 .npmignore
@@ -87,6 +90,7 @@ extensions/aftc-toolset/data/**/*.bat
 .pi-aftc-toolset/
 
 # ── IDE / editor ──────────────────────────────────────────
+.vs/
 .vscode/
 .idea/
 *.swp

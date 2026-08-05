@@ -98,3 +98,5 @@ temp/
 # aftc docx backup artifacts
 docx/old_docs/
 docx/old_docs.zip
+.npm-token
+.vs/
