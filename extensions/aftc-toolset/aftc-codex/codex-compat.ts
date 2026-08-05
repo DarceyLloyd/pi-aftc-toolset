@@ -10,10 +10,12 @@
  * an integer). The user's live version is a config.json preference
  * (aftcCodexVersion),
  * stamped by every full seed. checkCodexCompatibility() compares them; on a
- * mismatch the user runs /codex-install (or Start Fresh in the /codex menu),
- * which deletes the live codex dir and installs a full fresh copy of the seed
- * (no backup, by design). A missing or unreadable seed version disables
- * version logic entirely (fail-soft: never block when unsure).
+ * mismatch the user runs /codex-sync (non-destructive merge of the new shipped
+ * resources into the live copy — the recommended fix) or /codex-install
+ * (or Start Fresh in the /codex menu), which deletes the live codex dir and
+ * installs a full fresh copy of the seed (no backup, by design). A missing or
+ * unreadable seed version disables version logic entirely (fail-soft: never
+ * block when unsure).
  *
  * Production-safety: every I/O op is best-effort try/catch.
  * See `codex-compat-readme.md` for the full contract.
@@ -68,8 +70,9 @@ export function readCodexSeedVersion(seedDir: string): number | null {
  * isSafe = true when the seed version is unknown (fail-soft), the live copy
  * was never seeded, or both versions match. isSafe = false means the live
  * AFTC Codex is out of date: features should hold off, show `message`, and
- * the user runs /codex-install, which wipes the live codex and installs a
- * full fresh copy of the seed.
+ * the user runs /codex-sync (non-destructive merge, learned entries kept) or
+ * /codex-install, which wipes the live codex and installs a full fresh copy
+ * of the seed.
  */
 export function checkCodexCompatibility(seedDir: string, liveVersion: number, liveSeeded: boolean): CodexCompatResult {
     // Never seeded = nothing stale to wipe: first-time enable/seed must proceed
@@ -83,7 +86,9 @@ export function checkCodexCompatibility(seedDir: string, liveVersion: number, li
         isSafe: false,
         message:
             `Your AFTC Codex is out of date (v${liveVersion} -> v${seedVersion}). ` +
-            `Run /codex-install to replace it with a full fresh copy of the shipped codex ` +
+            `Run /codex-sync to merge the new shipped resources into your codex ` +
+            `(non-destructive — your learned entries are kept). ` +
+            `Or run /codex-install to replace it with a full fresh copy of the shipped codex ` +
             `(this wipes your current codex, including any learned entries). ` +
             `Codex features are paused until then.`,
     };

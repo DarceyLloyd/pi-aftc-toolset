@@ -217,6 +217,18 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
   Newest first. Short user-facing summaries only.
 - Keep root documentation aligned with implemented behaviour.
 
+## Shipping ("ship it", "push it up to github", "release it", "ship vX.X.X")
+
+When the user says any of these, do the full release WITHOUT asking again
+(first finish whatever task is in progress, if any):
+
+1. Ensure the changelog entry exists and the version bump rules above are applied.
+2. Ensure tests are green (Windows first, Linux container per the workflow).
+3. Read the version from `package.json` — that is ALWAYS the X.X.X (never invent it).
+4. Commit everything with a clear message, push to the remote.
+5. Create the GitHub release: `gh release create vX.X.X --title "vX.X.X"`
+   (tag name = title = `vX.X.X`), notes = the changelog entry for the release.
+
 ---
 
 # Tests
@@ -233,6 +245,7 @@ Rules:
 - Use dependencies already in the project tree. No network or TUI for ordinary tests.
 - Resolve paths from the test script, never `process.cwd()`.
 - Test the feature being changed. Full suite only when requested.
+- Always ask the user before running the docx tests (`tests/docx`) — never run them unprompted.
 - Do not automate visual UI checks. Ask the user to verify.
 
 ---

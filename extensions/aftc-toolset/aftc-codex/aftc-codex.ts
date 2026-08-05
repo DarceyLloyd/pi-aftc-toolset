@@ -78,7 +78,8 @@ export interface CodexContext {
     detect?(cwd: string): CodexDetectResult;
     /** CENTRAL version-compatibility guard. Every codex feature calls this before
      *  touching the live codex: isSafe=false means the live copy is out of
-     *  date — hold off, show `message`, and let /codex-install wipe + re-seed.
+     *  date — hold off, show `message`, and let /codex-sync merge (or
+     *  /codex-install wipe + re-seed).
      *  Set by the coordinator. */
     checkCompat(): CodexCompatResult;
 }
@@ -111,14 +112,15 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker:
             }),
         }),
         async execute(_toolCallId, params) {
-            // Version guard: an out-of-date live codex is wiped + re-seeded by
-            // /codex-install; until then serve the guard message instead of
-            // stale docs (a normal result, not a tool error, so the
-            // model can relay the instruction to the user).
+            // Version guard: an out-of-date live codex is updated by
+            // /codex-sync (or wiped + re-seeded by /codex-install); until then
+            // serve the guard message instead of stale docs (a normal result,
+            // not a tool error, so the model can relay the instruction to the
+            // user).
             const compat = checkCompat();
             if (!compat.isSafe) {
                 return {
-                    content: [{ type: "text", text: `${compat.message}\n\nTell the user to run /codex-install, then try codex_load again.` }],
+                    content: [{ type: "text", text: `${compat.message}\n\nTell the user to run /codex-sync (keeps their learned entries) or /codex-install (fresh copy), then try codex_load again.` }],
                     details: { compatBlocked: true },
                 };
             }

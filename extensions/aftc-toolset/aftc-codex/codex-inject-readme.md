@@ -52,9 +52,10 @@ entry (survives `/reload`); a fresh session (`/new`) clears it — that plus
 - `aftc-codex-prep-notice` (entry renderer) — the unmissable "run /codex-init"
   notice. TUI transcript only; not in LLM context. When the live copy is
   out of date (the central guard `ctx.checkCompat()`, see codex-compat-readme.md),
-  the notice gains a white `NOTICE: Your AFTC Codex is out of date ... run
-  /codex-install` line after the WARNING lines (flag computed at append time and
-  carried in the entry data).
+  the notice instead shows a `WARNING: Your AFTC codex is outdated.` line plus
+  a "Run `/codex-sync` to update (keeps your learned entries) or `/codex-install`
+  for a fresh copy." line (flag computed at append time and carried in the
+  entry data).
 - `aftc-codex-marker` (message renderer) — renders the marker text in accent colour.
 
 ## Public API

@@ -133,13 +133,17 @@ export function createCodexInject(
     // ---- entry renderer: fresh-session prep notice (registered once) ----
     pi.registerEntryRenderer(CODEX_PREP_NOTICE_ENTRY, (_entry, _opts, theme) => {
         const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-        box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX (ALPHA 1)" + randSpaces())), 0, 0));
+        box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX" + randSpaces())), 0, 0));
 
 
         const noticeData = (_entry.data ?? {}) as { outOfSync?: boolean };
         if (noticeData.outOfSync === true) {
             box.addChild(new Text(
-                theme.fg("warning", "WARNING: Your AFTC codex is outdated. Run /codex-install to replace it."),
+                theme.fg("warning", "WARNING: Your AFTC codex is outdated."),
+                0, 0,
+            ));
+            box.addChild(new Text(
+                "Run " + boldWhite("`/codex-sync`", theme) + " to update (keeps your learned entries) or " + boldWhite("`/codex-install`", theme) + " for a fresh copy.",
                 0, 0,
             ));
         } else {

@@ -10,6 +10,7 @@
  *   /aftc-codex-refresh  Strip all codex from context, then re-init (clean restart).
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
+ *   /aftc-codex-sync     Non-destructive shipped-seed -> live update (alias /codex-sync).
  *   /codex-inject-rules     Rules-only mode for this session (critical rules only).
  *   /codex-live-to-seed   Maintainer-only (dev-gated): port live codex entries
  *                            into the package seed (dry run + confirm; --apply).
@@ -33,6 +34,7 @@ import { getPackageRoot } from "../paths";
 import { showConfirm, showMenu, showViewer } from "../ui/aftc-ui";
 import * as aftcConsole from "../ui/aftc-console";
 import { registerHelpEntry } from "../help-registry";
+import { readCodexSeedVersion } from "./codex-compat";
 import type { CodexContext, CodexDetectResult } from "./aftc-codex";
 import { type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
@@ -97,8 +99,9 @@ async function ensureSeededWithChoice(ctx: CodexContext, cctx: ExtensionCommandC
 /** Central version guard for commands (mirrors ctx.checkCompat). Returns true
  *  when the live codex matches the shipped version. When out of date, shows the
  *  guard message (aftc-ui modal in the TUI — Enter/Esc closes — a stdout line
- *  otherwise) and returns false: the caller MUST stop. /codex-install is the
- *  fix (unguarded); /codex-disable and /codex-status stay available. */
+ *  otherwise) and returns false: the caller MUST stop. /codex-sync and
+ *  /codex-install are the fixes (unguarded); /codex-disable and /codex-status
+ *  stay available. */
 async function guardCompat(ctx: CodexContext, cctx: ExtensionCommandContext): Promise<boolean> {
     const compat = ctx.checkCompat();
     if (compat.isSafe) return true;
@@ -118,7 +121,10 @@ async function openSeedChoice(ctx: CodexContext, cctx: ExtensionCommandContext):
     const { store } = ctx;
     const choice = await showMenu(cctx, {
         title: "Menu:",
-        body: ["Choose how to initialise your AFTC Codex knowledge base:"],
+        body: [
+            "Choose how to initialise your AFTC Codex knowledge base:",
+            "(either way, /codex-sync later merges shipped updates in without wiping your learned entries)",
+        ],
         labelWidth: 26,
         items: [
             { value: "pretrained", label: "Pre-trained (Recommended)", description: " rules + ~27 topic docs" },
@@ -233,6 +239,7 @@ const HELP_LINES = [
     "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
     "  /aftc-codex-learn        Record durable lessons into the codex",
     "  /aftc-codex-status       Show status",
+    "  /aftc-codex-sync         Merge new shipped resources into your codex (keeps learned entries)",
     "  /codex-inject-rules      Rules-only mode for this session (critical rules only; /new for full)",
     "",
     "Model tools:",
@@ -355,7 +362,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         state.rulesOnly = false; // off means off — clear a rules-only session too
         state.silent = true; // context filter strips ALL codex on next LLM call
         inject.persistState();
-        notify(cctx, "AFTC Codex disabled and stripped from context/conversation.", "warning");
+        notify(cctx, "AFTC Codex disabled and stripped from context/conversation. Run /codex-enable to turn it back on.", "warning");
     };
     registerHelpEntry({ command: "aftc-codex-disable", description: "Disable + strip from context", category: "aftc-codex", aliases: ["codex-disable"] });
     pi.registerCommand("aftc-codex-disable", { description: "Disable aftc-codex and strip from context", handler: disableHandler });
@@ -477,7 +484,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             // for no reason, so the confirm stays.
             const versionMismatch = !ctx.checkCompat().isSafe;
             if (versionMismatch) {
-                notify(cctx, "Your AFTC Codex is out of date — re-installing a fresh copy (no confirmation needed on a version mismatch).", "info");
+                notify(cctx, "Your AFTC Codex is out of date — re-installing a fresh copy (no confirmation needed on a version mismatch). Tip: /codex-sync updates WITHOUT wiping your learned entries.", "info");
             } else if (isTui(cctx)) {
                 const ok = await showConfirm(cctx, {
                     title: "Re-install AFTC Codex?",
@@ -502,6 +509,53 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     };
     registerHelpEntry({ command: "aftc-codex-install", description: "Fresh install the codex to the data dir", category: "aftc-codex", aliases: ["codex-install"] });
     pi.registerCommand("aftc-codex-install", { description: "Fresh install the codex to the data dir", handler: installHandler });
+
+    // ---- /aftc-codex-sync (alias /codex-sync) — non-destructive update ----
+    // The recommended fix for the version guard's "out of date" state: merges
+    // what the shipped seed gained into the live codex (new topics copied,
+    // new entries appended, top-level docs updated) WITHOUT wiping anything —
+    // learned entries are kept, conflicts keep the live version. Applies
+    // directly (nothing here is destructive, so no dry-run/confirm dance).
+    const syncHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (!store.isSeeded()) {
+            notify(cctx, "No live codex installed yet — run /codex-install first (a fresh install is already the latest).", "warning");
+            return;
+        }
+        if (ctx.checkCompat().isSafe) {
+            notify(cctx, "Your AFTC Codex is already up to date — nothing to sync.", "info");
+            return;
+        }
+        const out = await store.runSeedToLiveSync();
+        if (!out.trim()) {
+            notify(cctx, "codex sync produced no output (script missing or failed to spawn) — /codex-install remains available.", "error");
+            return;
+        }
+        if (isTui(cctx)) {
+            await showViewer(cctx, { title: "seed -> live sync", lines: out.trim().split("\n") });
+        } else {
+            console.log(out.trim());
+        }
+        if (/CONFLICT/.test(out)) {
+            notify(cctx, "Conflicts reported (same [ID], different text) — YOUR live versions were kept; review them by hand.", "warning");
+        }
+        // The live copy now carries everything the shipped seed has: stamp it
+        // as the shipped version so the version guard clears (same as a seed).
+        const v = readCodexSeedVersion(store.getSeedDir());
+        if (v !== null) setPreference("aftcCodexVersion", v);
+        await store.runEnsureIds();
+        await store.runSyncScript();
+        const enabled = getPreference("aftcCodexEnabled", false);
+        if (!enabled) {
+            notify(cctx, "CODEX Resources updated. Codex is disabled — run /codex-enable to turn it on, then /codex-init to prep the AI.", "info");
+        } else if (state.prepped && !state.silent) {
+            notify(cctx, "CODEX Resources updated. Run /codex-refresh to reload the codex in this session.", "info");
+        } else {
+            notify(cctx, "CODEX Resources updated. You can now use /codex-init to prep the AI.", "info");
+        }
+    };
+    registerHelpEntry({ command: "aftc-codex-sync", description: "Merge new shipped codex resources into your live codex (non-destructive)", category: "aftc-codex", aliases: ["codex-sync"] });
+    pi.registerCommand("aftc-codex-sync", { description: "Non-destructive codex update: merge new shipped resources into your live codex (learned entries kept)", handler: syncHandler });
+    pi.registerCommand("codex-sync", { description: "Non-destructive codex update (alias)", handler: syncHandler });
 
     // ---- /codex-live-to-seed [--apply] (dev-gated maintainer sync) ----
     // Ports live-only codex entries into the PACKAGE SEED, so it only makes
@@ -570,7 +624,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         inject.persistState();
         notify(cctx,
             "AFTC Codex RULES-ONLY mode active for this session — only the Critical Global Rules inject " +
-            "(no docs, list, guidance or /codex-learn). Start a new session for the full codex.",
+            "(no docs, list, guidance or /codex-learn). Start a new session, then /codex-init, for the full codex.",
             "info");
     };
     registerHelpEntry({ command: "codex-inject-rules", description: "Rules-only injection for this session (critical rules only)", category: "aftc-codex" });

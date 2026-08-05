@@ -60,7 +60,7 @@ Then in pi:
     > **WARNING: Context compaction danger**. If you run this when your context use is high or nearing compaction this could corrupt the documentation process. It's best to start a fresh context window and run /docx to guarantee the best chance of success.
 
 - [**Usage Report**](#usage-report) (BETA 3)
-- [**AFTC Codex**](#aftc-codex-knowledge-base) (BETA)
+- [**AFTC Codex**](#aftc-codex-knowledge-base)
 
     > **WARNING**: AFTC Codex injects rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This results in the model having access to potentially a lot of rules, issues & solutions and gotchyas. Loading 1 to 5 is light enough, loading 20 can be costly but necessary when you have something complex that you want the AI to have its best shot at working out and one shotting it.
     
@@ -410,7 +410,8 @@ It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pi
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
 - Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add by default; switch to propose-then-confirm in the config menu). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
-- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. To take the shipped defaults again, Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
+- **Privacy: the codex never stores passwords, API keys, tokens or any secrets.** The entry tools reject anything credential-like (key=value secrets, JWTs, bearer tokens, private keys) and anything project-specific (real machine paths, real URLs) before it is ever written — lessons must be general enough to make sense on ANY project.
+- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. **Updating:** when a pi-aftc-toolset update ships new codex content, pi tells you your codex is out of date — run `/aftc-codex-sync` to merge the new shipped topics and entries into your live copy non-destructively (your learned entries are kept; on a conflicting edit YOUR version wins and is reported). The destructive alternative: Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
 - **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
 
 | Command | What it does |
@@ -423,6 +424,7 @@ It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pi
 | `/aftc-codex-install` | Fresh install (or re-install) the codex to the data dir (alias `/codex-install`) |
 | `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
 | `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
+| `/aftc-codex-sync` | Non-destructive update: merge new shipped codex resources into your live copy — learned entries kept (alias `/codex-sync`) |
 | `/codex-inject-rules` | Rules-only mode for this session: inject ONLY the Critical Global Rules (no docs/list/guidance/learn; works even with codex disabled). Start a new session + `/codex-init` to return to the full codex |
 | `/codex-live-to-seed [--apply]` | Maintainer only (dev checkout): port live codex entries into the package seed — dry run first, confirm, then apply |
 

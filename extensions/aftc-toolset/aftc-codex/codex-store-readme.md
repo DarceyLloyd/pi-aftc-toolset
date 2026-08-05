@@ -55,11 +55,18 @@ live codex root, and only when the live file does not already exist (copy-only).
   `--apply` when `apply` is true) and return its captured stdout (`""` on
   spawn failure; 30s watchdog). Maintainer-only: called by the dev-gated
   `/codex-live-to-seed` command (1.7.8's command surface in codex-commands.ts).
+- `runSeedToLiveSync()` — spawn `seed-to-live-sync.mjs` (always applies; the
+  NON-DESTRUCTIVE seed -> live update) and return its captured stdout (`""`
+  on spawn failure; 30s watchdog). Called by `/codex-sync`. Both sync spawns
+  share one spawn+capture helper (arg array, no shell, `node` on PATH with a
+  `process.execPath` retry).
 
-There is **no** drift detection, no `.sync.json`, no backup/restore and no
-merge-by-ID in this module any more — the codex is a one-way seed→live copy, and
-user edits (e.g. via `/aftc-codex-learn`) live only in the live copy. "Start
-Fresh" / re-install simply delete the live copy and re-seed it.
+There is **no** drift detection, no `.sync.json`, no backup/restore in this
+module — the codex is a one-way seed->live copy, and user edits (e.g. via
+`/aftc-codex-learn`) live only in the live copy. "Start Fresh" / re-install
+simply delete the live copy and re-seed it; `/codex-sync` is the
+non-destructive alternative (entry-level merge by `[ID]`, live kept on
+conflict).
 
 Also exports `CODEX_CATEGORIES` and the `CodexStore` / `CodexResourceRead` /
 `CodexCounts` types.

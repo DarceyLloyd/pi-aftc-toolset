@@ -19,15 +19,15 @@ copy was seeded from:
 | --- | --- |
 | `CodexCompatResult` | `{ isSafe: boolean; message: string }` |
 | `readCodexSeedVersion(seedDir)` | Seed version, or `null` when missing/unreadable/not a number (callers MUST treat `null` as "unknown" and skip all version logic). |
-| `checkCodexCompatibility(seedDir, liveVersion, liveSeeded)` | Central guard. `isSafe = true` when never seeded, seed version unknown, or versions match. On mismatch the message directs the user to `/codex-install`, which wipes the live codex and installs a full fresh copy of the seed (no backup, by design). |
+| `checkCodexCompatibility(seedDir, liveVersion, liveSeeded)` | Central guard. `isSafe = true` when never seeded, seed version unknown, or versions match. On mismatch the message directs the user to `/codex-sync` first (non-destructive merge of the new shipped resources into the live copy — learned entries kept), with `/codex-install` as the destructive alternative (wipes the live codex, installs a full fresh copy of the seed, no backup, by design). |
 
 ## Wiring
 
 - The coordinator (`aftc-codex.ts`) wraps `checkCodexCompatibility` as
   `ctx.checkCompat()`; every codex feature calls it before touching the live
   codex: `before_agent_start` injection and `codex_load` pause when unsafe, and
-  the `/aftc-codex-*` commands show the message (except `/codex-install` — the
-  fix — plus `/codex-disable` and `/codex-status`).
+  the `/aftc-codex-*` commands show the message (except `/codex-sync` and
+  `/codex-install` — the fixes — plus `/codex-disable` and `/codex-status`).
 - `codex-inject.ts` adds a NOTICE line to the fresh-session prep notice when
   the guard reports a mismatch.
 - Fail-soft everywhere: an unknown seed version never blocks.

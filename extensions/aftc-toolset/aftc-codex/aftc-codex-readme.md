@@ -145,9 +145,11 @@ meta-deliberation.
 
 The codex is a one-way copy from the shipped seed to your live data-dir copy;
 your live edits (e.g. via `/aftc-codex-learn`) are never auto-overwritten.
-To take the shipped defaults again, use Start Fresh (or `/aftc-codex-install`),
-which deletes the whole live codex dir and re-seeds a full fresh copy of the
-seed (irreversible, confirmed).
+When an update ships new codex content, `/aftc-codex-sync` merges it into your
+live copy non-destructively (new topics copied, new entries appended, learned
+entries kept). To take the shipped defaults wholesale instead, use Start Fresh
+(or `/aftc-codex-install`), which deletes the whole live codex dir and re-seeds
+a full fresh copy of the seed (irreversible, confirmed).
 
 ## Version + central guard
 
@@ -158,10 +160,13 @@ never copied to the OS data dir). The live copy's version is the
 `ctx.checkCompat()` (backed by `checkCodexCompatibility()` in codex-compat.ts),
 returning `{ isSafe, message }` — EVERY codex feature calls it: injection and
 `codex_load` pause when unsafe; the `/aftc-codex-*` commands show `message` in
-an aftc-ui modal (Enter/Esc closes) and refuse — except `/codex-install` (the
-fix), `/codex-disable` and `/codex-status`. On a mismatch `/codex-install`
-DELETES the live codex dir (no backup) and installs a full fresh seed copy,
-then the new version is recorded by the seed. A
+an aftc-ui modal (Enter/Esc closes) and refuse — except `/codex-sync` and
+`/codex-install` (the fixes), `/codex-disable` and `/codex-status`. On a
+mismatch `/codex-sync` merges the new shipped content into the live copy
+(non-destructive; learned entries kept, live version kept on conflict) and
+stamps the new version; `/codex-install` instead DELETES the live codex dir
+(no backup) and installs a full fresh seed copy, then the new version is
+recorded by the seed. A
 missing seed version disables all version logic (fail-soft). An unseeded live
 copy is always safe (first-time install proceeds; `store.seed()` records the
 version centrally).

@@ -14,10 +14,13 @@ The `/aftc-codex-*` slash commands + the config menu.
 | `/aftc-codex-refresh` | Prune all codex from context, then re-prep (clean restart). |
 | `/aftc-codex-learn` | Self-education prompt injection; refused while disabled. |
 | `/aftc-codex-status` | Compact colored status in the TUI transcript: `AFTC Codex Enabled`, `Embedded in context`, and `No' of codex files read: X/YY`. The read count is rebuilt from durable read-tracking entries, so it survives `/reload`, resume and compaction. |
+| `/aftc-codex-sync` | NON-DESTRUCTIVE update (alias `/codex-sync`) — the recommended fix when the version guard reports the live codex out of date. Runs `seed-to-live-sync.mjs`: seed-only topic files are copied whole, seed entries missing from a live topic are appended at the end of their section, top-level fixed docs are updated to the shipped version. Learned/live-only entries are never touched; same-[ID]-different-text conflicts keep the LIVE version and are reported. Applies directly (nothing destructive, so no dry-run/confirm), then stamps `aftcCodexVersion` to the shipped version so the guard clears. Refuses when nothing is installed (points at `/codex-install`) or when already up to date. Success message depends on state: disabled -> run `/codex-enable` then `/codex-init`; prepped -> `/codex-refresh`; otherwise -> `/codex-init`. |
 | `/codex-inject-rules` | Rules-only mode for THIS session: injects ONLY the Critical Global Rules section (no docs, list, guidance, marker or learn; works even with the feature disabled). One-way per session — `/new` + `/codex-init` returns to the full codex. Standalone name — no `/aftc-codex-*` variant. |
 | `/codex-live-to-seed [--apply]` | Maintainer-only, dev-gated by the `.dev` marker folder (refuses with a warning outside the dev checkout): runs the live->seed sync as a dry run (viewer/stdout), confirms, then applies. `--apply` skips the confirm. Conflicts are reported, never auto-overwritten - resolve by hand first. Reminds you to bump `codexVersion` in the same release. Standalone name - no `/aftc-` variant. |
 
 (`/codex-*` are aliases of the matching `/aftc-codex-*` commands, except `/codex-inject-rules` and `/codex-live-to-seed`, which have no `/aftc-` variant.)
+
+The reverse-direction script for maintainers is `live-to-seed-sync.mjs` (live -> seed, dev-gated); the user-facing update is `seed-to-live-sync.mjs` (seed -> live, non-destructive, behind `/codex-sync`). Both merge entries by their `[ID]` and never auto-overwrite a conflict.
 
 ## List-regeneration wrapper
 
