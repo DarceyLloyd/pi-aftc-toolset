@@ -141,15 +141,19 @@ decide routing/format in one pass and report empty buckets honestly rather than 
 guardrails added after a session whose learn loop burned most of its budget on
 meta-deliberation.
 
-## Updates (one-way copy + version)
+## Updates (one-way copy + version + auto-sync)
 
 The codex is a one-way copy from the shipped seed to your live data-dir copy;
 your live edits (e.g. via `/aftc-codex-learn`) are never auto-overwritten.
-When an update ships new codex content, `/aftc-codex-sync` merges it into your
-live copy non-destructively (new topics copied, new entries appended, learned
-entries kept). To take the shipped defaults wholesale instead, use Start Fresh
-(or `/aftc-codex-install`), which deletes the whole live codex dir and re-seeds
-a full fresh copy of the seed (irreversible, confirmed).
+When an update ships new codex content, the startup AUTO-SYNC
+(`aftcCodexAutoSync`, default ON — toggle in the `/codex` menu) merges it into
+your live copy on pi start (new topics copied, new entries appended, learned
+entries kept) and stamps the live version — most users never see the
+out-of-date state. With auto-sync off (or if it fails), `/aftc-codex-sync`
+does the same merge by hand. To take the shipped defaults wholesale instead,
+use Start Fresh (or `/aftc-codex-install`), which deletes the whole live
+codex dir and re-seeds a full fresh copy of the seed (irreversible,
+confirmed).
 
 ## Version + central guard
 
@@ -205,6 +209,8 @@ list-regeneration script first; pure toggles skip the spawn.
 
 `aftcCodexEnabled` (false), `aftcCodexInjectGuidance` (true), `aftcCodexAutoLoad`
 (true), `aftcCodexSeeded` (false), `aftcCodexAutoAddEntries` (true),
+`aftcCodexAutoSync` (true — merge a newer shipped seed into the live codex on
+pi start, non-destructive),
 `aftcCodexVersion` (0 — live codex version, internal bookkeeping). All migrated
 into an existing config.json via the write-back pattern. (Rules-only mode is
 per-session STATE, not a preference — see codex-inject-readme.md.)

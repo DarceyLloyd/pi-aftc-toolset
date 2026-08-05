@@ -63,7 +63,9 @@ SSH feature module registered by the toolset orchestrator.
   saved connections: add, edit (rename included), and delete from the
   bottom options row.
 - `/ssh-connections`
-- `/ssh-connect [connection-name]`
+- `/ssh-connect [connection-name]` — name supplied: connects directly
+  (quotes allowed for names with spaces, exact match then case-insensitive;
+  an unknown name warns and lists the saved names). No name: the picker menu.
 - `/ssh-auto-accept-session-on` / `/ssh-auto-accept-session-off` — toggle
   the saved preference that auto-approves NEW host keys (changed keys are
   still rejected regardless).

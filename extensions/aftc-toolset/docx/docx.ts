@@ -7,9 +7,11 @@
  * `./docx/old_docs.zip`.
  *
  * Flow:
- *   1. Context-window gate (skipped by --yes): when >= 10% of the
- *      context window is already used, warn that generation is a long
- *      task and offer Exit / "Yes I understand, proceed".
+ *   1. Context-window gates: ABOVE 50% used /docx flat-out refuses (even
+ *      with --yes — compaction mid-generation could corrupt the docs);
+ *      at 20%+ (and not --yes) an advisory modal recommends /new first.
+ *      Context USE itself is modest — measured runs take ~5-8% of a 1M
+ *      window and even large projects stay under 20%.
  *   2. Confirm modal (skipped by --yes): warns that all previous
  *      documentation is moved into ./docx/old_docs/ (zipped to old_docs.zip
  *      at the end of the run) and advises making a backup first.
@@ -38,7 +40,7 @@ import type {
     ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
 import * as aftcConsole from "../ui/aftc-console";
-import { showConfirm } from "../ui/aftc-ui";
+import { showConfirm, showMenu } from "../ui/aftc-ui";
 import { registerHelpEntry } from "../help-registry";
 import { runDocxBackup, type DocxBackupResult } from "./docx-backup";
 
@@ -46,8 +48,10 @@ import { runDocxBackup, type DocxBackupResult } from "./docx-backup";
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Warn when this much of the context window is already used. */
-const CONTEXT_WARN_PERCENT = 10;
+/** Advise a fresh session when this much of the context window is already used. */
+const CONTEXT_WARN_PERCENT = 20;
+/** Flat-out refuse to run when this much is used (compaction-corruption risk). */
+const CONTEXT_REFUSE_PERCENT = 50;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Prompt assembly
@@ -139,6 +143,40 @@ async function handleDocx(
     const skipConfirm = args.trim().split(/\s+/).includes("--yes");
     const projectRoot = ctx.cwd;
 
+    // 0. Hard gate (applies even with --yes): at 50% or above, a compaction
+    //    mid-generation could corrupt the docs — flat-out refuse with a
+    //    full-screen info modal (TUI) / a warning line (headless).
+    const usage = ctx.getContextUsage();
+    if (usage && usage.percent >= CONTEXT_REFUSE_PERCENT) {
+        if (ctx.hasUI && ctx.mode === "tui") {
+            await showMenu(ctx, {
+                title: "/docx — context window too full",
+                body: [
+                    `Your context window is ${Math.round(usage.percent)}% used.`,
+                    "",
+                    "/docx will not run when your context window is 50% or above —",
+                    "part-way through, pi would compact the conversation, and that",
+                    "can corrupt the documentation.",
+                    "",
+                    "What to do:",
+                    "  1. Run /new   (start a fresh session)",
+                    "  2. Run /docx again",
+                    "",
+                    "Press Enter or Esc to close.",
+                ],
+                items: [{ value: "ok", label: "OK" }],
+            });
+        } else {
+            aftcConsole.warn(
+                ctx,
+                `/docx refused: your context window is ${Math.round(usage.percent)}% used. ` +
+                "/docx will not run at 50% or above — a compaction mid-generation could corrupt the docs. " +
+                "Run /new, then /docx.",
+            );
+        }
+        return;
+    }
+
     if (!skipConfirm) {
         if (!ctx.hasUI) {
             aftcConsole.warn(
@@ -148,23 +186,27 @@ async function handleDocx(
             return;
         }
 
-        // 1. Context-window gate. Generation is a long multi-turn task;
-        //    warn when a meaningful slice of the window is already used.
-        const usage = ctx.getContextUsage();
-        if (usage && usage.percent >= CONTEXT_WARN_PERCENT) {
+        // 1. Context-window advisory. Context USE is modest (measured:
+        //    ~5-8% of a 1M window, even large projects stay under 20%) but
+        //    the RUN is long — recommend /new first: no compaction risk and
+        //    no prior conversation steering the generated docs.
+        if (usage.percent >= CONTEXT_WARN_PERCENT) {
             const windowTokens = ctx.model?.contextWindow;
             const windowText = windowTokens
                 ? ` of ${windowTokens.toLocaleString()}`
                 : "";
             const proceed = await showConfirm(ctx, {
-                title: "Context window warning",
+                title: "Context window note",
                 body:
                     `Your context window is ${Math.round(usage.percent)}% used${windowText} ` +
-                    `(${Math.round(usage.tokens).toLocaleString()} tokens). /docx is a long task ` +
-                    "that can use a large share of the remaining window, depending on the size " +
-                    "and complexity of your project. Consider starting a fresh session with " +
-                    "/new and running /docx there.",
-                yesLabel: "Yes I understand, proceed",
+                    `(${Math.round(usage.tokens).toLocaleString()} tokens).\n\n` +
+                    "/docx uses little context — typically well under 20% even on large\n" +
+                    "projects — but it takes a LONG time: the bigger and more complex\n" +
+                    "the project, the longer the wait.\n\n" +
+                    "Highly advised: /new, then /docx. A fresh session means no\n" +
+                    "compaction risk mid-generation and no prior conversation\n" +
+                    "steering the docs.",
+                yesLabel: "Proceed anyway",
                 noLabel: "Exit",
             });
             if (!proceed) return;
@@ -176,8 +218,9 @@ async function handleDocx(
             body:
                 "All existing documentation (root .md files and ./docs/) will be moved to " +
                 "./docx/old_docs/ and zipped to ./docx/old_docs.zip when generation completes. " +
-                "Make your own backup before proceeding. Generate fresh documentation for " +
-                "this project?",
+                "Make your own backup before proceeding.\n\n" +
+                "Expect a LONG wait once it starts — the bigger and more complex the project, " +
+                "the longer it takes. Generate fresh documentation for this project?",
             yesLabel: "Yes, proceed",
             noLabel: "No, exit",
         });
@@ -246,7 +289,7 @@ async function handleDocx(
         } else {
             pi.sendUserMessage(prompt, { deliverAs: "followUp" });
         }
-        aftcConsole.emphasis(ctx, "/docx: generation started - follow the progress in the transcript.");
+        aftcConsole.emphasis(ctx, "/docx: generation started — follow the progress in the transcript. Expect a long wait (the bigger the project, the longer).");
     } catch (err) {
         aftcConsole.error(ctx, `/docx: failed to start generation: ${(err as Error).message}`);
     }

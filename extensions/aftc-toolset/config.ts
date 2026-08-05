@@ -133,6 +133,9 @@ export interface Preferences {
     aftcCodexSeeded?: boolean;
     /** aftc-codex: auto-add entries without confirmation (true) or propose-then-confirm (false). */
     aftcCodexAutoAddEntries?: boolean;
+    /** aftc-codex: on pi start, non-destructively merge a newer shipped seed into
+     *  the live codex (seed->live sync, learned entries kept). On by default. */
+    aftcCodexAutoSync?: boolean;
     /** aftc-codex: version of the user's live codex copy. Compared against the
      *  shipped seed version (data/extension-config.json codexVersion); a mismatch means the live
      *  AFTC Codex is out of date and /codex-install wipes + re-seeds it. 0 = unknown
@@ -192,6 +195,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexAutoLoad: true,
     aftcCodexSeeded: false,
     aftcCodexAutoAddEntries: true,
+    aftcCodexAutoSync: true,
     aftcCodexVersion: 0,
     runScriptEnabled: true,
 };
@@ -256,6 +260,7 @@ function loadPreferencesInternal(): Preferences {
         const needsCodexAutoLoadMigration = typeof parsed.aftcCodexAutoLoad !== "boolean";
         const needsCodexSeededMigration = typeof parsed.aftcCodexSeeded !== "boolean";
         const needsCodexAutoAddMigration = typeof parsed.aftcCodexAutoAddEntries !== "boolean";
+        const needsCodexAutoSyncMigration = typeof parsed.aftcCodexAutoSync !== "boolean";
         const needsNotifyErrorMigration = typeof parsed.notifySoundError !== "string";
         const needsNotifyAbortedMigration = typeof parsed.notifySoundAborted !== "string";
         const needsNotifyStartupMigration = typeof parsed.notifySoundStartup !== "string";
@@ -284,6 +289,7 @@ function loadPreferencesInternal(): Preferences {
             needsCodexGuidanceMigration ||
             needsCodexAutoLoadMigration ||
             needsCodexSeededMigration || needsCodexAutoAddMigration ||
+            needsCodexAutoSyncMigration ||
             needsRunScriptMigration || needsNotifyEnabledMigration ||
             needsCodexVersionMigration;
 
@@ -308,6 +314,7 @@ function loadPreferencesInternal(): Preferences {
             ...(needsCodexAutoLoadMigration ? { aftcCodexAutoLoad: DEFAULT_PREFERENCES.aftcCodexAutoLoad } : {}),
             ...(needsCodexSeededMigration ? { aftcCodexSeeded: DEFAULT_PREFERENCES.aftcCodexSeeded } : {}),
             ...(needsCodexAutoAddMigration ? { aftcCodexAutoAddEntries: DEFAULT_PREFERENCES.aftcCodexAutoAddEntries } : {}),
+            ...(needsCodexAutoSyncMigration ? { aftcCodexAutoSync: DEFAULT_PREFERENCES.aftcCodexAutoSync } : {}),
             ...(needsRunScriptMigration ? { runScriptEnabled: DEFAULT_PREFERENCES.runScriptEnabled } : {}),
             ...(needsNotifyEnabledMigration ? { notifyEnabled: migratedNotifyEnabled } : {}),
             ...(needsCodexVersionMigration ? { aftcCodexVersion: DEFAULT_PREFERENCES.aftcCodexVersion } : {}),

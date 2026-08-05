@@ -208,12 +208,13 @@ export function createCodexInject(
     // ---- entry renderer: /aftc-codex-status colored output (registered once) ----
     // Each line is "<title>: <state>" — title white (mdHeading), state accent (#fca02f).
     pi.registerEntryRenderer(CODEX_STATUS_ENTRY, (entry, _opts, theme) => {
-        const d = (entry.data ?? {}) as { enabled?: boolean; embedded?: boolean; read?: number; total?: number };
+        const d = (entry.data ?? {}) as { enabled?: boolean; embedded?: boolean; read?: number; total?: number; version?: string };
         const yn = (b: boolean) => (b ? "Yes" : "No");
         const rows: Array<[string, string]> = [
             ["AFTC Codex Enabled", yn(!!d.enabled)],
             ["Embedded in context/conversation window", yn(!!d.embedded)],
             ["No' of codex files read", `${d.read ?? 0}/${d.total ?? 0}`],
+            ["Codex version", d.version ?? "unknown"],
         ];
         const box = new Box(1, 1, (text) => text);
         for (const [title, value] of rows) {

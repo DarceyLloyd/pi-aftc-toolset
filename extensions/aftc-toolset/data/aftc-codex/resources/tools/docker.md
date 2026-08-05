@@ -6,6 +6,8 @@
 
 - [mB4rT8] bind-mount source mv'd - `mv`-ing a host dir that is bind-mounted into a running container does NOT break the mount (it is inode-tracked): the container keeps serving the moved/old dir and never sees a fresh dir created at the original path; recreate the container to re-bind after swapping host paths.
 
+- [E2csnf] docker compose build sits on "transferring context" for many minutes (GBs) before building - the build context is the whole repo and .dockerignore misses heavy fixture/test dirs; watch the transferring-context size in the build output and exclude them (note: a file under an excluded PARENT dir cannot be re-included with a ! negation).
+
 ## Issues & Solutions
 
 
@@ -51,3 +53,7 @@
 - [wx78lg] docker exec -w /abs/path fails "OCI runtime exec failed: Cwd must be an absolute path" even though the path IS absolute
   Cause: A Docker Desktop (Windows) quirk: `docker exec -w <path>` rejects a valid absolute Linux path with that misleading error.
   Fix: Drop `-w` and pass the working dir through the shell instead: `docker exec <name> sh -c "cd /work && <cmd>"`. (2026-08)
+
+- [iZuFpd] docker compose build fails on Windows: "no valid drivers found: failed to read metadata: open ...meta.json: The process cannot access the file because it is being used by another process"
+  Cause: Docker Desktop's buildx metadata file was locked by another docker process (transient Desktop state, not a compose or Dockerfile problem).
+  Fix: Restart Docker Desktop and retry; if builds stay wedged, wipe local images/volumes and rebuild fresh. (2026-08)

@@ -63,6 +63,31 @@ export function readCodexSeedVersion(seedDir: string): number | null {
 }
 
 /**
+ * Bump the shipped codex version (codexVersion + 1) in the package's data
+ * extension-config.json — called by /codex-live-to-seed after an apply that
+ * actually wrote seed files, so the next release tells users their live codex
+ * is out of date. Fresh read-modify-write (same no-cache rule as
+ * readCodexSeedVersion). Returns the NEW version, or null when the current
+ * value is missing/unreadable/not a number (fail-soft: caller warns, nothing
+ * is written).
+ */
+export function bumpCodexSeedVersion(seedDir: string): number | null {
+    try {
+        const configPath = path.join(path.dirname(seedDir), "extension-config.json");
+        const raw = safeRead(configPath);
+        if (raw === null) return null;
+        const parsed = JSON.parse(raw) as { codexVersion?: unknown };
+        if (typeof parsed.codexVersion !== "number") return null;
+        const next = parsed.codexVersion + 1;
+        parsed.codexVersion = next;
+        fs.writeFileSync(configPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
+        return next;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * The central compatibility guard every codex feature calls before touching
  * the live codex. Compares the shipped seed version against the user's
  * recorded live version (the aftcCodexVersion preference).

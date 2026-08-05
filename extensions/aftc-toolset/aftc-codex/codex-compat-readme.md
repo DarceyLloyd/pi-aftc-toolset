@@ -19,6 +19,7 @@ copy was seeded from:
 | --- | --- |
 | `CodexCompatResult` | `{ isSafe: boolean; message: string }` |
 | `readCodexSeedVersion(seedDir)` | Seed version, or `null` when missing/unreadable/not a number (callers MUST treat `null` as "unknown" and skip all version logic). |
+| `bumpCodexSeedVersion(seedDir)` | `codexVersion` + 1 in the shipped `extension-config.json` (fresh read-modify-write; returns the NEW version, `null` on missing/unreadable/non-number — fail-soft, nothing written). Called by `/codex-live-to-seed` after an apply that actually wrote seed files. |
 | `checkCodexCompatibility(seedDir, liveVersion, liveSeeded)` | Central guard. `isSafe = true` when never seeded, seed version unknown, or versions match. On mismatch the message directs the user to `/codex-sync` first (non-destructive merge of the new shipped resources into the live copy — learned entries kept), with `/codex-install` as the destructive alternative (wipes the live codex, installs a full fresh copy of the seed, no backup, by design). |
 
 ## Wiring

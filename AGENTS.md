@@ -203,13 +203,17 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
   (dry run) / `--apply` (writes). Ports live-only resource entries + new topics
   into the seed before a release so learned entries ship. Entry-level merge by
   `[ID]`; conflicts are reported, never auto-overwritten; the generated
-  `codex-resource-list.md` is never copied to the seed.
+  `codex-resource-list.md` is never copied to the seed. When an apply actually
+  wrote seed files, the command bumps the shipped `codexVersion` itself
+  (a no-op sync leaves it alone) and exits after the confirm.
 
 - Versioning: `major.minor.patch`.
 - If the codex seed changed (any entry/topic synced into
   `data/aftc-codex/`), bump `codexVersion` in `data/extension-config.json`
   in the SAME release — without the bump, users get no mismatch notice and
   never receive the new content (the live copy is never auto-overwritten).
+  `/codex-live-to-seed` does this bump for you when it wrote seed files;
+  hand edits to the seed still need a manual bump.
 - Patch bump: fix or enhancement to existing behaviour.
 - Minor bump (reset patch): brand-new feature (new capability area).
 - Major bump: overhaul or rewrite.

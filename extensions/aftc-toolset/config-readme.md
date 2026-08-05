@@ -57,6 +57,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexInjectGuidance: true,  // inject thought-and-action-guidance.md
     aftcCodexAutoLoad: true,        // auto-detect techs + fetch their docs
     aftcCodexSeeded: false,         // first-run seed choice done
+    aftcCodexAutoSync: true,        // merge a newer shipped seed into live on pi start
     aftcCodexVersion: 0,            // live codex version (vs shipped data/extension-config.json)
 };
 

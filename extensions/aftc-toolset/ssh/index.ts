@@ -4,7 +4,7 @@ import * as path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { truncateHead, truncateTail, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { findSshConnection, getSshConnections, getSshSessionAutoAccept, saveSshConnection, setSshSessionAutoAccept } from "./connection-store";
+import { findSshConnection, getSshConnections, getSshSessionAutoAccept, saveSshConnection, setSshSessionAutoAccept, type SshConnection } from "./connection-store";
 import { createConnectionManager } from "./connection-manager/ConnectionManager";
 import { createSavedConnectionRequest } from "./connection-form";
 import { pickConnection, pickSession } from "./picker";
@@ -172,10 +172,27 @@ export function createSshModule(pi: ExtensionAPI, sessions: SshSessionManager = 
     pi.registerCommand("ssh-connect", {
         description: "Connect using a saved SSH connection.",
         handler: async (args: string, ctx: ExtensionCommandContext) => {
-            if (!args.trim() && getSshConnections().length === 0) {
+            // Optional name arg: /ssh-connect mybox, quotes allowed for names
+            // with spaces (/ssh-connect "my box"). No name -> the picker menu.
+            const raw = args.trim().replace(/^"([\s\S]*)"$/,"$1").replace(/^'([\s\S]*)'$/,"$1").trim();
+            if (!raw && getSshConnections().length === 0) {
                 return aftcConsole.warn(ctx, "No saved SSH connections. Create one in the connection manager: /ssh-cm");
             }
-            const selected = args.trim() ? findSshConnection(args.trim()) ?? null : await pickConnection(ctx);
+            let selected: SshConnection | null = null;
+            if (raw) {
+                // Exact match first, then a case-insensitive fallback.
+                selected = findSshConnection(raw)
+                    ?? getSshConnections().find((c) => c.name.toLowerCase() === raw.toLowerCase())
+                    ?? null;
+                if (!selected) {
+                    const names = getSshConnections().map((c) => c.name);
+                    return aftcConsole.warn(ctx, names.length
+                        ? `No saved SSH connection named "${raw}". Saved: ${names.join(", ")}`
+                        : `No saved SSH connection named "${raw}" — create one with /ssh-cm`);
+                }
+            } else {
+                selected = await pickConnection(ctx);
+            }
             if (!selected) return;
             const request = await createSavedConnectionRequest(ctx, selected);
             if (!request) return;

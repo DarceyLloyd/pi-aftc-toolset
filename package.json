@@ -1,7 +1,7 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.19.7",
-  "description": "Footer stats bar (model, costs, cache, turns etc). Usage reports & stats. Isolated SSH. Persistent self-educating cache-aware skills on demand (codex). Audio notifications. Documentation generator (docx). Skills. Themes ++",
+  "version": "1.19.8",
+  "description": "Stats bar. Isolated SSH. Documentation generation (docx). Persistent self-educating cache-aware skills on demand (codex). Usage reports. Audio notifications. Shortcuts. Skills. Themes ++",
   "keywords": [
     "pi-package",
     "pi",

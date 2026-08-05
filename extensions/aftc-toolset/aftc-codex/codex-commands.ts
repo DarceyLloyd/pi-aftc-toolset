@@ -34,7 +34,8 @@ import { getPackageRoot } from "../paths";
 import { showConfirm, showMenu, showViewer } from "../ui/aftc-ui";
 import * as aftcConsole from "../ui/aftc-console";
 import { registerHelpEntry } from "../help-registry";
-import { readCodexSeedVersion } from "./codex-compat";
+import { readCodexSeedVersion, bumpCodexSeedVersion } from "./codex-compat";
+import { runSeedToLiveUpdate } from "./codex-sync";
 import type { CodexContext, CodexDetectResult } from "./aftc-codex";
 import { type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
@@ -106,9 +107,23 @@ async function guardCompat(ctx: CodexContext, cctx: ExtensionCommandContext): Pr
     const compat = ctx.checkCompat();
     if (compat.isSafe) return true;
     if (isTui(cctx)) {
+        const live = getPreference("aftcCodexVersion", 0) ?? 0;
+        const seed = readCodexSeedVersion(ctx.store.getSeedDir());
         await showViewer(cctx, {
-            title: "AFTC Codex — update required",
-            lines: [compat.message, "", "Press Enter / Esc to close."],
+            title: "AFTC Codex — update available",
+            lines: [
+                `Your AFTC Codex is out of date (live v${live} -> shipped v${seed ?? "?"}).`,
+                "",
+                "  /codex-sync      Merge the new shipped resources into your codex.",
+                "                   Non-destructive — your learned entries are kept.",
+                "",
+                "  /codex-install   Replace it with a full fresh copy of the shipped codex.",
+                "                   Wipes your codex, including learned entries.",
+                "",
+                "Codex features are paused until you update.",
+                "",
+                "Press Enter / Esc to close.",
+            ],
         });
     } else {
         console.log(`[aftc-toolset] ${compat.message}`);
@@ -259,13 +274,19 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
         const enabled = getPreference("aftcCodexEnabled", false);
         const counts = store.getCounts();
         const body = enabled
-            ? [`AFTC Codex is active — ${counts.total} resources loaded`]
+            ? [
+                `AFTC Codex is active — ${counts.total} resources loaded`,
+                state.rulesOnly ? "Session: RULES-ONLY mode (start a new session, then /codex-init, for the full codex)"
+                    : state.prepped && !state.silent ? "Session: prepped — the AI is using the codex"
+                    : "Session: not prepped — run /codex-init to prep the AI",
+            ]
             : ["AFTC Codex is disabled — enable to activate"];
         const items = [
             { value: "enabled", label: "AFTC Codex Enabled", description: enabled ? " | Yes" : " | No" },
             { value: "guidance", label: "Thinking Guidance Injection", description: ` | ${getPreference("aftcCodexInjectGuidance", true) ? "ON" : "OFF"}` },
             { value: "autoload", label: "Auto-Detect & Load Docs", description: ` | ${getPreference("aftcCodexAutoLoad", true) ? "ON" : "OFF"}` },
             { value: "autoadd", label: "Task Addition Approval", description: ` | ${getPreference("aftcCodexAutoAddEntries", true) ? "Auto add" : "Manual"}` },
+            { value: "autosync", label: "Auto Sync on Startup", description: ` | ${getPreference("aftcCodexAutoSync", true) ? "ON" : "OFF"}` },
             { value: "resources", label: "Resources & Updates" },
             { value: "help", label: "Help & Commands" },
         ];
@@ -308,6 +329,8 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             });
             if (autoAdd === "auto") setPreference("aftcCodexAutoAddEntries", true);
             else if (autoAdd === "manual") setPreference("aftcCodexAutoAddEntries", false);
+        } else if (choice === "autosync") {
+            setPreference("aftcCodexAutoSync", !getPreference("aftcCodexAutoSync", true));
         } else if (choice === "resources") {
             await openResourcesMenu(ctx, cctx);
         } else if (choice === "help") {
@@ -357,6 +380,10 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
 
     // ---- /aftc-codex-disable (alias /codex-disable) ----
     const disableHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (!getPreference("aftcCodexEnabled", false) && !state.rulesOnly && !state.prepped) {
+            notify(cctx, "AFTC Codex is already disabled.", "info");
+            return;
+        }
         setPreference("aftcCodexEnabled", false);
         state.prepped = false;
         state.rulesOnly = false; // off means off — clear a rules-only session too
@@ -461,13 +488,26 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         const total = store.getCategoryCount();
         const read = countReadTopicDocs(cctx);
         const yn = (b: boolean) => (b ? "Yes" : "No");
+        // Version state: not installed / up to date / update available (with
+        // the fix command named, matching every other out-of-date surface).
+        const seeded = store.isSeeded();
+        const liveVersion = getPreference("aftcCodexVersion", 0) ?? 0;
+        const seedVersion = readCodexSeedVersion(store.getSeedDir());
+        const version = !seeded
+            ? "not installed — /codex-install"
+            : seedVersion === null
+                ? `v${liveVersion} (shipped version unknown)`
+                : ctx.checkCompat().isSafe
+                    ? `v${liveVersion} (up to date)`
+                    : `v${liveVersion} -> v${seedVersion} available — run /codex-sync`;
         if (!isTui(cctx)) {
             console.log(`[aftc-toolset] AFTC Codex Enabled: ${yn(enabled)}`);
             console.log(`[aftc-toolset] Embedded in context/conversation window: ${yn(embedded)}`);
             console.log(`[aftc-toolset] No' of codex files read: ${read}/${total}`);
+            console.log(`[aftc-toolset] Codex version: ${version}`);
             return;
         }
-        pi.appendEntry(CODEX_STATUS_ENTRY, { enabled, embedded, read, total });
+        pi.appendEntry(CODEX_STATUS_ENTRY, { enabled, embedded, read, total, version });
     };
     registerHelpEntry({ command: "aftc-codex-status", description: "Show aftc-codex status", category: "aftc-codex", aliases: ["codex-status"] });
     pi.registerCommand("aftc-codex-status", { description: "Show aftc-codex status", handler: statusHandler });
@@ -525,25 +565,19 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             notify(cctx, "Your AFTC Codex is already up to date — nothing to sync.", "info");
             return;
         }
-        const out = await store.runSeedToLiveSync();
-        if (!out.trim()) {
+        const result = await runSeedToLiveUpdate(store);
+        if (!result.output.trim()) {
             notify(cctx, "codex sync produced no output (script missing or failed to spawn) — /codex-install remains available.", "error");
             return;
         }
         if (isTui(cctx)) {
-            await showViewer(cctx, { title: "seed -> live sync", lines: out.trim().split("\n") });
+            await showViewer(cctx, { title: "seed -> live sync", lines: result.output.trim().split("\n") });
         } else {
-            console.log(out.trim());
+            console.log(result.output.trim());
         }
-        if (/CONFLICT/.test(out)) {
+        if (result.conflicts) {
             notify(cctx, "Conflicts reported (same [ID], different text) — YOUR live versions were kept; review them by hand.", "warning");
         }
-        // The live copy now carries everything the shipped seed has: stamp it
-        // as the shipped version so the version guard clears (same as a seed).
-        const v = readCodexSeedVersion(store.getSeedDir());
-        if (v !== null) setPreference("aftcCodexVersion", v);
-        await store.runEnsureIds();
-        await store.runSyncScript();
         const enabled = getPreference("aftcCodexEnabled", false);
         if (!enabled) {
             notify(cctx, "CODEX Resources updated. Codex is disabled — run /codex-enable to turn it on, then /codex-init to prep the AI.", "info");
@@ -576,7 +610,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         }
         const nothingPending = /0 new topic file\(s\), 0 entr\(ies\) to merge/.test(dry);
         if (nothingPending) {
-            notify(cctx, "live codex and package seed are already in sync — nothing to port.", "info");
+            notify(cctx, "live codex and package seed are already in sync — nothing to port. (This is the maintainer release tool; to UPDATE your codex after a shipped update, run /codex-sync.)", "info");
             return;
         }
         if (isTui(cctx)) {
@@ -599,12 +633,29 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             if (!ok) return;
         }
         const applied = await store.runLiveToSeedSync(true);
-        if (isTui(cctx)) {
-            await showViewer(cctx, { title: "live -> seed (applied)", lines: applied.trim().split("\n") });
-        } else {
+        // Bump the shipped codexVersion ONLY when the apply actually changed
+        // the seed (new topics copied or entries merged) — a no-op sync must
+        // not push an out-of-date notice at users for nothing.
+        const changed = /APPLIED — wrote [1-9]\d* seed file\(s\)/.test(applied);
+        const newVersion = changed ? bumpCodexSeedVersion(store.getSeedDir()) : null;
+        if (changed && newVersion !== null) {
+            // The dev checkout's live codex IS the source of the sync — stamp
+            // it to the new version too, or the maintainer's own guard
+            // immediately reports a false "out of date".
+            setPreference("aftcCodexVersion", newVersion);
+        }
+        if (!isTui(cctx)) {
             console.log(applied.trim());
         }
-        notify(cctx, "live -> seed sync applied. Bump codexVersion in the same release or users never receive the new content.", "info");
+        // TUI: done — exit straight after the confirm (no second viewer).
+        if (changed) {
+            notify(cctx, newVersion !== null
+                ? `live -> seed sync applied. Shipped codexVersion bumped to ${newVersion} — users get the out-of-date notice (and /codex-sync) on their next update.`
+                : "live -> seed sync applied, but bumping codexVersion FAILED (extension-config.json write) — bump it by hand or users never receive the new content.",
+                newVersion !== null ? "info" : "warning");
+        } else {
+            notify(cctx, "live -> seed sync applied (no seed changes — codexVersion left as-is).", "info");
+        }
     };
     registerHelpEntry({ command: "codex-live-to-seed", args: "[--apply]", description: "Maintainer: port live codex entries into the package seed (dev checkout only)", category: "aftc-codex" });
     pi.registerCommand("codex-live-to-seed", { description: "Maintainer: port live codex entries into the package seed (dev checkout only). Dry run first; --apply writes without the confirm.", handler: liveToSeedHandler });

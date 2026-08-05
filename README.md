@@ -57,7 +57,7 @@ Then in pi:
     > **WARNING: This will re-write readme.md and move all existing documentation.**
     If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is. 
     
-    > **WARNING: Context compaction danger**. If you run this when your context use is high or nearing compaction this could corrupt the documentation process. It's best to start a fresh context window and run /docx to guarantee the best chance of success.
+    > **NOTE: run `/new` first, then `/docx`** — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. `/docx` flat-out refuses above 50% context use and advises a fresh session at 20%+. Context use itself is modest — measured runs used only 5–8% of a 1M-token window and even large projects stayed under 20% — but expect a LONG wait: the bigger and more complex the project, the longer it takes.
 
 - [**Usage Report**](#usage-report) (BETA 3)
 - [**AFTC Codex**](#aftc-codex-knowledge-base)
@@ -217,7 +217,7 @@ Saved connections are created in the connection manager (`/ssh-cm`).
 
 ### How to connect
 
-Run `/ssh-connect` (or `/ssh-connect <name>` to jump straight to one). With no name it lists your saved connections — connect-only; new connections are made in `/ssh-cm`. With none saved it points you there. A connection with a saved password connects immediately; otherwise you enter the password or key passphrase for that attempt (never stored, never shown to the model). On the first connection to a host you approve its key locally (or skip the prompt with `/ssh-auto-accept-session-on`) without the fingerprint ever reaching the model; a changed key is rejected by default. Credentials are held in memory for that one attempt and cleared immediately afterwards - including through the new-host approval retry. Several connections and shells can be open at once; their names and opaque ids are tracked only in memory and clear on reload, new session, resume, or exit.
+Run `/ssh-connect` (or `/ssh-connect <name>` to jump straight to one — quote names that contain spaces; matching is exact, then case-insensitive; an unknown name lists what is saved). With no name it lists your saved connections — connect-only; new connections are made in `/ssh-cm`. With none saved it points you there. A connection with a saved password connects immediately; otherwise you enter the password or key passphrase for that attempt (never stored, never shown to the model). On the first connection to a host you approve its key locally (or skip the prompt with `/ssh-auto-accept-session-on`) without the fingerprint ever reaching the model; a changed key is rejected by default. Credentials are held in memory for that one attempt and cleared immediately afterwards - including through the new-host approval retry. Several connections and shells can be open at once; their names and opaque ids are tracked only in memory and clear on reload, new session, resume, or exit.
 
 ### How to disconnect
 
@@ -411,7 +411,7 @@ It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pi
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
 - Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add by default; switch to propose-then-confirm in the config menu). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
 - **Privacy: the codex never stores passwords, API keys, tokens or any secrets.** The entry tools reject anything credential-like (key=value secrets, JWTs, bearer tokens, private keys) and anything project-specific (real machine paths, real URLs) before it is ever written — lessons must be general enough to make sense on ANY project.
-- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. **Updating:** when a pi-aftc-toolset update ships new codex content, pi tells you your codex is out of date — run `/aftc-codex-sync` to merge the new shipped topics and entries into your live copy non-destructively (your learned entries are kept; on a conflicting edit YOUR version wins and is reported). The destructive alternative: Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
+- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. **Updating: fully automatic.** When a pi-aftc-toolset update ships new codex content, your live copy merges it in on pi start (non-destructive — your learned entries are kept; on a conflicting edit YOUR version wins and is reported). Toggle: Auto Sync on Startup in `/aftc-codex` (on by default); `/aftc-codex-sync` runs the same merge by hand. The destructive alternative: Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
 - **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
 
 | Command | What it does |
@@ -444,21 +444,21 @@ The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`j
 - **`docx/docs/`** — one ID-prefixed deep doc per map node, sub-maps for every major branch, and drill-down leaf docs for screens/models/components. Every UI is mapped surface-by-surface on any platform (web routes, mobile screens, desktop/Electron windows, VST/plugin editors, CLI/TUI screens): each UI area gets a sitemap doc (the full surface tree plus a build-from-it entry per screen), design rules get a global `design.md` and/or per-area design docs (eg public site vs admin back-office), and a single complex screen is broken into per-region docs when its regions stand alone. Plus cross-cutting docs (contributing, deployment, development, the mandatory dependency map, and more as the project warrants).
 - **`AGENTS.md`** is never replaced — it gets a managed `<!-- AFTC-DOCX -->` pointer block (replaced in place on re-runs) and its existing rules are preserved verbatim.
 
-How to use it: open pi in the project root and run `/docx`. You get a context-window warning if your window is already 10%+ used (a fresh session via `/new` is recommended), then a confirmation modal. The model then does recon (a shipped scan script builds the tree/manifest inventory), plans the structure, writes every document, mechanically audits its own links/stamps/IDs with the shipped audit script, and finishes by zipping the old docs away. `/docx --yes` skips both confirmations for headless runs (`pi -p "/docx --yes"`).
+How to use it: open pi in the project root and run `/new`, then `/docx` (a fresh session is highly advised: no compaction risk, no prior conversation steering the docs — above 50% context use /docx flat-out refuses). At 20%+ used you get an advisory note, then a confirmation modal. The model then does recon (a shipped scan script builds the tree/manifest inventory), plans the structure, writes every document, mechanically audits its own links/stamps/IDs with the shipped audit script, and finishes by zipping the old docs away. `/docx --yes` skips both confirmations for headless runs (`pi -p "/docx --yes"`).
 
 Re-running `/docx` later folds the previous `docx/` output AND the previous zip into the new backup, so history nests inside `old_docs.zip` instead of being lost.
 
 **WARNINGS — read before running:**
 
 - **Your existing documentation is moved aside.** Root `.md` files and everything under `./docs/` are moved to `docx/old_docs/` (folder structure preserved) and zipped to `docx/old_docs.zip` when generation completes. Restore by unzipping and copying files back. The zip is overwritten on each run (the previous zip is folded inside the new one). Make your own backup first if your docs matter.
-- **It is a long, context-hungry task.** Expect many model turns; the bigger and more complex the project, the more of your context window and provider allowance it uses. Run it in a fresh session.
+- **It takes a long time, but uses little context.** Measured runs used only 5–8% of a 1M-token context window, and even large projects stayed under 20% — but expect many model turns and a LONG wait; the bigger and more complex the project, the longer it takes. Highly advised: `/new`, then `/docx` — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. Above 50% context use, `/docx` refuses to run.
 - **`AGENTS.md` is edited, not replaced** — its existing content is preserved; only the managed block and stale doc references change.
 - **Framework and sub-project documentation is never touched** — the backup only ever reads the project root and `./docs/`; sub-project folders are documented from the root docs and stay read-only.
 - **`docx/old_docs/` and `docx/old_docs.zip` are added to your `.gitignore`** automatically (the backup artifacts are not meant for version control).
 
 | Command | What it does |
 | --- | --- |
-| `/docx` | Regenerate the project's full documentation set into `./docx/` (context warning + confirm modal) |
+| `/docx` | Regenerate the project's full documentation set into `./docx/` (context note at 20%+ + confirm modal) |
 | `/docx --yes` | Same, skipping both confirmations (for headless / print-mode runs) |
 
 ---

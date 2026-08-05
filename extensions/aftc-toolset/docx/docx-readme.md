@@ -7,14 +7,21 @@ documentation set into `./docx/` per the shipped `documentation_guide.md`
 
 ## What happens when the user runs `/docx`
 
-1. **Context-window gate** (skipped by `--yes`): when
-   `ctx.getContextUsage().percent` is >= 10, a modal warns that generation
-   is a long task and suggests `/new` first. Options: *Exit* (default) /
-   *Yes I understand, proceed*.
+0. **Hard gate** (applies even with `--yes`): when
+   `ctx.getContextUsage().percent` is >= 50, /docx flat-out refuses — a
+   compaction mid-generation could corrupt the docs. TUI: a full-screen
+   informational modal (single auto-selected OK; Enter/Esc closes) shows
+   the % used, why, and the two steps (`/new`, then `/docx`). Headless: a
+   warning line saying the same.
+1. **Context-window advisory** (skipped by `--yes`): at >= 20% used, a
+   modal notes that context use is modest (measured: ~5-8% of a 1M window;
+   even large projects stay under 20%) but the run is LONG, and highly
+   advises `/new` first (no compaction risk, no prior conversation steering
+   the docs). Options: *Exit* (default) / *Proceed anyway*.
 2. **Confirm modal** (skipped by `--yes`): warns that all previous
    documentation moves to `./docx/old_docs/` (zipped to `old_docs.zip` at the
-   end of the run) and advises making a backup. Options: *No, exit*
-   (default) / *Yes, proceed*.
+   end of the run), advises making a backup, and sets the long-wait
+   expectation. Options: *No, exit* (default) / *Yes, proceed*.
 3. **Deterministic backup** (`docx-backup.ts`): moves the old docs into
    `./docx/old_docs/` with rel-from-root structure preserved and the move count
    verified. Any error aborts BEFORE the model is engaged.

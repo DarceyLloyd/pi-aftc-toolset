@@ -12,15 +12,19 @@
  *
  * Sub-modules:
  *   - codex-store.ts    — data-dir layout, seeding, resource reads, .sync.json, sync spawn
+ *   - codex-compat.ts   — the central seed/live version guard (+ version bump helper)
+ *   - codex-sync.ts     — the shared seed->live update core (manual /codex-sync + startup auto-sync)
  *   - codex-inject.ts   — before_agent_start injection + session lifecycle + marker
  *   - codex-commands.ts — the /aftc-codex-* commands (sync-first wrapper)
  *   - codex-detect.ts   — project technology auto-detection        (Phase 4)
  *   - codex-learn.ts    — /aftc-codex-learn                         (Phase 5)
  *   - codex-entries.ts  — codex_add_entry / codex_edit_entry / codex_remove_entry tools
  *
- * This file also registers the `codex_load` model tool (step 2.4) and owns the
+ * This file also registers the `codex_load` model tool (step 2.4), owns the
  * shared read-tracker (durable read-entry dedup + the session-scoped set the
- * entry tools' read-before-write guard enforces).
+ * entry tools' read-before-write guard enforces), and runs the startup
+ * auto-sync (aftcCodexAutoSync, default ON: session_start reason "startup",
+ * seeded + out of date -> runSeedToLiveUpdate in the background).
  *
  * Production-safety (spec Part G): off by default; fail-soft everywhere; never
  * destroys user data; seeding is copy-only. See `aftc-codex-readme.md`.
@@ -41,7 +45,9 @@ import { createCodexLearn, type CodexLearnApi } from "./codex-learn";
 import { createCodexEntries, type CodexReadTracker } from "./codex-entries";
 import { createCodexCommands } from "./codex-commands";
 import { checkCodexCompatibility, type CodexCompatResult } from "./codex-compat";
+import { runSeedToLiveUpdate } from "./codex-sync";
 import { getPreference } from "../config";
+import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types (sub-modules import these type-only from "./aftc-codex")
@@ -222,6 +228,30 @@ export function createAftcCodex(pi: ExtensionAPI): void {
 
     // The /aftc-codex-* commands + config menu (sync-first wrapper).
     createCodexCommands(ctx, inject, learn);
+
+    // ---- auto-sync on pi start (aftcCodexAutoSync, default ON) ----
+    // When the shipped seed is newer than the live codex, merge it in
+    // NON-DESTRUCTIVELY at startup (same engine as /codex-sync) so the user
+    // never hits the out-of-date pause. Startup only — a pi update lands
+    // between processes, so reload/resume within a process can never see a
+    // newer seed. Fire-and-forget: never blocks session start, never throws;
+    // on any failure the version guard + its messages remain as the fallback.
+    pi.on("session_start", (event, sctx) => {
+        try {
+            if (event.reason !== "startup") return;
+            if (!getPreference("aftcCodexAutoSync", true)) return;
+            if (!store.isSeeded()) return; // nothing to sync into — /codex-install is the path
+            if (ctx.checkCompat().isSafe) return;
+            const liveBefore = getPreference("aftcCodexVersion", 0) ?? 0;
+            void (async () => {
+                const result = await runSeedToLiveUpdate(store);
+                if (!result.output.trim()) return; // spawn failed — the guard stays as fallback
+                const msg = `AFTC Codex auto-synced v${liveBefore} -> v${result.newVersion ?? "?"} — new shipped resources merged in; your learned entries were kept.`;
+                if (sctx.hasUI) aftcConsole.emphasis(sctx, msg);
+                else aftcConsole.log(msg);
+            })();
+        } catch { /* fail-soft */ }
+    });
 
     console.log("[aftc-toolset] loaded — aftc-codex (off by default; /codex-enable to enable)");
 }

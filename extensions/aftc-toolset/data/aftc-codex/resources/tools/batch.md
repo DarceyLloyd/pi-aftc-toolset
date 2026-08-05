@@ -4,6 +4,8 @@
 
 ## Gotchyas
 
+- [9XLNZC] Parsing a KEY=value line from a .env file with set /p + for /f keeps surrounding spaces ("KEY = value" yields " value" and a broken auth header downstream) - strip ALL spaces from the extracted value with %VAR: =% (keys/tokens never contain spaces).
+
 ## Issues & Solutions
 
 
