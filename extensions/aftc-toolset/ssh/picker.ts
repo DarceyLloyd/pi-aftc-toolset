@@ -1,7 +1,7 @@
 // Saved-connection and active-session pickers for the SSH feature.
 //
 // Both pickers are thin wrappers over the AFTC UI toolkit's showMenu():
-// a GRUB-style full-screen takeover with /cd-style navigation. Only safe
+// a GRUB-style full-screen takeover with wrapping-arrow navigation. Only safe
 // metadata (names, opaque ids) ever enters these components — credentials
 // stay out of the model context by design.
 

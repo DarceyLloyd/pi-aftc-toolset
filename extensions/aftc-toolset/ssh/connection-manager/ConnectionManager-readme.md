@@ -34,7 +34,7 @@ at the bottom of the file and wired into pi by the SSH module
   option). The list highlight only shows while the list owns focus.
 - Arrow keys navigate the list; PageUp/PageDown jump by the visible
   viewport; Home/End jump to edges. Up-arrow wraps at the top, Down-arrow
-  wraps at the bottom (matches `/cd` behaviour); PageUp/PageDown clamp.
+  wraps at the bottom (the standard list behaviour); PageUp/PageDown clamp.
 - The bottom options row holds "[ Add new connection ]", "[ Edit ]",
   and "[ Delete ]" (Edit/Delete only appear when a connection exists).
   Left/Right moves the focused option; Enter activates it. Enter on a

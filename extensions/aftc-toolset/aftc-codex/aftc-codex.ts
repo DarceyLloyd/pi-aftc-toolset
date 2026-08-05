@@ -22,9 +22,10 @@
  *
  * This file also registers the `codex_load` model tool (step 2.4), owns the
  * shared read-tracker (durable read-entry dedup + the session-scoped set the
- * entry tools' read-before-write guard enforces), and runs the startup
- * auto-sync (aftcCodexAutoSync, default ON: session_start reason "startup",
- * seeded + out of date -> runSeedToLiveUpdate in the background).
+ * entry tools' read-before-write guard enforces), and runs the auto-sync
+ * (aftcCodexAutoSync, default ON: once per extension load on the first
+ * session_start of any reason, seeded + out of date -> runSeedToLiveUpdate in
+ * the background).
  *
  * Production-safety (spec Part G): off by default; fail-soft everywhere; never
  * destroys user data; seeding is copy-only. See `aftc-codex-readme.md`.
@@ -229,19 +230,25 @@ export function createAftcCodex(pi: ExtensionAPI): void {
     // The /aftc-codex-* commands + config menu (sync-first wrapper).
     createCodexCommands(ctx, inject, learn);
 
-    // ---- auto-sync on pi start (aftcCodexAutoSync, default ON) ----
+    // ---- auto-sync (aftcCodexAutoSync, default ON) ----
     // When the shipped seed is newer than the live codex, merge it in
-    // NON-DESTRUCTIVELY at startup (same engine as /codex-sync) so the user
-    // never hits the out-of-date pause. Startup only — a pi update lands
-    // between processes, so reload/resume within a process can never see a
-    // newer seed. Fire-and-forget: never blocks session start, never throws;
-    // on any failure the version guard + its messages remain as the fallback.
+    // NON-DESTRUCTIVELY at the earliest opportunity (same engine as
+    // /codex-sync) so the user never hits the out-of-date pause. Attempted ONCE
+    // per extension load, on the FIRST session_start of ANY reason: a fresh
+    // process start is the classic update path, but a /reload after an on-disk
+    // package update surfaces a newer seed in-process too, and resuming an old
+    // session in a new process must not be left stale either. The pref, seeded
+    // and compat checks are all fresh disk reads, so a no-op attempt costs
+    // nothing. Fire-and-forget: never blocks session start, never throws; on
+    // any failure the version guard + its messages remain as the fallback.
+    let autoSyncDone = false;
     pi.on("session_start", (event, sctx) => {
         try {
-            if (event.reason !== "startup") return;
+            if (autoSyncDone) return;
             if (!getPreference("aftcCodexAutoSync", true)) return;
             if (!store.isSeeded()) return; // nothing to sync into — /codex-install is the path
             if (ctx.checkCompat().isSafe) return;
+            autoSyncDone = true;
             const liveBefore = getPreference("aftcCodexVersion", 0) ?? 0;
             void (async () => {
                 const result = await runSeedToLiveUpdate(store);

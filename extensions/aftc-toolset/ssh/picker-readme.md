@@ -8,7 +8,7 @@ Overlay selector for local SSH connection records.
 - Lists active sessions using saved names and opaque ids only.
 - Keeps endpoint and authentication fields out of picker rows.
 - Both pickers run on the AFTC UI toolkit's `showMenu()` — a GRUB-style
-  full-screen takeover with /cd-style navigation (arrows wrap,
+  full-screen takeover with wrapping-arrow navigation (arrows wrap,
   PgUp/PgDn page, Home/End jump to edges, Enter select, Esc cancel).
 
 ## Public API

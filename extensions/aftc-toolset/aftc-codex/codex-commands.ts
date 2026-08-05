@@ -242,30 +242,6 @@ async function openResourcesMenu(ctx: CodexContext, cctx: ExtensionCommandContex
     }
 }
 
-const HELP_LINES = [
-    "aftc-codex — an opt-in knowledge base for pi.",
-    "",
-    "Commands:",
-    "  /aftc-codex              Open this config menu",
-    "  /aftc-codex-enable       Enable the knowledge base (alias /codex-enable)",
-    "  /aftc-codex-disable      Disable + strip from context (alias /codex-disable)",
-    "  /aftc-codex-init         Initialise: load rules + fetch relevant docs (alias /codex-init)",
-    "  /aftc-codex-refresh      Strip all codex, then re-init (clean restart)",
-    "  /aftc-codex-install      Fresh install (or re-install) the codex to the data dir",
-    "  /aftc-codex-learn        Record durable lessons into the codex",
-    "  /aftc-codex-status       Show status",
-    "  /aftc-codex-sync         Merge new shipped resources into your codex (keeps learned entries)",
-    "  /codex-inject-rules      Rules-only mode for this session (critical rules only; /new for full)",
-    "",
-    "Model tools:",
-    "  codex_load(topic)        Load a resource on demand (eg codex_load(\"typescript\"))",
-    "  codex_add_entry          Add entries (batched; IDs/format/sections handled)",
-    "  codex_edit_entry         Edit one entry by its [ID]",
-    "  codex_remove_entry       Remove one entry by its [ID]",
-    "",
-    "Record durable lessons with /aftc-codex-learn (auto, or via the menu).",
-];
-
 /** Screen 1 — main menu (inline toggles re-render). */
 async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, inject: CodexInjectApi): Promise<void> {
     const { store, state } = ctx;
@@ -273,27 +249,27 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
     while (true) {
         const enabled = getPreference("aftcCodexEnabled", false);
         const counts = store.getCounts();
-        const body = enabled
-            ? [
-                `AFTC Codex is active — ${counts.total} resources loaded`,
-                state.rulesOnly ? "Session: RULES-ONLY mode (start a new session, then /codex-init, for the full codex)"
-                    : state.prepped && !state.silent ? "Session: prepped — the AI is using the codex"
-                    : "Session: not prepped — run /codex-init to prep the AI",
-            ]
-            : ["AFTC Codex is disabled — enable to activate"];
+        const sessionState = state.rulesOnly
+            ? "Rules-only (start a new session, then /codex-init, for the full codex)"
+            : state.prepped && !state.silent
+                ? "Prepped"
+                : "Not prepped (Run /codex-init to prep the AI)";
+        const body = [
+            `AFTC Codex: ${counts.total} resources available`,
+            `Session state: ${sessionState}`,
+        ];
+        const yn = (b: boolean) => (b ? "Yes" : "No");
         const items = [
-            { value: "enabled", label: "AFTC Codex Enabled", description: enabled ? " | Yes" : " | No" },
-            { value: "guidance", label: "Thinking Guidance Injection", description: ` | ${getPreference("aftcCodexInjectGuidance", true) ? "ON" : "OFF"}` },
-            { value: "autoload", label: "Auto-Detect & Load Docs", description: ` | ${getPreference("aftcCodexAutoLoad", true) ? "ON" : "OFF"}` },
-            { value: "autoadd", label: "Task Addition Approval", description: ` | ${getPreference("aftcCodexAutoAddEntries", true) ? "Auto add" : "Manual"}` },
-            { value: "autosync", label: "Auto Sync on Startup", description: ` | ${getPreference("aftcCodexAutoSync", true) ? "ON" : "OFF"}` },
+            { value: "enabled", label: "Codex Enabled", description: ` | ${yn(enabled)}` },
+            { value: "guidance", label: "Inject Thought Guidance", description: ` | ${yn(getPreference("aftcCodexInjectGuidance", true))}` },
+            { value: "autoload", label: "Auto-Detect & Load Docs", description: ` | ${yn(getPreference("aftcCodexAutoLoad", true))}` },
+            { value: "autosync", label: "Auto Sync Codex Update on Startup", description: ` | ${yn(getPreference("aftcCodexAutoSync", true))}` },
             { value: "resources", label: "Resources & Updates" },
-            { value: "help", label: "Help & Commands" },
         ];
         const choice = await showMenu(cctx, {
             title: "Menu:",
             body,
-            labelWidth: 28,
+            labelWidth: 34,
             initialIndex: selectedIndex,
             items,
         });
@@ -317,24 +293,10 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             setPreference("aftcCodexInjectGuidance", !getPreference("aftcCodexInjectGuidance", true));
         } else if (choice === "autoload") {
             setPreference("aftcCodexAutoLoad", !getPreference("aftcCodexAutoLoad", true));
-        } else if (choice === "autoadd") {
-            const autoAdd = await showMenu(cctx, {
-                title: "Menu:",
-                body: ["Would you like to approve task additions to aftc-codex resources or have them automatically added?"],
-                labelWidth: 23,
-                items: [
-                    { value: "auto", label: "Auto add (Recommended)", description: " write directly with uniqueness checks" },
-                    { value: "manual", label: "Manual", description: " propose entries, wait for confirmation" },
-                ],
-            });
-            if (autoAdd === "auto") setPreference("aftcCodexAutoAddEntries", true);
-            else if (autoAdd === "manual") setPreference("aftcCodexAutoAddEntries", false);
         } else if (choice === "autosync") {
             setPreference("aftcCodexAutoSync", !getPreference("aftcCodexAutoSync", true));
         } else if (choice === "resources") {
             await openResourcesMenu(ctx, cctx);
-        } else if (choice === "help") {
-            await showViewer(cctx, { title: "aftc-codex help", lines: HELP_LINES });
         }
         // loop re-renders screen 1 so state hints update
     }

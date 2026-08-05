@@ -133,7 +133,8 @@ DURABLE, GENERAL lessons using the codex entry tools (`codex_add_entry` /
 `codex_edit_entry` / `codex_remove_entry`): consult the resource list (update, never
 duplicate); codex_load each target topic (the tools enforce read-before-write and
 reject exact duplicates); classify each lesson (Rule / Gotcha / Issue & Solution)
-and write it with the tools (auto-add by default, or propose-then-confirm), routing
+and write it with the tools (always written directly — the tools enforce
+format, uniqueness and safety guards), routing
 tech lessons -> the right category doc under `resources/` (the tools create missing
 topic files/category folders and regenerate the resource list for new topics).
 The fixed top-level docs are never written by `-learn`. The prompt tells the model to
@@ -145,11 +146,14 @@ meta-deliberation.
 
 The codex is a one-way copy from the shipped seed to your live data-dir copy;
 your live edits (e.g. via `/aftc-codex-learn`) are never auto-overwritten.
-When an update ships new codex content, the startup AUTO-SYNC
+When an update ships new codex content, the AUTO-SYNC
 (`aftcCodexAutoSync`, default ON — toggle in the `/codex` menu) merges it into
-your live copy on pi start (new topics copied, new entries appended, learned
+your live copy (new topics copied, new entries appended, learned
 entries kept) and stamps the live version — most users never see the
-out-of-date state. With auto-sync off (or if it fails), `/aftc-codex-sync`
+out-of-date state. It is attempted once per extension load, on the first
+`session_start` of ANY reason: a fresh pi start, a `/reload` after an on-disk
+package update, and a resumed session in a new process all self-heal.
+With auto-sync off (or if it fails), `/aftc-codex-sync`
 does the same merge by hand. To take the shipped defaults wholesale instead,
 use Start Fresh (or `/aftc-codex-install`), which deletes the whole live
 codex dir and re-seeds a full fresh copy of the seed (irreversible,
@@ -208,7 +212,7 @@ list-regeneration script first; pure toggles skip the spawn.
 ## Config preferences (config.json)
 
 `aftcCodexEnabled` (false), `aftcCodexInjectGuidance` (true), `aftcCodexAutoLoad`
-(true), `aftcCodexSeeded` (false), `aftcCodexAutoAddEntries` (true),
+(true), `aftcCodexSeeded` (false),
 `aftcCodexAutoSync` (true — merge a newer shipped seed into the live codex on
 pi start, non-destructive),
 `aftcCodexVersion` (0 — live codex version, internal bookkeeping). All migrated

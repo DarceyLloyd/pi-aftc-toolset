@@ -52,8 +52,8 @@ Do NOT guess event names, payloads, or return shapes.
 `"error"` (provider failure), `"aborted"` (user cancelled), `"toolUse"` (calling
 tools). `agent_end` is NOT final (pi may retry/compact after it).
 
-**User dialogs:** most AI models make a mess of these. See `cd.ts` for the
-reference implementation. Read `docx/docs/1.3_ui_framework_documentation.md` before building any UI.
+**User dialogs:** most AI models make a mess of these. The reference
+implementation is `ui/aftc-ui.ts` (all dialogs go through it). Read `docx/docs/1.3_ui_framework_documentation.md` before building any UI.
 
 ---
 
@@ -172,7 +172,10 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
   Credentials never cross into model-visible context.
 - **Config persistence rule.** User-configurable values go in `config.json` via
   `getPreference`/`setPreference`. New preference: add to `Preferences` interface,
-  `DEFAULT_PREFERENCES`, AND the write-back migration in `config.ts`. See
+  `DEFAULT_PREFERENCES`, AND (only when the migrated value can't be the
+  default) a special-case backfill in `config.ts` — plain keys are backfilled
+  automatically; retiring a key = remove it from both + one line in
+  `RETIRED_KEYS`. See
   `docx/docs/2_shipped_data_documentation.md` for the full table and process.
 
 ---

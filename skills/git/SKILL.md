@@ -15,7 +15,7 @@ description: Git + GitHub CLI workflow for solo projects. Conventional Commits, 
 - Mark breaking changes with `!` after type/scope (`feat(api)!: ...`) or a `BREAKING CHANGE:` footer.
 - Optional body after a blank line — explain the **why**, not the what.
 
-Examples: `feat(api): add user auth middleware`, `fix(footer): correct cost calc`, `docs: document /cd picker`, `chore(deps): bump better-sqlite3`.
+Examples: `feat(api): add user auth middleware`, `fix(footer): correct cost calc`, `docs: document the picker overlay`, `chore(deps): bump better-sqlite3`.
 
 ## Commit workflow
 

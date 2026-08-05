@@ -421,7 +421,7 @@ export interface AftcMenuOptions {
 }
 
 /**
- * A selectable list screen. Navigation follows the /cd contract: ↑/↓ wrap,
+ * A selectable list screen. Navigation contract: ↑/↓ wrap,
  * PageUp/PageDown jump by the visible viewport, Home/End jump to edges.
  * Enter resolves the highlighted item's value, Escape resolves null.
  */
@@ -469,7 +469,7 @@ export class AftcMenu implements Focusable {
         if (matchesKey(data, Key.end) || matchesKey(data, Key.ctrl("e"))) return this.edge("bottom");
     }
 
-    /** ↑/↓ — wraps at the edges, matching /cd behaviour. */
+    /** ↑/↓ — wraps at the edges (the standard list behaviour in this UI). */
     private move(delta: number): void {
         const total = this.options.items.length;
         if (total === 0) return;

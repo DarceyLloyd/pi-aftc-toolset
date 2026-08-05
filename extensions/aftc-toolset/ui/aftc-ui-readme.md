@@ -74,7 +74,7 @@ resolve a cancel-safe value outside the TUI (`null` / `null`), except
 
 ### `showMenu(ctx, options)` → `string | null`
 
-Selectable list. Navigation follows the /cd contract: ↑/↓ wrap,
+Selectable list. Navigation contract: ↑/↓ wrap,
 PgUp/PgDn jump by the visible viewport, Home/End jump to edges. Enter
 resolves the highlighted item's value, Escape resolves null.
 
@@ -235,7 +235,7 @@ const items = themes.map((t) => ({
 await showMenu(ctx, { title: "Select theme", labelWidth: maxNameLen + 1, initialIndex: currentIndex, items });
 ```
 
-**Pure navigation list** (the `/cd` browser, a pick-only connection list):
+**Pure navigation list** (a pick-only SSH connection list):
 no current marker — `description` may carry a hint (path, id) but never a
 fake "current". Reset the highlight to the top only when the listing
 CONTENT changes (navigating into a new folder); keep it when only a value
@@ -257,8 +257,8 @@ await showViewer(ctx, { title: "SSH command output", lines });
 // Toned rows (accent titles, muted hints, optional bold):
 await showViewer(ctx, { title: "/aftc-help", rows: [
     { text: "General", tone: "accent", bold: true },
-    { text: "/cd", tone: "accent" },
-    { text: "Description: Switch directory" },
+    { text: "/ssh-status", tone: "accent" },
+    { text: "Description: Show SSH session status" },
     { text: "" },
 ] });
 ```
@@ -269,8 +269,8 @@ Component class `AftcViewer` is exported for tests/custom hosts.
 
 Standard dialogs (menus, confirms, forms, single inputs, viewers) are
 owned ENTIRELY by this module — callers pass data, await the result.
-Custom screens with unique interaction models (the `/cd` directory
-browser, the `/ssh-cm` connection manager) assemble their own layouts
+Custom screens with unique interaction models (the `/ssh-cm` connection
+manager) assemble their own layouts
 but ONLY from this module's primitives: `AftcUi.panelTop/panelBottom/
 panelRow/panelBlank/menuRow/fieldLabel/inputRow` for layout,
 `AftcUi.panelWidth()` + `AftcUi.listViewport()` for screen geometry, and

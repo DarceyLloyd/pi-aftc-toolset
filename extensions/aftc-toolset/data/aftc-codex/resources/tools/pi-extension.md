@@ -47,7 +47,7 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
   Fix: do copy-only forward (a read succeeds even on a locked source), never overwrite an existing destination, then best-effort delete the legacy file, retrying deletion on the next run once the previous session's handles are released; make it idempotent and run it at startup before any module opens the data. (2026-07)
 - [9gbnFW] Selectable overlay modal renders full-screen or mis-anchored
   Cause: overlay geometry must be requested explicitly.
-  Fix: open with `ctx.ui.custom(factory, { overlay: true, overlayOptions: { anchor: "center", width: "100%", maxHeight: "100%" } })` and follow the cd.ts selection pattern (reset selection after refresh, keep it in the viewport, page movement). (2026-07)
+  Fix: open with `ctx.ui.custom(factory, { overlay: true, overlayOptions: { anchor: "center", width: "100%", maxHeight: "100%" } })` and follow the AftcMenu (ui module) selection pattern (reset selection after refresh, keep it in the viewport, page movement). (2026-08)
 - [IfdS1v] Custom tool string enum rejected by Google models
   Cause: raw TS string unions are not Google-compatible.
   Fix: use `StringEnum` from `@earendil-works/pi-ai` for tool parameter enums. (2026-07)

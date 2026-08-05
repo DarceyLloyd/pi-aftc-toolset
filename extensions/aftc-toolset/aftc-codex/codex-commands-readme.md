@@ -33,11 +33,11 @@ list is fresh. Pure toggles (`-enable`/`-disable`/`-status`) skip the spawn.
 `/aftc-codex` opens a GRUB-style menu tree built ONLY from the `aftc-ui`
 primitives (`showMenu`/`showConfirm`/`showInput`/`showViewer`):
 
-- **1 Main** — inline toggles (Enabled · Inject thinking guidance ·
-  Auto-load docs · Task Addition Approval · Auto Sync on Startup) that
-  re-render the screen, plus Resources & updates (→1.6) and Help (→1.8).
-  The body shows the feature state AND the session state (prepped /
-  not prepped / rules-only) with the next command to run.
+- **1 Main** — inline toggles (Codex Enabled · Inject Thought Guidance ·
+  Auto-Detect & Load Docs · Auto Sync Codex Update on Startup — all shown as
+  Yes/No) that re-render the screen, plus Resources & updates (→1.6).
+  The body shows `AFTC Codex: <N> resources available` and the session state
+  (Prepped / Not prepped (Run /codex-init to prep the AI) / Rules-only).
 - **1.6 Resources & updates** — Start fresh
   (`Wipe users codex files and start fresh` — confirm-destructive: wipes the
   whole live codex dir and installs a full fresh copy of the seed; irreversible,

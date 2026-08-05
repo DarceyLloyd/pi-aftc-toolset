@@ -14,7 +14,7 @@
 // Exactly one element looks active at any time: the focused list row or
 // the focused option carries the full-width selection bar; the other is
 // rendered plain.
-// The connection list keeps the /cd navigation contract: ↑/↓ wrap,
+// The connection list keeps the standard AFTC navigation contract: ↑/↓ wrap,
 // PageUp/PageDown jump by the visible viewport, Home/End jump to edges.
 // The bottom options row holds [ Add new connection ] [ Edit ] [ Delete ]
 // ([] Edit ]/[ Delete ] only when a connection is selected); ←/→ moves
@@ -221,7 +221,7 @@ export class ConnectionManagerScreen implements Focusable {
     private moveSelection(delta: number): void {
         const total = this.rows.length;
         if (total === 0) return;
-        // Wraps around at the edges, matching /cd behaviour.
+        // Wraps around at the edges (the standard list behaviour).
         this.selectedIndex = (this.selectedIndex + delta + total) % total;
         this.clampScroll();
     }
@@ -436,7 +436,7 @@ export async function openConnectionManager(ctx: ExtensionCommandContext): Promi
         return;
     }
     for (;;) {
-        // Full-screen takeover overlay (same lifecycle as the /cd picker):
+        // Full-screen takeover overlay (the standard picker lifecycle):
         // the manager paints the whole terminal until `done()` is called
         // inside the screen (Escape / Ctrl+C), then the pi prompt is
         // restored. Plain `ctx.ui.custom()` without `overlay: true` only

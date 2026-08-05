@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Structure Map
 
-<!-- structure-map - last-verified: 2026-08-04 20:37 - regenerate: run /docx (uses docx/scripts/map-scan.mjs) then verify against source -->
+<!-- structure-map - last-verified: 2026-08-05 16:40 - regenerate: run /docx (uses docx/scripts/map-scan.mjs) then verify against source -->
 
 Full structure map for pi-aftc-toolset (v1.19.1), a pi coding-agent extension package. Every documented node at every level. Sub-maps: `1.6_ssh_map.md`, `1.7_aftc_codex_map.md`, `1.8_docx_map.md` (in `docx/docs/`). File convention: `<id>_<area>_documentation.md` per map ID, `<id>_<area>_map.md` for sub-maps.
 
@@ -56,7 +56,7 @@ pi-aftc-toolset/
 - 1.2 Orchestrator & Core Infrastructure — index.ts wiring, shared types, paths, config, db — [1.2_orchestrator_core_documentation.md](docs/1.2_orchestrator_core_documentation.md) — status: done
 - 1.3 UI Framework — GRUB-style dialogs (aftc-ui) + severity console facade (aftc-console) — [1.3_ui_framework_documentation.md](docs/1.3_ui_framework_documentation.md) — status: done
 - 1.4 Footer Widget & Usage Tracking — 1Hz diagnostics widget, SQLite recording, allowance quotas, HTML usage report — [1.4_footer_usage_documentation.md](docs/1.4_footer_usage_documentation.md) — status: done
-- 1.5 Feature Modules — 16 self-contained slash-command modules — [1.5_feature_modules_documentation.md](docs/1.5_feature_modules_documentation.md) — status: done
+- 1.5 Feature Modules — 15 self-contained slash-command modules — [1.5_feature_modules_documentation.md](docs/1.5_feature_modules_documentation.md) — status: done
 - 1.6 SSH Subsystem — credential-isolated SSH via packaged Python Paramiko carrier — [1.6_ssh_documentation.md](docs/1.6_ssh_documentation.md), [1.6_ssh_map.md](docs/1.6_ssh_map.md) — status: done
 - 1.7 aftc-codex Knowledge Base — opt-in rules/guidance injection + self-education tools — [1.7_aftc_codex_documentation.md](docs/1.7_aftc_codex_documentation.md), [1.7_aftc_codex_map.md](docs/1.7_aftc_codex_map.md) — status: done
 - 1.8 docx Generator — /docx project documentation generator — [1.8_docx_documentation.md](docs/1.8_docx_documentation.md), [1.8_docx_map.md](docs/1.8_docx_map.md) — status: done

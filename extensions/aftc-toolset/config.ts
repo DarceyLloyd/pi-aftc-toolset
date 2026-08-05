@@ -5,7 +5,8 @@
  * PREFERENCES that persist forever (until the user changes the
  * value). Survives /reload, /new, fresh pi startup, and machine reboot.
  *
- * NO IN-MEMORY CACHE (binding rule, see docs/working-with-config.md):
+ * NO IN-MEMORY CACHE (binding rule, full contract in
+ * docx/docs/1.2_orchestrator_core_documentation.md):
  * every read hits the file on disk. pi keeps extension modules alive
  * across /new, so a module-level cache would serve stale values after
  * the user hand-edits the file — and a later setPreference would
@@ -27,8 +28,12 @@
  * SSH connection records are intentionally stored separately in `ssh.json`.
  * `config.json` is created with `DEFAULT_PREFERENCES` on first access
  * if it doesn't already exist. It is ONLY re-written when one of those
- * preference actually changes (via `setPreference`) — never on a
- * timer, never on every turn, never on shutdown.
+ * preference actually changes (via `setPreference`) or when the
+ * load-merge backfills a missing/wrong-type key or strips a retired one
+ * (see RETIRED_KEYS) — never on a timer, never on every turn, never on
+ * shutdown. Adding a NEW preference needs NO migration code: the
+ * load-merge backfills any missing/wrong-type DEFAULT_PREFERENCES key
+ * automatically (interface + DEFAULT_PREFERENCES + done).
  *
  * All operations are best-effort. Errors are logged and the call falls
  * back to defaults rather than crashing pi. The file lives in the
@@ -131,8 +136,6 @@ export interface Preferences {
     aftcCodexAutoLoad?: boolean;
     /** aftc-codex: first-run seed choice (pre-trained vs fresh) has been done. */
     aftcCodexSeeded?: boolean;
-    /** aftc-codex: auto-add entries without confirmation (true) or propose-then-confirm (false). */
-    aftcCodexAutoAddEntries?: boolean;
     /** aftc-codex: on pi start, non-destructively merge a newer shipped seed into
      *  the live codex (seed->live sync, learned entries kept). On by default. */
     aftcCodexAutoSync?: boolean;
@@ -194,11 +197,32 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexInjectGuidance: true,
     aftcCodexAutoLoad: true,
     aftcCodexSeeded: false,
-    aftcCodexAutoAddEntries: true,
     aftcCodexAutoSync: true,
     aftcCodexVersion: 0,
     runScriptEnabled: true,
 };
+
+/**
+ * Retired preference keys, stripped from config.json by the load-merge (the
+ * save triggers on the strip alone — no other migration needed). Retiring a
+ * preference = delete it from `Preferences` + `DEFAULT_PREFERENCES` and add
+ * ONE line here. NEVER prune this list: a user may skip many releases before
+ * updating and the strip must still be there when they do — and a leftover
+ * dead key is inert anyway (stripping is hygiene, not correctness).
+ *
+ *   - notifySound: pre-multi-category single-key for the task-complete sound,
+ *     replaced by the per-category notifySound* keys.
+ *   - aftcCodexInjectMode: dev-only v1.17.0 toggle that became per-session
+ *     state in /codex-inject-rules.
+ *   - aftcCodexAutoAddEntries: v1.19.x "Task Addition Approval" menu toggle
+ *     (auto vs propose-then-confirm) — entries are always written directly
+ *     now (the codex write tools enforce format + safety guards).
+ */
+const RETIRED_KEYS: readonly string[] = [
+    "notifySound",
+    "aftcCodexInjectMode",
+    "aftcCodexAutoAddEntries",
+];
 // ─────────────────────────────────────────────────────────────────────────────
 // Preferences (config.json) - ensure, read, write (NO cache)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -245,91 +269,49 @@ function loadPreferencesInternal(): Preferences {
         // unknown fields (e.g. a leftover `version` from an earlier
         // release is silently ignored).
         //
-        // Some preferences are written back immediately when missing or
-        // the wrong type. This migrates config.json files from versions
-        // released before those preferences existed, making the defaults
-        // explicit on disk and preserving them for later sessions.
-        const needsIntroMigration = typeof parsed["aftc-intro"] !== "boolean";
-        const needsFooterAveragesMigration = typeof parsed.footerAveragesEnabled !== "boolean";
-        const needsNotifyQuestionMigration = typeof parsed.notifySoundQuestion !== "string";
-        const needsNotifyTaskMigration = typeof parsed.notifySoundTaskComplete !== "string";
-        const needsNotifyTimeMigration = typeof parsed.notifyTimeSec !== "number";
-        const needsWarGamesMigration = typeof parsed.warGamesEnabled !== "boolean";
-        const needsCodexEnabledMigration = typeof parsed.aftcCodexEnabled !== "boolean";
-        const needsCodexGuidanceMigration = typeof parsed.aftcCodexInjectGuidance !== "boolean";
-        const needsCodexAutoLoadMigration = typeof parsed.aftcCodexAutoLoad !== "boolean";
-        const needsCodexSeededMigration = typeof parsed.aftcCodexSeeded !== "boolean";
-        const needsCodexAutoAddMigration = typeof parsed.aftcCodexAutoAddEntries !== "boolean";
-        const needsCodexAutoSyncMigration = typeof parsed.aftcCodexAutoSync !== "boolean";
-        const needsNotifyErrorMigration = typeof parsed.notifySoundError !== "string";
-        const needsNotifyAbortedMigration = typeof parsed.notifySoundAborted !== "string";
-        const needsNotifyStartupMigration = typeof parsed.notifySoundStartup !== "string";
-        const needsNotifyContext25Migration = typeof parsed.notifySoundContext25 !== "string";
-        const needsNotifyContext50Migration = typeof parsed.notifySoundContext50 !== "string";
-        const needsNotifyContext75Migration = typeof parsed.notifySoundContext75 !== "string";
-        const needsReplayPromptMigration = typeof parsed.replayPrompt !== "string";
-        const needsRunScriptMigration = typeof parsed.runScriptEnabled !== "boolean";
-        const needsNotifyEnabledMigration = typeof parsed.notifyEnabled !== "boolean";
-        const needsCodexVersionMigration = typeof parsed.aftcCodexVersion !== "number";
+        // Defaults-driven write-back migration: any DEFAULT_PREFERENCES key
+        // that is missing from the file — or the wrong TYPE (hand edits
+        // happen) — is backfilled with its default and the file is re-saved,
+        // so a config.json from ANY older release becomes explicit and
+        // complete in one pass. Adding a NEW preference is interface +
+        // DEFAULT_PREFERENCES + done: NO migration code needed here.
+        // (notifyEnabled is the one exception: its migrated value is DERIVED
+        // from the user's existing sound choices, not the default.)
+        const backfilled: Record<string, unknown> = {};
+        for (const [key, defaultValue] of Object.entries(DEFAULT_PREFERENCES)) {
+            if (key === "notifyEnabled") continue; // derived-value migration below
+            if (typeof (parsed as Record<string, unknown>)[key] !== typeof defaultValue) {
+                backfilled[key] = defaultValue;
+            }
+        }
         // When adding the notifyEnabled key to an existing config.json: users
         // who already had notification sounds configured keep the feature ON
         // (their setup is never silenced); everyone else starts disabled.
-        const migratedNotifyEnabled = [
-            parsed.notifySoundQuestion, parsed.notifySoundTaskComplete,
-            parsed.notifySoundError, parsed.notifySoundAborted, parsed.notifySoundStartup,
-        ].some((v) => typeof v === "string" && v.length > 0);
-        const needsMigration =
-            needsIntroMigration || needsFooterAveragesMigration || needsNotifyQuestionMigration ||
-            needsNotifyTaskMigration || needsNotifyTimeMigration ||
-            needsNotifyErrorMigration || needsNotifyAbortedMigration ||
-            needsNotifyStartupMigration || needsNotifyContext25Migration ||
-            needsNotifyContext50Migration || needsNotifyContext75Migration ||
-            needsReplayPromptMigration ||
-            needsWarGamesMigration || needsCodexEnabledMigration ||
-            needsCodexGuidanceMigration ||
-            needsCodexAutoLoadMigration ||
-            needsCodexSeededMigration || needsCodexAutoAddMigration ||
-            needsCodexAutoSyncMigration ||
-            needsRunScriptMigration || needsNotifyEnabledMigration ||
-            needsCodexVersionMigration;
+        if (typeof parsed.notifyEnabled !== "boolean") {
+            backfilled.notifyEnabled = [
+                parsed.notifySoundQuestion, parsed.notifySoundTaskComplete,
+                parsed.notifySoundError, parsed.notifySoundAborted, parsed.notifySoundStartup,
+            ].some((v) => typeof v === "string" && v.length > 0);
+        }
 
         const merged: Preferences = {
             ...DEFAULT_PREFERENCES,
             ...parsed,
-            ...(needsIntroMigration ? { "aftc-intro": DEFAULT_PREFERENCES["aftc-intro"] } : {}),
-            ...(needsFooterAveragesMigration ? { footerAveragesEnabled: DEFAULT_PREFERENCES.footerAveragesEnabled } : {}),
-            ...(needsNotifyQuestionMigration ? { notifySoundQuestion: DEFAULT_PREFERENCES.notifySoundQuestion } : {}),
-            ...(needsNotifyTaskMigration ? { notifySoundTaskComplete: DEFAULT_PREFERENCES.notifySoundTaskComplete } : {}),
-            ...(needsNotifyTimeMigration ? { notifyTimeSec: DEFAULT_PREFERENCES.notifyTimeSec } : {}),
-            ...(needsNotifyErrorMigration ? { notifySoundError: DEFAULT_PREFERENCES.notifySoundError } : {}),
-            ...(needsNotifyAbortedMigration ? { notifySoundAborted: DEFAULT_PREFERENCES.notifySoundAborted } : {}),
-            ...(needsNotifyStartupMigration ? { notifySoundStartup: DEFAULT_PREFERENCES.notifySoundStartup } : {}),
-            ...(needsNotifyContext25Migration ? { notifySoundContext25: DEFAULT_PREFERENCES.notifySoundContext25 } : {}),
-            ...(needsNotifyContext50Migration ? { notifySoundContext50: DEFAULT_PREFERENCES.notifySoundContext50 } : {}),
-            ...(needsNotifyContext75Migration ? { notifySoundContext75: DEFAULT_PREFERENCES.notifySoundContext75 } : {}),
-            ...(needsReplayPromptMigration ? { replayPrompt: DEFAULT_PREFERENCES.replayPrompt } : {}),
-            ...(needsWarGamesMigration ? { warGamesEnabled: DEFAULT_PREFERENCES.warGamesEnabled } : {}),
-            ...(needsCodexEnabledMigration ? { aftcCodexEnabled: DEFAULT_PREFERENCES.aftcCodexEnabled } : {}),
-            ...(needsCodexGuidanceMigration ? { aftcCodexInjectGuidance: DEFAULT_PREFERENCES.aftcCodexInjectGuidance } : {}),
-            ...(needsCodexAutoLoadMigration ? { aftcCodexAutoLoad: DEFAULT_PREFERENCES.aftcCodexAutoLoad } : {}),
-            ...(needsCodexSeededMigration ? { aftcCodexSeeded: DEFAULT_PREFERENCES.aftcCodexSeeded } : {}),
-            ...(needsCodexAutoAddMigration ? { aftcCodexAutoAddEntries: DEFAULT_PREFERENCES.aftcCodexAutoAddEntries } : {}),
-            ...(needsCodexAutoSyncMigration ? { aftcCodexAutoSync: DEFAULT_PREFERENCES.aftcCodexAutoSync } : {}),
-            ...(needsRunScriptMigration ? { runScriptEnabled: DEFAULT_PREFERENCES.runScriptEnabled } : {}),
-            ...(needsNotifyEnabledMigration ? { notifyEnabled: migratedNotifyEnabled } : {}),
-            ...(needsCodexVersionMigration ? { aftcCodexVersion: DEFAULT_PREFERENCES.aftcCodexVersion } : {}),
-        };
-        // Strip obsolete keys from older versions so the saved file
-        // matches the current Preferences schema. Removed keys:
-        //   - notifySound: pre-multi-category single-key for the
-        //     task-complete sound. Replaced by per-category keys
-        //     (notifySoundQuestion / notifySoundTaskComplete / etc.).
-        //   - aftcCodexInjectMode: dev-only v1.17.0 toggle that became
-        //     per-session state in /codex-inject-rules.
-        // Mirror this table in docs/data-and-packaging.md when the
-        // list grows.
-        delete (merged as any).notifySound;
-        delete (merged as any).aftcCodexInjectMode;
+            ...backfilled,
+        } as Preferences;
+
+        // Strip retired keys so the saved file matches the current
+        // Preferences schema. NEVER prune RETIRED_KEYS: a user may skip many
+        // releases before updating, and the strip must still be there when
+        // they do (a leftover dead key is inert anyway — stripping is
+        // hygiene, not correctness).
+        for (const key of RETIRED_KEYS) delete (merged as Record<string, unknown>)[key];
+
+        // Save when a backfill landed OR a retired key is actually present in
+        // the file (so the strip persists, not just applies in memory).
+        const needsMigration =
+            Object.keys(backfilled).length > 0 ||
+            RETIRED_KEYS.some((key) => key in (parsed as Record<string, unknown>));
         if (needsMigration) savePreferencesInternal(merged);
         return merged;
     } catch (err) {

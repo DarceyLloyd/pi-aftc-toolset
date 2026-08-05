@@ -16,7 +16,6 @@
  * See `codex-learn-readme.md` for the full contract.
  */
 
-import { getPreference } from "../config";
 import type { CodexContext } from "./aftc-codex";
 
 
@@ -35,7 +34,6 @@ export function createCodexLearn(ctx: CodexContext): CodexLearnApi {
     const { pi } = ctx;
 
     function buildLearnPrompt(): string {
-        const autoAdd = getPreference("aftcCodexAutoAddEntries", true);
         return [
             "You are running the aftc-codex self-education loop (/aftc-codex-learn).",
             "",
@@ -58,9 +56,7 @@ export function createCodexLearn(ctx: CodexContext): CodexLearnApi {
             "1. Review this session for lessons worth keeping: anything that took real effort, a non-obvious method, a tooling/framework quirk, or a failure you diagnosed.",
             "2. Pick the right topic doc for each lesson. The resource list is in your system prompt (or codex_load(\"list\")). Prefer an existing doc; create a new one (topic \"category/name\") only when nothing covers the topic.",
             "3. BEFORE writing to an EXISTING topic, codex_load it. This is your duplicate check: read what is there. If your lesson already exists in any wording, amend it with codex_edit_entry or skip it — never add a near-duplicate. A NEW topic needs no load; codex_add_entry creates the file.",
-            autoAdd
-                ? "4. WRITE the entries with codex_add_entry. If a write is refused because the topic was not loaded, codex_load it and retry — never drop a lesson over a refusal. Classify each lesson first (first match wins, IN ORDER):"
-                : "4. PROPOSE the entries to me and WAIT for my confirmation, then write them with codex_add_entry. If a write is refused because the topic was not loaded, codex_load it and retry — never drop a lesson over a refusal. Classify each lesson first (first match wins, IN ORDER):",
+            "4. WRITE the entries with codex_add_entry. If a write is refused because the topic was not loaded, codex_load it and retry — never drop a lesson over a refusal. Classify each lesson first (first match wins, IN ORDER):",
             "   a) A failure you observed (greppable error/symptom) and diagnosed -> kind \"issue\" (text = one-line symptom, plus cause and fix).",
             "   b) A convention we choose to follow -> kind \"rule\" (one line).",
             "   c) A technology trap you can only avoid, not change -> kind \"gotcha\" (one line naming BOTH the trap and the countermeasure).",

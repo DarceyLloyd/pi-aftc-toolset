@@ -33,9 +33,10 @@ do:
    topic and retry, never drop the lesson.
 4. **Classify + write** — first match wins, in order: observed failure with a
    diagnosis > `issue`; a convention we choose > `rule`; a technology trap you
-   can only avoid > `gotcha`. Auto-add by default
-   (`aftcCodexAutoAddEntries`), or propose-then-confirm when that pref is off
-   (M-I8). Routing: TECH lessons > the correct category doc under `resources/`
+   can only avoid > `gotcha`. Entries are ALWAYS written directly with
+   `codex_add_entry` (the tools enforce format, uniqueness and the
+   generality/secrets guards — there is no propose-then-confirm mode).
+   Routing: TECH lessons > the correct category doc under `resources/`
    only; the fixed top-level docs (`codex-rules.md`, `markdown-guidance.md`,
    `thought-and-action-guidance.md`) are never written by `-learn`.
 5. **Correct/remove** outdated entries noticed while reading a topic

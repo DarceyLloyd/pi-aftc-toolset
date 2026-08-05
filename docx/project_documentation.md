@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Master Documentation
 
-<!-- last-reviewed: 2026-08-04 20:37 -->
+<!-- last-reviewed: 2026-08-05 16:40 -->
 
 ## Description
 
@@ -92,7 +92,7 @@ The diagnostics footer (model/context/cache/cost/timing lines), per-turn SQLite 
 
 ### 1.5 - Feature Modules
 
-The 16 self-contained slash-command modules (help, install, keys, theme, stfu, cd, dir, cwd, replay, keep-it-short, think-parser, notify, quick-open-dir, response, run-script, help-registry). Each registers commands and is wired by the orchestrator.
+The 15 self-contained slash-command modules (help, install, keys, theme, stfu, dir, cwd, replay, keep-it-short, think-parser, notify, quick-open-dir, response, run-script, help-registry). Each registers commands and is wired by the orchestrator.
 
 > Only read the following files if you need to work on slash-command features of this project, or if requested by the user or aftc codex:
 > `./docx/docs/1.5_feature_modules_documentation.md`.

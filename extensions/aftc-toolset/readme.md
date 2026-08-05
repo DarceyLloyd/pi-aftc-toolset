@@ -27,7 +27,6 @@ commands/shortcuts/tools it registers. See `AGENTS.md`.
 | `docx/` | `/docx` slash command - project documentation generator. Backs up existing docs to `docx/old_docs/` (deterministic, whitelist-scoped), injects the shipped `documentation_guide.md` execution prompt, and the model generates a root README + `docx/` (master, structure map, deep docs). Ships `scripts/` (map-scan, link-audit, zip-old) the model runs mid-generation. |
 | `stfu.ts` | `/aftc-stop` and `/stfu` slash commands - emergency abort of the current agent operation (escape a runaway thinking loop). |
 | `theme.ts` | `/theme` slash command - shortcut to pi's theme picker. Lists all discovered themes, lets the user pick one, and switches the active theme. |
-| `cd.ts` | `/cd` slash command - switch to a fresh Pi session in another directory. Interactive directory-picker overlay, or one-shot path arg (`~`, absolute, relative). Cleans up empty sessions on shutdown. |
 | `dir.ts` | `/dir` and `/ls` slash commands - print the current directory name and run a platform-native directory listing (`dir` on Windows, `ls -la` on macOS/Linux). |
 | `cwd.ts` | `/cwd` slash command - show the current working directory as an inline card (same style as `/dir`). |
 | `replay.ts` | `/save-replay-prompt` and `/replay` slash commands - save a prompt string to `config.json` and re-send it as a fresh user message (queued as follow-up when busy). |

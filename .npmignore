@@ -43,6 +43,7 @@ secrets.json
 .npm-token
 publish.bat
 clear-docker.bat
+shipit.ps1
 .github/
 .gitignore
 .npmignore

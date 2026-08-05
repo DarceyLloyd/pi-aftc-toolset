@@ -77,7 +77,6 @@ Then in pi:
 
     > Reliable large/multi-line script execution. Works around a pi bash-tool truncation bug that silently drops inline commands past a few KB.
 - [**Cache diagnostics**](#cache-diagnostics)
-- [**/cd directory navigation**](#cd-directory-navigation)
 - [**Bundled skills**](#bundled-skills)
 - [**Feature defaults**](#pi-aftc-toolset-defaults)
 - [**Data location**](#data-location)
@@ -265,40 +264,6 @@ Every tool result is bounded and redacted. The only connection-level model tools
 
 <br><br>
 
-## **/cd directory navigation**
-
-`/cd` switches the current Pi session to a different directory, always starting a fresh session in the target directory.
-
-With no arguments, `/cd` opens a tree-style directory picker overlay rooted at the current working directory. On confirm, a new session is created in the picked directory and `switchSession` loads it. Cancelling with Esc leaves the current session untouched.
-
-**Listing rules:**
-
-- A synthetic `./` entry is always at index 0 - press Enter on it to switch to a fresh session right here, without navigating up.
-- `↑ / ↓` move selection.
-- `←` navigate up one level (or to drive listing at the root).
-- `→` drill into the highlighted folder. No-op on empty folders and on `./`.
-- `Enter` confirm the highlighted entry.
-- `PgUp / PgDn` jump by the visible viewport size.
-- `Ctrl+PgUp / Ctrl+PgDn` jump to the first / last entry.
-- `Tab` autocomplete the highlighted entry into the path input.
-- `Esc` cancel without switching.
-- Selection always resets to the top after any refresh.
-- Listing is unbounded; the viewport scrolls so the selected row is always visible.
-- Typing filters the listing by fuzzy match; if no children match, Enter falls through to `/cd <typed>` resolution.
-
-**One-shot path argument** skips the picker:
-
-- `/cd ~/projects` - home-relative.
-- `/cd /d/dev/myproject` - absolute (Windows or POSIX).
-- `/cd ../sibling-project` - relative to current cwd.
-- `/cd brand-new-project` - creates the directory after a confirm dialog if missing.
-
-**Cross-platform:** Windows drive listing probes A-Z via `fs.readdirSync`; POSIX drive listing returns `["/"]`. Path joining / dirname / basename go through Node's `path` so separators are OS-correct. Header line is shortened with `~` on POSIX.
-
----
-
-<br><br>
-
 ## **Think-tag processing**
 
 Some reasoning models emit their chain-of-thought as text wrapped in `<think>…</think>` tags (the DeepSeek / Qwen convention). pi's provider integrations for those models strip the tags into proper `ThinkingContent` blocks automatically; providers that don't (including some local servers and certain custom wrappers) leave the tags as literal text.
@@ -409,7 +374,7 @@ An opt-in knowledge base that makes the model follow your curated coding convent
 It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
 
 - Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
-- Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (auto-add by default; switch to propose-then-confirm in the config menu). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
+- Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (always written directly — the write tools enforce format, uniqueness and the generality/secrets guards). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
 - **Privacy: the codex never stores passwords, API keys, tokens or any secrets.** The entry tools reject anything credential-like (key=value secrets, JWTs, bearer tokens, private keys) and anything project-specific (real machine paths, real URLs) before it is ever written — lessons must be general enough to make sense on ANY project.
 - One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. **Updating: fully automatic.** When a pi-aftc-toolset update ships new codex content, your live copy merges it in on pi start (non-destructive — your learned entries are kept; on a conflicting edit YOUR version wins and is reported). Toggle: Auto Sync on Startup in `/aftc-codex` (on by default); `/aftc-codex-sync` runs the same merge by hand. The destructive alternative: Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
 - **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
@@ -538,8 +503,6 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 | Command | What it does |
 | --- | --- |
-| `/cd [path]` | Switch directory (interactive picker or one-shot path). Always starts a fresh session. |
-| `/cd-set-max-depth [2-10]` | Set the `/cd` picker listing depth (default 3) |
 | `/dir` (alias `/ls`) | Show the current directory name + platform-native listing |
 | `/cwd` | Show the current working directory as an inline card |
 | `/qd` | Quick dir access menu: open the users data dir or the `.pi` dir |

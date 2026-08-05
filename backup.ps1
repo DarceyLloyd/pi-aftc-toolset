@@ -34,6 +34,7 @@ try {
         "-x*\node_modules\*",
         "-x*\.bak",
         "-x*\.bak\*",
+        "-x*\shipit.ps1",
         "-t",
         $dest,
         "*"

@@ -23,7 +23,10 @@
  *     fresh = "new" | "startup"; restore = "resume" | "reload" | "fork". On a fresh
  *     enabled+un-prepped session, append a stand-out transcript notice (TUI) or
  *     auto-prep (print/headless). The notice is a durable custom entry rendered via
- *     registerEntryRenderer — NO timer / NO TUI-ready wait (spec D7).
+ *     registerEntryRenderer — NO timer / NO TUI-ready wait (spec D7). The renderer
+ *     derives from CURRENT truth (compat guard + live session state) on every paint,
+ *     never the append-time snapshot, so re-renders on /reload//resume can never
+ *     show a stale out-of-date warning or a stale /codex-init nag.
  *
  * The `context`-event prune filter lives here too (added in step 3.1).
  *
@@ -131,13 +134,39 @@ export function createCodexInject(
 
 
     // ---- entry renderer: fresh-session prep notice (registered once) ----
+    // This entry is DURABLE: pi re-renders it on every /reload and /resume,
+    // long after the append-time snapshot in entry.data was taken. NEVER render
+    // the snapshot blindly — derive from the CURRENT truth (the compat guard's
+    // fresh disk reads + live session state) on every paint:
+    //   - the out-of-date warning shows only while the guard STILL fails (an
+    //     auto-sync /codex-sync moments later flips it to a resolved line —
+    //     regression: the warning used to replay forever on /reload, and /new
+    //     "fixed" it only because a fresh session has no old entries);
+    //   - the "run /codex-init" nag shows only while the session is genuinely
+    //     un-prepped (a prepped session gets a one-line "active" note instead).
+    // compatSafeNow is TTL-cached (2s): renderers can fire per redraw frame and
+    // the guard does two small disk reads. Fail-soft: an error reads as SAFE —
+    // a renderer must never cry wolf.
+    let compatCache: { at: number; safe: boolean } | null = null;
+    const compatSafeNow = (): boolean => {
+        const now = Date.now();
+        if (compatCache && now - compatCache.at < 2000) return compatCache.safe;
+        let safe = true;
+        try { safe = checkCompat().isSafe; } catch { /* keep fail-soft default */ }
+        compatCache = { at: now, safe };
+        return safe;
+    };
+
     pi.registerEntryRenderer(CODEX_PREP_NOTICE_ENTRY, (_entry, _opts, theme) => {
         const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
         box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX" + randSpaces())), 0, 0));
 
+        let noticeData: { outOfSync?: boolean } = {};
+        try { noticeData = (_entry.data ?? {}) as { outOfSync?: boolean }; } catch { /* fail-soft */ }
 
-        const noticeData = (_entry.data ?? {}) as { outOfSync?: boolean };
-        if (noticeData.outOfSync === true) {
+        // Out of date RIGHT NOW -> the warning (even if this entry was appended
+        // as a plain prep notice: a newer seed can land mid-session via update).
+        if (!compatSafeNow()) {
             box.addChild(new Text(
                 theme.fg("warning", "WARNING: Your AFTC codex is outdated."),
                 0, 0,
@@ -146,9 +175,35 @@ export function createCodexInject(
                 "Run " + boldWhite("`/codex-sync`", theme) + " to update (keeps your learned entries) or " + boldWhite("`/codex-install`", theme) + " for a fresh copy.",
                 0, 0,
             ));
-        } else {
+            return box;
+        }
 
-            box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
+        // Appended as a warning, since resolved (auto-sync / manual /codex-sync).
+        if (noticeData.outOfSync === true) {
+            box.addChild(new Text(
+                theme.fg("accent", "Codex was synced — you are up to date now. Run " + boldWhite("`/codex-init`", theme) + " to prep the AI."),
+                0, 0,
+            ));
+            return box;
+        }
+
+        // Session already live -> a one-line note, not the full prep nag.
+        if (state.rulesOnly) {
+            box.addChild(new Text(
+                "Codex RULES-ONLY mode is active for this session (critical rules only).",
+                0, 0,
+            ));
+            return box;
+        }
+        if (state.prepped && !state.silent) {
+            box.addChild(new Text(
+                "Codex is active — rules + resources are in the AI's system prompt.",
+                0, 0,
+            ));
+            return box;
+        }
+
+        box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
             box.addChild(new Text(
                 "Run " + boldWhite("`/codex-init`", theme) + " to load the codex resources relevant for this project.",
                 0, 0,
@@ -193,8 +248,6 @@ export function createCodexInject(
                 "This does depend on how complex or big the task and project is.",
                 0, 0,
             ));
-
-        }
 
         return box;
     });

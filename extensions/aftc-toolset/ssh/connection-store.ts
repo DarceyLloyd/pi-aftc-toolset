@@ -1,8 +1,8 @@
 /**
  * pi-aftc-toolset / ssh / connection-store — local SSH connection metadata.
  *
- * Same NO-IN-MEMORY-CACHE rule as `config.ts` (see
- * `docs/working-with-config.md`): every read hits `ssh.json` on disk,
+ * Same NO-IN-MEMORY-CACHE rule as `config.ts` (full contract in
+ * `docx/docs/1.2_orchestrator_core_documentation.md`): every read hits `ssh.json` on disk,
  * every write is a fresh read-modify-write. pi keeps extension modules
  * alive across `/new`, so a module-scoped cache would serve stale
  * values after a user hand-edits the file - and a later save would

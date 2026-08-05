@@ -32,15 +32,30 @@ ONLY re-written when a tracked value actually changes via
 ```typescript
 // Generic typed getter - returns the saved value or the supplied
 // default if the key is missing from disk (e.g. on first run, or
-// after the file is added in a later release). Read-only: does NOT
-// create config.json.
+// after the file is added in a later release). Creates config.json
+// from the defaults on first access.
 const timeframe = getPreference("footerTimeframe", "3d");
 
 // Persist a single preference. Fresh read-modify-write of the file
 // (hand edits made since the last write survive), written atomically.
 // Errors are logged, never thrown. This is the ONLY path that writes
-// config.json after the initial ensure and the missing-key migration.
+// config.json after the initial ensure and the load-merge migration
+// (missing-key backfill + retired-key strip).
 setPreference("footerTimeframe", "7d");
+```
+
+### Adding / retiring preferences
+
+- **Add**: `Preferences` interface + `DEFAULT_PREFERENCES` + done. The
+  load-merge backfills any missing (or wrong-typed) defaults key and
+  re-saves — no per-key migration code. Only a value that must be
+  DERIVED (not the default) gets a special case (today: `notifyEnabled`).
+- **Retire**: remove from the interface + defaults and add ONE line to
+  `RETIRED_KEYS` in config.ts; the strip re-saves on its own. Never prune
+  `RETIRED_KEYS` — a user may skip many releases, and a leftover dead key
+  is inert anyway (stripping is hygiene, not correctness).
+
+```typescript
 
 // The default object - used to generate a fresh config.json and to
 // merge against a partial one. Exported so tests can verify the
@@ -53,7 +68,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     thinkProcessingEnabled: false,
     "aftc-intro": true,
     // ... qwencloud*, notify*, warGames*, and aftcCodex* prefs
-    aftcCodexEnabled: false,        // master switch (off by default)
+    aftcCodexEnabled: false,        // feature on/off (off by default)
     aftcCodexInjectGuidance: true,  // inject thought-and-action-guidance.md
     aftcCodexAutoLoad: true,        // auto-detect techs + fetch their docs
     aftcCodexSeeded: false,         // first-run seed choice done
@@ -106,7 +121,7 @@ stale values after the user hand-edits config.json — worse, the next
 those edits. The file is tiny and local; reading it each time is
 free. The same rule applies to the shipped
 `data/extension-config.json` (read fresh by codex-compat.ts).
-See `docs/working-with-config.md` for the full contract.
+Full contract: `docx/docs/1.2_orchestrator_core_documentation.md`.
 
 ## SSH connection records
 

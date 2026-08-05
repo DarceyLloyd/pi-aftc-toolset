@@ -50,12 +50,16 @@ entry (survives `/reload`); a fresh session (`/new`) clears it — that plus
 ## Renderers registered
 
 - `aftc-codex-prep-notice` (entry renderer) — the unmissable "run /codex-init"
-  notice. TUI transcript only; not in LLM context. When the live copy is
-  out of date (the central guard `ctx.checkCompat()`, see codex-compat-readme.md),
-  the notice instead shows a `WARNING: Your AFTC codex is outdated.` line plus
-  a "Run `/codex-sync` to update (keeps your learned entries) or `/codex-install`
-  for a fresh copy." line (flag computed at append time and carried in the
-  entry data).
+  notice. TUI transcript only; not in LLM context. The entry is DURABLE (pi
+  re-renders it on every /reload and /resume), so the renderer NEVER trusts the
+  append-time snapshot in the entry data — it derives from CURRENT truth on
+  every paint (the compat guard's fresh disk reads, TTL-cached 2s, plus the live
+  session state): the `WARNING: Your AFTC codex is outdated.` line (plus "Run
+  `/codex-sync` to update (keeps your learned entries) or `/codex-install` for a
+  fresh copy.") shows only while the guard STILL fails; an entry appended as a
+  warning flips to a "synced — you are up to date now" line once the version is
+  fixed; a prepped session gets a one-line "Codex is active" note instead of the
+  stale /codex-init nag (rules-only sessions get a rules-only line).
 - `aftc-codex-marker` (message renderer) — renders the marker text in accent colour.
 
 ## Public API

@@ -48,7 +48,7 @@ function safeRead(absPath: string): string | null {
  * logic (fail-soft: never block when unsure).
  *
  * Read fresh from disk on every call (no cache — same rule as config.json,
- * see docs/working-with-config.md).
+ * full contract in docx/docs/1.2_orchestrator_core_documentation.md).
  */
 export function readCodexSeedVersion(seedDir: string): number | null {
     try {

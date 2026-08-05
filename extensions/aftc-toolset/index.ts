@@ -16,7 +16,6 @@
  *   - intros/         — AFTC text startup intro (factory disconnected; only intro-text wired)
  *   - theme.ts        — /theme: shortcut to pi's theme picker
  *   - stfu.ts         — /aftc-stop + /stfu: emergency abort of current agent op
- *   - cd.ts           — /cd: switch to a fresh Pi session in another directory
  *   - dir.ts          — /dir /ls: list current directory contents (platform-native)
  *   - cwd.ts          — /cwd: show the current working directory (inline card)
  *   - replay.ts       — /save-replay-prompt + /replay: save a prompt string and re-send it
@@ -69,7 +68,6 @@ import { createInstallModule } from "./install";
 import { createSshModule } from "./ssh/index";
 import { createResponseDivider } from "./response";
 import { createStfu } from "./stfu";
-import { createCd } from "./cd";
 import { createDir } from "./dir";
 import { createCwd } from "./cwd";
 import { createReplay } from "./replay";
@@ -146,7 +144,6 @@ export default function (pi: ExtensionAPI): void {
 	createSshModule(pi);
 	createResponseDivider(pi);
 	createStfu(pi);
-	createCd(pi);
 	createDir(pi);
 	createCwd(pi);
 	createReplay(pi);
