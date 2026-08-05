@@ -24,13 +24,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node 24: trusted publishing needs npm >= 11.5.1, and the OIDC
-      # handshake is broken under node 22 even with npm upgraded
-      # (E404 on the publish PUT — npm/cli#8976; node 24 is the fix).
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      # CRITICAL: setup-node's registry-url writes
+      # `//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}` into .npmrc;
+      # with no NODE_AUTH_TOKEN secret it expands to EMPTY, and npm CLI then
+      # treats auth as configured and short-circuits the OIDC exchange
+      # (publish fails E404/ENEEDAUTH — npm/documentation#1960). Strip it.
+      - name: Strip empty _authToken from .npmrc
+        run: |
+          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          sed -i '/_authToken/d' "$npmrc"
 
       # Safety: a release tag must match package.json's version, so a
       # mis-tagged release can never publish the wrong version number.
@@ -48,4 +56,4 @@ jobs:
       # Publish is all that runs here: tests live outside the repo (local
       # only) and the package needs no build/install step (pi loads raw .ts).
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: npm publish

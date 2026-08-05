@@ -21,6 +21,10 @@
   },
   "author": "Darcey Lloyd",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DarceyLloyd/pi-aftc-toolset.git"
