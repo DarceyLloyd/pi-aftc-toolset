@@ -2,6 +2,8 @@
 
 ## Rules
 
+- [hlMJVE] Embedded terminal clipboard (classic Windows console / VS Code copyPaste): right-click = copy the selection when one exists else paste (no popup menu); Ctrl+C/Ctrl+X copy only when xterm has a selection, otherwise pass through to the shell; paste via term.paste() (NOT raw write) so a shell in bracketed-paste mode gets the \x1b[200~...\x1b[201~ markers; intercept only these chords in attachCustomKeyEventHandler and return true for everything else.
+
 ## Gotchyas
 
 - [sLU0QK] @xterm/addon-fit UMD registers window.FitAddon.FitAddon (a namespace object holding the class, not the class itself) - resolve the constructor as `(window.FitAddon && window.FitAddon.FitAddon) || window.FitAddon` when loading via plain script tags (no bundler).

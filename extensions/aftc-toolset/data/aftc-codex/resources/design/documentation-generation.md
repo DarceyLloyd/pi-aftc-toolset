@@ -12,7 +12,17 @@
 
 - [q1nq7C] When generating dozens of documentation files, batch writes into a few script executions using quoted heredocs (<<'EOF') - no shell expansion, far fewer tool calls than one write per file
 
+- [dLI7uV] After changing a documentation-generation spec, validate by running it against several real projects of different archetypes (single-page app, multi-area web stack, single-window desktop app, plugin editor) and mechanically auditing each output - mock fixtures cannot catch under-specified mapping rules.
+
+- [6JodTT] Give every UI area of a documented project a sitemap page: the full tree of reachable screens plus one entry per screen detailed enough to rebuild that screen from; simple screens live entirely in their sitemap entry, screens with their own rules or states get a separate detailed doc the entry points to - every screen documented, doc count scales with complexity not screen count.
+
+- [G3UcLe] Capture design rules in one global design doc when a project follows a single style, plus per-area design docs that override it where areas genuinely diverge (public website vs admin back-office); per-screen layout docs reference these instead of repeating the rules.
+
+- [coAT0F] Split a single complex screen/window into per-region child docs only when each region has its own rules, states or contract; when the regions are too intertwined to describe independently, keep ONE document - forced separation reads worse, not better.
+
 ## Gotchyas
+
+- [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.
 
 ## Issues & Solutions
 

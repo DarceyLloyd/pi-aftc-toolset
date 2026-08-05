@@ -11,7 +11,8 @@
  *      index entries, backticked paths) exists.
  *   3. Every last-reviewed / last-verified stamp matches YYYY-MM-DD HH:MM.
  *   4. Every ID-prefixed file under docx/docs has an H1 starting with its ID.
- *   5. Every map ID in project_map.md has a matching doc file (1:1).
+ *   5. Every map ID in project_map.md has a matching doc file (1:1;
+ *      _map/_layout/_sitemap/_design partner files are not deep docs).
  *
  * Exit 0 = PASS, 1 = FAIL (failures listed). Pure Node stdlib, no shell,
  * self-terminating.
@@ -52,7 +53,7 @@ function collectMd(dir, out) {
     for (const entry of entries) {
         const full = join(dir, entry.name);
         if (entry.isDirectory()) {
-            if (entry.name === "old" || entry.name.startsWith(".")) continue;
+            if (entry.name === "old" || entry.name === "old_docs" || entry.name.startsWith(".")) continue;
             collectMd(full, out);
         } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
             out.push(full);
@@ -193,6 +194,10 @@ if (existsSync(mapFile)) {
         if (!m) continue;
         if (base.endsWith("_map.md")) {
             subMapIds.set(m[1], (subMapIds.get(m[1]) || 0) + 1);
+        } else if (base.endsWith("_layout.md") || base.endsWith("_sitemap.md") || base.endsWith("_design.md")) {
+            // Partner docs (<id>_<artefact>_layout.md, <id>_<area>_sitemap.md,
+            // <id>_<area>_design.md) are NOT deep docs: they accompany the
+            // owning node's deep doc (H1/ID still checked above).
         } else {
             docIds.set(m[1], (docIds.get(m[1]) || 0) + 1);
         }

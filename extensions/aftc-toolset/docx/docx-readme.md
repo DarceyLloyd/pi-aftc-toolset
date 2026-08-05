@@ -24,7 +24,8 @@ documentation set into `./docx/` per the shipped `documentation_guide.md`
    (`deliverAs: "followUp"` when the agent is busy). Placeholders
    substituted: `[PROJECT_PATH]`, `[GUIDE_PATH]`, `[MAP_SCAN_PATH]`,
    `[LINK_AUDIT_PATH]`, `[ZIP_OLD_PATH]`.
-5. The model generates the docs; its LAST action runs
+5. The model generates the docs (master, map, deep docs, sub-maps, leaf
+   docs, per-UI-branch sitemaps and design-rules docs); its LAST action runs
    `scripts/zip-old.mjs`, packing `docx/old_docs/` into `docx/old_docs.zip`
    and deleting the folder so future sessions never read superseded docs.
 
@@ -37,7 +38,8 @@ documentation set into `./docx/` per the shipped `documentation_guide.md`
   docx/
     project_documentation.md
     project_map.md
-    docs/              # <id>_*_documentation.md, <id>_*_map.md, cross-cutting
+    docs/              # <id>_*_documentation.md, <id>_*_map.md, <id>_*_sitemap.md,
+                       # <id>_*_design.md, <id>_*_layout.md, cross-cutting
     old_docs.zip       # previous documentation (restorable)
 ```
 
@@ -93,4 +95,6 @@ preferences (a slash command is opt-in by nature).
 - Guide maintenance: `documentation_guide.md` is an adapted copy of the
   maintainer's source guide (`W:\Dev\0 - AFTC Project Doc Guide\`). When
   the source guide changes, re-copy and re-apply the `./docx/` layout
-  adaptations (see the diff points in section 1/10/17/18 of the file).
+  adaptations (sections 1/4/7/10/17/18) and keep the shipped-only
+  UI-surface/sitemap/design-rules content (sections 3/5/6/9/14/19 + the
+  step-1/step-5 prompt bullets).

@@ -2,7 +2,7 @@
 
 The cross-ID dependency view. Table-heavy, keyed by map ID; prose lives in the deep docs.
 
-<!-- structure-map - last-verified: 2026-08-04 20:37 - regenerate: run /docx -->
+<!-- structure-map - last-verified: 2026-08-05 02:05 - regenerate: run /docx -->
 
 ## References
 
@@ -35,8 +35,6 @@ The cross-ID dependency view. Table-heavy, keyed by map ID; prose lives in the d
 | OS data dir (`%APPDATA%\pi-aftc-toolset\data` win) | extension runtime | rw | 1.2 (config/db/ssh.json/report), 1.7 (live codex) |
 | `extensions/aftc-toolset/data/` | extension runtime | ro (in place) | 1.5 (MP3s), 1.7 (seed), 1.9 |
 | tests fixtures → container `/opt/pi-aftc-toolset` | docker fixtures | rw (container-local) | 5.2 |
-| `tests/docx/test_project` → `/work` | docx e2e container | rw | 5.2 (docx e2e) |
-| `extensions/aftc-toolset/docx` → container docx dir | docx e2e container | **ro** | 5.2 (docx e2e) |
 
 ## 3. Build-output contract
 
@@ -47,7 +45,7 @@ The cross-ID dependency view. Table-heavy, keyed by map ID; prose lives in the d
 | usage-report | `<dataDir>/report.html` | owns |
 | sync-codex-resources.mjs | `<dataDir>/aftc-codex/codex-resource-list.md` | owns (never ship in the seed) |
 | docx (in a USER's project) | `./docx/` + root README.md + AGENTS.md block | owns `./docx/`; must preserve the rest of AGENTS.md verbatim; never touches other folders |
-| tests | `tests/docx/docx_test_*`, `test_project` | own (recreated per run) |
+| tests | `tests/docx/docx_test_*` | own (recreated per run) |
 
 ## 4. Feature trace matrix
 

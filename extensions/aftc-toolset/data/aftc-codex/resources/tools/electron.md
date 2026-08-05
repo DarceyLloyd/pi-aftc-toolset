@@ -40,3 +40,7 @@
 - [9bIMVc] Packaged installer/unpacked payload silently missing files that exist in the source tree
   Cause: the packaging staging script enumerated assets with a hardcoded name list, so folders added to the source tree later (extra models, new resources) were never staged.
   Fix: Stage by scanning the parent directory instead of naming items, and before shipping verify the packaged payload against the source (folder list + total size) - a payload far smaller than the assets on disk is the tell. (2026-08)
+
+- [YzMcR3] role editMenu / reload app menu - terminal (xterm) never receives Ctrl+C/V/X/A/R: Ctrl+C never SIGINTs, Ctrl+R reloads the UI instead of reaching the shell
+  Cause: On Windows, application-menu accelerators fire BEFORE the renderer sees the keypress; role items (editMenu = Ctrl+Z/X/C/V/A, reload = Ctrl+R, toggleDevTools = Ctrl+Shift+I) register their default accelerators app-wide, so xterm/canvas widgets never receive those keys.
+  Fix: Build every app-menu item as an explicit label + click handler (webContents.undo()/cut()/copy()/paste()/selectAll()/reload()/toggleDevTools()) with NO accelerator property; native text fields keep their own Chromium editing shortcuts without menu accelerators. Role items in POPUP context menus are safe - popup roles register no global accelerators. (2026-08)

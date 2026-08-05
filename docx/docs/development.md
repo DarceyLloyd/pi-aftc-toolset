@@ -2,7 +2,7 @@
 
 Dev environment setup and every dev tool this project uses (host access, how to disable).
 
-<!-- last-reviewed: 2026-08-04 20:37 -->
+<!-- last-reviewed: 2026-08-05 02:05 -->
 
 ## References
 
@@ -30,7 +30,6 @@ The project is plain TypeScript loaded by pi through jiti — no build step, no 
 | pi-linux-integration (5.2) | full Linux pi container gate | `node tests/pi-linux-integration/pi-linux-integration.mjs` | not shipped |
 | pi-linux-ssh-verify (5.2) | two-container SSH verify, no provider allowance | via its suite | not shipped |
 | install-test image (5.2) | minimal install check | via its suite | not shipped |
-| docx e2e (5.2) | live /docx run in the container against `tests/docx/test_project` | `node tests/docx/docx-e2e-linux.mjs` | not shipped |
 | backup.ps1 | maintainer's pcloud backup script | run from repo root | n/a |
 
 ## Examples

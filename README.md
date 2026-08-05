@@ -17,7 +17,7 @@ Click [here](./change-log.txt) to read the change logs.
 ## **WHATS NEW**
 
 ### **/docx project documentation generator**
-One command — `/docx` — generates a complete, cross-referenced documentation set for any project: a fresh GitHub README.md, a master document, a full ID'd structure map, and per-module deep docs under `./docx/`. Your old docs are never lost: they're moved aside with their folder structure intact and zipped to `docx/old_docs.zip`. See [/docx project documentation generator](#docx-project-documentation-generator).
+One command — `/docx` — generates a complete, cross-referenced documentation set for any project: a fresh GitHub README.md, a master document, a full ID'd structure map, and per-module deep docs under `./docx/`. BETA 3: every UI is now mapped surface-by-surface on any platform (web pages, mobile screens, desktop/Electron windows, VST/plugin editors, CLI/TUI screens), each UI area gets a sitemap doc with a build-from-it entry per screen, and design rules get global + per-area docs (eg public site vs admin back-office). Your old docs are never lost: they're moved aside with their folder structure intact and zipped to `docx/old_docs.zip`. See [/docx project documentation generator](#docx-project-documentation-generator).
 
 ### **AFTC CODEX PATCHES & UPDATED CODEX RESOURCES**
 Fixed some bugs, adjusted learning process and model guidance. And brought synced my latest codex resources for you all to use..
@@ -53,9 +53,9 @@ Then in pi:
 - [**Footer Widget**](#footer-widget)
 - [**SSH**](#ssh)
 
-- [**DOCX Documentation Generator (BETA)**](#docx-project-documentation-generator)
+- [**DOCX Documentation Generator (BETA 3)**](#docx-project-documentation-generator)
     > **WARNING: This will re-write readme.md and move all existing documentation.**
-    If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating indepth modular documenation designed for AI use while being human friendlyalso. This can take a long time the larger the project is. 
+    If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is. 
     
     > **WARNING: Context compaction danger**. If you run this when your context use is high or nearing compaction this could corrupt the documentation process. It's best to start a fresh context window and run /docx to guarantee the best chance of success.
 
@@ -439,7 +439,7 @@ The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`j
 - **`README.md`** at the project root — a real GitHub readme (requirements, tech stack with exact versions, install, overview), written LAST once the model understands the whole project. Your old README is evaluated and mined for whatever is still accurate — never copied blindly.
 - **`docx/project_documentation.md`** — the master document: what the project is (and is not), guidance and rules, one section per structure-map ID, and a documentation index.
 - **`docx/project_map.md`** — the full project structure map: one ID'd tree, every documented node at every level, with annotations and status legend.
-- **`docx/docs/`** — one ID-prefixed deep doc per map node, sub-maps for every major branch, drill-down leaf docs for pages/models/components, plus cross-cutting docs (contributing, deployment, development, the mandatory dependency map, and more as the project warrants).
+- **`docx/docs/`** — one ID-prefixed deep doc per map node, sub-maps for every major branch, and drill-down leaf docs for screens/models/components. Every UI is mapped surface-by-surface on any platform (web routes, mobile screens, desktop/Electron windows, VST/plugin editors, CLI/TUI screens): each UI area gets a sitemap doc (the full surface tree plus a build-from-it entry per screen), design rules get a global `design.md` and/or per-area design docs (eg public site vs admin back-office), and a single complex screen is broken into per-region docs when its regions stand alone. Plus cross-cutting docs (contributing, deployment, development, the mandatory dependency map, and more as the project warrants).
 - **`AGENTS.md`** is never replaced — it gets a managed `<!-- AFTC-DOCX -->` pointer block (replaced in place on re-runs) and its existing rules are preserved verbatim.
 
 How to use it: open pi in the project root and run `/docx`. You get a context-window warning if your window is already 10%+ used (a fresh session via `/new` is recommended), then a confirmation modal. The model then does recon (a shipped scan script builds the tree/manifest inventory), plans the structure, writes every document, mechanically audits its own links/stamps/IDs with the shipped audit script, and finishes by zipping the old docs away. `/docx --yes` skips both confirmations for headless runs (`pi -p "/docx --yes"`).

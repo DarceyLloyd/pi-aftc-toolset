@@ -4,6 +4,8 @@
 
 - [iC2nP8] When hand-packing a multi-resolution .ico, embed PNG payloads directly for EVERY frame - valid since Vista (not just the 256px frame); the container is trivial: ICONDIR (6 bytes) + one 16-byte ICONDIRENTRY per frame (width/height as bytes, 0 means 256, planes=1, bpp=32, byte length, offset) + the raw PNG bytes concatenated.
 
+- [eP7Np9] Never put durable per-user app data (settings, history, logs, caches) under %TEMP% / os.tmpdir() on Windows - disk cleanup wipes it periodically; use %LOCALAPPDATA%\<AppName> (machine-local, safe for large caches) or %APPDATA% for roaming settings, and reserve temp only for self-healing throwaway files.
+
 ## Gotchyas
 
 ## Issues & Solutions

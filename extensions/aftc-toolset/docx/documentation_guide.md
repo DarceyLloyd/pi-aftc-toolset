@@ -26,7 +26,9 @@ docx/
     <id>_<module>_map.md             Sub-map for one ID (its branch of the tree)
     <id>_<artefact>.md               Leaf doc (one page / model / component)
     <id>_<artefact>_layout.md        Layout partner for a UI-heavy leaf doc
-    <cross-cutting>.md               contributing, deployment, ... (no ID)
+    <id>_<area>_sitemap.md           Sitemap partner for a UI branch
+    <id>_<area>_design.md            Per-area design-rules partner
+    <cross-cutting>.md               contributing, deployment, design, ... (no ID)
 AGENTS.md                     Auto-loading context at the PROJECT ROOT - pointer
                               + critical rules; edited in place, never moved
 ```
@@ -84,10 +86,15 @@ AGENTS.md                     Auto-loading context at the PROJECT ROOT - pointer
 
 - Every `docx/docs/` file documenting a map node: `<id>_<snake_case_area>_documentation.md`;
   sub-map: `<id>_<area>_map.md`; leaf: `<id>_<artefact>.md` (drops
-  `_documentation`); layout partner: `<id>_<artefact>_layout.md`.
+  `_documentation`); layout partner: `<id>_<artefact>_layout.md`; sitemap
+  partner: `<id>_<area>_sitemap.md`; per-area design partner:
+  `<id>_<area>_design.md` (global design rules are a cross-cutting
+  `design.md`, no ID).
   `_documentation` is the default for every map ID; the leaf form is reserved
   for single-artefact drill-down nodes (one editor, one carousel - typically
-  grandchild IDs like `3.3.1`). State the chosen convention in the root map
+  grandchild IDs like `3.3.1`). Partner docs (`_layout`/`_sitemap`/`_design`)
+  carry the OWNING node's ID in name and H1 and never get an ID of their
+  own. State the chosen convention in the root map
   header and apply it uniformly.
 - **The H1 title of every ID-prefixed document starts with the same ID:**
   `# 1.2.1 - MySQL (mysql-aftt)`. File name and title carry the ID at every
@@ -217,6 +224,10 @@ Must work as a complete overview even if nothing else exists. In order:
    - Refresh `last-reviewed` / `last-verified` headers of every doc touched.
    - New modules update four things in one commit: map node, master per-ID
      section, Documentation Index entry, new ID-prefixed deep doc.
+   - A change that adds a UI surface (page/screen/window/view) or a component
+     with its own rules mints a leaf in the same commit: map node (next free
+     sibling ID), leaf doc, Documentation Index entry, and the owning UI
+     branch's sitemap entry.
 6. **One section per ID in the root map - every node at every level.**
    Shape per section: `## <id> - <Name>`; one short paragraph (purpose, what
    it owns, what it does NOT own); ALL functionality mentioned at this
@@ -260,12 +271,23 @@ Must work as a complete overview even if nothing else exists. In order:
   Operational notes & known limitations -> Related. Drop a section only
   when it genuinely does not apply; never reorder the rest.
 - **Drill-down: it is better to go too deep than not deep enough.** Triggers
-  for leaf docs: a page/drawer/view with its own rules or states; a
+  for leaf docs: a UI surface (page, screen, window, drawer, view, plugin
+  editor, CLI/TUI screen) with its own rules or states; a functional region
+  of a single screen with its own rules, states or contract; a
   model/controller/service/API group with its own contract; a component or
   animation with non-obvious behaviour; a setup path with ordering
   dependencies (document every step, script, env var). When unsure, create
   the doc. Leaf IDs hang off the parent and are listed in the parent's
   sub-map.
+- **Single-surface breakdown:** when ONE screen/window carries several
+  complex functional regions (eg a nav, a voice/AI panel and a terminal area
+  in one desktop window), the screen node gets child IDs per region, each
+  with its own leaf doc; the screen's deep doc keeps only screen-level
+  concerns (window lifecycle, layout composition, cross-region state).
+  Trigger: a region with its own rules, states or contract. Edge case: when
+  the regions are too intertwined to describe independently (every region
+  cross-references every other), keep ONE deep doc for the whole screen -
+  forced separation produces worse docs, not better ones.
 - UI-heavy leaf docs get a `<id>_<artefact>_layout.md` partner (regions,
   breakpoints, states, spacing, asset slots) when the layout itself is
   non-trivial.
@@ -323,6 +345,10 @@ dependency_map which is mandatory):
 - `docker.md` - alternative to development.md when the env is entirely compose
 - `decisions.md` (or `decisions/` one file per decision, append-only)
 - `dependency_map.md` - MANDATORY (see section 8)
+- `design.md` - global design rules when the project follows one style:
+  palette, typography, spacing, component + interaction conventions
+  (CLI/TUI: layout regions, colour/theme and key conventions); per-UI-area
+  `<id>_<area>_design.md` partners extend/override it (see section 14)
 - `glossary.md` - domain terms (when >10 specialised terms)
 - `roadmap.md` - direction without dates
 - `faq.md` - only when a question has been asked 3+ times
@@ -472,14 +498,40 @@ what never gets one); siblings are consecutive (never 1.1.1, 1.1.5, 1.1.9);
 depth matches directory depth; reorder/rename keep IDs; deletion reserves;
 insertion takes the next sibling; file names derive from IDs.
 
-**UI route-tree mapping:** for user-facing applications (SPAs, server-
-rendered sites), map the USER-FACING route tree - every page, drawer,
-manager, editor - as the node's children, even when those routes are
-served by a single flat controllers/ directory. "Depth matches directory
-depth" applies to source-layout branches (build, components, services);
-the UI branch mirrors the routes a user can reach, because that is what a
-session needs IDs for. A UI branch mapped only at controller-group level
-is under-mapped.
+**UI surface mapping (all platforms):** for anything with a user-facing
+interface - SPAs, server-rendered sites, mobile apps, desktop apps (incl.
+Electron, .NET, Java), VST/plugin editors, CLI/TUI applications - map the
+USER-FACING surface tree: every page, screen, window, drawer, view, manager
+and editor a user can reach, as the node's children, even when they are
+served by a single flat controllers/ or views/ directory. "Depth matches
+directory depth" applies to source-layout branches (build, components,
+services); the UI branch mirrors the surfaces a user can reach, because
+that is what a session needs IDs for. A UI branch mapped only at
+controller-group level is under-mapped.
+
+**Sitemap (mandatory per UI branch):** every UI branch (a website's public
+frontend, its admin frontend, an app's window set, a CLI's screen set) gets
+a `<id>_<area>_sitemap.md` partner doc next to its deep doc:
+
+- HIGH LEVEL: the full surface tree with IDs (the classic sitemap).
+- LOW LEVEL: one entry per surface - purpose, route/window/screen, what is
+  on it (sections, components), states, key interactions, data/API sources
+  by ID. Detailed enough that the surface can be BUILT correctly from the
+  entry alone.
+
+Simple surfaces live entirely in their sitemap entry; surfaces with their
+own rules/states/complex layouts get a leaf doc and the sitemap entry
+becomes a summary plus pointer. Every reachable surface appears in the
+sitemap - no exceptions.
+
+**Design rules:** one global `design.md` cross-cutting doc when the project
+follows one style (palette, typography, spacing, component and interaction
+conventions; CLI/TUI: layout regions, colour/theme and key conventions).
+When UI areas follow DIFFERENT design rules (a public website vs its
+admin/CMS, an app vs its installer), each area gets a `<id>_<area>_design.md`
+partner doc hanging off its UI branch that extends/overrides the global
+rules. `_layout.md` leaf partners defer to these docs instead of
+duplicating rules.
 
 **Framework dependency** (the runtime foundation everything sits on): gets
 the FIRST sibling ID in its branch by default (per branch when there are
@@ -531,7 +583,8 @@ folder and is valid recon input until the final zip step removes it.
 
 ## 17. Maintenance, Regeneration, Backup
 
-Triggers for a doc pass: module added/renamed/moved/deleted; major
+Triggers for a doc pass: module added/renamed/moved/deleted; UI surface
+(page/screen/window/view) added, removed or redesigned; major
 dependency upgrade; new AI tool adopted; contributor correction; a quarter
 since last audit; onboarding slowdown.
 
@@ -607,6 +660,10 @@ STEP 1 - RECONNAISSANCE
   "project-local" when a manifest states one.
 - Record every test surface per sub-project. A tests/ folder is never
   assumed to be fixtures-only; look inside it.
+- UI surfaces: inventory EVERY reachable page/screen/window/view per UI area
+  (route tables, window/screen constructors, menu/nav definitions, CLI/TUI
+  screen registries). The UI branch of the map and each area's sitemap are
+  built from this list - a missed surface is undocumented UI.
 - Containers: record every service name and build context from the scan;
   read the compose/Dockerfiles for env vars, volumes, health gates.
 - Read the old documentation under docx/old_docs/ (read-only) - recon input,
@@ -643,9 +700,16 @@ STEP 5 - DEEP DOCUMENTS
 - Generate docx/docs/<id>_<module>_map.md for every ID with its own branch -
   then a deep doc for every ID in that sub-map too.
 - Drill down per the guide: leaf docs (<id>_<artefact>.md) for
-  pages/models/components/animations with their own rules; _layout.md
-  partners for non-trivial UI. When unsure, create the doc. Zero leaf docs
-  in a UI-heavy project is a smell.
+  pages/screens/models/components/animations with their own rules;
+  _layout.md partners for non-trivial UI. When unsure, create the doc. Zero
+  leaf docs in a UI-heavy project is a smell.
+- Generate docx/docs/<id>_<area>_sitemap.md for EVERY UI branch (public
+  frontend, admin frontend, app window set, CLI screen set): high-level
+  surface tree + low-level per-surface entries detailed enough to build each
+  surface from. Every surface in the step-1 inventory appears in a sitemap.
+- Generate the design docs per section 14: a global docx/docs/design.md when
+  the project follows one style, and/or <id>_<area>_design.md partners when
+  UI areas follow different rules (public site vs admin/CMS).
 - Every doc: References block, last-reviewed header, H1 title starting with
   the ID (# <id> - <name>).
 - Scope content to the area and be exhaustive: setup, configuration,
@@ -747,6 +811,8 @@ Fix any unchecked item, or document the gap in `docx/docs/known-gaps.md`.
 - [ ] Every map ID has a deep doc at `docx/docs/<id>_<module>_documentation.md`; every tree-node doc is ID-prefixed in name AND H1 title; only the root README, master, map, AGENTS.md and cross-cutting docs lack IDs.
 - [ ] Every generated doc has the References block, a Related section with sibling IDs, and a `last-reviewed` header.
 - [ ] Every sub-project/major branch has a sub-map; every sub-map ID has its own deep doc. Nothing was created inside sub-project folders.
+- [ ] Every UI branch has a `<id>_<area>_sitemap.md` (full surface tree + low-level per-surface entries); every reachable surface appears; surfaces with their own rules/states have leaf docs; complex single screens are broken into region leaves (or kept as one doc when too intertwined).
+- [ ] Design rules documented: global `design.md` and/or per-area `<id>_<area>_design.md`; `_layout.md` partners defer to them.
 - [ ] Every container (incl. dev tools) has a map ID matching its compose service name and its own deep doc (build, configuration, init/seeding, security, operations).
 - [ ] Dev tools: `dev-tool` tag, deep doc with host access + disable instructions, entry in `docx/docs/development.md`.
 - [ ] `docx/docs/dependency_map.md` exists: runtime graph, mount map, build-output contract, feature trace matrix, API consumer matrix - ID-keyed, `last-verified` header.

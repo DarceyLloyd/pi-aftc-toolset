@@ -10,6 +10,8 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [kQ7vX2] Caching a JSON config/preferences file in module memory - pi keeps extension modules alive across /new (the factory does NOT re-run), so the cache goes stale when the user hand-edits the file mid-process and the next write flushes the stale cache back over their edits; read the file fresh from disk on EVERY access (small local file, sync read is free) and make writes a fresh read-modify-write so external edits survive.
 - [eD4tA8] pi `edit` tool is ATOMIC per call - if ANY `edits[].oldText` fails to match, NOTHING in that call is applied (matching edits do NOT partially apply); after a failed multi-edit call, re-check the file and re-apply the whole batch, and keep edits for different files in separate calls per file so one miss cannot silently drop the rest.
 
+- [IUvxb8] A long headless `pi -p` run looks dead in its piped stdout log - print mode emits the response at process end instead of streaming, so track progress by polling the artifacts the task writes to disk (plus checking the process is alive), never by reading the log.
+
 ## Issues & Solutions
 
 
@@ -150,3 +152,11 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [X2jenr] Loading a pi extension .ts through jiti OUTSIDE pi (a test/probe harness) fails "Cannot find module '@earendil-works/pi-tui'"
   Cause: pi-tui/pi-ai are NESTED under pi-coding-agent/node_modules, and jiti resolves imports relative to the loaded module, which walks up the extension's own tree and never reaches pi's install.
   Fix: In the harness, set NODE_PATH to BOTH pi's global package root AND its nested node_modules (`<npmRoot>/@earendil-works/pi-coding-agent/node_modules`), call `Module._initPaths()`, then create jiti from the bundled jiti.cjs - and pass docker exec'd probe scripts through `sh -c` so git-bash does not mangle their /tmp paths. (2026-08)
+
+- [G6X025] docx link-audit FAILs a re-run project with phantom "map ID has no doc file" errors citing the PREVIOUS doc set's IDs
+  Cause: The audit's markdown collector skipped dirs named "old" but not "old_docs", so the tooling-owned backup tree (docx/old_docs/, including the previous project_map.md) was scanned and its stale map IDs were demanded docs in the new set.
+  Fix: Exclude "old_docs" alongside "old" in the file collector - old_docs is tooling-owned backup, never a check input (fixed in link-audit.mjs; keep any future docx script consistent). (2026-08)
+
+- [HhRnMm] docx link-audit reports "ID has 2 doc files (must be exactly one)" for a legitimate <id>_<artefact>_layout.md layout partner
+  Cause: The one-deep-doc-per-ID counter treated every ID-prefixed file except `_map.md` as a deep doc, so a `_layout.md` partner counted as a second doc.
+  Fix: Exclude partner-suffixed files from deep-doc counting the same way `_map.md` is excluded - `_layout`, and any future partner kind (`_sitemap`, `_design`, ...) must join the exclusion list the moment the convention is introduced or it double-counts; a partner file's ID/H1 is still validated by the filename/H1 check. (2026-08)
