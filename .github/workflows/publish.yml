@@ -24,14 +24,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24: trusted publishing needs npm >= 11.5.1, and the OIDC
+      # handshake is broken under node 22 even with npm upgraded
+      # (E404 on the publish PUT — npm/cli#8976; node 24 is the fix).
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-
-      # Trusted publishing requires npm >= 11.5.1; node 22 ships an older one.
-      - name: Update npm
-        run: npm install -g npm@latest
 
       # Safety: a release tag must match package.json's version, so a
       # mis-tagged release can never publish the wrong version number.
