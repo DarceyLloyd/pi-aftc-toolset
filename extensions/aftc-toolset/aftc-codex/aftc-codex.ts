@@ -253,7 +253,7 @@ export function createAftcCodex(pi: ExtensionAPI): void {
             void (async () => {
                 const result = await runSeedToLiveUpdate(store);
                 if (!result.output.trim()) return; // spawn failed — the guard stays as fallback
-                const msg = `AFTC Codex auto-synced v${liveBefore} -> v${result.newVersion ?? "?"} — new shipped resources merged in; your learned entries were kept.`;
+                const msg = `AFTC Codex auto-synced v${liveBefore} -> v${result.newVersion ?? "?"} — new shipped resources merged in${result.removed > 0 ? `, ${result.removed} obsolete resource(s) removed` : ""}; your learned entries were kept.`;
                 if (sctx.hasUI) aftcConsole.emphasis(sctx, msg);
                 else aftcConsole.print(msg);
             })();

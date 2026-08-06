@@ -4,7 +4,11 @@
 
 - [rP4mX8] Always build Python applications relative-path-only - launchers, configs and scripts must resolve everything from their own location (script dir, __file__, %~dp0, $PSScriptRoot), never hardcoded absolute paths, so the project folder keeps working when moved between drives/machines; use absolute paths only where project documentation or the user explicitly states otherwise.
 
+- [6HvM68] To find which import emits a FutureWarning/DeprecationWarning at startup, import candidate modules one at a time under warnings.catch_warnings(record=True) instead of guessing from log order.
+
 ## Gotchyas
+
+- [q2F1UY] argparse options with nargs='*' or action='append' yield lists (often default []), so passing such a value straight to logging.setLevel raises 'Level not an integer or a valid string' - normalize to a scalar level before use.
 
 ## Issues & Solutions
 
@@ -58,3 +62,7 @@
 - [gyecHQ] FastAPI/Starlette `h11 LocalProtocolError: Too much data for declared Content-Length` only when a REAL browser loads the page (httpx/requests tests pass clean)
   Cause: two distinct causes, same misleading error: (1) `@app.middleware("http")` (BaseHTTPMiddleware) re-buffers/re-streams the response body via `call_next`, corrupting `FileResponse`/`StaticFiles` streams; (2) `JSONResponse({}, status_code=204)` renders a 2-byte `{}` body for a 204 No Content (e.g. a `/favicon.ico` endpoint browsers auto-request).
   Fix: (1) replace with a PURE ASGI middleware that only edits headers on the `http.response.start` message (`MutableHeaders(scope=message)["Cache-Control"]=...`) and passes the body stream through untouched; (2) a 204 must carry NO body, use `Response(status_code=204)`. (2026-07)
+
+- [a0rIfg] ImportError at startup: numba needs NumPy X or less, got newer NumPy
+  Cause: numba pins numpy below the installed numpy series, and the plugin importing numba fails entirely.
+  Fix: upgrade numba to a release supporting the current numpy series; pip may auto-downgrade numpy to satisfy the pin - afterwards verify torch/C-extension consumers still work with the downgraded numpy. (2026-08)

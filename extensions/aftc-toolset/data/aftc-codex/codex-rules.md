@@ -34,7 +34,21 @@
 - For frontend runtime issues (something not rendering, an event not firing, a timer/animation not running, state not updating): add console logging at every relevant point (each function entry, event handler, timer tick, init etc) and read the browser console to observe the real runtime values and execution flow BEFORE doing a deep code analysis. Observe first, reason second - it is faster and more reliable than reading code blind. Gate the logs behind a debug flag or remove them once the issue is resolved.
 - Never base64-embed an SVG (via img src or JS injection). Either inline the SVG code in the HTML (best for accessing its dom for animation) or use a real .svg file
 - If you need to build anything for testing use the `tests` folder, ensure AGENTS.md has a section titles `Testing` add a short summary of what has been deployed for testing and link to a `testing.md` document for full detailed testing documenation, usage and issues etc. If `testing.md` and `tests` dir don't exist, create them.
-- Keep `tests` folder organised, place tests in named sub folders
+- Keep `tests` folder organised, place tests in named sub folders.
+- When running scripts ensure they are verbose in their output, never leave the user wondering what is going on.
+- Shell discipline (CRITICAL - never get stuck):
+  - Pass a timeout to EVERY shell command you run (powershell, bash, run_script).
+  Default 120 seconds; long builds/docker operations up to 300. Never run a command
+  without one.
+  - NEVER run a non-terminating command in the foreground: dev servers, watchers,
+  `bun run --watch`, `docker compose logs -f`, anything that streams or waits.
+  Use the background process tool (win_start_process) and read its log afterwards
+  (win_read_output), or the detached docker form (`docker compose up -d`,
+  `docker compose logs --tail 100`).
+  - Every script and test you write must self-terminate (exit timer / hard timeout);
+  nothing may block on stdin or run forever.
+  - If a command hits its timeout or a port is stuck, kill it (win_stop_process /
+  win_kill_port) and continue - never sit waiting on it.
 
 ## Self-Learning & Usage Guidelines
 

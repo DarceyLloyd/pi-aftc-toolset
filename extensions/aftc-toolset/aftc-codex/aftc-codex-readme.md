@@ -225,6 +225,7 @@ per-session STATE, not a preference — see codex-inject-readme.md.)
 | --- | --- |
 | `aftc-codex.ts` | Coordinator `createAftcCodex(pi)`; owns shared state; registers `codex_load`. |
 | `codex-store.ts` | Data-dir layout, copy-only seeding, resource reads, list + ensure-ids spawns. |
+| `codex-removals.ts` | Seed removal list — deletes obsolete topics from the live copy during sync (read from seed only, never copied live). |
 | `codex-inject.ts` | `before_agent_start` injection, session lifecycle, marker, prep notice, `context` prune. |
 | `codex-detect.ts` | Project technology auto-detection. |
 | `codex-learn.ts` | `/aftc-codex-learn` injection. |

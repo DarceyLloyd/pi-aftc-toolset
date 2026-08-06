@@ -2,7 +2,13 @@
 
 ## Rules
 
+- [nkMsv0] for password-hash interop between PHP (password_hash argon2id) and Bun, use Bun.password directly - Bun.password.verify accepts standard encoded argon2id strings with ANY parameter set (eg PHP's m/t/p values), so existing DB hashes verify unchanged with no native argon2 fallback package
+
 ## Gotchyas
+
+- [Tz7IcI] bun test` runs ALL test files in ONE process with a SHARED module cache - a once-initialised singleton/static (eg a Config.init() guarded by a flag) keeps the FIRST file's env values for every later file, so a suite passes alone but fails in the full run (paths/roots point at the wrong file's env); give init code a resetForTests() escape hatch and call it before init in every test file that depends on per-file env
+
+- [CTG1bm] fs copyFileSync throws ENOENT on Windows paths with MIXED separators (backslashes + forward slashes + `..` segments, eg `/path/to/tests/../tmp/data/file`) even though existsSync/readdirSync/mkdirSync accept the same string - so a move flow fails while every pre-check passes. Countermeasure: normalise every path with path.resolve() before fs calls.
 
 ## Issues & Solutions
 

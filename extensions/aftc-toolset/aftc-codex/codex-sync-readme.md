@@ -14,21 +14,32 @@ non-destructive codex update so the two callers can never drift apart.
 
 `runSeedToLiveUpdate(store): Promise<CodexSyncResult>` — never throws:
 
-1. Spawn `seed-to-live-sync.mjs` via `store.runSeedToLiveSync()`.
-2. Empty output = spawn/script failure -> return immediately (callers treat
+1. Apply the seed removal list (`applySeedRemovals`, codex-removals.ts):
+   topics the maintainer deleted/renamed in the seed are removed from
+   live FIRST so they stay out of the resource list regenerated below.
+   Idempotent + fail-soft; runs even if the merge later fails.
+2. Spawn `seed-to-live-sync.mjs` via `store.runSeedToLiveSync()`.
+3. Empty output = spawn/script failure -> return immediately (callers treat
    it as "sync failed"; the version guard and its messages stay as fallback).
-3. Stamp the live version pref (`aftcCodexVersion`) to the shipped seed
+4. Stamp the live version pref (`aftcCodexVersion`) to the shipped seed
    version (`readCodexSeedVersion`) so the guard clears — same as a seed.
-4. `runEnsureIds()` + `runSyncScript()` (ID backfill + resource-list regen).
+5. `runEnsureIds()` + `runSyncScript()` (ID backfill + resource-list regen).
 
-`CodexSyncResult = { output, newVersion, conflicts }` — `conflicts` is true
-when the merge reported same-[ID]-different-text entries (the LIVE version is
-always kept on conflict; the user reviews by hand).
+Removal report lines (`REMOVED ...`) are prepended to the merge output so
+the `/codex-sync` viewer shows them.
+
+`CodexSyncResult = { output, newVersion, conflicts, removed }` —
+`conflicts` is true when the merge reported same-[ID]-different-text
+entries (the LIVE version is always kept on conflict; the user reviews by
+hand); `removed` counts obsolete live resources deleted via the seed
+removal list (the auto-sync notice mentions it when > 0).
 
 ## Rules
 
 - The merge itself (what is non-destructive, what gets copied/merged) lives in
-  `scripts/seed-to-live-sync.mjs` — this module owns only the run mechanics.
+  `scripts/seed-to-live-sync.mjs`; deletions live in `codex-removals.ts`
+  (seed's `codex-resource-removal-list.json`) — this module owns only the
+  run mechanics.
 - Fail-soft everywhere: a thrown anything returns `{ output: "", ... }`.
 - No pi imports (pure logic), no state, no caching (config reads/writes are
   fresh disk hits per the project config rule).

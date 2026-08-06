@@ -2,9 +2,13 @@
 
 ## Rules
 
+- [k95TjL] Pick prebuilt CUDA extension wheels by matching torch.version.cuda's CUDA major (12 vs 13 breaks), the torch minor series (or an ABI-stable 'and higher' variant), the Python ABI tag, and the target GPU arch - the newest-looking wheel is not necessarily the right one.
+
 ## Gotchyas
 
 - [uDrJKw] MODEL UNLOAD & background load - a background-thread model load finishing AFTER an unload request silently resurrects the model in GPU memory; set a disabled flag on unload and check it at load completion (discard instead of assigning), and free with del + torch.cuda.empty_cache().
+
+- [vXpOKf] Windows PyTorch ships without triton, and embedded/portable Pythons lack dev files: triton-based packages need a triton-windows wheel plus include/ (Python.h) and libs/ (python3NN.lib) added to the embedded Python - copy both from the official CPython NuGet package matching the exact Python minor version.
 
 ## Issues & Solutions
 

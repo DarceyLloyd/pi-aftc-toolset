@@ -7,7 +7,8 @@
  *   - /codex-sync (codex-commands.ts) — manual, adds viewer + messages.
  *   - Startup auto-sync (aftc-codex.ts) — aftcCodexAutoSync, default ON.
  *
- * The steps are always the same and must never drift apart: run the
+ * The steps are always the same and must never drift apart: apply the
+ * shipped seed removal list (obsolete topics deleted from live), run the
  * seed-to-live merge script, stamp the live version to the shipped one (so
  * the version guard clears), backfill entry IDs, regenerate the resource
  * list. NEVER throws — a failed spawn yields an empty output and callers
@@ -18,6 +19,7 @@
 
 import { setPreference } from "../config";
 import { readCodexSeedVersion } from "./codex-compat";
+import { applySeedRemovals } from "./codex-removals";
 import type { CodexStore } from "./codex-store";
 
 /** Outcome of one seed -> live update run. */
@@ -29,6 +31,8 @@ export interface CodexSyncResult {
     newVersion: number | null;
     /** The merge reported same-[ID]-different-text conflicts (live kept). */
     conflicts: boolean;
+    /** Number of obsolete live resources deleted via the seed removal list. */
+    removed: number;
 }
 
 /**
@@ -38,16 +42,26 @@ export interface CodexSyncResult {
  */
 export async function runSeedToLiveUpdate(store: CodexStore): Promise<CodexSyncResult> {
     try {
+        // Obsolete shipped resources (topics removed/renamed in the seed)
+        // go first: idempotent, fail-soft, and it keeps them out of the
+        // resource list regenerated at the end of this run.
+        const removals = applySeedRemovals(store);
         const output = await store.runSeedToLiveSync();
-        if (!output.trim()) return { output, newVersion: null, conflicts: false };
+        if (!output.trim()) return { output, newVersion: null, conflicts: false, removed: removals.removed };
         // The live copy now carries everything the shipped seed has: stamp it
         // as the shipped version so the version guard clears (same as a seed).
         const newVersion = readCodexSeedVersion(store.getSeedDir());
         if (newVersion !== null) setPreference("aftcCodexVersion", newVersion);
         await store.runEnsureIds();
         await store.runSyncScript();
-        return { output, newVersion, conflicts: /CONFLICT/.test(output) };
+        const removalBlock = removals.lines.length ? `${removals.lines.join("\n")}\n\n` : "";
+        return {
+            output: `${removalBlock}${output}`,
+            newVersion,
+            conflicts: /CONFLICT/.test(output),
+            removed: removals.removed,
+        };
     } catch {
-        return { output: "", newVersion: null, conflicts: false };
+        return { output: "", newVersion: null, conflicts: false, removed: 0 };
     }
 }

@@ -20,6 +20,8 @@
 
 - [coAT0F] Split a single complex screen/window into per-region child docs only when each region has its own rules, states or contract; when the regions are too intertwined to describe independently, keep ONE document - forced separation reads worse, not better.
 
+- [DML7gd] migrating a doc tree onto renamed infrastructure: copy the tree, run ONE case-preserving token sweep (a separate sed pattern per case variant), then grep for BOTH the old token and old-platform terms afterwards - prose mentioning old platform concepts is what the token sweep misses
+
 ## Gotchyas
 
 - [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.

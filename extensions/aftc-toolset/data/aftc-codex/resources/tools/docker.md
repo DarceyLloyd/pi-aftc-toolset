@@ -2,11 +2,19 @@
 
 ## Rules
 
+- [AFvnl6] slim container images with no curl/wget: implement the healthcheck with the runtime itself (a one-liner fetch in node/bun/python that exits on the response status) instead of installing a tool
+
 ## Gotchyas
 
 - [mB4rT8] bind-mount source mv'd - `mv`-ing a host dir that is bind-mounted into a running container does NOT break the mount (it is inode-tracked): the container keeps serving the moved/old dir and never sees a fresh dir created at the original path; recreate the container to re-bind after swapping host paths.
 
 - [E2csnf] docker compose build sits on "transferring context" for many minutes (GBs) before building - the build context is the whole repo and .dockerignore misses heavy fixture/test dirs; watch the transferring-context size in the build output and exclude them (note: a file under an excluded PARENT dir cannot be re-included with a ! negation).
+
+- [JRSeUt] /docker-entrypoint-initdb.d does NOT recurse into subdirectories - the official MySQL/MariaDB entrypoint seeds from a flat glob (docker_process_init_files /docker-entrypoint-initdb.d/*) and any subfolder matches no extension so it is silently ignored (its contents never run); to get per-service subfolder separation add a top-level 00-bootstrap.sh WITHOUT the execute bit (so the entrypoint sources it, keeping docker_process_sql in scope) that loops /docker-entrypoint-initdb.d/*/ and pipes each .sql through that helper.
+
+- [QOs3ap] rename(2) / fs.renameSync fails with EXDEV when src and dst sit on two DIFFERENT bind mounts inside a container, even when `stat` shows the same device - mount boundaries, not devices, are what rename cannot cross. Countermeasure: move files across mounts with copy + unlink; beware that host-side tests can hide the bug when both dirs share one mount.
+
+- [wfceGe] in-container file watchers (bun --watch, nodemon, vite HMR) never fire for edits made on a Windows-host bind mount - Docker Desktop file sharing does not propagate inotify events; keep the watch flag for Linux hosts but after host-side edits restart the container (`docker compose restart <svc>`) instead of waiting for a reload that never comes
 
 ## Issues & Solutions
 

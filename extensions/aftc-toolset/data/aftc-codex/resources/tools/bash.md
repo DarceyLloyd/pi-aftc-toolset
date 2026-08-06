@@ -7,6 +7,8 @@
 - [gL4sD7] `for f in $(grep -rl ...)` - unquoted command substitution in a for-loop word-splits on EVERY whitespace, so a path containing a space (eg `Admin Frontend/src/x.ts`) arrives as two broken paths (`Admin`, `Frontend/src/x.ts`) and every sed/mv fails `No such file or directory`; pipe into a while loop instead: `grep -rl PATTERN dirs... | while IFS= read -r f; do ... "$f"; done`.
 - [mS4dF6] sed -i 's/a/b/' for multi-line or complex code edits - sed matches are global and context-blind (it rewrites inside strings, comments and every occurrence, and a pattern that partially matches can splice broken code with NO error); keep sed for simple single-purpose replacements and verify the result by reading the file - never trust a complex sed edit blind.
 
+- [cFmLiD] Recursive grep/find across a huge tree (site-packages, node_modules, a whole monorepo) can run for minutes and look like a hang - scope searches to the smallest directory that can contain the target, add --include/--exclude filters, and cap commands with timeout; when in doubt, list candidate dirs first and grep each one separately.
+
 ## Issues & Solutions
 
 

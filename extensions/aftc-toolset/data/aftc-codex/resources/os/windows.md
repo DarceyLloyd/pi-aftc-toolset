@@ -6,7 +6,11 @@
 
 - [eP7Np9] Never put durable per-user app data (settings, history, logs, caches) under %TEMP% / os.tmpdir() on Windows - disk cleanup wipes it periodically; use %LOCALAPPDATA%\<AppName> (machine-local, safe for large caches) or %APPDATA% for roaming settings, and reserve temp only for self-healing throwaway files.
 
+- [Lxashn] Moving folders within the same volume is an instant metadata rename - prefer it for relocating huge directories, and prove zero loss by comparing total file count and byte size before and after.
+
 ## Gotchyas
+
+- [tYsXsm] Relocating a folder breaks consumers that hardcode the old location: leave a directory junction at the original path pointing at the new home (no admin rights needed, transparent to every reader, and future files written there land in the shared location).
 
 ## Issues & Solutions
 

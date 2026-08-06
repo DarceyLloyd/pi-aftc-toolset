@@ -17,7 +17,7 @@ workflow conveniences.
 
 ## **WHATS NEW**
 
-### **/docx project documentation generator (BETA 4)**
+### **/docx project documentation generator (BETA 5)**
 
 The generation prompt is now tailored by project type: after the
 confirmations a picker modal (auto-detect pre-selected) asks for the
@@ -30,26 +30,17 @@ its own build-ready doc, and old docs are recon hints only (source wins).
 The hard context gate dropped from 50% to 25% — `/new` first above that,
 even with `--yes`.
 
-### **Clean console by default**
+### **AFTC CODEX RESOURCE UPDATES**
 
-The `[aftc-toolset]` diagnostic chatter no longer prints by default
-(`debugLoggingEnabled`, `/aftc-debug-log-on|off`). Every diagnostic line is
-still captured in `<data dir>/debug.log` (rotating 5 MB), and errors ALWAYS
-print.
+Various resource updates.
 
-### **AFTC CODEX UPDATES**
+### **PI UPDATE COMPATIBILITY CHECK**
 
-`/codex` menu simplified (Codex Enabled / Inject Thought Guidance /
-Auto-Detect & Load Docs / Auto Sync Codex Update on Startup / Resources &
-Updates); the phantom "outdated" warning is gone; auto-sync now runs on the
-first session start of any kind; `/codex-live-to-seed` bumps the shipped
-codexVersion itself when it wrote seed files. Shipped codex version: **7**.
+Testing, and a few minor adjustments.
 
 ---
 
 ## **Install**
-
-### **Option 1 - npm (recommended)**
 
 ```bash
 pi install npm:pi-aftc-toolset
@@ -73,7 +64,7 @@ Then in pi:
 - [**Footer Widget**](#footer-widget)
 - [**SSH**](#ssh)
 
-- [**DOCX Documentation Generator (BETA 4)**](#docx-project-documentation-generator)
+- [**DOCX Documentation Generator (BETA 5)**](#docx-project-documentation-generator)
     > **WARNING: This will re-write readme.md and move all existing documentation.**
     If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is.
 
