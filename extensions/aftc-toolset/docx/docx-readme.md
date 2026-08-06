@@ -8,35 +8,66 @@ documentation set into `./docx/` per the shipped `documentation_guide.md`
 ## What happens when the user runs `/docx`
 
 0. **Hard gate** (applies even with `--yes`): when
-   `ctx.getContextUsage().percent` is >= 50, /docx flat-out refuses — a
+   `ctx.getContextUsage().percent` is >= 25, /docx flat-out refuses — a
    compaction mid-generation could corrupt the docs. TUI: a full-screen
    informational modal (single auto-selected OK; Enter/Esc closes) shows
    the % used, why, and the two steps (`/new`, then `/docx`). Headless: a
    warning line saying the same.
 1. **Context-window advisory** (skipped by `--yes`): at >= 20% used, a
-   modal notes that context use is modest (measured: ~5-8% of a 1M window;
-   even large projects stay under 20%) but the run is LONG, and highly
-   advises `/new` first (no compaction risk, no prior conversation steering
-   the docs). Options: *Exit* (default) / *Proceed anyway*.
+   modal notes that context use is modest but the run is LONG, and highly
+   advises `/new` first. Options: *Exit* (default) / *Proceed anyway*.
 2. **Confirm modal** (skipped by `--yes`): warns that all previous
-   documentation moves to `./docx/old_docs/` (zipped to `old_docs.zip` at the
-   end of the run), advises making a backup, and sets the long-wait
+   documentation moves to `./docx/old_docs/` (zipped to `old_docs.zip` at
+   the end of the run), advises making a backup, and sets the long-wait
    expectation. Options: *No, exit* (default) / *Yes, proceed*.
-3. **Deterministic backup** (`docx-backup.ts`): moves the old docs into
-   `./docx/old_docs/` with rel-from-root structure preserved and the move count
-   verified. Any error aborts BEFORE the model is engaged.
-4. **Prompt injection**: the guide's section-18 execution prompt is
-   extracted from `documentation_guide.md` (read fresh from disk on every
-   run — never cached) and sent via `pi.sendUserMessage`
+3. **Project-type selection**: the injected prompt is the guide's section-18
+   CORE prompt plus ONE type pack from `prompts/<key>.md` — never a giant
+   all-in-one. TUI: a picker modal lists the 10 types (auto-detect result
+   pre-selected; Esc cancels). Headless: `--type <key>` wins; without it the
+   command auto-detects and says what it picked; when detection finds
+   nothing it refuses and lists the valid keys.
+4. **Deterministic backup** (`docx-backup.ts`): moves the old docs into
+   `./docx/old_docs/` with rel-from-root structure preserved and the move
+   count verified. Any error aborts BEFORE the model is engaged.
+5. **Prompt injection**: the guide's section-18 core prompt is extracted
+   from `documentation_guide.md` and the pack read from
+   `prompts/<key>.md` (both read fresh from disk on every run — never
+   cached) and sent via `pi.sendUserMessage`
    (`deliverAs: "followUp"` when the agent is busy). Placeholders
-   substituted: `[PROJECT_PATH]`, `[GUIDE_PATH]`, `[MAP_SCAN_PATH]`,
-   `[LINK_AUDIT_PATH]`, `[ZIP_OLD_PATH]`.
-5. The model generates the docs (master, map, deep docs, sub-maps, leaf
-   docs, per-UI-branch sitemaps and design-rules docs); its LAST action runs
-   `scripts/zip-old.mjs`, packing `docx/old_docs/` into `docx/old_docs.zip`
-   and deleting the folder so future sessions never read superseded docs.
+   substituted across core+pack: `[PROJECT_PATH]`, `[GUIDE_PATH]`,
+   `[MAP_SCAN_PATH]`, `[LINK_AUDIT_PATH]`, `[ZIP_OLD_PATH]`.
+6. The model generates the docs (master, map, deep docs, sub-maps, leaf
+   docs for every surface INCLUDING modals/popups, per-UI-branch sitemaps
+   and design-rules docs, all in the mirrored folder tree); its LAST
+   action runs `scripts/zip-old.mjs`, packing `docx/old_docs/` into
+   `docx/old_docs.zip` and deleting the folder so future sessions never
+   read superseded docs.
+
+## Project types (`--type <key>`)
+
+| Key | For |
+| --- | --- |
+| `web-app` | PHP/Apache/MySQL/Docker, custom MVC backends, Angular/React/Next/Vue + custom TS/JS frontends |
+| `basic-website` | Static HTML/CSS/JS(MJS), no framework or backend |
+| `webgpu-webgl` | Three.js / Babylon.js canvas apps and games |
+| `desktop-app` | Electron, .NET, Java, Qt, native toolkits |
+| `juce-vst` | C++ JUCE VST / audio plugins |
+| `mobile-app` | Android/iOS native, React Native, Flutter |
+| `python-app` | Python CLI, web, GUI, TUI, services |
+| `cli-tool` | Command-line tools and terminal-UI apps (any language) |
+| `shell-scripts` | bash/sh/ps1/bat automation collections |
+| `generic` | Closest-match fallback (libraries, SDKs, anything else) |
+
+Auto-detection is heuristic (package.json deps, manifests, compose files,
+build files) and ordered: Electron → JUCE → mobile → WebGPU/WebGL → web →
+Python → native desktop → CLI bin → shell scripts → static site.
 
 ## Output layout (in the USER's project)
+
+There is NO `docs/` subfolder — `docx/` IS the documentation folder, and
+its tree mirrors the structure map (one `<id>_<name>/` folder per map node
+with children, holding the node's own doc + sub-map + partners; leaf docs
+live in their parent's folder):
 
 ```
 <projectRoot>/
@@ -45,8 +76,13 @@ documentation set into `./docx/` per the shipped `documentation_guide.md`
   docx/
     project_documentation.md
     project_map.md
-    docs/              # <id>_*_documentation.md, <id>_*_map.md, <id>_*_sitemap.md,
-                       # <id>_*_design.md, <id>_*_layout.md, cross-cutting
+    design.md  contributing.md  dependency_map.md ...   # cross-cutting, no ID
+    <id>_<branch>/                                      # one folder per node-with-children
+      <id>_<branch>_documentation.md
+      <id>_<branch>_map.md
+      <id>_<branch>_sitemap.md
+      <childId>_<artefact>.md                           # leaf (page/modal/model/component)
+      <childId>_<sub>/                                  # recurse
     old_docs.zip       # previous documentation (restorable)
 ```
 
@@ -59,27 +95,33 @@ archetype (tool/extension/library vs runtime/multi-service app).
 
 ## Commands registered (1)
 
-- `/docx [--yes]` — generate/regenerate documentation. `--yes` skips both
-  modals for headless use. Without UI and without `--yes` the command
-  refuses with a warning.
+- `/docx [--yes] [--type <key>]` — generate/regenerate documentation.
+  `--yes` skips both modals for headless use; `--type` picks the prompt
+  pack (see the table). Without UI and without `--yes` the command refuses
+  with a warning; headless without `--type` it auto-detects, and refuses
+  with the key list when nothing matches.
 
 ## Scripts (run BY THE MODEL during generation, never by docx.ts)
 
 | Script | When | What |
 | --- | --- | --- |
-| `scripts/map-scan.mjs <root>` | guide step 1 | deterministic recon: dir tree + manifest/container/test inventory on stdout |
-| `scripts/link-audit.mjs <root>` | guide step 11 | mechanical link/stamp/ID/map-doc audit; exit 1 with failures listed |
+| `scripts/map-scan.mjs <root>` | guide step 1 | deterministic recon on stdout: dir tree + manifest/container/test inventory + UI surface hints (template/surface-named files the model must VERIFY against source) |
+| `scripts/link-audit.mjs <root>` | guide step 11 | mechanical link/stamp/ID/map-doc audit + mirrored-tree checks (ID-prefixed folders, ancestry chains, a folder per node-with-children, cross-cutting docs at the docx/ root) + content-depth lint (References/Related, sitemap HIGH+LOW LEVEL, page-leaf States) + surface coverage (every UI-hint file must be referenced by a doc); exit 1 with failures listed |
 | `scripts/zip-old.mjs <root>` | final action | zip `docx/old_docs/` -> `docx/old_docs.zip`, verify entry count, delete `old_docs/` |
 
 All three: pure Node stdlib (zip-old also uses the `adm-zip` dependency),
-no shell, self-terminating watchdog, exit 0/1.
+no shell, self-terminating watchdog, exit 0/1. UI-hint collection is shared
+between map-scan and link-audit via `scripts/ui-hints.mjs` (one source of
+truth — never two hint regex sets).
 
 ## Failure behaviour (fail-soft, never destructive by accident)
 
 - Backup destination cannot be created -> error, nothing moved, no prompt.
 - Any move/copy error or count mismatch -> error listing failures, no prompt.
-- Guide file missing/malformed -> error, no prompt (backup already done is
-  still restorable from `docx/old_docs/`).
+- Unknown `--type`, or headless with no detectable type -> warning naming
+  the valid keys, no backup, no prompt.
+- Guide file or pack file missing/malformed -> error, no prompt (backup
+  already done is still restorable from `docx/old_docs/`).
 - `sendUserMessage` throws -> error line; `docx/old_docs/` remains for manual
   restore.
 
@@ -99,9 +141,11 @@ preferences (a slash command is opt-in by nature).
   injected prompt and its normal file tools.
 - The context gate reads pi's own `ctx.getContextUsage()` (same estimate
   the footer shows) and `ctx.model.contextWindow` for the window size.
+- The pack files are feature-folder assets read in place
+  (`docx/prompts/<key>.md`) — the same asset rule as the guide (see
+  `data/` docs for the shipped-asset location rule).
 - Guide maintenance: `documentation_guide.md` is an adapted copy of the
   maintainer's source guide (`W:\Dev\0 - AFTC Project Doc Guide\`). When
   the source guide changes, re-copy and re-apply the `./docx/` layout
-  adaptations (sections 1/4/7/10/17/18) and keep the shipped-only
-  UI-surface/sitemap/design-rules content (sections 3/5/6/9/14/19 + the
-  step-1/step-5 prompt bullets).
+  adaptations and keep the shipped-only content (UI-surface/sitemap/design
+  rules, mirrored-tree rules, the section-18 core + type packs).

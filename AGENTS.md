@@ -4,7 +4,7 @@
 Documentation lives in ./docx/. Do NOT read documentation up front. When
 you are about to work on an area, find its doc: read the Documentation
 Index in ./docx/project_documentation.md or the annotations in
-./docx/project_map.md, then load ONLY that doc from ./docx/docs/. Never
+./docx/project_map.md, then load ONLY that doc from ./docx/. Never
 follow documentation links for areas you are not working on. When you
 change documented code, update its doc in the same change and refresh its
 last-reviewed stamp.
@@ -53,7 +53,7 @@ Do NOT guess event names, payloads, or return shapes.
 tools). `agent_end` is NOT final (pi may retry/compact after it).
 
 **User dialogs:** most AI models make a mess of these. The reference
-implementation is `ui/aftc-ui.ts` (all dialogs go through it). Read `docx/docs/1.3_ui_framework_documentation.md` before building any UI.
+implementation is `ui/aftc-ui.ts` (all dialogs go through it). Read `docx/1_extension_source/1.3_ui/1.3_ui_documentation.md` before building any UI.
 
 ---
 
@@ -61,16 +61,16 @@ implementation is `ui/aftc-ui.ts` (all dialogs go through it). Read `docx/docs/1
 
 | Feature | Read this first |
 | --- | --- |
-| aftc-ui (dialogs & overlays) | `docx/docs/1.3_ui_framework_documentation.md` |
-| aftc-console (console output) | `docx/docs/1.3_ui_framework_documentation.md` |
-| Usage report | `docx/docs/1.4_footer_usage_documentation.md` |
-| Data dir & packaging | `docx/docs/2_shipped_data_documentation.md` |
-| Config files (live + shipped) | `docx/docs/1.2_orchestrator_core_documentation.md` |
-| aftc-codex knowledge base | `docx/docs/1.7_aftc_codex_documentation.md` |
-| Footer widget | `docx/docs/1.4_footer_usage_documentation.md` |
-| SSH | `docx/docs/1.6_ssh_documentation.md` |
-| Audio notifications | `docx/docs/1.5_feature_modules_documentation.md` |
-| Slash commands (create/edit/delete) | `docx/docs/1.5_feature_modules_documentation.md` |
+| aftc-ui (dialogs & overlays) | `docx/1_extension_source/1.3_ui/1.3_ui_documentation.md` |
+| aftc-console (console output) | `docx/1_extension_source/1.3_ui/1.3_ui_documentation.md` |
+| Usage report | `docx/1_extension_source/1.4_footer_usage/1.4_footer_usage_documentation.md` |
+| Data dir & packaging | `docx/2_packaging/2_packaging_documentation.md` |
+| Config files (live + shipped) | `docx/1_extension_source/1.2_core_infrastructure_documentation.md` |
+| aftc-codex knowledge base | `docx/1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md` |
+| Footer widget | `docx/1_extension_source/1.4_footer_usage/1.4_footer_usage_documentation.md` |
+| SSH | `docx/1_extension_source/1.6_ssh/1.6_ssh_documentation.md` |
+| Audio notifications | `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` |
+| Slash commands (create/edit/delete) | `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` |
 | Keyboard shortcuts (add/change) | `extensions/aftc-toolset/keys-readme.md` |
 | Quick dir access (/qd) | `extensions/aftc-toolset/quick-open-dir-readme.md` |
 | docx documentation generator (/docx) | `extensions/aftc-toolset/docx/docx-readme.md` |
@@ -85,7 +85,7 @@ How: `pi.registerShortcut("alt+x", { description, handler })`, guard handlers
 with `ctx.hasUI`. Shortcuts are NOT help-registry material — add a static row to
 `SHORTCUT_ROWS` in `help.ts` instead, update `keys-readme.md`, and extend
 `tests/keys-check/`. If the action also gets a companion slash command, that
-command follows `docx/docs/1.5_feature_modules_documentation.md`. Key/chord format and the built-in
+command follows `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md`. Key/chord format and the built-in
 defaults to avoid colliding with: pi's `docs/keybindings.md`.
 
 ---
@@ -94,7 +94,7 @@ defaults to avoid colliding with: pi's `docs/keybindings.md`.
 
 Every feature writes to the user's console through `ui/aftc-console.ts` — never raw
 `ctx.ui.notify` or `console.log("[aftc-toolset]…")`. Read
-`docx/docs/1.3_ui_framework_documentation.md` before using it. Quick map:
+`docx/1_extension_source/1.3_ui/1.3_ui_documentation.md` before using it. Quick map:
 
 - `aftcConsole.init(pi)` — once per session (`index.ts` only).
 - `aftcConsole.emphasis(ctx, text)` — accent/emphasis line for status / success / state-change (NOT a warning).
@@ -117,7 +117,7 @@ Every feature writes to the user's console through `ui/aftc-console.ts` — neve
   seed, audio MP3s, intro assets. Replaced on every `pi update`. Flow is
   one-way: seed -> live, copy-only.
 
-# Config files — read `docx/docs/1.2_orchestrator_core_documentation.md` FIRST
+# Config files — read `docx/1_extension_source/1.2_core_infrastructure_documentation.md` FIRST
 
 Two config files, never to be confused:
 
@@ -131,7 +131,7 @@ BINDING: never cache either file in module memory — read from disk on EVERY
 access. pi keeps extension modules alive across `/new`, so a cache serves
 stale values after a hand edit, and a later `setPreference` would flush the
 stale cache back and clobber the user's edits. `setPreference` is a fresh
-read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_documentation.md`.
+read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core_infrastructure_documentation.md`.
 
 
 # Code structure rules
@@ -145,7 +145,7 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
 - **Factory sub-folders** (eg `intros/`, `ssh/`) name the coordinator with a
   descriptive name (eg `intro-factory.ts`) — never `index.ts`.
 - **Shipped defaults** live under `extensions/aftc-toolset/data/`, one subfolder
-  per feature. Never mix two features' files. See `docx/docs/2_shipped_data_documentation.md`.
+  per feature. Never mix two features' files. See `docx/2_packaging/2.1_shipped_data.md`.
 - Each `.ts` module needs a sibling `<module-name>-readme.md`. Keep both current.
 - Re-read only the relevant documentation when needed. Do not reload everything.
 - Never read/modify files under `.old`, `.bak`, or `.git` unless asked.
@@ -166,7 +166,7 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
 - Wrap file-mutating tools in `withFileMutationQueue()` (absolute target path).
 - Use `StringEnum` from `@earendil-works/pi-ai` for tool string enums.
 - Throw from tool `execute()` to report errors.
-- Send all console output through `ui/aftc-console.ts` (`aftcConsole.warn/error/info/emphasis` for the transcript, `aftcConsole.log` for `[aftc-toolset]` stdout). See `docx/docs/1.3_ui_framework_documentation.md`.
+- Send all console output through `ui/aftc-console.ts` (`aftcConsole.warn/error/info/emphasis` for the transcript, `aftcConsole.log` for `[aftc-toolset]` stdout). See `docx/1_extension_source/1.3_ui/1.3_ui_documentation.md`.
 - Give every tool a `promptSnippet`. Make `promptGuidelines` bullets name the tool
   explicitly ("Use my_tool when...", never "Use this tool when...").
 - Strip a leading `@` from path parameters (some models add it).
@@ -178,7 +178,7 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
   default) a special-case backfill in `config.ts` — plain keys are backfilled
   automatically; retiring a key = remove it from both + one line in
   `RETIRED_KEYS`. See
-  `docx/docs/2_shipped_data_documentation.md` for the full table and process.
+  `docx/1_extension_source/1.2_core_infrastructure_documentation.md` for the full table and process.
 
 ---
 
@@ -196,7 +196,7 @@ read-modify-write. Full contract + edge cases: `docx/docs/1.2_orchestrator_core_
 
 - `package.json` `pi` manifest points at `./extensions`, `./skills`, `./themes`.
 - Root `README.md` is user-facing (not a changelog). Changelog: `change-log.txt`.
-- Technical detail belongs in per-module `*-readme.md` files and `docx/docs/`.
+- Technical detail belongs in per-module `*-readme.md` files and `./docx/`.
 
 ---
 
@@ -300,4 +300,4 @@ Never push container state/credentials to any registry.
   Do NOT guess pi behaviour, event payloads, or return shapes. Re-read the
   relevant entries before relying on a pi API.
 - If any modifications or changes are requested or needed to be made to the
-  aftc-codex feature you must read `docx/docs/1.7_aftc_codex_documentation.md` before making them.
+  aftc-codex feature you must read `docx/1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md` before making them.

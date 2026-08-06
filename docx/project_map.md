@@ -1,93 +1,125 @@
-# pi-aftc-toolset — Project Structure Map
+# pi-aftc-toolset — Project Map
 
-<!-- structure-map - last-verified: 2026-08-05 16:40 - regenerate: run /docx (uses docx/scripts/map-scan.mjs) then verify against source -->
+The single structural index for pi-aftc-toolset: the full ID tree of every
+documented node, at every level. Convention: deep doc
+`<id>_<area>_documentation.md`, sub-map `<id>_<area>_map.md`, leaf
+`<id>_<artefact>.md`, partner docs (`_sitemap` / `_layout` / `_design`) carry
+the owning node's ID. The on-disk `docx/` tree mirrors this map — a node's
+folder path IS its ID ancestry.
 
-Full structure map for pi-aftc-toolset (v1.19.1), a pi coding-agent extension package. Every documented node at every level. Sub-maps: `1.6_ssh_map.md`, `1.7_aftc_codex_map.md`, `1.8_docx_map.md` (in `docx/docs/`). File convention: `<id>_<area>_documentation.md` per map ID, `<id>_<area>_map.md` for sub-maps.
+<!-- structure-map - last-verified: 2026-08-05 22:05 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
+
+> Do not follow these links until your work touches that area — load only the
+> doc for the area you are about to work on (discovery via the master's
+> Documentation Index or the annotations below).
 
 ## Full Tree
 
 ```
-pi-aftc-toolset/
-|-1 - Application Source (extensions/aftc-toolset/)
-| |-1.1 - pi Extension Runtime [framework]
-| |-1.2 - Orchestrator & Core Infrastructure
-| |-1.3 - UI Framework
-| |-1.4 - Footer Widget & Usage Tracking
-| |-1.5 - Feature Modules (slash commands)
-| |-1.6 - SSH Subsystem (ssh/) [sub-map]
-| | |-1.6.1 - SSH Orchestration & Model Tools
-| | |-1.6.2 - Session Manager
-| | |-1.6.3 - Carrier Bridge
-| | |-1.6.4 - Python SSH Carrier
-| | |-1.6.5 - Connection Store
-| | |-1.6.6 - SSH UI Overlays
-| | \-1.6.7 - Redaction
-| |-1.7 - aftc-codex Knowledge Base (aftc-codex/) [sub-map]
-| | |-1.7.1 - Codex Coordinator
-| | |-1.7.2 - Codex Store
-| | |-1.7.3 - System-Prompt Injection
-| | |-1.7.4 - Technology Detection
-| | |-1.7.5 - Learn Loop
-| | |-1.7.6 - Entry Tools
-| | |-1.7.7 - Compatibility Guard
-| | |-1.7.8 - Codex Commands
-| | \-1.7.9 - Maintenance Scripts
-| |-1.8 - docx Generator (docx/) [sub-map]
-| | |-1.8.1 - /docx Command & Orchestration
-| | |-1.8.2 - Deterministic Backup
-| | |-1.8.3 - Documentation Guide
-| | \-1.8.4 - Model-Run Scripts
-| |-1.9 - Intro Animations (intros/)
-| |-1.10 - Providers (providers/) [disabled]
-| \-1.11 - Audio Player Binaries (bin/)
-|-2 - Shipped Data (data/)
-|-3 - Skills (skills/)
-|-4 - Themes (themes/)
-|-5 - Tests (tests/)
-| |-5.1 - Local Test Suites
-| \-5.2 - Docker Test Fixtures [dev-tool, container]
-\-6 - Package & Distribution
+pi-aftc-toolset (pi extension package v1.19.11)
+|- 1 Extension source (extensions/aftc-toolset)                    module
+|  |- 1.1 Entry & orchestration (index.ts, types.ts)
+|  |- 1.2 Core infrastructure & config (paths, config, db, debug-log, help-registry)
+|  |- 1.3 UI framework (ui/)                                       module
+|  |  |- 1.3.1 aftc-console (transcript + diagnostic output)
+|  |  |- 1.3.2 aftc-ui (overlay dialogs, menus, forms, viewer)
+|  |  \- 1.3.3 terminal-screen (VT100 virtual screen)
+|  |- 1.4 Footer, cache & usage                                    module
+|  |  |- 1.4.1 Cache diagnostics core (core.ts)
+|  |  |- 1.4.2 Footer widget (widget surface + /aftc-footer menus)
+|  |  |- 1.4.3 Subscription allowance (allowance.ts, footer line 5)
+|  |  |- 1.4.4 Usage recording (usage-recording.ts, turns.db writer)
+|  |  \- 1.4.5 Usage report (report.html, 5 tabs)
+|  |- 1.5 Feature modules                                          module
+|  |  |- 1.5.1 Keyboard shortcuts (keys.ts)
+|  |  |- 1.5.2 Help & discovery (help.ts)
+|  |  |- 1.5.3 Installer (/aftc-install)
+|  |  |- 1.5.4 Audio notifications (notify.ts)
+|  |  |- 1.5.5 Response divider (response.ts)
+|  |  |- 1.5.6 Emergency stop (stfu.ts)
+|  |  |- 1.5.7 Directory & navigation (/dir /ls /cwd /qd)
+|  |  |- 1.5.8 Replay (/save-replay-prompt /replay /r)
+|  |  |- 1.5.9 Keep it short (/keep-it-short /kis)
+|  |  |- 1.5.10 Theme picker (/theme)
+|  |  |- 1.5.11 Think-tag parser (think-parser.ts)
+|  |  |- 1.5.12 run_script tool (run-script.ts)
+|  |  |- 1.5.13 Startup intros (intros/)
+|  |  \- 1.5.14 Providers (providers/ — DISABLED)
+|  |- 1.6 SSH feature (ssh/)                                       module
+|  |  |- 1.6.1 Command & tool surface (ssh/index.ts)
+|  |  |- 1.6.2 Sessions & lifecycle (session.ts)
+|  |  |- 1.6.3 Connection store (ssh.json)
+|  |  |- 1.6.4 Redaction & safe errors (redaction.ts)
+|  |  |- 1.6.5 Connection manager screen (/ssh-cm)
+|  |  |- 1.6.6 New connection dialog
+|  |  |- 1.6.7 Connection form & auth overlays
+|  |  |- 1.6.8 Confirm overlay
+|  |  |- 1.6.9 Interactive terminal overlay (/ssh-shell)
+|  |  \- 1.6.10 Python carrier (ssh/carrier/)                      sub-project
+|  |     |- 1.6.10.1 Daemon & JSON-RPC (daemon.py, rpc.py, __main__.py)
+|  |     |- 1.6.10.2 Sessions & modes (session.py, shell_mode.py, exec_mode.py, monitor.py)
+|  |     |- 1.6.10.3 SFTP & port forwarding (sftp_ops.py, port_forward.py)
+|  |     \- 1.6.10.4 Safety (keys.py, redaction.py, errors.py)
+|  |- 1.7 aftc-codex knowledge base (aftc-codex/)                  module
+|  |  |- 1.7.1 Store, seeding & version lifecycle (aftc-codex.ts, codex-store.ts, codex-compat.ts, codex-sync.ts)
+|  |  |- 1.7.2 System-prompt injection & detection (codex-inject.ts, codex-detect.ts)
+|  |  |- 1.7.3 Commands (/aftc-codex-* menus & commands)
+|  |  |- 1.7.4 Model tools (codex_load/add/edit/remove)
+|  |  \- 1.7.5 Learn & live-to-seed scripts (codex-learn.ts, scripts/)
+|  \- 1.8 docx documentation generator (docx/)                     module
+|     |- 1.8.1 /docx command & flow (docx.ts)
+|     |- 1.8.2 Backup (docx-backup.ts)
+|     |- 1.8.3 Shipped guide & type packs (documentation_guide.md, prompts/)
+|     \- 1.8.4 Helper scripts (scripts/: map-scan, link-audit, ui-hints, zip-old)
+|- 2 Packaging & shipped assets                                    module
+|  |- 2.1 Shipped data (extensions/aftc-toolset/data/)
+|  |- 2.2 Bundled skills (skills/)
+|  |- 2.3 Bundled themes (themes/)
+|  \- 2.4 Release & maintainer scripts (publish.bat, shipit.ps1, backup.ps1, clear-docker.bat)
+\- 3 Tests (tests/)                                                module
+   |- 3.1 Test conventions & harness
+   |- 3.2 Local suites (node checks)
+   |- 3.3 Docker suites (SSH fixtures)
+   |- 3.4 Linux gates (Docker Compose)
+   \- 3.5 docx fixtures (tests/docx/)
 ```
 
 ## Annotations
 
-- 1 Application Source — all extension TypeScript, loaded by pi via jiti (no build) — status: done
-- 1.1 pi Extension Runtime [framework] — peer-dep runtime the extension is built on (`@earendil-works/pi-coding-agent`, pi-ai, pi-tui, typebox) — [1.1_pi_runtime_documentation.md](docs/1.1_pi_runtime_documentation.md) — status: done
-- 1.2 Orchestrator & Core Infrastructure — index.ts wiring, shared types, paths, config, db — [1.2_orchestrator_core_documentation.md](docs/1.2_orchestrator_core_documentation.md) — status: done
-- 1.3 UI Framework — GRUB-style dialogs (aftc-ui) + severity console facade (aftc-console) — [1.3_ui_framework_documentation.md](docs/1.3_ui_framework_documentation.md) — status: done
-- 1.4 Footer Widget & Usage Tracking — 1Hz diagnostics widget, SQLite recording, allowance quotas, HTML usage report — [1.4_footer_usage_documentation.md](docs/1.4_footer_usage_documentation.md) — status: done
-- 1.5 Feature Modules — 16 self-contained slash-command modules — [1.5_feature_modules_documentation.md](docs/1.5_feature_modules_documentation.md) — status: done
-- 1.6 SSH Subsystem — credential-isolated SSH via packaged Python Paramiko carrier — [1.6_ssh_documentation.md](docs/1.6_ssh_documentation.md), [1.6_ssh_map.md](docs/1.6_ssh_map.md) — status: done
-- 1.7 aftc-codex Knowledge Base — opt-in rules/guidance injection + self-education tools — [1.7_aftc_codex_documentation.md](docs/1.7_aftc_codex_documentation.md), [1.7_aftc_codex_map.md](docs/1.7_aftc_codex_map.md) — status: done
-- 1.8 docx Generator — /docx project documentation generator — [1.8_docx_documentation.md](docs/1.8_docx_documentation.md), [1.8_docx_map.md](docs/1.8_docx_map.md) — status: done
-- 1.9 Intro Animations — startup wordmark animation (factory disconnected) — [1.9_intros_documentation.md](docs/1.9_intros_documentation.md) — status: done
-- 1.10 Providers [disabled] — QwenCloud provider module, superseded by pi's native provider support — [1.10_providers_documentation.md](docs/1.10_providers_documentation.md) — status: done
-- 1.11 Audio Player Binaries — bundled miniaudio players + C source — [1.11_audio_binaries_documentation.md](docs/1.11_audio_binaries_documentation.md) — status: done
-- 2 Shipped Data — package-shipped assets: codex seed, audio MP3s, intro audio, extension-config.json — [2_shipped_data_documentation.md](docs/2_shipped_data_documentation.md) — status: done
-- 3 Skills — 34 Agent Skills packages — [3_skills_documentation.md](docs/3_skills_documentation.md) — status: done
-- 4 Themes — 3 pi themes — [4_themes_documentation.md](docs/4_themes_documentation.md) — status: done
-- 5 Tests — local Node suites + Docker fixtures — [5_tests_documentation.md](docs/5_tests_documentation.md) — status: done
-- 6 Package & Distribution — manifest, lockfiles, ignore rules, images, license — [6_package_distribution_documentation.md](docs/6_package_distribution_documentation.md) — status: done
+| ID | Name | Tags | Deep doc | Sub-map | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Extension source | `module` | [1_extension_documentation.md](1_extension_source/1_extension_documentation.md) | [1_extension_map.md](1_extension_source/1_extension_map.md) | done |
+| 1.3 | UI framework | `module`, `shared` | [1.3_ui_documentation.md](1_extension_source/1.3_ui/1.3_ui_documentation.md) | [1.3_ui_map.md](1_extension_source/1.3_ui/1.3_ui_map.md) | done |
+| 1.4 | Footer, cache & usage | `module` | [1.4_footer_usage_documentation.md](1_extension_source/1.4_footer_usage/1.4_footer_usage_documentation.md) | [1.4_footer_usage_map.md](1_extension_source/1.4_footer_usage/1.4_footer_usage_map.md) | done |
+| 1.5 | Feature modules | `module` | [1.5_feature_modules_documentation.md](1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md) | [1.5_feature_modules_map.md](1_extension_source/1.5_feature_modules/1.5_feature_modules_map.md) | done |
+| 1.6 | SSH feature | `module` | [1.6_ssh_documentation.md](1_extension_source/1.6_ssh/1.6_ssh_documentation.md) | [1.6_ssh_map.md](1_extension_source/1.6_ssh/1.6_ssh_map.md) | done |
+| 1.6.10 | Python carrier | `sub-project` | [1.6.10_carrier_documentation.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_documentation.md) | [1.6.10_carrier_map.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_map.md) | done |
+| 1.7 | aftc-codex knowledge base | `module` | [1.7_aftc_codex_documentation.md](1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md) | [1.7_aftc_codex_map.md](1_extension_source/1.7_aftc_codex/1.7_aftc_codex_map.md) | done |
+| 1.8 | docx documentation generator | `module` | [1.8_docx_documentation.md](1_extension_source/1.8_docx/1.8_docx_documentation.md) | [1.8_docx_map.md](1_extension_source/1.8_docx/1.8_docx_map.md) | done |
+| 2 | Packaging & shipped assets | `module` | [2_packaging_documentation.md](2_packaging/2_packaging_documentation.md) | [2_packaging_map.md](2_packaging/2_packaging_map.md) | done |
+| 3 | Tests | `module` | [3_tests_documentation.md](3_tests/3_tests_documentation.md) | [3_tests_map.md](3_tests/3_tests_map.md) | done |
 
-Sub-map branch IDs (1.6.x, 1.7.x, 1.8.x, 5.x) are annotated in their owning sub-maps.
+Leaf-node annotations (1.1, 1.2, 1.3.x, 1.4.x, 1.5.x, 1.6.x, 1.6.10.x,
+1.7.x, 1.8.x, 2.x, 3.x) live in the owning sub-map listed above.
 
-## Status legend
+### Status legend
 
-- `done` — documented and verified against source
-- `placeholder` — file exists, content pending
-- `missing` — expected doc not yet written
-- `reserved` — deleted ID, never reused
+- `done` — doc exists and was verified against source this pass.
+- `placeholder` — stub awaiting depth.
+- `missing` — node identified, doc not yet written.
+- `reserved` — deleted ID, never reused.
 
-## Node tags
+### Node tags
 
-- `framework` — 1.1 (pi extension runtime)
-- `dev-tool` — 5.2 (Docker test fixtures)
-- `container` — 5.2 (compose/Dockerfile fixtures)
-- (no `sub-project`, `wrapper`, `shared` or `container` runtime branches — the Python carrier is load-bearing for SSH, so it is a module at 1.6.4)
+- `module` — internal module of the extension package.
+- `sub-project` — own manifest/runtime/entry point; folder read-only for docs (1.6.10).
+- `shared` — shared utility imported by many features (1.3).
+- `framework` — runtime foundation (pi itself is a peer dependency, documented by reference in 1.1; no wrapper).
+- `wrapper`, `container`, `dev-tool` — unused: this package ships no containers (Docker exists only inside 3.3/3.4 test gates).
 
 ## Index By Kind
 
-- **Modules:** 1.2, 1.3, 1.4, 1.5, 1.9, 1.10, 1.11
-- **Major branches (sub-maps):** 1.6 (SSH), 1.7 (aftc-codex), 1.8 (docx)
-- **Sub-projects:** none
-- **Containers / dev-tools:** 5.2 (ssh-test-server, pi-linux, pi-client + ssh-target, install-test image)
+- Modules: 1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2, 3
+- Sub-projects: 1.6.10 (Python SSH carrier)
+- Containers: none (test-only Docker under 3.3/3.4)
+- Dev tools: Docker containers of the Linux gates — see [development.md](development.md)

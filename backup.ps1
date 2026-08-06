@@ -23,11 +23,13 @@ if (-not (Test-Path $bak)) {
 # 2) run WinRAR: add + max compress + recursive + skip .bak + test archive
 Push-Location $root
 try {
+    Write-Host "Starting backup from: $root" -ForegroundColor Cyan
+    Write-Host "Archive target: $dest" -ForegroundColor Cyan
+
     $rarArgs = @(
         "a",
         "-m5",
         "-r",
-        "-idcdpq",
         "-x*\.git",
         "-x*\.git\*",
         "-x*\node_modules",
@@ -35,10 +37,29 @@ try {
         "-x*\.bak",
         "-x*\.bak\*",
         "-x*\shipit.ps1",
+        "-x*\tests\docx\AFTC TS MVC WebGPU Template",
+        "-x*\tests\docx\AFTC TS MVC WebGPU Template\*",
+        "-x*\tests\docx\AFTC Voice to CLI (Electron App)",
+        "-x*\tests\docx\AFTC Voice to CLI (Electron App)\*",
+        "-x*\tests\docx\AFTS - Plug n Play (Java App)",
+        "-x*\tests\docx\AFTS - Plug n Play (Java App)\*",
+        "-x*\tests\docx\Docker Web Project",
+        "-x*\tests\docx\Docker Web Project\*",
+        "-x*\tests\docx\Inversionator C++ VST",
+        "-x*\tests\docx\Inversionator C++ VST\*",
+        "-x*\tests\docx\*.rar",
+        "-x*\tests\docx\*.zip",
         "-t",
         $dest,
         "*"
     )
+
+    Write-Host "Applying exclusions:" -ForegroundColor Yellow
+    $rarArgs | Where-Object { $_ -like "-x*" } | ForEach-Object {
+        Write-Host "  $_" -ForegroundColor DarkYellow
+    }
+
+    Write-Host "Running WinRAR (verbose output enabled)..." -ForegroundColor Yellow
     & $rar @rarArgs
 }
 finally {
@@ -67,7 +88,7 @@ $sizeText  = Format-Size $sizeBytes
 
 Write-Host ""
 Write-Host "  Backup created" -ForegroundColor Green
-Write-Host "  Test : PASS" -ForegroundColor Green
 Write-Host "  Size : $sizeText"
 Write-Host "  Path : $dest"
+Write-Host "  Test : PASS" -ForegroundColor Green
 Write-Host ""

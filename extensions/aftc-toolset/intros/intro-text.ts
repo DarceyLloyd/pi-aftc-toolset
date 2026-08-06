@@ -24,7 +24,7 @@ const PACKAGE_VERSION = readPackageVersion();
 
 // ── Adjustable timings (ms) ──────────────────────────────────────────────
 const START_DELAY_MS = 925; // ms before the intro starts (session_start)
-const END_DELAY_MS = 1500;   // ms the final frame lingers before it clears itself
+const END_DELAY_MS = 1900;   // ms the final frame lingers before it clears itself
 
 let endString = `All For The Code - pi-toolset v${PACKAGE_VERSION} - LOCKED & LOADED!`;
 
@@ -44,7 +44,6 @@ const setEndString = () => {
     // switch to a { message, weight }[] shape - a maintainer call.
     let endStrings = [
         `All For The Code - pi-aftc-toolset v${PACKAGE_VERSION} - LOCKED & LOADED!`,
-        `All For The Code - pi-aftc-toolset v${PACKAGE_VERSION} - LOADED!`,
         `All For The Code - pi-aftc-toolset v${PACKAGE_VERSION} - READY!`,
         `All For The Code - Damn, I just stepped into a log file, I hate it when that happens!`,
         `All For The Code - Are you noticing NUL files appearing from nowhere? Me too!`,
@@ -58,7 +57,10 @@ const setEndString = () => {
         `All For The Code - May the cache be with you!`,
         `All For The Code - Call that a context window? I've seen bigger on a Commodore 64!`,
         `All For The Code - Have you tried GROK? Me neither! Ha Ha Ha!`,
-        `All For The Code - Hey GLM 5.2 did you use my weekly quota in the last 5 minutes again?!`,
+        `All For The Code - Hey ZAI GLM 5.2 did you use my weekly quota in the last 5 minutes again?!`,
+        `All For The Code - Hey ZAI GLM 5.2 you used to be the affordable one! Anakin nooooo!`,
+        `All For The Code - Hey ZAI did you just nerf all your plans and increase your prices? Sneaky, really sneaky...`,
+        `All For The Code - Hey ZAI did you just nerf all your plans and increase your prices? Damn you! Damn you to hell!`,
         `All For The Code - Wow! GPT SOL on ULTRA & FAST mode, not even Elon Musk can afford to use that!`,
         `All For The Code - Skynet achieved consciousness at ${formatTodayTimestamp(new Date())}! There's no point in running...`,
         `All For The Code - Reasoning mode ON, common sense mode coming soon...`,

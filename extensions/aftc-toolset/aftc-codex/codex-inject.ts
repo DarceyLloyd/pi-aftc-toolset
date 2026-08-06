@@ -217,36 +217,50 @@ export function createCodexInject(
                 0, 0,
             ));
             box.addChild(new Text(
-                "Codex loads resources on-demand and can use low tier subscriptions hourly quotas fast.",
+                "Codex loads resources on-demand and can use low tier subscriptions hourly & weekly quotas fast.\nTry to keep your context window below 45% usage on 1M context window token models.",
                 0, 0,
             ));
             box.addChild(new Spacer(1));
 
 
             box.addChild(new Text(
-                theme.fg("warning", boldOrange("Recommended models & plans:", theme)),
+                theme.fg("warning", boldOrange("AI Models plans:", theme)),
                 0, 0,
             ));
+
+            let str:any = "";
+            str = theme.fg("warning", "- Kimi K3 - Vivace plan\n");
+            str += theme.fg("text", "  WARNING: Lots of server outages even on Vivace.");
             box.addChild(new Text(
-                theme.fg("warning", "- Kimi K3 (Vivace plan)"),
+                str,
                 0, 0,
             ));
+
+            str = theme.fg("warning", "- Qwen 3.8 Max - Token Pro plan minimum\n");
+            str += theme.fg("text", "  RECOMMEND: Team Pro or Team Max Seat plans.");
             box.addChild(new Text(
-                theme.fg("warning", "- ZAI GLM 5.2 (Max plan)"),
+                str,
                 0, 0,
             ));
+
+            str = theme.fg("warning", "- ZAI GLM 5.2 - Max plan\n");
+            str += theme.fg("text", "  WARNING: ALL plans have been nerfed and prices increased!");
             box.addChild(new Text(
-                theme.fg("warning", "- Qwen 3.8 Max (Pro plan) etc."),
+                str,
+                0, 0,
+            ));
+
+            str = theme.fg("warning", "- GPT 5.6 Terra - $100 or $200 p/m plans\n");
+            str += theme.fg("text", "  WARNING: Careful using SOL and speed multipliers.");
+            box.addChild(new Text(
+                str,
                 0, 0,
             ));
 
             box.addChild(new Spacer(1));
+            
             box.addChild(new Text(
-                "I find that GLM 5.2 Coding Pro and Kimi Allegretto plans 5 hour quota is used up in 1.5 to 2.5 hours.",
-                0, 0,
-            ));
-            box.addChild(new Text(
-                "This does depend on how complex or big the task and project is.",
+                "Usage cost depend greatly on how complex or big your task and project is.",
                 0, 0,
             ));
 

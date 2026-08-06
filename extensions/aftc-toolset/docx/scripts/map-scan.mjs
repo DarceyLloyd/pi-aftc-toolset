@@ -19,6 +19,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
+import { EXCLUDED_DIRS, collectUiHints } from "./ui-hints.mjs";
 
 // Self-terminating guard (AGENTS.md: no script may hold a session open).
 const watchdog = setTimeout(() => {
@@ -27,18 +28,10 @@ const watchdog = setTimeout(() => {
 }, 55_000);
 watchdog.unref();
 
-const EXCLUDED_DIRS = new Set([
-    "node_modules", "vendor", "bower_components", "dist", "build", "out",
-    "target", ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache",
-    ".gradle", "__pycache__", ".pytest_cache", ".venv", "venv", "env",
-    "Pods", "DerivedData", ".idea", ".vscode", ".git", ".hg", ".svn",
-    "coverage", ".cache", ".tmp", "tmp", "old_docs_backup", "old",
-    ".bak", ".old",
-]);
-
 const MAX_DEPTH = 8;
 const MAX_ENTRIES = 8000;
 const MAX_MANIFESTS = 60;
+const MAX_SURFACE_HINTS = 400;
 
 const MANIFEST_NAMES = new Set([
     "package.json", "composer.json", "pyproject.toml", "cargo.toml",
@@ -224,6 +217,16 @@ console.log(testSurfaces.length > 0 ? testSurfaces.join("\n") : "(none found)");
 
 console.log("\n## CI files");
 console.log(ciFiles.length > 0 ? ciFiles.join("\n") : "(none found)");
+
+console.log("\n## UI surface hints (files likely defining user-facing surfaces - VERIFY against source, never proof)");
+const hints = collectUiHints(root, MAX_SURFACE_HINTS);
+console.log("\n### Templates / declarative surface files");
+console.log(hints.templates.length > 0 ? hints.templates.join("\n") : "(none found)");
+console.log("\n### Surface-named source files (route/window/screen/dialog/modal/page/controller/...)");
+console.log(hints.sources.length > 0 ? hints.sources.join("\n") : "(none found)");
+if (hints.truncated) {
+    console.log(`\n[truncated at ${MAX_SURFACE_HINTS} hints]`);
+}
 
 console.log("\n# End of scan. Treat this as recon INPUT: verify claims against source before documenting them.");
 process.exit(0);

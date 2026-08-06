@@ -1,32 +1,51 @@
 # **pi-aftc-toolset**
 
+<!-- last-reviewed: 2026-08-05 22:05 -->
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+Stats bar. Isolated SSH. Documentation generation (docx). Persistent
+self-educating cache-aware skills on demand (codex). Usage reports. Audio
+notifications. Shortcuts. Skills. Themes ++
 
-The `pi-aftc-toolset` is a productivity toolset for the [pi](https://pi.dev) CLI coding agent.
-
-This is a collection of tools for which assist with what I do on a daily basis to help get the most out of AI models. 
-
-Click [here](./change-log.txt) to read the change logs.
+A productivity extension package for [pi](https://pi.dev)
+(`@earendil-works/pi-coding-agent`): install it, run `/aftc-install`, and
+pi grows a cache/cost diagnostics footer, a persistent usage database with
+an HTML report, credential-isolated SSH tooling for the model and for you,
+an opt-in knowledge base, a documentation generator, and a long tail of
+workflow conveniences.
 
 ---
-
-<br><br>
-
 
 ## **WHATS NEW**
 
-### **/docx project documentation generator**
-One command — `/docx` — generates a complete, cross-referenced documentation set for any project: a fresh GitHub README.md, a master document, a full ID'd structure map, and per-module deep docs under `./docx/`. BETA 3: every UI is now mapped surface-by-surface on any platform (web pages, mobile screens, desktop/Electron windows, VST/plugin editors, CLI/TUI screens), each UI area gets a sitemap doc with a build-from-it entry per screen, and design rules get global + per-area docs (eg public site vs admin back-office). Your old docs are never lost: they're moved aside with their folder structure intact and zipped to `docx/old_docs.zip`. See [/docx project documentation generator](#docx-project-documentation-generator).
+### **/docx project documentation generator (BETA 4)**
 
-### **AFTC CODEX PATCHES & UPDATED CODEX RESOURCES**
-Fixed some bugs, adjusted learning process and model guidance. And brought synced my latest codex resources for you all to use..
+The generation prompt is now tailored by project type: after the
+confirmations a picker modal (auto-detect pre-selected) asks for the
+closest stack and ONE focused type pack is appended to a slim core prompt
+(10 packs: web-app, basic-website, webgpu-webgl, desktop-app, juce-vst,
+mobile-app, python-app, cli-tool, shell-scripts, generic). The generated
+layout changed: `docx/` IS the documentation folder — the docs tree mirrors
+the structure map as `<id>_<name>/` folders, every reachable surface gets
+its own build-ready doc, and old docs are recon hints only (source wins).
+The hard context gate dropped from 50% to 25% — `/new` first above that,
+even with `--yes`.
 
+### **Clean console by default**
+
+The `[aftc-toolset]` diagnostic chatter no longer prints by default
+(`debugLoggingEnabled`, `/aftc-debug-log-on|off`). Every diagnostic line is
+still captured in `<data dir>/debug.log` (rotating 5 MB), and errors ALWAYS
+print.
+
+### **AFTC CODEX UPDATES**
+
+`/codex` menu simplified (Codex Enabled / Inject Thought Guidance /
+Auto-Detect & Load Docs / Auto Sync Codex Update on Startup / Resources &
+Updates); the phantom "outdated" warning is gone; auto-sync now runs on the
+first session start of any kind; `/codex-live-to-seed` bumps the shipped
+codexVersion itself when it wrote seed files. Shipped codex version: **7**.
 
 ---
-
-<br><br>
-
 
 ## **Install**
 
@@ -43,7 +62,8 @@ Then in pi:
 /reload
 ```
 
-> **Runtime dependencies:** `pi install` does not install all the required runtime deps. Run `/aftc-install` after extension installation.
+> **Runtime dependencies:** `pi install` does not install all the required
+> runtime deps. Run `/aftc-install` after extension installation.
 
 ---
 
@@ -53,22 +73,18 @@ Then in pi:
 - [**Footer Widget**](#footer-widget)
 - [**SSH**](#ssh)
 
-- [**DOCX Documentation Generator (BETA 3)**](#docx-project-documentation-generator)
+- [**DOCX Documentation Generator (BETA 4)**](#docx-project-documentation-generator)
     > **WARNING: This will re-write readme.md and move all existing documentation.**
-    If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is. 
-    
-    > **NOTE: run `/new` first, then `/docx`** — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. `/docx` flat-out refuses above 50% context use and advises a fresh session at 20%+. Context use itself is modest — measured runs used only 5–8% of a 1M-token window and even large projects stayed under 20% — but expect a LONG wait: the bigger and more complex the project, the longer it takes.
+    If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is.
 
-- [**Usage Report**](#usage-report) (BETA 3)
+    > **NOTE: run `/new` first, then `/docx`** — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. `/docx` flat-out refuses at 25%+ context use (even with `--yes`) and advises a fresh session at 20%+. Context use itself is modest — measured runs used only 5–8% of a 1M-token window and even large projects stayed under 20% — but expect a LONG wait: the bigger and more complex the project, the longer it takes.
+
+- [**Usage Report**](#usage-report) (ALPHA)
 - [**AFTC Codex**](#aftc-codex-knowledge-base)
 
     > **WARNING**: AFTC Codex injects rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This results in the model having access to potentially a lot of rules, issues & solutions and gotchyas. Loading 1 to 5 is light enough, loading 20 can be costly but necessary when you have something complex that you want the AI to have its best shot at working out and one shotting it.
-    
-    > I recommend you create a plan.md and a tasks.md first so that you can maximise your use of the codex skills.
 
-    > Codex results: I've found it to be very beneficial when asking models to perform tasks on projects containing multiple projects eg docker, apache php, mysql containers with complex setups and containing inner php framework backend api and public and private websites. GLM 5.2, Kimi K3 and Qwen 3.8 Max (3.7 Max is good too) I find perform the best in these situations.
-    
-    > **WARNING**: If you are counting the cost of every token or have low tier 
+    > I recommend you create a plan.md and a tasks.md first so that you can maximise your use of the codex skills.
 
 - [**Audio notifications**](#slash-commands) /aftc-notifications
 - [**Slash commands**](#slash-commands) /aftc-* /codex-*
@@ -87,178 +103,143 @@ Then in pi:
 
 <br><br>
 
-
 ## **Footer widget**
 
-![Footer Widget](images/footer-widget.png)
+![Footer widget](images/footer-widget.png)
 
-A 4-5 line diagnostic panel (not pi's footer), so it composes alongside other footer/status-bar extensions instead of replacing them. Updates live from pi events and a 1 Hz session sampler. Line 5 (subscription allowance) only appears for providers that expose usage data.
+A themed dashboard bar below the editor (`/aftc-footer` to configure:
+enable, averages line, timeframe). Lines 1–4 always available; line 5 only
+for supported subscription providers.
 
 ### Line 1 — what's happening right now
 
-Reading left to right:
-
-- **`model` & `THINKING LEVEL`** — which AI model you're using, and the thinking level you set (e.g. `HIGH`).
-- **`CTX Window (%)`** — how big the model's memory is (e.g. `1.0M`), and the `(X%)` is how full that memory is right now. Same number pi shows at the bottom of the screen.
-- **`Turn Cache % / Avg %`** — how much of your prompt the model got to reuse from its cache this turn, and your session average. Higher = cheaper.
-- **`Cached A / New B`** — of all the stuff you sent this session, how much was cached (`A`) vs sent fresh (`B`).
-- **`Tk ↑P Tk ↓Q`** — total tokens sent up to the AI (`P`) and received back (`Q`) this session.
-
-Units: `t` = tokens, `Kt` = thousand tokens, `M` = million tokens (only used for the context window size).
+Model name + thinking level, context window size with pi's own context-use
+%, last-turn cache hit vs session average (with trend arrow), and the
+session's cached vs new token split.
 
 ### Line 2 — your money and prompts
 
-- **`Prompts: User N / AI N`** — how many prompts you sent vs how many the AI kicked off on its own (e.g. tool-call follow-ups).
-- **`Turn cost`** — what the last prompt cost in dollars.
-- **`Task Time`** — how long the AI took to fully handle your last prompt and return control (one prompt's complete run, across all its tool-call turns), formatted like Session Time. Ticks live while the AI works, then holds the last task's duration; an error/abort shows the time to that point but isn't recorded. Runs through questions, steering, retries and compaction.
-- **`Session Time`** — how long this session has been alive (e.g. `2h 14m`).
-- **`Session Time Cost`** — what the whole session has cost so far.
-- **`$/hr`** and **`$/min`** — how fast you're spending (based on the session clock).
+User vs AI prompt counts, last turn cost, live Task Time, Session Time
+(wall-clock since your first prompt), Session Time Cost, and the burn rate
+($/hr and $/min).
 
 ### Line 3 — speed and tools
 
-- **`Turn Time L / Avg A`** — how long the last prompt took (`L`) vs your session average (`A`).
-- **`Turn Response Time L / Avg A`** — total round-trip time, last vs average.
-- **`N Tools ~X.XKt`** — how many tools the AI can call, and roughly how many tokens they take up in the prompt.
-- **`Skills used/avail`** — how many skill files you've loaded this session, out of how many exist (only shown if at least one is loaded).
+Turn thinking time and response time (last + averages), active tool count
+with estimated schema tokens, and skills used/available.
 
 ### Line 4 — long-term averages
 
-Shows totals and averages over a time window you pick in the `/aftc-footer` menu -> **Set averages timeframe** (default: 3 Days); hide the whole line with **Show recorded averages** in the same menu. Updates from a SQLite log on your disk.
-
-Format: `<Window> Averages: cost $X.XX | Prompts: User X / AI Y | Avg Cache X% | Avg Task Time X` — the prefix names the window (eg `3 Hour Averages:`, `Today Averages:`, `This Month Averages:`).
-
-- **`cost`** — total spend in that window (money-formatted: `$0.00` / 4 decimals under $1 / 2 decimals / thousands separators at $1,000+).
-- **`Prompts: User / AI`** — prompt SUMS in that window (AI = tool-call continuation turns).
-- **`Avg Cache`** — average cache hit rate in that window.
-- **`Avg Task Time`** — average wall-clock of COMPLETED tasks in that window (failed/aborted tasks excluded).
-
-Two window families: rolling "Last ..." windows (1, 2, 3, 4, 5, 6, 12, 24, 48 and 72 hours — measured back from your current time) and calendar windows (1 Day = since midnight, 2/3/5/7 Days = calendar days including today, Month / 3 Months / 6 Months = since the 1st of the month, 1 Year = since January 1st).
+Prefixed with the chosen window (eg `3 Day Averages:`), from the persistent
+usage DB: total cost, window prompt sums (User/AI), average cache hit %,
+and Avg Task Time (completed tasks only). 19 windows via `/aftc-footer` →
+Set averages timeframe: ten rolling "Last …" windows (1h–72h) and nine
+calendar-anchored windows (1 Day → 1 Year).
 
 ### Line 5 — subscription quota (some providers only)
 
-Only shows up for providers that publish a usage endpoint (openai-codex, MiniMax, Z.ai, Kimi for Coding, Anthropic OAuth).
+5-hour rolling + weekly allowance usage with live reset countdowns.
+Supported: ChatGPT/Codex (OAuth), Anthropic (OAuth subscription headers),
+MiniMax Token Plan, ZAI/GLM Coding Plan, Kimi for Coding. All other
+providers: the line stays hidden.
 
-- **`5h Allowance used: X% Resets in: ...`** — your 5-hour rolling quota.
-- **`Weekly Allowance used: Y% Resets in: ...`** — your weekly quota.
-
---- 
+---
 
 <br><br>
 
 ## **SSH**
 
-The old SSH GUI and features are gone, a new more fully featured SSH feature has been built and tested from the ground up windows first and then for linux (I don't have a mac, so lets hope the linux testing gets it working for the OSX peeps). 
-
-**Remember this is for AI models to use so if you manually want to use ssh then use your local ssh command in terminal or any of various free software out there, but still I built you `/ssh-shell` so you can mostly use SSH in pi.**
-
-Connect to remote machines over SSH from inside pi - run commands, open interactive shells (Nano, Vi, htop, tmux), transfer files, manage remote files, and open port forwards. The feature runs a packaged Paramiko carrier as a local process that talks JSON-RPC over its own standard input and output; it never opens a listening socket, an HTTP service, or a local GUI bridge. It supports multiple simultaneous in-memory connections, password and private-key (including encrypted-key) authentication, host-key approval, non-interactive commands with bounded standard input, recursive SFTP transfers, remote file operations, interactive PTY shells, and local (-L), remote (-R), and dynamic SOCKS5 (-D) port forwarding.
-
-> **The AI model is never given any SSH connection details.** Every connection is authorised and opened locally. The model can connect to server by connection name - connection details are stored in a json file and only read by typescript functions and the python sidecar, it is never given to the AI model. The AI model never sees usernames, hosts, ports, passwords, private-key paths, passphrases, fingerprints, or forwarding endpoints. All command output, file content, carrier errors, and stderr are bounded and redacted before they reach the model. Passwords and key passphrases live in memory for a single connection attempt and are cleared immediately afterwards.
+Operate remote servers from pi — model tools for the AI, slash commands
+for you, a full-screen interactive terminal for hands-on work. Everything
+runs through a packaged Python (Paramiko) carrier over local stdio — it
+opens **no** listening socket.
 
 ### Ensure dependencies are installed
 
-SSH needs native runtime dependencies that `pi install` does not always set up:
-
-- **Python 3** (`py`/`python` on Windows, `python3`/`python` elsewhere) - runs the packaged carrier.
-- **uv** - the carrier's package manager. `/aftc-install` uses the platform-native `uv.exe` on Windows and `uv` elsewhere.
-- **The packaged carrier environment** - installed via `uv sync --locked` against the carrier shipped inside the package.
-- **better-sqlite3** - installed via `npm install` (shared with the usage feature).
-
-Run it once after install:
-
 ```text
 /aftc-install
-/reload
 ```
 
-`/aftc-install` checks for Node, Python, and uv, reports platform-specific recovery guidance if any are missing, and verifies the carrier with the same ready handshake the runtime uses. npm installs run the post-install hook automatically; **GitHub and local-clone installs skip it, so `/aftc-install` is required for SSH**. See [Dependency installer](#dependency-installer) for the full list. The footer works without these dependencies, but SSH (and usage recording/reporting) do not.
+Installs/verifies the carrier environment: Python 3 + `uv` + `uv sync
+--locked` of the packaged sidecar.
 
 ### **SSH commands**
 
-Every SSH command is local - it runs against a session you authorised yourself. `/ssh-help` shows the same reference inside pi.
-
 | Command | What it does |
 | --- | --- |
-| `/ssh-cm` | Full-screen connection manager: add / edit / delete saved connections |
-| `/ssh-connections` | List your locally saved connection names |
-| `/ssh-connect [name]` | Connect to a saved connection (by name or picker) |
-| `/ssh-auto-accept-session-on` | Auto-approve new SSH host keys (saved in ssh.json) |
-| `/ssh-auto-accept-session-off` | Ask before trusting new SSH host keys (default) |
-| `/ssh-status` | Show `SSH Status: Connected to <name>` or `SSH Status: Not connected` |
-| `/ssh-select [id]` | Choose the active session used by local SSH commands |
-| `/ssh-shell` | Open a full-screen interactive terminal on the selected session |
+| `/ssh-cm` (alias `/ssh-connection-manager`) | Full-screen connection manager: add / edit / delete saved connections |
+| `/ssh-connect [name]` | Connect a saved connection (quotes for names with spaces; no name → picker) |
+| `/ssh-connections` | List saved connection names |
+| `/ssh-status` | Show connection status |
+| `/ssh-select [id]` | Select the active session for local commands |
+| `/ssh-disconnect [id]` | Disconnect a session |
+| `/ssh-shell` | Open the full-screen interactive terminal on the selected session |
 | `/ssh-close-shell <id>` | Close an interactive shell |
-| `/ssh-interrupt <id>` | Send recovery keys (Ctrl+C / Ctrl+D) to a shell |
-| `/ssh-upload <local> <remote>` | Upload a file (`--preserve` keeps remote attrs) |
-| `/ssh-download <remote> <local>` | Download a file (`--preserve` keeps local attrs) |
-| `/ssh-rename <from> <to>` | Rename a remote path (asks for confirmation) |
-| `/ssh-disconnect [id]` | Disconnect an SSH session |
-| `/ssh-help` | Show the SSH workflow reference |
-
-Running commands, inspecting and changing remote files, and driving
-interactive programs are the model tools' jobs — ask the model and it uses
-`ssh_run`, `ssh_read_file`, `ssh_write_file`, and friends. Port forwarding
-has no user or model surface; use `ssh -L` / `-R` / `-D` from your own
-terminal when you need a tunnel.
+| `/ssh-interrupt <id>` | Send Ctrl+C + Ctrl+D recovery keys to a shell |
+| `/ssh-upload <local> <remote> [--preserve]` | Upload a file (overwrite confirmation; `--preserve` keeps attrs) |
+| `/ssh-download <remote> <local> [--preserve]` | Download a file (overwrite confirmation) |
+| `/ssh-rename <from> <to>` | Rename a remote path after confirmation |
+| `/ssh-auto-accept-session-on` / `-off` | Trust NEW host keys without asking / restore the prompt (changed keys are always rejected) |
+| `/ssh-help` | SSH workflow guidance |
 
 ### How to manage connections
 
-Saved connections are local metadata only - a name you choose, plus the non-secret connection details (username, host, port, timeout, an optional private-key path, and an optional saved password). They live in `ssh.json` in your OS data dir (see [Data location](#data-location)), which is outside the package and never shipped.
-
-Run `/ssh-cm` (or `/ssh-connection-manager`) to open the full-screen connection manager. The bottom options row offers **Add new connection**, **Edit**, and **Delete** for the highlighted entry (Tab moves between the list and the options, Left/Right moves between options, Enter activates):
-
-- **Add** opens the new-connection dialog (validation, empty-password and name-collision confirms).
-- **Edit** opens the same form pre-filled; a saved password is kept, and renaming through the name field removes the old record.
-- **Delete** asks "Are you sure?" before removing the record (a live session started from it keeps running).
-
-Saved connections are created in the connection manager (`/ssh-cm`).
+`/ssh-cm` opens the connection manager: `[ Add new connection ]`,
+`[ Edit ]`, `[ Delete ]`. The add dialog collects name, username, host,
+port (22), timeout (30 s), optional key path and optional password (saved
+locally, never exposed to the model).
 
 ### How to connect
 
-Run `/ssh-connect` (or `/ssh-connect <name>` to jump straight to one — quote names that contain spaces; matching is exact, then case-insensitive; an unknown name lists what is saved). With no name it lists your saved connections — connect-only; new connections are made in `/ssh-cm`. With none saved it points you there. A connection with a saved password connects immediately; otherwise you enter the password or key passphrase for that attempt (never stored, never shown to the model). On the first connection to a host you approve its key locally (or skip the prompt with `/ssh-auto-accept-session-on`) without the fingerprint ever reaching the model; a changed key is rejected by default. Credentials are held in memory for that one attempt and cleared immediately afterwards - including through the new-host approval retry. Several connections and shells can be open at once; their names and opaque ids are tracked only in memory and clear on reload, new session, resume, or exit.
+`/ssh-connect [name]` — or just ask the model, which uses `ssh_connect`.
+New host keys ask for approval (or auto-accept when enabled).
 
 ### How to disconnect
 
-`/ssh-disconnect` closes the active session (or `/ssh-disconnect <id>` a specific one); the model can call `ssh_disconnect` with an opaque id. Disconnecting clears the session's redaction boundary, closes its shells and forwards, and stops anything it owned.
-
-The carrier is lazy and self-cleaning. It starts on first SSH use and, once the last session disconnects (or is lost), a short TS-side grace window stops it; if pi is killed or wedged, the sidecar self-exits on a closed stdin pipe and, as a last resort, an idle watchdog (10-minute default, overridable with `AFTC_SSH_IDLE_TIMEOUT_SEC`) closes it. The next connect relaunches a fresh sidecar through the same path.
+`/ssh-disconnect [id]` — or the model's `ssh_disconnect`. Idle carriers are
+reaped automatically and re-spawned on demand.
 
 ### Run commands and pick a session
 
-`/ssh-status` shows whether you are connected, and to which server. `/ssh-select [id]` sets which session local commands (`/ssh-shell`, transfers) act on. Running remote commands is a model tool job: ask the model and it uses `ssh_run`, which reports exit code, stdout/stderr presence, and truncation; large output is also written to a local redacted file you can inspect.
+`/ssh-select` chooses the session the local commands act on. For driven
+work, the model uses `ssh_run` (bounded, 120 s max timeout, optional
+bounded stdin — never for credentials).
 
 ### Interactive shells
 
-`/ssh-shell` opens a full-screen interactive terminal (TUI only) attached to the selected session: the remote terminal renders inside the AFTC takeover frame through a built-in virtual screen, so cursor-addressed programs (Nano, Vi, htop, top, less) display properly. It forwards normal text, Enter, Tab, arrows, function keys, Ctrl combinations, bracketed paste, resize, and interrupt. Press **Ctrl+]** to leave the terminal locally without sending that chord to the remote host. `/ssh-close-shell <id>` closes a shell and `/ssh-interrupt <id>` sends it recovery keys (Ctrl+C / Ctrl+D).
+`/ssh-shell` opens a full-screen terminal (nano, vim, htop, top, less all
+render properly). All keys go to the remote program — including Esc;
+**Ctrl+] exits locally**. The model drives programs through
+`ssh_open_shell` + `ssh_send_keys` / `ssh_paste` / `ssh_peek` /
+`ssh_resize` / `ssh_interrupt` / `ssh_close`.
 
 ### Transfer files
 
-`/ssh-upload <local> <remote>` and `/ssh-download <remote> <local>` move files with local overwrite confirmation. Both support an opt-in `--preserve` flag that restores remote timestamps and permission bits on upload, and local timestamps (plus permissions on POSIX hosts) on download; it is off by default. Transfers run in chunks so a large transfer can be cancelled mid-flight - aborting stops the carrier and removes its temporary file, leaving nothing behind.
+`/ssh-upload` + `/ssh-download` (or the model's `ssh_upload` /
+`ssh_download`): files or whole directory trees, symlinks never followed,
+cancellable, `--preserve` restores timestamps/permissions.
 
 ### Manage remote files
 
-Remote file work is a model tool job: the model uses `ssh_list_dir`, `ssh_stat`, and `ssh_read_file` to inspect, and `ssh_write_file`, `ssh_mkdir`, `ssh_rename`, and `ssh_remove` to change — every remote-mutating operation requires explicit local-user confirmation. The one remaining user command, `/ssh-rename <from> <to>`, renames a remote path after confirmation. Large reads are also saved to a local redacted file so you can inspect the full content without it entering the model context.
+Model tools: `ssh_list_dir`, `ssh_read_file`, `ssh_stat`, `ssh_write_file`,
+`ssh_mkdir`, `ssh_rename`, `ssh_remove` — every mutation needs local-user
+approval.
 
 ### Model tools
 
-The model can help with SSH work through opaque session and shell ids. It can connect and reconnect a saved server by name and disconnect when done, but it can never create, edit, or delete a connection and never sees host, user, port, key path, password, passphrase, or fingerprint data.
-
-- `ssh_status`, `ssh_connect`, and `ssh_disconnect` manage the connection surface. `ssh_connect(<name>)` connects a saved server (or returns the existing opaque id if already connected); a local prompt collects credentials each time and the model supplies none. It throws for an unknown name and never offers to create one, and fails safely in headless mode.
-- `ssh_run` runs non-interactive commands with bounded standard input.
-- `ssh_open_shell`, `ssh_send_keys`, `ssh_paste`, `ssh_resize`, `ssh_peek`, `ssh_interrupt`, and `ssh_close` drive interactive programs such as Nano and Vi.
-- `ssh_upload`, `ssh_download`, `ssh_list_dir`, `ssh_read_file`, `ssh_stat`, `ssh_write_file`, `ssh_mkdir`, `ssh_rename`, and `ssh_remove` support file administration; the destructive ones require local-user confirmation.
-
-Every tool result is bounded and redacted. The only connection-level model tools are `ssh_status`, `ssh_connect`, and `ssh_disconnect`; no model tool can create, save, edit, rename, or forget a connection.
+20 tools: `ssh_status`, `ssh_connect`, `ssh_disconnect`, `ssh_run`,
+`ssh_open_shell`, `ssh_send_keys`, `ssh_paste`, `ssh_resize`, `ssh_close`,
+`ssh_peek`, `ssh_interrupt`, `ssh_upload`, `ssh_download`, `ssh_list_dir`,
+`ssh_read_file`, `ssh_stat`, `ssh_write_file`, `ssh_mkdir`, `ssh_rename`,
+`ssh_remove`. A bundled `ssh` skill teaches the model the workflow.
 
 ### Credential isolation
 
-- Saved connection records contain only local connection metadata. Passwords and key passphrases are never persisted.
-- `/ssh-connect` collects credentials locally for each connection attempt, including saved connections.
-- The model can connect or reconnect a saved server by name (credentials collected locally each time) or use a session you have already opened, but it can never create, edit, or delete a connection.
-- Model tools receive opaque session and shell ids, never usernames, hosts, ports, passwords, key paths, or fingerprints.
-- Output, file content, and carrier failures are bounded and redacted before they reach the model.
-- Redaction values are registered and removed around every active connection, and the boundary survives a connection being renamed or removed.
+Connections are saved in your local `ssh.json`; the model only ever sees
+saved NAMES and opaque session/shell ids. Credentials are collected by
+local prompts, all model-facing output is redacted, and errors are mapped
+to safe categories (timeout, cancelled, not connected, unavailable) — no
+host/port/key diagnostics ever reach the model.
 
 ---
 
@@ -266,15 +247,12 @@ Every tool result is bounded and redacted. The only connection-level model tools
 
 ## **Think-tag processing**
 
-Some reasoning models emit their chain-of-thought as text wrapped in `<think>…</think>` tags (the DeepSeek / Qwen convention). pi's provider integrations for those models strip the tags into proper `ThinkingContent` blocks automatically; providers that don't (including some local servers and certain custom wrappers) leave the tags as literal text.
-
-`/aftc-enable-think-processing` turns on a client-side hook that does the conversion at the extension layer. With it on:
-
-- `<think>reasoning here</think>answer` renders as a proper pi thinking block (collapsible, theme-aware, `Ctrl+T` toggle, `hideThinkingBlock` setting).
-- Models that already produce native thinking are left alone (no conflict).
-- Errors and aborted turns are skipped (no mangle of partial output).
-
-Off by default. Toggle with `/aftc-enable-think-processing` or `/aftc-disable-think-processing`, then `/reload`.
+Models that emit thinking as inline `<think>…</think>` text tags (the
+DeepSeek/Qwen convention) get those tags converted into pi's native
+collapsible thinking blocks at message-finalize time. Off by default:
+`/aftc-enable-think-processing` / `/aftc-disable-think-processing`. Safe by
+construction: skips messages that already have thinking blocks, errored /
+aborted turns, and provider-signed text.
 
 ---
 
@@ -282,26 +260,10 @@ Off by default. Toggle with `/aftc-enable-think-processing` or `/aftc-disable-th
 
 ## **QwenCloud / Alibaba providers**
 
-> **Currently disabled** — pi 0.81 added native provider registration, so this module is disconnected (but still shipped). It can be re-enabled if the native support proves weaker. The notes below apply when it is enabled.
-
-
-Adds Alibaba's Qwen lineup to pi's **native `/login`** and the `Ctrl+L` model picker — no config files to edit, credentials are stored by pi in its own `auth.json` like any built-in provider.
-
-Two providers are registered:
-
-| Provider | For | How to log in |
-| --- | --- | --- |
-| **Qwen Coding Plan** | Model Studio Coding Plan subscription (Lite / Standard / Pro) | `/login` → Plans → **Qwen Coding Plan** → paste your `sk-sp-…` or `sk-tok-…` token |
-| **Qwen Cloud (DashScope)** | Pay-per-token DashScope API | `/login` → Use an API key → **Qwen Cloud (DashScope)** → paste your `sk-…` key — or set `DASHSCOPE_API_KEY` in your environment |
-
-Then open the model picker (`Ctrl+L`) and pick a Qwen model.
-
-- **Self-updating model list**: the extension pulls the live catalog from Alibaba on every pi start (and right after a Plan login), so newly released models appear on their own. Offline? It falls back to the last fetched list, then to a small built-in seed — pi is never blocked.
-- **All regions**: Cloud defaults to the International endpoint; switch to China or a custom domain via `/qwencloud`. Plan endpoints default to Singapore with a custom option.
-- **OpenAI-compatible by default** (Alibaba's best-supported API shape); each provider can be switched to their Anthropic-compatible shape in the menu.
-- Reasoning models get native thinking support; vision models accept images automatically.
-
-Manage everything with **`/qwencloud`**: status (login state, endpoints, model counts), refresh model lists, cloud region, API formats, plan endpoints, and re-login help.
+Currently **disabled** — pi 0.81+ registers providers natively. The module
+(Qwen Cloud/DashScope + Qwen Coding Plan via pi's native `/login`, live
+model catalogs, `/qwencloud` command) stays in the package and can be
+re-enabled in `index.ts` if the built-in proves weaker.
 
 ---
 
@@ -309,15 +271,18 @@ Manage everything with **`/qwencloud`**: status (login state, endpoints, model c
 
 ## **Cache diagnostics**
 
-A live hit-rate readout, prefix-shape hashing that detects cache invalidations mid-session, a cache-write ROI calculation, a per-tool token-cost breakdown that surfaces prefix bloat, and a `cache-audit` skill that walks the model through diagnosis. The `cache-viz` theme reinforces the cache metrics visually. None of this exists in stock pi.
+Everything the footer shows, on demand:
 
-The bundled `cache-audit` skill guides the model through a cache diagnostics workflow:
+- `/cache-profile` — per-tool schema token costs, skills loaded, cache
+  prefix shape (system/tools/prefix hashes), churn analysis.
+- `/cache-stats` — session cache statistics, cache-write ROI (net saved,
+  payback turns), cost burn rate.
+- `/cache-reset` — zero the accumulators (debugging).
+- `/cls` — clear the terminal screen.
 
-```text
-/skill:cache-audit
-```
-
-It runs `/cache-stats` and `/cache-profile`, diagnoses low hit rates, explains prefix churn, and suggests cache-stability improvements.
+Hit-rate formula: `cacheRead / (cacheRead + input)` — pi's `input` is NEW
+prompt tokens only. Prefix churn (system prompt or tool schema changes
+breaking the cache) is detected per turn and warned.
 
 ---
 
@@ -325,43 +290,28 @@ It runs `/cache-stats` and `/cache-profile`, diagnoses low hit rates, explains p
 
 ## **Usage report**
 
-Every completed assistant response with usage data is recorded to a local SQLite database (`turns.db` in your OS data dir - see [Data location](#data-location)), and every settled task (prompt → AI finished) is recorded alongside it with its wall-clock **Task Time** and outcome. Generate a report with `/usage-report` - a single self-contained HTML file (`report.html` in the same data dir), opened in your browser. Dark themed, AFTC-branded, organised into five tabs (Overview, Models, Thinking levels, Timings, Projections). Graphs use Chart.js from a pinned CDN (the only external reference); offline the charts degrade to a note and every table and card still works.
+`/usage-report` writes a self-contained HTML report (the only external ref
+is the Chart.js CDN — tables work offline) to your data dir and opens it
+in your browser. Every assistant turn is recorded as metrics only —
+**never prompt or response text**. `/usage-clear` wipes the database behind
+a confirmation.
 
-Prompt counts are split the same way as the footer widget: **User prompts** (what you typed) vs **AI prompts** (self-prompted tool-call turns). Cost averages use **paid turns only** - free / $0 (subscription) models are still recorded for prompt, cache and timing stats, but they never drag cost averages down. To skip recording $0 turns entirely, set `RECORD_ZERO_COST_TURNS = false` in `extensions/aftc-toolset/usage-recording.ts`.
+![Usage report overview](images/ur-overview.png)
 
-![Usage report - Overview tab](images/ur-overview.png)
+Five tabs:
 
-**Overview** - the headline numbers at a glance: total cost with avg per day, user prompts (tasks + follow-ups), AI prompts (self-prompting turns and how many run per user prompt), avg cost per user prompt, avg cache hit, and active days. Below the cards: a daily-spend bar chart for the last 30 days (today highlighted), a cost-share doughnut showing which models your money goes to, and period summary cards for the last 24 hours / 7 days / 28 days. Each card carries a per-model scoreboard (cheapest / most costly, most / least used, **avg task time**, best / worst cache hit, response time and think time) that only lists models which cost something in the window - $0 models never appear.
-
-![Usage report - Models tab](images/ur-models.png)
-
-**Models** - the per-model cost report. A period selector (24 hours / 7 days / 28 days / all time) drives both the cost-by-model bar chart and the sortable table: cost (with share bars), user prompts, AI prompts, AI/user ratio, Avg $/Pup (average cost per user prompt), Avg cache, avg response time and **Task time** (how long the AI took to fully handle your prompts and return control, averaged over that model's completed tasks). Every non-obvious column has an info icon with a hover tooltip explaining exactly what the values mean and how they're derived.
-
-![Usage report - Thinking levels tab](images/ur-thinking-levels.png)
-
-**Thinking levels** - the same breakdown per model x thinking level (one row per combination you've actually used), adding avg think time and Task time. Answer questions like "does max thinking actually cost me more than medium?" with real numbers for your own usage.
-
-**Timings** - built around Task Time: the wall-clock time from when you press enter to when the AI fully returns control (one prompt's complete run, across all its tool-call turns). Cards show the avg task time, the longest task (and which model ran it), avg turns per task, and error & abort counts (failed tasks are recorded too - counted, but never averaged into Task Time). Charts break task time down by model and by day; a stacked bar shows where the time goes (thinking / responding / tools & overhead); a mini table compares user-prompt turns against AI (auto) turns; and the top-10 longest tasks are listed with model, thinking level and turn count.
-
-![Usage report - Timings tab](images/ur-timings.png)
-
-![Usage report - Projections tab](images/ur-projections.png)
-
-**Projections** - what your current usage pattern costs over time. The cards show the overall burn rate: avg $/day across all calendar days since recording began (idle days included), projected month (x30.4) and year (x365). The table breaks it down per model x thinking level: $/day, $/week, $/month, $/year derived from spend per **active day**. Rows built on fewer than 7 active days are marked `~` as estimates, the overall figures are flagged until you have 14+ days of history, and models with zero total cost are left out entirely.
-
-**What gets recorded per turn:** per-turn metrics + prompt-type classification flags. The actual text of prompts and responses is **never** recorded - only flags. This keeps the DB small (~100 bytes / row) and avoids storing sensitive content.
-
-**Prompt classification flags** (`0`/`1`):
-
-| Column | Meaning |
+| Tab | Contents |
 | --- | --- |
-| `user_prompt` | Direct response to a user message (`0` for automated continuations) |
-| `base_prompt` | First user prompt of a task (drives projections) |
-| `sub_prompt` | Follow-up / refinement under the current task |
-| `steering_prompt` | Sub-prompt sent while the agent was still processing the previous one |
-| `followup_prompt` | Sub-prompt queued in the editor and delivered after the agent finished |
-| `continuation_prompt` | Idle follow-up / refinement in the same task thread |
-| `prompt_kind` | Human-readable label: `base` / `continuation` / `steer` / `followup` / `auto` |
+| **Overview** | Headline cards (total cost, prompts, calls, cache hit, active days), 30-day spend chart, cost-share doughnut, 24h/7d/28d summaries with per-model scoreboards |
+| **Models** | Per-model sortable table + period selector + cost-by-model chart, Task Time column |
+| **Thinking levels** | Per-model × thinking-level table + period selector |
+| **Timings** | Task Time analysis: avg/longest task, turns per task, error/abort counts, think/respond/overhead split, user vs AI turns, top-10 longest tasks |
+| **Projections** | Burn rate ($/day, projected month/year) + per-model × thinking projections from spend ÷ active days |
+
+![Models tab](images/ur-models.png)
+![Thinking levels tab](images/ur-thinking-levels.png)
+![Timings tab](images/ur-timings.png)
+![Projections tab](images/ur-projections.png)
 
 ---
 
@@ -369,31 +319,30 @@ Prompt counts are split the same way as the footer widget: **User prompts** (wha
 
 ## **aftc-codex (knowledge base)**
 
-An opt-in knowledge base that makes the model follow your curated coding conventions. When enabled, pi-aftc-toolset injects a unified rules file + thinking-and-action guidance + a generated resource list into the model's system prompt (the cached prefix, so it is cheap), and gives the model a `codex_load` tool to fetch the full topic doc for a technology only when it is relevant.
+An OPT-IN, self-educating knowledge base: the maintainer's unified rules +
+thinking guidance + a generated resource list ride your system prompt, and
+the model fetches topic docs on demand with `codex_load` (aliases: ts, py,
+js; specials: rules, guidance, list, markdown).
 
-It ships pre-trained with 60 topic docs (TypeScript, Python, JavaScript, PHP, Pine Script, CSS, SCSS, HTML, C++, Three.js, Chart.js, GSAP, PyTorch, Gradio, Shoelace, Godot, Docker, Vite, Webpack, Bun, Composer, MySQL, FFmpeg, Puppeteer, Apache, nginx, WinRAR, PowerShell, Blazor, .NET MAUI, JUCE, CMake, Electron, Deno, Node.js, pi-extension, the AFTC framework, design domains, and Windows/Linux/macOS platform docs), organised into `languages/ libraries/ frameworks/ engines/ tools/ runtimes/ design/ database/ os/`. It auto-detects your project's technologies (file extensions, package.json deps/scripts, marker files, bounded content scans, and an optional `<!-- AFTC-CODEX-STACK topics: ... -->` block in your AGENTS.md / CLAUDE.md / copilot-instructions.md that pins the stack — the only way design domains and target OS are detected) and tells the model which docs to load; technologies with no doc yet are named as "no codex resource yet" hints the model can bootstrap.
+- `/codex` — settings menu (enable, guidance inject, auto-detect & load,
+  auto-sync on startup, resources & updates).
+- `/codex-enable` / `/codex-disable` — first enable asks: **Pre-trained**
+  (rules + ~27 topic docs) or **Fresh Start**.
+- `/codex-init` / `/codex-refresh` — prep the session (auto-detects your
+  project's stack and loads the relevant docs) / strip + re-prep.
+- `/codex-status` — state, resource counts, version row.
+- `/codex-sync` — NON-DESTRUCTIVE update: merges new shipped content into
+  your live codex; learned entries are never touched.
+- `/codex-install` — wipe + fresh re-seed.
+- `/codex-learn` — record durable lessons via the `codex_add_entry` /
+  `codex_edit_entry` / `codex_remove_entry` tools (IDs generated, formats
+  validated, generality + secrets guards enforced).
+- `/codex-inject-rules` — session-only critical-rules injection (works
+  even when disabled; cleared by `/new`).
 
-- Off by default. Your knowledge base lives in your OS user profile (eg `%APPDATA%\pi-aftc-toolset\data\aftc-codex` on Windows), so it survives `pi update`.
-- Self-educating: `/aftc-codex-learn` has the model record durable, general lessons back into the docs (always written directly — the write tools enforce format, uniqueness and the generality/secrets guards). All writes go through the `codex_add_entry` / `codex_edit_entry` / `codex_remove_entry` model tools — entry [ID]s, the three entry-kind formats, section placement, new topic/category creation and the resource-list sync are all handled deterministically by the tools, never hand-edited by the model.
-- **Privacy: the codex never stores passwords, API keys, tokens or any secrets.** The entry tools reject anything credential-like (key=value secrets, JWTs, bearer tokens, private keys) and anything project-specific (real machine paths, real URLs) before it is ever written — lessons must be general enough to make sense on ANY project.
-- One-way copy: your live knowledge base is seeded from the package and is yours to grow (via `/aftc-codex-learn`); the seed never auto-overwrites your edits. **Updating: fully automatic.** When a pi-aftc-toolset update ships new codex content, your live copy merges it in on pi start (non-destructive — your learned entries are kept; on a conflicting edit YOUR version wins and is reported). Toggle: Auto Sync on Startup in `/aftc-codex` (on by default); `/aftc-codex-sync` runs the same merge by hand. The destructive alternative: Start Fresh (in the `/aftc-codex` config menu) or `/aftc-codex-install` wipes the whole live codex and installs a full fresh copy of the seed (confirmed, irreversible — your learned entries are replaced). Open Codex Resource Dir (same menu) opens the live `resources/` folder in your file manager.
-- **Cache note:** on the first turn after prepping, you may see "Warning: Cache prefix changed: system" — this is expected and harmless (the cached prefix grew by ~29KB of rules + guidance). It fires once; every subsequent turn cache-hits normally. Ignore it.
-
-| Command | What it does |
-| --- | --- |
-| `/aftc-codex` | Open the config menu (alias `/codex`) |
-| `/aftc-codex-enable` | Enable the knowledge base (alias `/codex-enable`) |
-| `/aftc-codex-disable` | Disable + strip all codex from context/conversation (alias `/codex-disable`) |
-| `/aftc-codex-init` | Initialise: load rules + detect project + fetch relevant docs (alias `/codex-init`) |
-| `/aftc-codex-refresh` | Strip all codex from context, then re-init (alias `/codex-refresh`) |
-| `/aftc-codex-install` | Fresh install (or re-install) the codex to the data dir (alias `/codex-install`) |
-| `/aftc-codex-learn` | Record durable lessons into the knowledge base (alias `/codex-learn`) |
-| `/aftc-codex-status` | Show status: enabled, embedded, files read (alias `/codex-status`) |
-| `/aftc-codex-sync` | Non-destructive update: merge new shipped codex resources into your live copy — learned entries kept (alias `/codex-sync`) |
-| `/codex-inject-rules` | Rules-only mode for this session: inject ONLY the Critical Global Rules (no docs/list/guidance/learn; works even with codex disabled). Start a new session + `/codex-init` to return to the full codex |
-| `/codex-live-to-seed [--apply]` | Maintainer only (dev checkout): port live codex entries into the package seed — dry run first, confirm, then apply |
-
-The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`js`; specials `rules`/`guidance`/`list`/`markdown`). Load `/skill:aftc-codex` for the full model-facing guide. Full detail lives in `extensions/aftc-toolset/aftc-codex/aftc-codex-readme.md`.
+Your live copy lives in your data dir (`aftc-codex/`); the shipped seed is
+versioned (`codexVersion` 7) and merges forward automatically on startup
+when Auto Sync is on.
 
 ---
 
@@ -401,30 +350,22 @@ The model loads a resource with `codex_load("typescript")` (aliases `ts`/`py`/`j
 
 ## **/docx project documentation generator**
 
-`/docx` regenerates your project's complete documentation set in one long model run, following the shipped documentation guide. It produces:
+Regenerates a project's full documentation set: a fresh GitHub README
+(written last), plus `./docx/` — master document, structure map, and a
+mirrored tree of ID-prefixed deep docs — per the shipped documentation
+guide. Before anything is generated, existing documentation is moved to
+`./docx/old_docs/` (zipped to `old_docs.zip` at the end); AGENTS.md is
+edited in place, never replaced.
 
-- **`README.md`** at the project root — a real GitHub readme (requirements, tech stack with exact versions, install, overview), written LAST once the model understands the whole project. Your old README is evaluated and mined for whatever is still accurate — never copied blindly.
-- **`docx/project_documentation.md`** — the master document: what the project is (and is not), guidance and rules, one section per structure-map ID, and a documentation index.
-- **`docx/project_map.md`** — the full project structure map: one ID'd tree, every documented node at every level, with annotations and status legend.
-- **`docx/docs/`** — one ID-prefixed deep doc per map node, sub-maps for every major branch, and drill-down leaf docs for screens/models/components. Every UI is mapped surface-by-surface on any platform (web routes, mobile screens, desktop/Electron windows, VST/plugin editors, CLI/TUI screens): each UI area gets a sitemap doc (the full surface tree plus a build-from-it entry per screen), design rules get a global `design.md` and/or per-area design docs (eg public site vs admin back-office), and a single complex screen is broken into per-region docs when its regions stand alone. Plus cross-cutting docs (contributing, deployment, development, the mandatory dependency map, and more as the project warrants).
-- **`AGENTS.md`** is never replaced — it gets a managed `<!-- AFTC-DOCX -->` pointer block (replaced in place on re-runs) and its existing rules are preserved verbatim.
+```text
+/docx                # confirmations + project-type picker (auto-detect pre-selected)
+/docx --yes          # headless: skip confirmations
+/docx --type <key>   # headless: pick the prompt pack
+```
 
-How to use it: open pi in the project root and run `/new`, then `/docx` (a fresh session is highly advised: no compaction risk, no prior conversation steering the docs — above 50% context use /docx flat-out refuses). At 20%+ used you get an advisory note, then a confirmation modal. The model then does recon (a shipped scan script builds the tree/manifest inventory), plans the structure, writes every document, mechanically audits its own links/stamps/IDs with the shipped audit script, and finishes by zipping the old docs away. `/docx --yes` skips both confirmations for headless runs (`pi -p "/docx --yes"`).
-
-Re-running `/docx` later folds the previous `docx/` output AND the previous zip into the new backup, so history nests inside `old_docs.zip` instead of being lost.
-
-**WARNINGS — read before running:**
-
-- **Your existing documentation is moved aside.** Root `.md` files and everything under `./docs/` are moved to `docx/old_docs/` (folder structure preserved) and zipped to `docx/old_docs.zip` when generation completes. Restore by unzipping and copying files back. The zip is overwritten on each run (the previous zip is folded inside the new one). Make your own backup first if your docs matter.
-- **It takes a long time, but uses little context.** Measured runs used only 5–8% of a 1M-token context window, and even large projects stayed under 20% — but expect many model turns and a LONG wait; the bigger and more complex the project, the longer it takes. Highly advised: `/new`, then `/docx` — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. Above 50% context use, `/docx` refuses to run.
-- **`AGENTS.md` is edited, not replaced** — its existing content is preserved; only the managed block and stale doc references change.
-- **Framework and sub-project documentation is never touched** — the backup only ever reads the project root and `./docs/`; sub-project folders are documented from the root docs and stay read-only.
-- **`docx/old_docs/` and `docx/old_docs.zip` are added to your `.gitignore`** automatically (the backup artifacts are not meant for version control).
-
-| Command | What it does |
-| --- | --- |
-| `/docx` | Regenerate the project's full documentation set into `./docx/` (context note at 20%+ + confirm modal) |
-| `/docx --yes` | Same, skipping both confirmations (for headless / print-mode runs) |
+Safeguards: refuses at ≥25% context use (compaction-corruption risk),
+advises `/new` at ≥20%, verified backup counts, sub-project folders stay
+read-only.
 
 ---
 
@@ -432,16 +373,11 @@ Re-running `/docx` later folds the previous `docx/` output AND the previous zip 
 
 ## **run_script (reliable large scripts)**
 
-The model's `run_script` tool runs a multi-line or large shell script reliably. It exists to work around a pi `bash`-tool bug: the `bash` tool feeds an inline command to the shell through standard input and, past a few KB, **silently truncates** it - the first part runs, the rest is dropped, with no error (silent partial execution). `run_script` instead writes the whole script to a temporary file and runs `bash <file>`, so there is no inline-size limit and multi-line / large scripts run to completion every time.
-
-The model picks it automatically: `run_script` for any multi-line or large script, the `bash` tool for short one-liners. It returns the combined output (truncated like the `bash` tool; full output saved to a temp file when truncated) plus the exit code, and kills the script's whole process tree on timeout or abort. Bash only (git-bash on Windows).
-
-Because this is a workaround for an upstream bug (reported to pi), it disables cleanly once pi ships a fix:
-
-| Command | What it does |
-| --- | --- |
-| `/run-script-on` | Enable the `run_script` tool (`/reload` to apply) |
-| `/run-script-off` | Disable the `run_script` tool (`/reload` to apply) |
+The `run_script` model tool writes the script body to a temp file and runs
+`bash <file>` — no inline-size limit, working around pi's bash-tool
+truncation bug (a few KB+ inline commands get silently cut). Bash-only
+(git-bash on Windows); default timeout 120 s, max 1800 s. Toggle:
+`/run-script-on` / `/run-script-off` (default on).
 
 ---
 
@@ -449,24 +385,17 @@ Because this is a workaround for an upstream bug (reported to pi), it disables c
 
 ## Bundled skills
 
-Load with `/skill:<name>`. The toolset ships with 34 live skills:
+34 skills ship with the package — activate with `/skill:<name>`:
 
-| Skill | Use for |
-| --- | --- |
-| `git` | Git + GitHub CLI workflow, Conventional Commits, safety rails |
-| `bash` / `ps1` / `bat` / `tmux` | Shell scripting and terminal control |
-| `html` / `css` / `scss` / `web-frontend` / `react` / `vue` / `angular` | Web frontend |
-| `nodejs` / `javascript-mjs` / `javascript-transpiled` / `typescript` / `bun` / `deno` | JS / TS runtimes |
-| `python` / `go` / `csharp` / `php` | Backend languages |
-| `docker` / `devops` / `nginx` / `linux` | Infra and ops |
-| `ffmpeg` | Video / audio / image CLI |
-| `markdown` | AI-friendly markdown for READMEs, SKILL.md, development guides, and tasks |
-| `pinescript` | Pine Script v6 for TradingView |
-| `godot` | Godot 4.x engine with GDScript 2.0, MVC architecture, headless compile checks |
-| `ssh` | Remote SSH sessions, commands, interactive shells, transfers, and remote file management |
-| `aftc-codex` | Knowledge base: `codex_load` topic docs, self-education, structure maps |
-| `cache-audit` | Prompt-cache diagnostics workflow |
-| `bulk-read` | Concatenate many files into one markdown document |
+- **Workflows:** `cache-audit`, `bulk-read`, `aftc-codex`, `ssh`, `tmux`
+- **Languages:** `typescript`, `javascript-mjs`, `javascript-transpiled`,
+  `python`, `go`, `php`, `pinescript`, `bash`, `bat`, `ps1`, `markdown`,
+  `csharp`
+- **Frameworks/runtimes:** `react`, `vue`, `angular`, `web-frontend`,
+  `bun`, `deno`, `nodejs`
+- **Styling/markup:** `html`, `css`, `scss`
+- **Ops:** `docker`, `devops`, `nginx`, `linux`, `godot`
+- **Media:** `ffmpeg`
 
 ---
 
@@ -486,13 +415,13 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/aftc-intro-off` | Disable the AFTC text startup animation |
 | `/aftc-intro-on` | Enable and play the AFTC text startup animation |
 | `/cls` | Clear the terminal |
-| `/theme` | Open a theme picker (arrow keys, page jumps, pre-selects active theme) |
+| `/theme` | Open a theme picker (arrow keys, page jumps, live preview, pre-selects active theme) |
 | `/run-script-on` | Enable the `run_script` tool (reliable large-script execution); `/reload` to apply |
 | `/run-script-off` | Disable the `run_script` tool (eg once pi fixes its bash truncation); `/reload` to apply |
 | `/aftc-debug-log-on` | Turn on `[aftc-toolset]` diagnostic console output (off by default; errors always print) |
 | `/aftc-debug-log-off` | Turn diagnostic console output back off |
 | `/aftc-cut-input` | Cut all input-editor text to the clipboard (same as `Alt+X`) |
-| `/docx [--yes]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped to `docx/old_docs.zip` (`--yes` skips the confirmations) |
+| `/docx [--yes] [--type <key>]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped to `docx/old_docs.zip` (`--yes` skips the confirmations, `--type` picks the prompt pack) |
 
 ### Interrupt
 
@@ -526,7 +455,7 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 
 | Command | What it does |
 | --- | --- |
-| `/usage-report` | Write + open `report.html` (BETA) |
+| `/usage-report` | Write + open `report.html` (ALPHA) |
 | `/usage-clear` | Delete all SQLite rows (with confirmation) |
 
 ### Replay
@@ -551,6 +480,20 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 | `/aftc-enable-think-processing` | Turn on inline `<think>…</think>` tag parsing (off by default; `/reload` to apply) |
 | `/aftc-disable-think-processing` | Turn off inline `<think>…</think>` tag parsing (`/reload` to apply) |
 
+### Audio notification
+
+| Command | What it does |
+| --- | --- |
+| `/aftc-audio-notifications` (alias `/aftc-notifications`) | Settings hub: enable toggle + per-category sound pickers (startup, question, task-complete, error, aborted, context 25/50/75%) + open the sounds dir |
+| `/aftc-notify-time [sec]` | Show or set the minimum task duration before the completion sound (0 disables) |
+
+### aftc-codex
+
+See the [aftc-codex](#aftc-codex-knowledge-base) section — `/codex`,
+`/codex-enable`, `/codex-disable`, `/codex-init`, `/codex-refresh`,
+`/codex-status`, `/codex-install`, `/codex-sync`, `/codex-learn`,
+`/codex-inject-rules` (+ `/aftc-codex-*` full names).
+
 ### Providers
 
 Currently **disabled** — pi now registers providers natively. The module stays in the package and can be re-enabled in a future release.
@@ -562,7 +505,7 @@ Currently **disabled** — pi now registers providers natively. The module stays
 | `Alt+C` | Clear the input editor |
 | `Alt+N` | Insert a newline at the cursor |
 | `Alt+X` | Cut all input text to the clipboard |
-| `Ctrl+T` | Toggle thinking blocks |
+| `Ctrl+T` | Toggle thinking blocks (pi built-in) |
 
 ### Bundled themes
 
@@ -582,13 +525,17 @@ Switch themes with `/theme`.
 | --- | --- |
 | Footer widget | Enabled |
 | Footer averages line (line 4) | Enabled |
+| Footer timeframe | 3 Days |
 | SSH | Available (command-driven) |
 | Usage recording | Enabled (when SQLite installed) |
 | aftc-codex knowledge base | Disabled |
-| Audio notifications | Disabled (no sounds selected) |
+| Codex guidance inject / auto-load / auto-sync | Enabled (once codex is on) |
+| Audio notifications | Disabled (fresh installs silent) |
 | run_script tool | Enabled |
 | Think-tag processing | Disabled |
 | Response divider | Enabled |
+| AFTC text intro | Enabled |
+| Debug logging (stdout chatter) | Disabled (errors always print) |
 
 ---
 
@@ -596,15 +543,15 @@ Switch themes with `/theme`.
 
 ## Data location
 
-The toolset stores its runtime data — usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`) and the generated report (`report.html`) — in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
+The toolset stores its runtime data — usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`), the live codex (`aftc-codex/`), the debug log (`debug.log`) and the generated report (`report.html`) — in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
 
 | OS | Data folder |
 | --- | --- |
 | **Windows** | `%APPDATA%\pi-aftc-toolset\data\` (eg `C:\Users\<you>\AppData\Roaming\pi-aftc-toolset\data\`) |
 | **Linux** | `$XDG_DATA_HOME/pi-aftc-toolset/data/`, falling back to `~/.local/share/pi-aftc-toolset/data/` |
-| **macOS** *(estimated)* | `~/Library/Application Support/pi-aftc-toolset/data/` |
+| **macOS** | `~/Library/Application Support/pi-aftc-toolset/data/` |
 
-Set the `AFTC_TOOLSET_DATA_ROOT` environment variable to override the location (used by tests and power users).
+Set the `AFTC_TOOLSET_DATA_ROOT` environment variable to override the location (used by tests and power users). `/qd` opens the folder in your file manager.
 
 > **Uninstall note:** this folder lives outside the package, so `pi remove` does **not** delete it — your usage history and preferences remain after uninstall. Delete the folder above manually for a full clean-up.
 
@@ -624,7 +571,9 @@ or install a pinned GitHub release:
 pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
 ```
 
-Then `/reload` in pi.
+Then `/reload` in pi. When an update ships new codex content, your live
+codex merges it automatically on startup (Auto Sync) — otherwise
+`/codex-sync` (non-destructive) or `/codex-install` (fresh) when prompted.
 
 ---
 
@@ -699,10 +648,10 @@ Reload pi afterwards. The footer works without SQLite, but usage recording, repo
 
 ## Requirements
 
-- pi CLI
+- pi CLI (developed against 0.83.0)
 - Node.js / npm
 - Providers that expose `usage.cacheRead` and `usage.cacheWrite` for full cache metrics (other providers may show zero / incomplete cache values)
-- Python and uv for the packaged SSH carrier. `/aftc-install` verifies the carrier environment.
+- Python 3.10+ and uv for the packaged SSH carrier. `/aftc-install` verifies the carrier environment.
 
 ---
 
@@ -716,7 +665,24 @@ Install from a clone:
 pi install /path/to/pi-aftc-toolset -l
 ```
 
-After edits, reload pi with `/reload`.
+After edits, reload pi with `/reload`. Full developer documentation
+(workflow, test suites, Linux gates, release discipline) lives in
+`./docx/`.
+
+---
+
+<br><br>
+
+## Project map (lite)
+
+```
+pi-aftc-toolset
+|- 1 Extension source (extensions/aftc-toolset)   all feature modules
+|    UI framework · Footer/cache/usage · Feature modules
+|    SSH (+ Python carrier) · aftc-codex · docx generator
+|- 2 Packaging & shipped assets (data, skills, themes, release scripts)
+\- 3 Tests (tests/)
+```
 
 ---
 
@@ -732,9 +698,11 @@ committed, and the whole data dir is excluded from git and npm publishing.
 | File | Purpose |
 | --- | --- |
 | `config.json` | Cross-session user preferences: footer (on/off, averages line on/off, timeframe window), response divider, think-tag processing, intro animation, audio notifications, replay prompt, run_script tool and aftc-codex switches. Created with defaults on first access; only re-written when a value actually changes. |
-| `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password). Local-only, never shipped. |
-| `turns.db` | SQLite usage database |
+| `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password) + new-host-key auto-accept flag. Local-only, never shipped. |
+| `turns.db` | SQLite usage database (turns + tasks tables — metrics only, never prompt text) |
 | `report.html` | Latest generated usage report |
+| `debug.log` | Rotating `[aftc-toolset]` diagnostic log (5 MB cap + one `.old` generation) |
+| `aftc-codex/` | Your live codex knowledge base (seeded from the shipped copy; learned entries yours) |
 
 **Your data survives updates.** Because the data dir is outside the
 package, `pi update` no longer wipes it. Upgrading from a version that
@@ -744,7 +712,7 @@ recovered).
 
 In-memory only (per-session, not persisted): cache accumulators, model info, per-turn timings, context-window clock start time.
 
-SSH connections, shell buffers, credentials, and carrier processes are in-memory only and are cleared during shutdown.
+SSH sessions, shell buffers, credentials, and carrier processes are in-memory only and are cleared during shutdown.
 <br><br>
 
 ---

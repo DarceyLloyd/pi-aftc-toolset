@@ -1,396 +1,413 @@
-# pi-aftc-toolset — Master Documentation
+# pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-05 16:40 -->
+<!-- last-reviewed: 2026-08-05 22:05 -->
+
+> Master document. Do not follow the per-ID links below until your work
+> touches that area — each section ends with an *Only read* instruction;
+> honour it. Discovery: this file's Documentation Index, or the annotations
+> in [project_map.md](project_map.md).
 
 ## Description
 
-pi-aftc-toolset is a productivity extension package for the [pi](https://pi.dev) CLI coding agent. It serves pi users who want diagnostics, remote access, and knowledge tooling inside their coding-agent sessions: a live footer widget (costs, cache, timing), credential-isolated SSH with interactive terminals, an opt-in self-educating knowledge base (aftc-codex), a project documentation generator (/docx), audio notifications, usage recording with HTML reports, bundled skills and themes, and a suite of slash commands and keyboard shortcuts.
+**pi-aftc-toolset** is a productivity extension package for [pi](https://pi.dev)
+(the `@earendil-works/pi-coding-agent` coding agent). It is a *tool package*:
+installed into pi (`pi install pi-aftc-toolset` or from GitHub), loaded by pi's
+extension loader (jiti — TypeScript at runtime, no build step), and it adds:
 
-It is NOT: a standalone application, a pi fork, a provider of LLM models, or a general-purpose automation framework. It does not modify pi itself — it is loaded by pi as a package (`extensions/`, `skills/`, `themes/`).
+- A **cache/token/cost diagnostics footer widget** (5 themed lines) with
+  subscription allowance tracking for ChatGPT/Codex, Anthropic, MiniMax,
+  ZAI/GLM and Kimi subscriptions.
+- A **persistent usage database** (SQLite) with an HTML **usage report**
+  (Overview / Models / Thinking levels / Timings / Projections tabs).
+- **Isolated SSH**: saved connections, a packaged Python (Paramiko) carrier
+  over local stdio, 20 model tools (commands, PTY shells, SFTP, remote file
+  ops) and a full-screen interactive terminal — credentials never reach the
+  model context.
+- **aftc-codex**: an opt-in, self-educating knowledge base injected into the
+  system prompt with `codex_load`/entry tools.
+- **/docx**: a documentation generator (the feature that produced this doc set).
+- Audio notifications, keyboard shortcuts, startup intros, response divider,
+  replay prompts, think-tag parsing, theme picker, quick dir access,
+  emergency stop, `run_script`, 34 bundled skills and 3 bundled themes.
 
-## Tech Stack
+Who it serves: pi users who want session telemetry, remote-server tooling and
+workflow conveniences. What it does NOT do: it is not a standalone app (it
+runs only inside pi), it does not store prompt/response text (metrics only),
+and it never exposes SSH credentials to the model.
 
-| Component | Version |
-| --- | --- |
-| Runtime | pi coding agent (`@earendil-works/pi-coding-agent`, peer dep `*`) — TypeScript loaded via jiti, no build step |
-| Node.js | 22+ (container baseline node:22-bookworm) |
-| better-sqlite3 | 12.11.1 (usage recording) |
-| adm-zip | ^0.6.0 (docx backup zip) |
-| Python | >=3.10 (SSH carrier) |
-| Paramiko | >=3.4.0,<4.0.0 (SSH carrier) |
-| uv | latest (carrier dependency manager) |
-| miniaudio | bundled C player binaries (MIT-0) |
+## Tech stack
 
-## Lite Project Map
+| Layer | Technology | Version |
+| --- | --- | --- |
+| Host | `@earendil-works/pi-coding-agent` (peer) | any; developed against 0.83.0 |
+| Host peers | `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, `typebox` | any (peer `*`) |
+| Extension runtime | TypeScript via pi's jiti loader (no build step) | TS 5.x syntax |
+| Package version | pi-aftc-toolset | 1.19.11 (npm: 1.19.10 published) |
+| Persistence | `better-sqlite3` | 12.11.1 (pinned) |
+| Zip (docx backup) | `adm-zip` | ^0.6.0 |
+| SSH carrier | Python + `paramiko` (uv-locked sidecar) | Python >=3.10; paramiko >=3.4.0,<4.0.0; aftc-ssh-sidecar 0.1.0 |
+| Report charts | Chart.js CDN in generated report.html | 4.4.7 |
+| Audio playback | bundled miniaudio binary (`data/aftc-intro/bin/play_sound-win-x64.exe`, C source shipped) | n/a |
+| Tests | plain Node ESM scripts + jiti; Docker/Compose for SSH + Linux gates | n/a |
+
+## Lite project map
 
 ```
-pi-aftc-toolset/
-|-1 - Application Source (extensions/aftc-toolset/)
-|-2 - Shipped Data (data/)
-|-3 - Skills (skills/)
-|-4 - Themes (themes/)
-|-5 - Tests (tests/)
-\-6 - Package & Distribution
+pi-aftc-toolset
+|- 1 Extension source (extensions/aftc-toolset)   — all feature modules
+|    1.3 UI framework · 1.4 Footer/usage · 1.5 Feature modules
+|    1.6 SSH (+1.6.10 Python carrier sub-project) · 1.7 aftc-codex · 1.8 docx
+|- 2 Packaging & shipped assets (data, skills, themes, release scripts)
+\- 3 Tests (tests/)
 ```
 
-The full tree (every node, every level) lives in [project_map.md](project_map.md).
+The FULL tree of every node lives only in [project_map.md](project_map.md).
 
 ## Project Guidance & Rules
 
 ### Rules
 
-- Never start background resources in the extension factory; start lazily, clean up in `session_shutdown`.
-- Feature modules never import each other; shared interfaces live in `types.ts`, wiring in `index.ts`.
-- All console output goes through `ui/aftc-console.ts`; all dialogs through `ui/aftc-ui.ts`.
-- Config (`config.json`) is read fresh from disk on every access — never cached in module memory; writes are fresh read-modify-write; user values are sacred.
-- Every `.ts` module has a sibling `<module>-readme.md`; keep both current.
-- Every slash command has exactly one help-registry entry next to its `pi.registerCommand` call.
-- Every test has a global watchdog timeout.
-- The model never sees SSH credentials — saved connections by name, opaque session ids only.
+- Never use the character '§' in code comments, files or documentation.
+- Never use the word "master" for on/off switches; use `featureNameEnabled`.
+- Never create NUL files; never read `.bak` / `.old` / `.git` folders.
+- Feature modules must not import each other — wire through `index.ts` and
+  the structural interfaces in `types.ts` (see 1.1).
+- Config files are read fresh from disk on EVERY access — never cache
+  `config.json` or `ssh.json` in module memory (see 1.2, 1.6.3).
+- Every tool gets a `promptSnippet`; SSH tools take saved names + opaque ids
+  only — credentials never cross into model context (see 1.6).
+- New user-facing features are disabled by default; never overwrite user
+  settings — only add missing keys via write-back migration (see 1.2).
+- Every `.ts` file has a sibling `<name>-readme.md`, kept current.
+- Tests: every test registers a watchdog timeout; scripts must self-terminate.
+- Before writing/modifying pi extension code, read the aftc-codex resource
+  `tools/pi-extension.md` (live copy) — see 1.7.
 
 ### Maintaining This Documentation
 
-- Docs update in the SAME change as the code - never deferred; a stale doc is a bug.
-- A wrong doc is corrected immediately + every doc referencing the corrected subject is checked and fixed in the same change.
+- Docs update in the SAME change as the code — never deferred; a stale doc is a bug.
+- A wrong doc is corrected immediately, and every doc referencing the
+  corrected subject is checked and fixed in the same change.
 - Refresh `last-reviewed` / `last-verified` headers of every doc touched.
-- New modules update four things in one commit: map node, master per-ID section, Documentation Index entry, new ID-prefixed deep doc.
-
-## 1 - Application Source
-
-All extension code: one pi package extension rooted at `extensions/aftc-toolset/index.ts` (orchestrator). Owns every runtime feature. Does NOT own: shipped assets (2), skills (3), themes (4), tests (5).
-
-> Only read the following files if you need to work on application-source features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.1_pi_runtime_documentation.md` through `./docx/docs/1.11_audio_binaries_documentation.md` — pick the per-ID doc for the area you are touching (see the Documentation Index).
-
-### 1.1 - pi Extension Runtime
-
-The framework dependency: pi's extension API (events, tools, commands, UI, state) and the peer packages (`pi-coding-agent`, `pi-ai`, `pi-tui`, `typebox`). Everything in branch 1 is built on it. Owns: lifecycle hooks, tool registration, theming primitives. Does not own: any feature logic.
-
-> Only read the following files if you need to work on framework-integration features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.1_pi_runtime_documentation.md`.
-
-### 1.2 - Orchestrator & Core Infrastructure
-
-`index.ts` (wires every module), `types.ts` (shared interfaces), `paths.ts` (package/data-dir resolution + legacy migration), `config.ts` (live preferences), `db.ts` (SQLite). Owns: module lifecycle, config persistence, path truth. Does not own: feature behaviour.
-
-> Only read the following files if you need to work on orchestrator/core features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.2_orchestrator_core_documentation.md`.
-
-### 1.3 - UI Framework
-
-`ui/aftc-ui.ts` (GRUB-style dialogs: menus, confirms, forms, inputs, viewers + panel primitives) and `ui/aftc-console.ts` (severity facade over pi output: emphasis/warn/error/info/log). Every feature's UI goes through these.
-
-> Only read the following files if you need to work on UI-framework features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.3_ui_framework_documentation.md`.
-
-### 1.4 - Footer Widget & Usage Tracking
-
-The diagnostics footer (model/context/cache/cost/timing lines), per-turn SQLite recording, subscription allowance line, and the `/usage-report` HTML report. Owns: usage data. Does not own: SSH usage of the DB.
-
-> Only read the following files if you need to work on footer/usage features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.4_footer_usage_documentation.md`.
-
-### 1.5 - Feature Modules
-
-The 16 self-contained slash-command modules (help, install, keys, theme, stfu, dir, cwd, replay, keep-it-short, think-parser, notify, quick-open-dir, debug-log, response, run-script, help-registry). Each registers commands and is wired by the orchestrator.
-
-> Only read the following files if you need to work on slash-command features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.5_feature_modules_documentation.md`.
-
-### 1.6 - SSH Subsystem
-
-Credential-isolated SSH: local commands, a full-screen terminal, file transfer/management, and model tools — all proxied through a packaged Python Paramiko carrier over stdio JSON-RPC. The model never sees hosts, users, or secrets.
-
-> Only read the following files if you need to work on SSH features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6_ssh_documentation.md` and `./docx/docs/1.6_ssh_map.md`.
-
-#### 1.6.1 - SSH Orchestration & Model Tools
-
-Command/tool registration and session selection for SSH. Owns the pi surface; not session mechanics.
-
-> Only read the following files if you need to work on SSH orchestration features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.1_ssh_orchestration_documentation.md`.
-
-#### 1.6.2 - Session Manager
-
-In-memory sessions, opaque ids, credential clearing, bounded results; proxies everything to the carrier.
-
-> Only read the following files if you need to work on SSH session features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.2_ssh_sessions_documentation.md`.
-
-#### 1.6.3 - Carrier Bridge
-
-Spawns/owns the Python carrier process; JSON-RPC client; lifecycle states and crash policy.
-
-> Only read the following files if you need to work on carrier-bridge features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.3_carrier_bridge_documentation.md`.
-
-#### 1.6.4 - Python SSH Carrier
-
-The packaged Paramiko sidecar (uv-locked, multi-session) doing the real SSH work.
-
-> Only read the following files if you need to work on carrier features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.4_python_carrier_documentation.md`.
-
-#### 1.6.5 - Connection Store
-
-ssh.json persistence for saved connections (metadata + optional saved passwords).
-
-> Only read the following files if you need to work on connection-store features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.5_connection_store_documentation.md`.
-
-#### 1.6.6 - SSH UI Overlays
-
-Connection manager, forms, pickers, confirms, and the full-screen PTY terminal.
-
-> Only read the following files if you need to work on SSH UI features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.6_ssh_ui_documentation.md`.
-
-#### 1.6.7 - Redaction
-
-Verbatim-substring redaction of connection metadata from all model-bound output.
-
-> Only read the following files if you need to work on redaction features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.6.7_redaction_documentation.md`.
-
-### 1.7 - aftc-codex Knowledge Base
-
-The opt-in knowledge base: injects rules/guidance/resource list into the system prompt, auto-detects project technologies, serves topic docs via `codex_load`, and self-educates via `/codex-learn` + the entry tools. Off by default.
-
-> Only read the following files if you need to work on aftc-codex features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7_aftc_codex_documentation.md` and `./docx/docs/1.7_aftc_codex_map.md`.
-
-#### 1.7.1 - Codex Coordinator
-
-Shared state, sub-module wiring, read tracker, and the `codex_load` tool.
-
-> Only read the following files if you need to work on codex-coordinator features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.1_codex_coordinator_documentation.md`.
-
-#### 1.7.2 - Codex Store
-
-Two-copy data model, copy-only seeding, resource reads, script spawns.
-
-> Only read the following files if you need to work on codex-store features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.2_codex_store_documentation.md`.
-
-#### 1.7.3 - System-Prompt Injection
-
-Cached-prefix injection, in-history marker, context pruning, rules-only mode.
-
-> Only read the following files if you need to work on codex-injection features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.3_codex_inject_documentation.md`.
-
-#### 1.7.4 - Technology Detection
-
-Maps project files/manifests/markers to codex topic docs.
-
-> Only read the following files if you need to work on codex-detection features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.4_codex_detect_documentation.md`.
-
-#### 1.7.5 - Learn Loop
-
-The /codex-learn instruction prompt (generality + secrets hard limits).
-
-> Only read the following files if you need to work on learn-loop features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.5_codex_learn_documentation.md`.
-
-#### 1.7.6 - Entry Tools
-
-Deterministic codex writes: add/edit/remove with all guards.
-
-> Only read the following files if you need to work on entry-tool features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.6_codex_entries_documentation.md`.
-
-#### 1.7.7 - Compatibility Guard
-
-Shipped-vs-live version check; pauses codex on mismatch.
-
-> Only read the following files if you need to work on compat-guard features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.7_codex_compat_documentation.md`.
-
-#### 1.7.8 - Codex Commands
-
-The /aftc-codex-* command surface and config menu.
-
-> Only read the following files if you need to work on codex-command features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.8_codex_commands_documentation.md`.
-
-#### 1.7.9 - Maintenance Scripts
-
-List sync, ID backfill, maintainer live->seed release sync.
-
-> Only read the following files if you need to work on codex-script features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.7.9_codex_scripts_documentation.md`.
-
-### 1.8 - docx Generator
-
-The `/docx` documentation generator: deterministic backup of existing docs into `docx/old_docs/`, execution-prompt injection from the shipped guide, and model-run helper scripts (scan/audit/zip).
-
-> Only read the following files if you need to work on docx features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.8_docx_documentation.md` and `./docx/docs/1.8_docx_map.md`.
-
-#### 1.8.1 - /docx Command & Orchestration
-
-Modals, context gate, backup orchestration, prompt injection (incl. the print-mode turn-hold).
-
-> Only read the following files if you need to work on docx-command features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.8.1_docx_command_documentation.md`.
-
-#### 1.8.2 - Deterministic Backup
-
-Whitelist-scoped move of pre-existing docs into docx/old_docs/.
-
-> Only read the following files if you need to work on docx-backup features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.8.2_docx_backup_documentation.md`.
-
-#### 1.8.3 - Documentation Guide
-
-The shipped generation spec (section 18 is the injected prompt template).
-
-> Only read the following files if you need to work on the docx guide, or if requested by the user or aftc codex:
-> `./docx/docs/1.8.3_docx_guide_documentation.md`.
-
-#### 1.8.4 - Model-Run Scripts
-
-map-scan / link-audit / zip-old — the deterministic steps the model runs.
-
-> Only read the following files if you need to work on docx-script features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.8.4_docx_scripts_documentation.md`.
-
-### 1.9 - Intro Animations
-
-Startup intro animations. The factory is disconnected; only the AFTC text wordmark runs (`/aftc-intro-on`, `/aftc-intro-off`).
-
-> Only read the following files if you need to work on intro features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.9_intros_documentation.md`.
-
-### 1.10 - Providers
-
-The QwenCloud provider module. DISABLED since pi 0.81 added native provider support; kept on disk in case the built-in proves weaker. Not wired in `index.ts`.
-
-> Only read the following files if you need to work on provider features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.10_providers_documentation.md`.
-
-### 1.11 - Audio Player Binaries
-
-The bundled miniaudio `play_sound` binaries (win/linux/mac x64+arm64) and their C source. Used by the audio-notification feature (1.5).
-
-> Only read the following files if you need to work on audio-binary features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/1.11_audio_binaries_documentation.md`.
-
-## 2 - Shipped Data
-
-Package-shipped assets under `extensions/aftc-toolset/data/`: the aftc-codex seed, notification MP3s, intro audio, and `extension-config.json` (shipped-only keys, today `codexVersion`). One-way flow seed → live; never the reverse at runtime.
-
-> Only read the following files if you need to work on shipped-data features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/2_shipped_data_documentation.md`.
-
-## 3 - Skills
-
-34 Agent Skills packages (`skills/<name>/SKILL.md`) shipped for pi's on-demand skill loading — languages, frameworks, tools, plus project skills (aftc-codex, ssh, cache-audit, bulk-read).
-
-> Only read the following files if you need to work on skills features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/3_skills_documentation.md`.
-
-## 4 - Themes
-
-Three pi themes (`aftc-black-n-blue`, `aftc-orange-viz`, `cache-viz`) shipped via the package `pi` manifest.
-
-> Only read the following files if you need to work on themes features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/4_themes_documentation.md`.
-
-## 5 - Tests
-
-The test suites under `tests/` (never published — gitignored and npmignored). Plain-Node ESM scripts with mandatory watchdogs; extension TypeScript loaded through pi's bundled jiti; Docker fixtures for SSH/Linux gates.
-
-> Only read the following files if you need to work on test features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/5_tests_documentation.md`.
-
-### 5.1 - Local Test Suites
-
-The ~60 `*-check` suites: mock-pi module checks, codex suites, docx suite, UI overlay drivers. No network, no TUI.
-
-> Only read the following files if you need to work on local-test features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/5.1_local_suites_documentation.md`.
-
-### 5.2 - Docker Test Fixtures
-
-The containerised test fixtures (`dev-tool`): `ssh-replacement` (ssh-test-server), `pi-linux-integration` (pi-linux), `pi-linux-ssh-verify` (pi-client + ssh-target), `install-test` (image only). Used by the SSH and Linux verification gates.
-
-> Only read the following files if you need to work on docker-fixture features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/5.2_docker_fixtures_documentation.md`.
-
-## 6 - Package & Distribution
-
-The npm/pi package surface: `package.json` (`pi` manifest, deps), lockfiles, `.gitignore`/`.npmignore`/`.dockerignore`, `images/` (README screenshots), `LICENSE`, `backup.ps1`.
-
-> Only read the following files if you need to work on packaging features of this project, or if requested by the user or aftc codex:
-> `./docx/docs/6_package_distribution_documentation.md`.
+- New modules update four things in one commit: map node, master per-ID
+  section, Documentation Index entry, new ID-prefixed deep doc.
+- A change that adds a UI surface (overlay/dialog/menu/screen) or a component
+  with its own rules mints a leaf in the same commit: map node (next free
+  sibling ID), leaf doc in the correct mirrored folder, Documentation Index
+  entry, and an entry in [1_tui_sitemap.md](1_extension_source/1_tui_sitemap.md).
+
+---
+
+## 1 - Extension source (extensions/aftc-toolset)
+
+The single pi extension that powers the package: one orchestrator
+(`index.ts`) wiring ~30 self-contained feature modules, shared utilities
+(`paths.ts`, `config.ts`, `db.ts`, `ui/`), the SSH subsystem, the aftc-codex
+knowledge base and the docx generator. Owns every runtime behaviour of the
+toolset; does NOT own shipped assets (2) or tests (3).
+
+> Only read the following files if you need to work on extension-source
+> features of this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1_extension_documentation.md` and
+> `./docx/1_extension_source/1_extension_map.md`.
+
+### 1.1 - Entry & orchestration
+
+`index.ts` (default export) + `types.ts`: instantiates every module in
+order, runs the legacy-data migration, wires core→footer via
+`FooterDataProvider`, registers `/aftc-intro-on|off`, owns the
+module-layout rules (one feature per file, no cross-imports).
+
+> Only read `./docx/1_extension_source/1.1_orchestration.md` when working
+> on module wiring or the extension entry.
+
+### 1.2 - Core infrastructure & config
+
+`paths.ts` (package root + persistent data dir), `config.ts` (`config.json`
+preferences API), `db.ts` (shared SQLite + schema), `debug-log.ts`
+(`/aftc-debug-log-on|off`), `help-registry.ts` (the `/aftc-help` source of
+truth). Plumbing every feature imports.
+
+> Only read `./docx/1_extension_source/1.2_core_infrastructure_documentation.md`
+> when working on data-dir paths, preferences, the DB schema or debug logging.
+
+### 1.3 - UI framework (ui/)
+
+Shared TUI output layer: `aftc-console.ts` (severity-tagged transcript +
+diagnostics), `aftc-ui.ts` (GRUB-style takeover overlays: menus, confirms,
+forms, inputs, viewer) and `terminal-screen.ts` (VT100 virtual screen for
+the SSH terminal). Leaf utilities — every feature may import them.
+
+> Only read the following files if you need to work on UI-framework features
+> of this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.3_ui/1.3_ui_documentation.md` and
+> `./docx/1_extension_source/1.3_ui/1.3_ui_map.md`.
+
+#### 1.3.1 aftc-console — transcript + diagnostic facade (emphasis/warn/error/info/log). Only read `./docx/1_extension_source/1.3_ui/1.3.1_aftc_console.md`.
+#### 1.3.2 aftc-ui — overlay primitives: showMenu/showConfirm/showForm/showInput/showViewer + palette/focus contract. Only read `./docx/1_extension_source/1.3_ui/1.3.2_aftc_ui.md`.
+#### 1.3.3 terminal-screen — VT100 virtual screen behind the SSH terminal. Only read `./docx/1_extension_source/1.3_ui/1.3.3_terminal_screen.md`.
+
+### 1.4 - Footer, cache & usage
+
+Cache/token/cost accumulators (`core.ts`), the 4+1-line footer widget
+(`footer-widget.ts`), subscription allowance fetching (`allowance.ts`),
+per-turn SQLite recording (`usage-recording.ts`) and the HTML usage report
+(`usage-report.ts`). Depends on 1.2 (db, config); rendered through 1.3.
+
+> Only read the following files if you need to work on footer/usage features
+> of this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.4_footer_usage/1.4_footer_usage_documentation.md` and
+> `./docx/1_extension_source/1.4_footer_usage/1.4_footer_usage_map.md`.
+
+#### 1.4.1 Cache diagnostics core — accumulators, timings, shape tracker, task timer, `/cache-profile|stats|reset`, `/cls`, timeframe definitions. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.1_cache_core.md`.
+#### 1.4.2 Footer widget — the 4+1-line bar surface + `/aftc-footer` menu + timeframe picker. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md`.
+#### 1.4.3 Subscription allowance — ChatGPT/Codex, Anthropic headers, MiniMax, ZAI/GLM, Kimi fetchers for line 5. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.3_allowance.md`.
+#### 1.4.4 Usage recording — TurnRecorder writing metrics-only rows to turns/tasks. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.4_usage_recording.md`.
+#### 1.4.5 Usage report — `/usage-report` + `/usage-clear`, report.html with its 5 tabs. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md`.
+
+### 1.5 - Feature modules
+
+The standalone conveniences: shortcuts, `/aftc-help`, `/aftc-install`, audio
+notifications, response divider, `/stfu`, dir/nav commands, replay,
+keep-it-short, theme picker, think-tag parser, `run_script`, startup intros
+and the (disabled) provider integrations. Each is one file, self-registering.
+
+> Only read the following files if you need to work on feature-module features
+> of this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` and
+> `./docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_map.md`.
+
+#### 1.5.1 Keyboard shortcuts — alt+c/alt+n/alt+x + `/aftc-cut-input`. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.1_keys.md`.
+#### 1.5.2 Help & discovery — `/aftc-help` viewer built from the registry. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.2_help.md`.
+#### 1.5.3 Installer — `/aftc-install` (npm + uv) + session-start dep warning. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.3_install.md`.
+#### 1.5.4 Audio notifications — event sounds + settings hub + `/aftc-notify-time`. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.4_notify.md`.
+#### 1.5.5 Response divider — themed rule above each reply, `/aftc-response-divider`. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.5_response_divider.md`.
+#### 1.5.6 Emergency stop — `/aftc-stop` / `/stfu` abort. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.6_stfu.md`.
+#### 1.5.7 Directory & navigation — `/dir` `/ls` `/cwd` `/qd`. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.7_navigation.md`.
+#### 1.5.8 Replay — `/save-replay-prompt` `/replay` `/r`. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.8_replay.md`.
+#### 1.5.9 Keep it short — `/keep-it-short` `/kis`. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.9_keep_it_short.md`.
+#### 1.5.10 Theme picker — `/theme` with live preview. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.10_theme.md`.
+#### 1.5.11 Think-tag parser — inline `<think>` tags → ThinkingContent blocks. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.11_think_parser.md`.
+#### 1.5.12 run_script tool — reliable large-script execution + on/off. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.12_run_script.md`.
+#### 1.5.13 Startup intros — AFTC wordmark widget (WarGames dormant). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.13_intros.md`.
+#### 1.5.14 Providers — DISABLED QwenCloud module kept on disk. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.14_providers.md`.
+
+### 1.6 - SSH feature (ssh/)
+
+Isolated SSH: saved connections (`ssh.json`), a local `SshSessionManager`,
+20 model tools + 16 slash commands, full-screen overlays (connection manager,
+forms, terminal) and the packaged Python carrier (1.6.10). Privacy boundary:
+only names/opaque ids cross to the model; everything else is redacted.
+
+> Only read the following files if you need to work on SSH features of this
+> project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.6_ssh/1.6_ssh_documentation.md` and
+> `./docx/1_extension_source/1.6_ssh/1.6_ssh_map.md`.
+
+#### 1.6.1 Command & tool surface — the 16 commands + 20 tools in ssh/index.ts. Only read `./docx/1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md`.
+#### 1.6.2 Sessions & lifecycle — SshSessionManager + carrier client, idle reaper. Only read `./docx/1_extension_source/1.6_ssh/1.6.2_sessions.md`.
+#### 1.6.3 Connection store — ssh.json fresh-read contract. Only read `./docx/1_extension_source/1.6_ssh/1.6.3_connection_store.md`.
+#### 1.6.4 Redaction & safe errors — the privacy filter + safe error mapping. Only read `./docx/1_extension_source/1.6_ssh/1.6.4_redaction.md`.
+#### 1.6.5 Connection manager screen — `/ssh-cm` full-screen list/add/edit/delete. Only read `./docx/1_extension_source/1.6_ssh/1.6.5_connection_manager.md`.
+#### 1.6.6 New connection dialog — the add form + empty-password/replace confirms. Only read `./docx/1_extension_source/1.6_ssh/1.6.6_new_connection_dialog.md`.
+#### 1.6.7 Connection form & auth overlays — edit form + connect-time credential flow. Only read `./docx/1_extension_source/1.6_ssh/1.6.7_connection_form.md`.
+#### 1.6.8 Confirm overlay — the reusable two-button dialog and every call site. Only read `./docx/1_extension_source/1.6_ssh/1.6.8_confirm_overlay.md`.
+#### 1.6.9 Interactive terminal overlay — `/ssh-shell` VT100 screen; Ctrl+] exits. Only read `./docx/1_extension_source/1.6_ssh/1.6.9_terminal_overlay.md`.
+
+### 1.6.10 - Python carrier (ssh/carrier/) — sub-project
+
+`aftc-ssh-sidecar`: packaged uv-locked Python process providing multi-session
+SSH over local stdio JSON-RPC (Paramiko). Own manifest/runtime/entry point;
+its folder is read-only for docs.
+
+> Only read the following files if you need to work on the Python carrier of
+> this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_documentation.md` and
+> `./docx/1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_map.md`.
+> The carrier is a sub-project: its folder is read-only for documentation —
+> any readme or docs inside it may be read for reference but are never
+> created or modified. When working on the carrier you may need to read the
+> 1.6 SSH documentation — evaluate and act, and read all related
+> documentation.
+
+#### 1.6.10.1 Daemon & JSON-RPC — entry, wire format, dispatch table. Only read `./docx/1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.1_daemon_rpc.md`.
+#### 1.6.10.2 Sessions & modes — Paramiko sessions, exec/shell modes, monitor. Only read `./docx/1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.2_sessions_modes.md`.
+#### 1.6.10.3 SFTP & port forwarding — transfers, chunked cancel, forwards. Only read `./docx/1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.3_sftp_forward.md`.
+#### 1.6.10.4 Safety — keys.py encoder, redaction, error code catalogue. Only read `./docx/1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.4_safety.md`.
+
+### 1.7 - aftc-codex knowledge base
+
+Opt-in knowledge base: ships a seed (`data/aftc-codex/`), maintains a live
+per-user copy in the data dir, injects rules/guidance/resource list into the
+system prompt, and gives the model `codex_load` + entry write tools. Off by
+default; fail-soft; never destroys user data.
+
+> Only read the following files if you need to work on aftc-codex features of
+> this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md` and
+> `./docx/1_extension_source/1.7_aftc_codex/1.7_aftc_codex_map.md`.
+
+#### 1.7.1 Store, seeding & version lifecycle — store, seed/live versions, compat guard, sync core. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.1_store_lifecycle.md`.
+#### 1.7.2 Injection & detection — system-prompt injection, rules-only mode, stack auto-detect/pinning. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.2_injection.md`.
+#### 1.7.3 Commands & menus — `/aftc-codex-*` commands + settings menus. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.3_commands.md`.
+#### 1.7.4 Model tools — codex_load + the entry write tools and their guards. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.4_tools.md`.
+#### 1.7.5 Learn & live-to-seed scripts — /codex-learn + the 4 shipped scripts. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.5_learn_sync_scripts.md`.
+
+### 1.8 - docx documentation generator
+
+`/docx`: regenerates a project's full documentation set (this one included)
+from a shipped guide + per-type prompt packs, with deterministic backup,
+context-window gates and helper scripts (map-scan, link-audit, zip-old).
+
+> Only read the following files if you need to work on the docx generator of
+> this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.8_docx/1.8_docx_documentation.md` and
+> `./docx/1_extension_source/1.8_docx/1.8_docx_map.md`.
+
+#### 1.8.1 /docx command & flow — gates, confirmations, type picker, prompt assembly. Only read `./docx/1_extension_source/1.8_docx/1.8.1_docx_command.md`.
+#### 1.8.2 Backup — deterministic whitelist-scoped move into docx/old_docs/. Only read `./docx/1_extension_source/1.8_docx/1.8.2_backup.md`.
+#### 1.8.3 Shipped guide & type packs — documentation_guide.md + 10 packs. Only read `./docx/1_extension_source/1.8_docx/1.8.3_guide_packs.md`.
+#### 1.8.4 Helper scripts — map-scan, link-audit, ui-hints, zip-old. Only read `./docx/1_extension_source/1.8_docx/1.8.4_scripts.md`.
+
+## 2 - Packaging & shipped assets
+
+Everything that ships with the npm package beside code: the `data/` folder
+(extension-config.json, audio MP3s, codex seed, intro assets), 34 bundled
+skills, 3 bundled themes, and the maintainer release scripts. Owns the
+seed→live flow inputs (consumed by 1.7) and the npm artifact shape.
+
+> Only read the following files if you need to work on packaging/shipped-data
+> features of this project, or if requested by the user or aftc codex:
+> `./docx/2_packaging/2_packaging_documentation.md` and
+> `./docx/2_packaging/2_packaging_map.md`.
+
+#### 2.1 Shipped data — extension-config.json (codexVersion), codex seed, audio MP3s, intro assets, play_sound binary. Only read `./docx/2_packaging/2.1_shipped_data.md`.
+#### 2.2 Bundled skills — the 34 shipped pi skills. Only read `./docx/2_packaging/2.2_skills.md`.
+#### 2.3 Bundled themes — aftc-black-n-blue, aftc-orange-viz, cache-viz. Only read `./docx/2_packaging/2.3_themes.md`.
+#### 2.4 Release & maintainer scripts — publish.bat, shipit.ps1, backup.ps1, clear-docker.bat + release discipline. Only read `./docx/2_packaging/2.4_release.md`.
+
+## 3 - Tests (tests/)
+
+~50 suites, one folder per check (`tests/<name>/<name>.mjs` + README):
+plain Node ESM with jiti + mock pi APIs locally; disposable Docker SSH
+fixtures; two Docker-Compose Linux gates; plus the docx fixture projects.
+Every script carries a watchdog timeout. Rules live in AGENTS.md and 3.1.
+
+> Only read the following files if you need to work on tests of this project,
+> or if requested by the user or aftc codex:
+> `./docx/3_tests/3_tests_documentation.md` and
+> `./docx/3_tests/3_tests_map.md`.
+
+#### 3.1 Test conventions & harness — watchdog timeouts, harness mechanics, workflow order. Only read `./docx/3_tests/3.1_conventions.md`.
+#### 3.2 Local suites — the no-Docker node checks (full table). Only read `./docx/3_tests/3.2_local_suites.md`.
+#### 3.3 Docker suites — disposable SSH fixture end-to-end suites. Only read `./docx/3_tests/3.3_docker_suites.md`.
+#### 3.4 Linux gates — pi-linux-integration + pi-linux-ssh-verify Compose gates + verification cycle. Only read `./docx/3_tests/3.4_linux_gates.md`.
+#### 3.5 docx fixtures — the fixture projects under tests/docx/ (not sub-projects) + their surface inventory. Only read `./docx/3_tests/3.5_docx_fixtures.md`.
+
+---
 
 ## Documentation Index
 
-*Discovery index — find the doc for the area you are about to work on and load ONLY that doc; do not follow these links for areas you are not working on.*
+Discovery index — find the doc for the area you are about to work on and load
+ONLY that doc; do not follow these links for areas you are not working on.
 
-### Deep Documents
+### Root
 
-- [docs/1_application_source_documentation.md](docs/1_application_source_documentation.md) - ID 1 (branch stub)
-- [docs/1.1_pi_runtime_documentation.md](docs/1.1_pi_runtime_documentation.md) - ID 1.1, `framework`
-- [docs/1.2_orchestrator_core_documentation.md](docs/1.2_orchestrator_core_documentation.md) - ID 1.2
-- [docs/1.3_ui_framework_documentation.md](docs/1.3_ui_framework_documentation.md) - ID 1.3
-- [docs/1.4_footer_usage_documentation.md](docs/1.4_footer_usage_documentation.md) - ID 1.4
-- [docs/1.5_feature_modules_documentation.md](docs/1.5_feature_modules_documentation.md) - ID 1.5
-- [docs/1.6_ssh_documentation.md](docs/1.6_ssh_documentation.md) - ID 1.6
-- [docs/1.6.1_ssh_orchestration_documentation.md](docs/1.6.1_ssh_orchestration_documentation.md) - ID 1.6.1
-- [docs/1.6.2_ssh_sessions_documentation.md](docs/1.6.2_ssh_sessions_documentation.md) - ID 1.6.2
-- [docs/1.6.3_carrier_bridge_documentation.md](docs/1.6.3_carrier_bridge_documentation.md) - ID 1.6.3
-- [docs/1.6.4_python_carrier_documentation.md](docs/1.6.4_python_carrier_documentation.md) - ID 1.6.4
-- [docs/1.6.5_connection_store_documentation.md](docs/1.6.5_connection_store_documentation.md) - ID 1.6.5
-- [docs/1.6.6_ssh_ui_documentation.md](docs/1.6.6_ssh_ui_documentation.md) - ID 1.6.6
-- [docs/1.6.7_redaction_documentation.md](docs/1.6.7_redaction_documentation.md) - ID 1.6.7
-- [docs/1.7_aftc_codex_documentation.md](docs/1.7_aftc_codex_documentation.md) - ID 1.7
-- [docs/1.7.1_codex_coordinator_documentation.md](docs/1.7.1_codex_coordinator_documentation.md) - ID 1.7.1
-- [docs/1.7.2_codex_store_documentation.md](docs/1.7.2_codex_store_documentation.md) - ID 1.7.2
-- [docs/1.7.3_codex_inject_documentation.md](docs/1.7.3_codex_inject_documentation.md) - ID 1.7.3
-- [docs/1.7.4_codex_detect_documentation.md](docs/1.7.4_codex_detect_documentation.md) - ID 1.7.4
-- [docs/1.7.5_codex_learn_documentation.md](docs/1.7.5_codex_learn_documentation.md) - ID 1.7.5
-- [docs/1.7.6_codex_entries_documentation.md](docs/1.7.6_codex_entries_documentation.md) - ID 1.7.6
-- [docs/1.7.7_codex_compat_documentation.md](docs/1.7.7_codex_compat_documentation.md) - ID 1.7.7
-- [docs/1.7.8_codex_commands_documentation.md](docs/1.7.8_codex_commands_documentation.md) - ID 1.7.8
-- [docs/1.7.9_codex_scripts_documentation.md](docs/1.7.9_codex_scripts_documentation.md) - ID 1.7.9
-- [docs/1.8_docx_documentation.md](docs/1.8_docx_documentation.md) - ID 1.8
-- [docs/1.8.1_docx_command_documentation.md](docs/1.8.1_docx_command_documentation.md) - ID 1.8.1
-- [docs/1.8.2_docx_backup_documentation.md](docs/1.8.2_docx_backup_documentation.md) - ID 1.8.2
-- [docs/1.8.3_docx_guide_documentation.md](docs/1.8.3_docx_guide_documentation.md) - ID 1.8.3
-- [docs/1.8.4_docx_scripts_documentation.md](docs/1.8.4_docx_scripts_documentation.md) - ID 1.8.4
-- [docs/1.9_intros_documentation.md](docs/1.9_intros_documentation.md) - ID 1.9
-- [docs/1.10_providers_documentation.md](docs/1.10_providers_documentation.md) - ID 1.10
-- [docs/1.11_audio_binaries_documentation.md](docs/1.11_audio_binaries_documentation.md) - ID 1.11
-- [docs/2_shipped_data_documentation.md](docs/2_shipped_data_documentation.md) - ID 2
-- [docs/3_skills_documentation.md](docs/3_skills_documentation.md) - ID 3
-- [docs/4_themes_documentation.md](docs/4_themes_documentation.md) - ID 4
-- [docs/5_tests_documentation.md](docs/5_tests_documentation.md) - ID 5
-- [docs/5.1_local_suites_documentation.md](docs/5.1_local_suites_documentation.md) - ID 5.1
-- [docs/5.2_docker_fixtures_documentation.md](docs/5.2_docker_fixtures_documentation.md) - ID 5.2, `dev-tool`, `container`
-- [docs/6_package_distribution_documentation.md](docs/6_package_distribution_documentation.md) - ID 6
+- [project_map.md](project_map.md) — full structure map
+- [contributing.md](contributing.md) — workflow, rules, release discipline
+- [deployment.md](deployment.md) — npm publish, GitHub releases, updates
+- [development.md](development.md) — dev environment, install, dev tools
+- [dependency_map.md](dependency_map.md) — cross-ID dependency view
+- [design.md](design.md) — AFTC UI design language & key conventions
+- [known-gaps.md](known-gaps.md) — unchecked pre-launch items + fix plan
 
-### Sub-Maps
+### Branch 1 — Extension source
 
-- [docs/1.6_ssh_map.md](docs/1.6_ssh_map.md) - ID 1.6 branch
-- [docs/1.7_aftc_codex_map.md](docs/1.7_aftc_codex_map.md) - ID 1.7 branch
-- [docs/1.8_docx_map.md](docs/1.8_docx_map.md) - ID 1.8 branch
+- [1_extension_source/1_extension_documentation.md](1_extension_source/1_extension_documentation.md) - ID 1
+- [1_extension_source/1_extension_map.md](1_extension_source/1_extension_map.md) - ID 1 sub-map
+- [1_extension_source/1_tui_sitemap.md](1_extension_source/1_tui_sitemap.md) - ID 1 sitemap (every TUI surface)
+- [1_extension_source/1.1_orchestration.md](1_extension_source/1.1_orchestration.md) - ID 1.1
+- [1_extension_source/1.2_core_infrastructure_documentation.md](1_extension_source/1.2_core_infrastructure_documentation.md) - ID 1.2
+  - [1_extension_source/1.3_ui/1.3_ui_documentation.md](1_extension_source/1.3_ui/1.3_ui_documentation.md) - ID 1.3
+  - [1_extension_source/1.3_ui/1.3_ui_map.md](1_extension_source/1.3_ui/1.3_ui_map.md) - ID 1.3 sub-map
+  - [1_extension_source/1.3_ui/1.3.1_aftc_console.md](1_extension_source/1.3_ui/1.3.1_aftc_console.md) - ID 1.3.1
+  - [1_extension_source/1.3_ui/1.3.2_aftc_ui.md](1_extension_source/1.3_ui/1.3.2_aftc_ui.md) - ID 1.3.2
+  - [1_extension_source/1.3_ui/1.3.3_terminal_screen.md](1_extension_source/1.3_ui/1.3.3_terminal_screen.md) - ID 1.3.3
+  - [1_extension_source/1.4_footer_usage/1.4_footer_usage_documentation.md](1_extension_source/1.4_footer_usage/1.4_footer_usage_documentation.md) - ID 1.4
+  - [1_extension_source/1.4_footer_usage/1.4_footer_usage_map.md](1_extension_source/1.4_footer_usage/1.4_footer_usage_map.md) - ID 1.4 sub-map
+  - [1_extension_source/1.4_footer_usage/1.4.1_cache_core.md](1_extension_source/1.4_footer_usage/1.4.1_cache_core.md) - ID 1.4.1
+  - [1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md](1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md) - ID 1.4.2
+  - [1_extension_source/1.4_footer_usage/1.4.3_allowance.md](1_extension_source/1.4_footer_usage/1.4.3_allowance.md) - ID 1.4.3
+  - [1_extension_source/1.4_footer_usage/1.4.4_usage_recording.md](1_extension_source/1.4_footer_usage/1.4.4_usage_recording.md) - ID 1.4.4
+  - [1_extension_source/1.4_footer_usage/1.4.5_usage_report.md](1_extension_source/1.4_footer_usage/1.4.5_usage_report.md) - ID 1.4.5
+  - [1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md](1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md) - ID 1.5
+  - [1_extension_source/1.5_feature_modules/1.5_feature_modules_map.md](1_extension_source/1.5_feature_modules/1.5_feature_modules_map.md) - ID 1.5 sub-map
+  - [1_extension_source/1.5_feature_modules/1.5.1_keys.md](1_extension_source/1.5_feature_modules/1.5.1_keys.md) - ID 1.5.1
+  - [1_extension_source/1.5_feature_modules/1.5.2_help.md](1_extension_source/1.5_feature_modules/1.5.2_help.md) - ID 1.5.2
+  - [1_extension_source/1.5_feature_modules/1.5.3_install.md](1_extension_source/1.5_feature_modules/1.5.3_install.md) - ID 1.5.3
+  - [1_extension_source/1.5_feature_modules/1.5.4_notify.md](1_extension_source/1.5_feature_modules/1.5.4_notify.md) - ID 1.5.4
+  - [1_extension_source/1.5_feature_modules/1.5.5_response_divider.md](1_extension_source/1.5_feature_modules/1.5.5_response_divider.md) - ID 1.5.5
+  - [1_extension_source/1.5_feature_modules/1.5.6_stfu.md](1_extension_source/1.5_feature_modules/1.5.6_stfu.md) - ID 1.5.6
+  - [1_extension_source/1.5_feature_modules/1.5.7_navigation.md](1_extension_source/1.5_feature_modules/1.5.7_navigation.md) - ID 1.5.7
+  - [1_extension_source/1.5_feature_modules/1.5.8_replay.md](1_extension_source/1.5_feature_modules/1.5.8_replay.md) - ID 1.5.8
+  - [1_extension_source/1.5_feature_modules/1.5.9_keep_it_short.md](1_extension_source/1.5_feature_modules/1.5.9_keep_it_short.md) - ID 1.5.9
+  - [1_extension_source/1.5_feature_modules/1.5.10_theme.md](1_extension_source/1.5_feature_modules/1.5.10_theme.md) - ID 1.5.10
+  - [1_extension_source/1.5_feature_modules/1.5.11_think_parser.md](1_extension_source/1.5_feature_modules/1.5.11_think_parser.md) - ID 1.5.11
+  - [1_extension_source/1.5_feature_modules/1.5.12_run_script.md](1_extension_source/1.5_feature_modules/1.5.12_run_script.md) - ID 1.5.12
+  - [1_extension_source/1.5_feature_modules/1.5.13_intros.md](1_extension_source/1.5_feature_modules/1.5.13_intros.md) - ID 1.5.13
+  - [1_extension_source/1.5_feature_modules/1.5.14_providers.md](1_extension_source/1.5_feature_modules/1.5.14_providers.md) - ID 1.5.14
+  - [1_extension_source/1.6_ssh/1.6_ssh_documentation.md](1_extension_source/1.6_ssh/1.6_ssh_documentation.md) - ID 1.6
+  - [1_extension_source/1.6_ssh/1.6_ssh_map.md](1_extension_source/1.6_ssh/1.6_ssh_map.md) - ID 1.6 sub-map
+  - [1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md](1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md) - ID 1.6.1
+  - [1_extension_source/1.6_ssh/1.6.2_sessions.md](1_extension_source/1.6_ssh/1.6.2_sessions.md) - ID 1.6.2
+  - [1_extension_source/1.6_ssh/1.6.3_connection_store.md](1_extension_source/1.6_ssh/1.6.3_connection_store.md) - ID 1.6.3
+  - [1_extension_source/1.6_ssh/1.6.4_redaction.md](1_extension_source/1.6_ssh/1.6.4_redaction.md) - ID 1.6.4
+  - [1_extension_source/1.6_ssh/1.6.5_connection_manager.md](1_extension_source/1.6_ssh/1.6.5_connection_manager.md) - ID 1.6.5
+  - [1_extension_source/1.6_ssh/1.6.6_new_connection_dialog.md](1_extension_source/1.6_ssh/1.6.6_new_connection_dialog.md) - ID 1.6.6
+  - [1_extension_source/1.6_ssh/1.6.7_connection_form.md](1_extension_source/1.6_ssh/1.6.7_connection_form.md) - ID 1.6.7
+  - [1_extension_source/1.6_ssh/1.6.8_confirm_overlay.md](1_extension_source/1.6_ssh/1.6.8_confirm_overlay.md) - ID 1.6.8
+  - [1_extension_source/1.6_ssh/1.6.9_terminal_overlay.md](1_extension_source/1.6_ssh/1.6.9_terminal_overlay.md) - ID 1.6.9
+    - [1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_documentation.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_documentation.md) - ID 1.6.10, `sub-project`
+    - [1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_map.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_map.md) - ID 1.6.10 sub-map
+    - [1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.1_daemon_rpc.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.1_daemon_rpc.md) - ID 1.6.10.1
+    - [1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.2_sessions_modes.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.2_sessions_modes.md) - ID 1.6.10.2
+    - [1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.3_sftp_forward.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.3_sftp_forward.md) - ID 1.6.10.3
+    - [1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.4_safety.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10.4_safety.md) - ID 1.6.10.4
+  - [1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md](1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md) - ID 1.7
+  - [1_extension_source/1.7_aftc_codex/1.7_aftc_codex_map.md](1_extension_source/1.7_aftc_codex/1.7_aftc_codex_map.md) - ID 1.7 sub-map
+  - [1_extension_source/1.7_aftc_codex/1.7.1_store_lifecycle.md](1_extension_source/1.7_aftc_codex/1.7.1_store_lifecycle.md) - ID 1.7.1
+  - [1_extension_source/1.7_aftc_codex/1.7.2_injection.md](1_extension_source/1.7_aftc_codex/1.7.2_injection.md) - ID 1.7.2
+  - [1_extension_source/1.7_aftc_codex/1.7.3_commands.md](1_extension_source/1.7_aftc_codex/1.7.3_commands.md) - ID 1.7.3
+  - [1_extension_source/1.7_aftc_codex/1.7.4_tools.md](1_extension_source/1.7_aftc_codex/1.7.4_tools.md) - ID 1.7.4
+  - [1_extension_source/1.7_aftc_codex/1.7.5_learn_sync_scripts.md](1_extension_source/1.7_aftc_codex/1.7.5_learn_sync_scripts.md) - ID 1.7.5
+  - [1_extension_source/1.8_docx/1.8_docx_documentation.md](1_extension_source/1.8_docx/1.8_docx_documentation.md) - ID 1.8
+  - [1_extension_source/1.8_docx/1.8_docx_map.md](1_extension_source/1.8_docx/1.8_docx_map.md) - ID 1.8 sub-map
+  - [1_extension_source/1.8_docx/1.8.1_docx_command.md](1_extension_source/1.8_docx/1.8.1_docx_command.md) - ID 1.8.1
+  - [1_extension_source/1.8_docx/1.8.2_backup.md](1_extension_source/1.8_docx/1.8.2_backup.md) - ID 1.8.2
+  - [1_extension_source/1.8_docx/1.8.3_guide_packs.md](1_extension_source/1.8_docx/1.8.3_guide_packs.md) - ID 1.8.3
+  - [1_extension_source/1.8_docx/1.8.4_scripts.md](1_extension_source/1.8_docx/1.8.4_scripts.md) - ID 1.8.4
 
-### Cross-Cutting
+### Branch 2 — Packaging & shipped assets
 
-- [docs/dependency_map.md](docs/dependency_map.md) - runtime graph, mount map, build-output contract, feature trace matrix, API consumer matrix
-- [docs/contributing.md](docs/contributing.md) - workflow, conventions, release process
-- [docs/development.md](docs/development.md) - dev environment + dev tools (host access, disable)
-- [docs/known-gaps.md](docs/known-gaps.md) - unchecked pre-launch items + fix plans
+- [2_packaging/2_packaging_documentation.md](2_packaging/2_packaging_documentation.md) - ID 2
+- [2_packaging/2_packaging_map.md](2_packaging/2_packaging_map.md) - ID 2 sub-map
+- [2_packaging/2.1_shipped_data.md](2_packaging/2.1_shipped_data.md) - ID 2.1
+- [2_packaging/2.2_skills.md](2_packaging/2.2_skills.md) - ID 2.2
+- [2_packaging/2.3_themes.md](2_packaging/2.3_themes.md) - ID 2.3
+- [2_packaging/2.4_release.md](2_packaging/2.4_release.md) - ID 2.4
 
-### Dev Tools
+### Branch 3 — Tests
 
-- 5.2 Docker fixtures: `tests/ssh-replacement`, `tests/pi-linux-integration`, `tests/pi-linux-ssh-verify`, `tests/install-test` - see [docs/5.2_docker_fixtures_documentation.md](docs/5.2_docker_fixtures_documentation.md)
+- [3_tests/3_tests_documentation.md](3_tests/3_tests_documentation.md) - ID 3
+- [3_tests/3_tests_map.md](3_tests/3_tests_map.md) - ID 3 sub-map
+- [3_tests/3.1_conventions.md](3_tests/3.1_conventions.md) - ID 3.1
+- [3_tests/3.2_local_suites.md](3_tests/3.2_local_suites.md) - ID 3.2
+- [3_tests/3.3_docker_suites.md](3_tests/3.3_docker_suites.md) - ID 3.3
+- [3_tests/3.4_linux_gates.md](3_tests/3.4_linux_gates.md) - ID 3.4
+- [3_tests/3.5_docx_fixtures.md](3_tests/3.5_docx_fixtures.md) - ID 3.5
 
-## Final Note
+---
 
-This documentation set is expected to grow. New sections may be added by the AI or the user as the project evolves; the future shape cannot be known in advance. Add a map node + master section + index entry + deep doc in the same commit as the code.
+New sections may be added by the AI or the user as the project evolves; the
+future shape cannot be known in advance. When adding one, follow the
+Maintaining This Documentation rules above.
