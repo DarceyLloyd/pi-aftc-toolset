@@ -4,6 +4,8 @@ pi-aftc-toolset - Change Log
 Updates v1.20.x
 ---------------
 
+- README: fixed the stars/forks badges (they pointed at the wrong repo) and reworded the feedback line.
+
 - README: added a feature description section up top (Codex, DocX, Sub Agents, SSH, Usage Report, Footer Widget, run_script) and fixed a handful of typos throughout.
 
 - Codex sync conflicts are now resolved instead of left for you: /codex-live-to-seed (maintainer release sync) auto-resolves same-ID differences — your live wording wins and replaces the seed entry — and then asks the AI to review the merged entries and correct anything wrong. The user-facing /codex-sync gained a sync manifest: shipped entries you have never edited now follow improved shipped wording automatically, while entries you (or the AI) have edited are still protected and never overwritten.

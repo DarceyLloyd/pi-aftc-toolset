@@ -4,7 +4,7 @@
 
 
 
-![Static Badge](https://img.shields.io/badge/pi-aftc-toolset) [![GitHub Stars](https://img.shields.io/github/stars/henriquesebastiao/badges?style=flat&color=FFD700&logo=starship&logoColor=white)](https://github.com/henriquesebastiao/badges/stargazers) [![GitHub Forks](https://img.shields.io/github/forks/henriquesebastiao/badges?style=flat&color=0891b2&logo=github&logoColor=white)](https://github.com/henriquesebastiao/badges/network) 
+[![GitHub Stars](https://img.shields.io/github/stars/DarceyLloyd/pi-aftc-toolset?style=flat&color=FFD700&logo=starship&logoColor=white)](https://github.com/DarceyLloyd/pi-aftc-toolset/stargazers) [![GitHub Forks](https://img.shields.io/github/forks/DarceyLloyd/pi-aftc-toolset?style=flat&color=0891b2&logo=github&logoColor=white)](https://github.com/DarceyLloyd/pi-aftc-toolset/network) 
 [![NPM](https://nodei.co/npm/pi-aftc-toolset.svg?style=shields&data=v,u,d)](https://nodei.co/npm/pi-aftc-toolset/)
 
 
@@ -12,8 +12,7 @@
 
 ---
 
-Got any suggestions or want to leave a message feel free by visiting:
-https://dev.aftc.uk/pi-aftc-toolset/feedback/
+Got any feedback? Spotted any issues? Feel free to log an issue on github or leave feedback via https://dev.aftc.uk/pi-aftc-toolset/feedback/
 
 
 
