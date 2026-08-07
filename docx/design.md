@@ -5,7 +5,7 @@ key conventions and output-severity rules. Every surface in the
 [sitemap](1_extension_source/1_tui_sitemap.md) follows this; per-surface
 docs reference it instead of repeating it.
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-07 -->
 
 ## References
 
@@ -82,7 +82,7 @@ across toggles; Esc closes; loop re-renders so values stay current.
 
 ## Report design
 
-`report.html` (1.4.5): dark palette `#0f1115` + orange `#fca02f` brand bar
+The usage report app (1.4.5): dark palette `#0f1115` + orange `#fca02f` brand bar
 and title mark; tab navigation; money formatting rules shared with the
 footer ($0.00 / 4dp under $1 / 2dp / thousands separators).
 

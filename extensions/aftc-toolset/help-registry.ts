@@ -35,6 +35,7 @@ export const HELP_CATEGORY_ORDER = [
     "Replay",
     "Keep it short",
     "aftc-codex",
+    "Sub-agents",
     "Thinking",
     "Audio notification",
     "Providers",

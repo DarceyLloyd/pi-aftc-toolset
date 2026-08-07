@@ -1,3 +1,5 @@
 {
-  "codexVersion": 9
+  "codexVersion": 10,
+  "subagentsSeedVersion": 6,
+  "usageReportVersion": 2
 }

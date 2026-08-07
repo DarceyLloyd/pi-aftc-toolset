@@ -1,6 +1,6 @@
 # 1 - Extension source (extensions/aftc-toolset)
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-07 -->
 
 ## References
 
@@ -75,7 +75,7 @@ Two classes of state:
 
 1. **Live per-user files** in the persistent OS data dir (1.2): `config.json`
    (preferences), `ssh.json` (saved SSH connections), `turns.db` (usage),
-   `report.html`, `debug.log`, `aftc-codex/` (live knowledge base).
+   `usage-report/` (report app + generated `data.json`), `debug.log`, `aftc-codex/` (live knowledge base).
 2. **Shipped seed/assets** under `extensions/aftc-toolset/data/` (2.1) —
    replaced on every `pi update`; flow is one-way seed → live.
 

@@ -4,6 +4,10 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 
 ## Rules
 
+- [agGQce] Supervised-child termination ladder: abort -> bounded wait for settled -> close child stdin -> bounded wait for natural exit -> SIGTERM the process group -> deadline -> SIGKILL the process group; the close-stdin rung is what makes most shutdowns graceful natural exits instead of signal kills.
+
+- [a4jAl3] Shipped default assets that get copied into a user's persistent dir need a version stamp (shipped version in the package manifest vs a stamp file in the live copy): re-copy the program assets only when the shipped version bumps, never overwrite user-generated files — keeps the seed->live flow copy-only, idempotent and update-safe.
+
 ## Gotchyas
 
 - [cL1pBd] Clipboard write from an extension - hand-rolling clip/pbcopy/wl-copy/OSC 52 per platform is error-prone and unnecessary; import { copyToClipboard } from "@earendil-works/pi-coding-agent" (pi's own cross-platform helper: native addon, platform tools, OSC 52 fallback - it throws "Failed to copy to clipboard" when every method fails, so await it in try/catch and only clear the source text AFTER it resolves).
@@ -11,6 +15,14 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [eD4tA8] pi `edit` tool is ATOMIC per call - if ANY `edits[].oldText` fails to match, NOTHING in that call is applied (matching edits do NOT partially apply); after a failed multi-edit call, re-check the file and re-apply the whole batch, and keep edits for different files in separate calls per file so one miss cannot silently drop the rest.
 
 - [IUvxb8] A long headless `pi -p` run looks dead in its piped stdout log - print mode emits the response at process end instead of streaming, so track progress by polling the artifacts the task writes to disk (plus checking the process is alive), never by reading the log.
+
+- [m4zPx6] Spawning a supervised child pi process: `--no-approve` does NOT make the child hermetic - it ignores project-local settings/extensions/resources but AGENTS.md/CLAUDE.md context files load regardless of project trust, and `--no-extensions` only disables DISCOVERY (explicit `-e <file>` paths still load). Countermeasure: pass `--no-context-files` separately when you truly want no project context, and rely on `--no-extensions` + explicit `-e` to load exactly one controlled extension into the child; combine `--no-session` or `--session-dir <dir>`, `--tools`/`--exclude-tools`, `--no-skills`/`--no-prompt-templates`/`--no-themes` for a fully controlled startup.
+
+- [LTDkDQ] Reusing pi's shipped RpcClient to supervise child processes fails the lifecycle guarantees - it writes child stderr to the parent TTY, spawns without detached (no process group, so no tree kill), uses a racy fixed 100ms readiness sleep, and defaults cliPath to a relative dist/cli.js (breaks under bin shims/Bun). Countermeasure: own your child supervisor - strict-LF JSONL reader (Node readline is non-compliant: it splits on U+2028/U+2029), spawn detached, run the parent's own entry script (process.argv[1]) via process.execPath, and use a readiness signal instead of a sleep.
+
+- [VhSQOp] CLI tool-allowlist flags (eg `--tools`) filter EXTENSION-registered tools too, not just built-ins — an empty allowlist strips everything, including the handoff tool your injected child extension registers; omit the flag entirely for "all tools", and when you do use it re-append your extension's required tool names.
+
+- [UX5CuK] A delegated sub-agent that reports near its ~300s timeout is flagged 'partial' and may have finished only some of its file writes — verify the actual on-disk state (grep/read the targets) before trusting its report or building on it.
 
 ## Issues & Solutions
 
@@ -164,3 +176,15 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [kUsJJg] Extension features fire twice after /reload (sounds play twice with a tiny delay, two widget animations compete, handlers run per-event twice)
   Cause: the package is registered TWICE (global settings + project-local settings) and on a case-insensitive filesystem the two source strings resolve to paths differing only in case; pi's case-sensitive package-identity dedupe keeps both entries, and its two-pass pre-trust/final extension load then imports the module and runs the default factory once per path-case - both instances end up live and both receive session_start/agent events.
   Fix: keep exactly ONE package registration per directory (delete the duplicate entry), or make both entries byte-identical so identity dedupe merges them (project scope wins). Diagnose by counting the extension's 'loaded' log sequences per startup/reload - pairs 20-700ms apart mean the factory ran twice (the gap is the npm-resolution pass between the two loads). (2026-08)
+
+- [Ww4vS6] An idle/stall watchdog on a supervised RPC child never fires — the run hangs until the wall-clock timeout
+  Cause: id-less command ACK responses (prompt/steer/abort replies) are routed into the agent-event stream and counted as progress, so every steer you send resets the watchdog's last-progress timestamp and its one-steer budget.
+  Fix: swallow `response` records with no pending request id at the transport; forward only true agent events into progress/lifecycle logic. (2026-08)
+
+- [dBH22R] Cancelling a supervised child finalises the run as completed instead of cancelled
+  Cause: the abort rung makes the child emit its settled/completion events, and the normal completion handler races the cancel path and finalises the state first.
+  Fix: have the cancel/termination ladder set an ownership flag (e.g. `cancelling`) before sending abort; settled/exit handlers check it and skip finalising so the ladder's terminal state wins. (2026-08)
+
+- [E7xjd7] A jiti test harness rooted at a copied package tree fails with "Cannot find module" for bare dependencies while the host runtime loads the same code fine
+  Cause: node_modules is usually excluded when source is copied (dockerignore etc.), and jiti resolves imports by walking UP from the loaded file — it never reaches the host's own install.
+  Fix: run the package's installer inside the copy first (creates node_modules), or point NODE_PATH at a full install before creating the jiti instance. (2026-08)

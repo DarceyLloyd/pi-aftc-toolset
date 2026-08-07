@@ -171,7 +171,8 @@ returning `{ isSafe, message }` — EVERY codex feature calls it: injection and
 an aftc-ui modal (Enter/Esc closes) and refuse — except `/codex-sync` and
 `/codex-install` (the fixes), `/codex-disable` and `/codex-status`. On a
 mismatch `/codex-sync` merges the new shipped content into the live copy
-(non-destructive; learned entries kept, live version kept on conflict) and
+(non-destructive; learned entries kept, untouched entries updated to the
+shipped wording, user-edited entries kept on conflict) and
 stamps the new version; `/codex-install` instead DELETES the live codex dir
 (no backup) and installs a full fresh seed copy, then the new version is
 recorded by the seed. A

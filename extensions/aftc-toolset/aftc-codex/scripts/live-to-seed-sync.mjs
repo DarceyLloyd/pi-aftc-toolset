@@ -15,7 +15,11 @@
  *     seed file is appended at the END of the matching section (Rules /
  *     Gotchyas / Issues & Solutions).
  *   - Seed-only entries are KEPT (never deleted).
- *   - Same-ID-different-text is reported as a CONFLICT, never auto-overwritten.
+ *   - Same-ID-different-text is AUTO-RESOLVED: the LIVE text wins and replaces
+ *     the seed entry in place (the live codex is the maintainer's learning
+ *     copy - porting it is the point of this tool). Each replacement is
+ *     reported as UPDATED so the /codex-live-to-seed command can ask the AI
+ *     to review the merged entries.
  *   - codex-resource-list.md is GENERATED — never copied to the seed.
  *   - Live-only topic files are copied whole (new topics).
  *   - Top-level fixed docs (codex-rules.md etc.) are diff-reported only.
@@ -23,6 +27,7 @@
  * Paths resolve exactly like the extension: live = <AFTC_TOOLSET_DATA_ROOT or
  * OS data dir>/pi-aftc-toolset/data/aftc-codex; seed = the data/aftc-codex dir
  * relative to this script (run it from the dev repo, not an installed package).
+ * --live/--seed overrides exist for tests.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -32,6 +37,11 @@ import { fileURLToPath } from "node:url";
 setTimeout(() => { console.error("timeout"); process.exit(2); }, 20_000).unref();
 
 const APPLY = process.argv.includes("--apply");
+
+function argValue(flag) {
+    const i = process.argv.indexOf(flag);
+    return i !== -1 && process.argv[i + 1] ? resolve(process.argv[i + 1]) : null;
+}
 
 function persistentRoot() {
     const override = process.env.AFTC_TOOLSET_DATA_ROOT;
@@ -47,8 +57,8 @@ function persistentRoot() {
 }
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const LIVE = join(persistentRoot(), "data", "aftc-codex");
-const SEED = join(scriptDir, "..", "..", "data", "aftc-codex");
+const LIVE = argValue("--live") ?? join(persistentRoot(), "data", "aftc-codex");
+const SEED = argValue("--seed") ?? join(scriptDir, "..", "..", "data", "aftc-codex");
 
 function walk(dir, base = dir) {
     const out = [];
@@ -103,7 +113,7 @@ function keyedEntries(sections) {
 
 const liveFiles = walk(join(LIVE, "resources"));
 const planned = [];
-let copied = 0, merged = 0, conflicts = 0;
+let copied = 0, merged = 0, updated = 0;
 
 for (const rel of liveFiles) {
     if (rel === "codex-resource-list.md") continue; // generated, never shipped
@@ -128,16 +138,20 @@ for (const rel of liveFiles) {
     for (const [h, entries] of live.sections) {
         for (const e of entries) if (!seedMap.has(e.key)) missing.push({ heading: h, entry: e });
     }
+    // Same ID, different text: the live codex is the maintainer's learning
+    // copy, so the LIVE text wins and replaces the seed entry in place.
+    const replace = new Map(); // key -> live entry block
     for (const [key, s] of seedMap) {
         const l = liveMap.get(key);
         if (l && l.entry.text !== s.entry.text) {
-            conflicts++;
-            console.log(`CONFLICT   ${rel} [${key}] — same ID, different text (kept seed version, review manually)`);
+            replace.set(key, l.entry);
+            console.log(`UPDATED    ${rel} [${key}] — live version ported into seed (was different)`);
         }
     }
-    if (missing.length === 0) continue;
+    if (missing.length === 0 && replace.size === 0) continue;
 
-    // Rebuild the seed text with missing entries appended at the end of their section.
+    // Rebuild the seed text: missing live entries appended at the end of their
+    // section, replaced entries swapped in place.
     const out = [];
     let current = null;
     const flushSection = (heading) => {
@@ -153,23 +167,47 @@ for (const rel of liveFiles) {
         // (for the final section this collapses to the file's trailing newline).
         if (appended) out.push("");
     };
+    let skippingEntry = false;
+    let pendingBlank = false;
     for (const line of seedText.replace(/\r\n/g, "\n").split("\n")) {
+        if (skippingEntry) {
+            // Continuation of a replaced entry: indented or blank lines.
+            if (line.startsWith("  ")) continue;
+            if (line.trim() === "") { pendingBlank = true; continue; }
+            skippingEntry = false;
+            if (pendingBlank && out.length && out[out.length - 1].trim() !== "") out.push("");
+            pendingBlank = false;
+            // fall through: handle this line normally
+        }
         if (line.startsWith("## ")) {
             if (current !== null) flushSection(current);
             current = line.trim();
+            out.push(line);
+            continue;
+        }
+        const id = (line.match(/^- \[([^\]]+)\]/) || [])[1];
+        if (line.startsWith("- ") && id !== undefined && replace.has(id)) {
+            out.push(...replace.get(id).block.map((x) => x.trimEnd()));
+            skippingEntry = true;
+            continue;
         }
         out.push(line);
     }
+    if (skippingEntry && pendingBlank && out.length && out[out.length - 1].trim() !== "") out.push("");
     if (current !== null) flushSection(current);
     for (const m of missing) {
         if (!m.done) console.log(`WARN       ${rel} [${m.entry.key}] — heading "${m.heading}" not in seed file, skipped`);
     }
 
-    console.log(`MERGE      ${rel} +${missing.length} entr${missing.length === 1 ? "y" : "ies"}: ${missing.map((m) => m.entry.id ?? "?").join(", ")}`);
+    const parts = [];
+    if (missing.length) parts.push(`+${missing.length} entr${missing.length === 1 ? "y" : "ies"}: ${missing.map((m) => m.entry.id ?? "?").join(", ")}`);
+    if (replace.size) parts.push(`${replace.size} updated`);
+    console.log(`MERGE      ${rel} ${parts.join(", ")}`);
     let text = out.join("\n");
     if (!text.endsWith("\n")) text += "\n"; // preserve the trailing-newline convention
     planned.push({ seedPath, text });
     merged += missing.length;
+    updated += replace.size;
 }
 
 // Top-level fixed docs: report only (maintainer docs, curated by hand).
@@ -179,7 +217,7 @@ for (const doc of ["codex-rules.md", "thought-and-action-guidance.md", "markdown
     console.log(`TOP-LEVEL  ${doc}: ${l === s ? "identical" : "DIFFERS (fixed maintainer doc — not synced, review manually)"}`);
 }
 
-console.log(`\n${copied} new topic file(s), ${merged} entr(ies) to merge, ${conflicts} conflict(s).`);
+console.log(`\n${copied} new topic file(s), ${merged} entr(ies) to merge, ${updated} entr(ies) updated (live text won), 0 conflicts left.`);
 if (APPLY) {
     for (const p of planned) {
         mkdirSync(dirname(p.seedPath), { recursive: true });

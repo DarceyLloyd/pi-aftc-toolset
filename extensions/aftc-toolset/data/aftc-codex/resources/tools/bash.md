@@ -9,6 +9,8 @@
 
 - [cFmLiD] Recursive grep/find across a huge tree (site-packages, node_modules, a whole monorepo) can run for minutes and look like a hang - scope searches to the smallest directory that can contain the target, add --include/--exclude filters, and cap commands with timeout; when in doubt, list candidate dirs first and grep each one separately.
 
+- [i4iUAP] git-bash/MSYS on Windows silently rewrites leading-slash arguments AND `-e VAR=/abs/path` values into install-relative Windows paths (`/opt/x` becomes `<git-root>/opt/x`), breaking docker exec targets and container env vars; set `MSYS_NO_PATHCONV=1` for the command (or use a `//` prefix, or wrap the remote command in `sh -c`).
+
 ## Issues & Solutions
 
 
@@ -25,4 +27,4 @@
 
 - [MVahdj] grep: -P supports only unibyte and UTF-8 locales` - any grep -P (PCRE) call fails in git-bash on Windows even for a valid pattern
   Cause: git-bash's grep build only enables PCRE (-P) under unibyte or UTF-8 locales, and the default MSYS2 locale does not qualify, so every -P invocation dies before matching anything.
-  Fix: use grep -oE (ERE) instead and rewrite PCRE-isms as POSIX: \d -> [0-9], \s -> [[:space:]], non-greedy .*? -> a greedy [^"]*/[^ ]* pattern that stops at the delimiter; -E works in every git-bash locale. (2026-08)
+  Fix: use grep -oE (ERE) instead and rewrite PCRE-isms as POSIX: \d -> [0-9], \s -> [[:space:]], non-greedy .*? -> a greedy [^"]*/[^ ]* pattern that stops at the delimiter; -E works in every git-bash locale. Alternatively export LC_ALL=C.UTF-8 before the grep -P call to satisfy the locale requirement (verified working). (2026-08)

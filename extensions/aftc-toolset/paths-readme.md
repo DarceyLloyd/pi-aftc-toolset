@@ -19,7 +19,8 @@ Resolved by `getPersistentRoot()` / `getDataDir()`:
 
 Set `AFTC_TOOLSET_DATA_ROOT` to override the root (used by tests and
 power users). The data dir holds `config.json`, `ssh.json`,
-`turns.db`, and `report.html`, all created lazily at runtime.
+`turns.db`, and the `usage-report/` app folder, all created lazily at
+runtime.
 
 ## What it exports
 
@@ -53,7 +54,7 @@ getDataDir(): string
 ```
 
 `<persistent-root>/data/`. Holds `config.json`, `ssh.json`,
-`turns.db`, and `report.html`.
+`turns.db`, and the `usage-report/` app folder.
 
 ```typescript
 getLegacyDataDir(): string
@@ -79,12 +80,6 @@ getSshJson(): string
 ```
 
 `<data-dir>/ssh.json`. Local SSH connection store.
-
-```typescript
-getReportFile(): string
-```
-
-`<data-dir>/report.html`. Latest generated usage report.
 
 ```typescript
 migrateLegacyData(legacyDir?, newDir?): void

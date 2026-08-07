@@ -419,6 +419,7 @@ function createFooterComponent(
     tui: { requestRender(): void },
     theme: Theme,
     isAveragesVisible: () => boolean,
+    extras?: FooterWidgetExtras,
 ) {
     // 1Hz ticker: refreshes the cached context-window time + cost rates
     // (via data.onTick()), then requests a TUI re-render. Cleared in
@@ -463,6 +464,16 @@ function createFooterComponent(
                     if (allowanceLine) lines.push(`│ ${allowanceLine}`);
                 }
 
+                // Line 6 — sub-agents (always visible while the feature is
+                // enabled; the callback returns null when disabled or toggled
+                // off). Supplied by the orchestrator so this module stays
+                // subagent-agnostic; the callback receives the footer color
+                // helpers so the line matches lines 1-4 theming.
+                try {
+                    const subAgentLine = extras?.subAgentLine?.(c);
+                    if (subAgentLine) lines.push(`│ ${subAgentLine}`);
+                } catch { /* an extra line is cosmetic — never break the footer */ }
+
                 return lines.map((l) => line(l, w));
             } catch (err) {
                 aftcConsole.logError(`[aftc-toolset] footer render error: ${(err as Error).message}`);
@@ -478,7 +489,36 @@ function createFooterComponent(
 // Public factory — wired by the orchestrator (index.ts)
 // ──────────────────────────────────────────────────────────────────────
 
-export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): void {
+/**
+ * The footer bar's three theme roles, handed to extra-line builders so
+ * they can match the c1/c2/c3 styling of lines 1-4 exactly.
+ */
+export interface FooterLineColors {
+    /** Highlight (accent + bold). */
+    c1: (s: string) => string;
+    /** Labels / words / units (text). */
+    c2: (s: string) => string;
+    /** Values / dividers (dim). */
+    c3: (s: string) => string;
+}
+
+/**
+ * Optional extra line sources wired by the orchestrator. The footer
+ * widget renders whatever the callback returns (null = no line) and
+ * never imports the supplying feature (AGENTS.md module rule). The
+ * callback receives the footer color helpers and returns an ALREADY
+ * THEMED line (no `│ ` prefix — the widget adds it).
+ */
+export interface FooterWidgetExtras {
+    /** Sub-agents line (themed), or null when disabled/hidden. */
+    subAgentLine?: (colors: FooterLineColors) => string | null;
+}
+
+export function createFooterWidget(
+    pi: ExtensionAPI,
+    data: FooterDataProvider,
+    extras: FooterWidgetExtras = {},
+): void {
     // Toggle state. Loaded from config.json (a USER PREFERENCE that
     // persists across /reload, /new, and fresh pi startup). Falls
     // back to true (the historical default) if config.json is missing.
@@ -516,7 +556,7 @@ export function createFooterWidget(pi: ExtensionAPI, data: FooterDataProvider): 
                 // Dispose the previous component (if any) before creating
                 // a new one — stops the old 1Hz timer.
                 disposeCurrent();
-                const component = createFooterComponent(data, tui, theme, () => averagesVisible);
+                const component = createFooterComponent(data, tui, theme, () => averagesVisible, extras);
                 currentComponent = component;
                 return component;
             }, { placement: "belowEditor" });

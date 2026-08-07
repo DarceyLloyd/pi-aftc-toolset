@@ -1,6 +1,22 @@
+[![GitHub Stars](https://img.shields.io/github/stars/henriquesebastiao/badges?style=flat&color=FFD700&logo=starship&logoColor=white)](https://github.com/henriquesebastiao/badges/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/henriquesebastiao/badges?style=flat&color=0891b2&logo=github&logoColor=white)](https://github.com/henriquesebastiao/badges/network)
+[![GitHub License](https://img.shields.io/github/license/henriquesebastiao/badges?style=flat&color=22c55e)](https://github.com/henriquesebastiao/badges/blob/main/LICENSE)
+[![NPM](https://nodei.co/npm/pi-aftc-toolset.svg?style=shields&data=n,v,u,d)](https://nodei.co/npm/pi-aftc-toolset/)
+
+
 # **pi-aftc-toolset**
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=darcey.lloyd@gmail.com) 
+Help keep the AI bills paid ;)
+
+
+## **Description**
+
+This is a collection of this and that which I find useful in my daily work.
+When I find something I'm missing I build it and thus the pi-aftc-toolset was born.
+
+Main features:
+- Very informative S
 
 Stats bar. Isolated SSH. Documentation generation (docx). Persistent
 self-educating cache-aware skills on demand (codex). Usage reports. Audio
@@ -9,7 +25,7 @@ notifications. Shortcuts. Skills. Themes ++
 A productivity extension package for [pi](https://pi.dev)
 (`@earendil-works/pi-coding-agent`): install it, run `/aftc-install`, and
 pi grows a cache/cost diagnostics footer, a persistent usage database with
-an HTML report, credential-isolated SSH tooling for the model and for you,
+a local report web app, credential-isolated SSH tooling for the model and for you,
 an opt-in knowledge base, a documentation generator, and a long tail of
 workflow conveniences.
 
@@ -17,7 +33,29 @@ workflow conveniences.
 
 ## **WHATS NEW**
 
-### **/docx project documentation generator (BETA 5)**
+### **Sub Agents /007 (APHA 1)**
+
+I had been thinking about it for a while, and finally gave it a go. It's in alpha 
+but it's live and usable. It is **turned off by default**, to enable it sub agents
+use **/007 > settings > enable**. This is in alpha, it works but it has a way to go before I
+consider it respectable. Make your own agents via /007 > open agents folder, there's a
+.MD file there with guidance. **/007-edit** is a quick edit tool for them and **/007-new** is 
+work in progress. At the moment it's best to see the MD file and create your own in vscode etc.
+I have also intergrated it into the footer widget, so you can see what your sub agents are doing.
+
+
+### **DocX gets "/docx-update" to maintain generated DocX project documentation (BETA 1)**
+
+Stop the drift! You know AI models even when instructed wont do it right, so /docx-update
+is here to help keep your documantation up to date. It will backup the previous version of docx,
+just encase.
+
+### **Usage Reports /usage-report (Beta 8)**
+
+I've moved away from a single self contained html file as it was a nightmare to edit and maintain, it will now open a dir and attempt to run a nodejs server to display the usage report, there will be start.bat, start.sh and server.js (for direct node use), so you can see your usage report. I expect there will be fixes and changes for this over the coming days/week, your data remains on your machine so even if the report fails to output correctly it your data will be intact and on upcoming fixes and adjustments it will be fixed.
+
+
+### **Project Documentation Generator /DocX (BETA 6)**
 
 The generation prompt is now tailored by project type: after the
 confirmations a picker modal (auto-detect pre-selected) asks for the
@@ -32,7 +70,7 @@ even with `--yes`.
 
 ### **AFTC CODEX RESOURCE UPDATES**
 
-Various resource updates.
+Various resource updates, usually is with every update. Would anyone like this to be synced via an online database? Then we can all contribute to resources, not just me for the base pi-aftc-toolset extension.
 
 ### **PI UPDATE COMPATIBILITY CHECK**
 
@@ -64,13 +102,13 @@ Then in pi:
 - [**Footer Widget**](#footer-widget)
 - [**SSH**](#ssh)
 
-- [**DOCX Documentation Generator (BETA 5)**](#docx-project-documentation-generator)
+- [**DOCX Documentation Generator (BETA 6)**](#docx-project-documentation-generator)
     > **WARNING: This will re-write readme.md and move all existing documentation.**
     If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is.
 
     > **NOTE: run `/new` first, then `/docx`** — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. `/docx` flat-out refuses at 25%+ context use (even with `--yes`) and advises a fresh session at 20%+. Context use itself is modest — measured runs used only 5–8% of a 1M-token window and even large projects stayed under 20% — but expect a LONG wait: the bigger and more complex the project, the longer it takes.
 
-- [**Usage Report**](#usage-report) (ALPHA)
+- [**Usage Report**](#usage-report)
 - [**AFTC Codex**](#aftc-codex-knowledge-base)
 
     > **WARNING**: AFTC Codex injects rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This results in the model having access to potentially a lot of rules, issues & solutions and gotchyas. Loading 1 to 5 is light enough, loading 20 can be costly but necessary when you have something complex that you want the AI to have its best shot at working out and one shotting it.
@@ -281,11 +319,15 @@ breaking the cache) is detected per turn and warned.
 
 ## **Usage report**
 
-`/usage-report` writes a self-contained HTML report (the only external ref
-is the Chart.js CDN — tables work offline) to your data dir and opens it
-in your browser. Every assistant turn is recorded as metrics only —
-**never prompt or response text**. `/usage-clear` wipes the database behind
-a confirmation.
+`/usage-report` seeds a small report web app into your data dir
+(`usage-report/`), generates a fresh `data.json` from your recorded
+usage, and starts a bundled local server in its own terminal window —
+your browser opens automatically. No internet needed: Chart.js ships
+with the app. Close the server window (or Ctrl+C) to stop it; it also
+shuts itself down after 30 minutes idle. Requires Node.js (you have it
+if pi runs). Every assistant turn is recorded as metrics only —
+**never prompt or response text**. `/usage-clear` wipes the database
+behind a confirmation.
 
 ![Usage report overview](images/ur-overview.png)
 
@@ -446,7 +488,7 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 
 | Command | What it does |
 | --- | --- |
-| `/usage-report` | Write + open `report.html` (ALPHA) |
+| `/usage-report` | Seed the report web app, generate a fresh `data.json`, start the local server (browser opens) |
 | `/usage-clear` | Delete all SQLite rows (with confirmation) |
 
 ### Replay
@@ -534,7 +576,7 @@ Switch themes with `/theme`.
 
 ## Data location
 
-The toolset stores its runtime data — usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`), the live codex (`aftc-codex/`), the debug log (`debug.log`) and the generated report (`report.html`) — in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
+The toolset stores its runtime data — usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`), the live codex (`aftc-codex/`), the debug log (`debug.log`) and the report web app (`usage-report/` with its generated `data.json`) — in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
 
 | OS | Data folder |
 | --- | --- |
@@ -691,7 +733,7 @@ committed, and the whole data dir is excluded from git and npm publishing.
 | `config.json` | Cross-session user preferences: footer (on/off, averages line on/off, timeframe window), response divider, think-tag processing, intro animation, audio notifications, replay prompt, run_script tool and aftc-codex switches. Created with defaults on first access; only re-written when a value actually changes. |
 | `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password) + new-host-key auto-accept flag. Local-only, never shipped. |
 | `turns.db` | SQLite usage database (turns + tasks tables — metrics only, never prompt text) |
-| `report.html` | Latest generated usage report |
+| `usage-report/` | Seeded report web app + freshly generated `data.json` (your recorded usage) |
 | `debug.log` | Rotating `[aftc-toolset]` diagnostic log (5 MB cap + one `.old` generation) |
 | `aftc-codex/` | Your live codex knowledge base (seeded from the shipped copy; learned entries yours) |
 

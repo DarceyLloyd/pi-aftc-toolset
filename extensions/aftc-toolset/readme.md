@@ -14,7 +14,7 @@ commands/shortcuts/tools it registers. See `AGENTS.md`.
 | `core.ts` | Cache / token / cost accumulators, prefix-shape tracker, context-window timer, and the cache + timer commands. Returns a `FooterDataProvider` for the widget. |
 | `footer-widget.ts` | The cache dashboard rendered as a `setWidget` below the editor (4 base lines + a conditional 5th allowance line). Owns the 1Hz ticker, show/hide lifecycle, and `/aftc-footer` toggle. |
 | `allowance.ts` | Subscription allowance data for the footer's 5th line (5h + weekly used % + reset). Fetches `openai-codex` / `minimax` / `zai` usage endpoints and reads `anthropic` subscription headers; returns an `AllowanceProvider`. See `allowance-readme.md`. |
-| `usage-report.ts` | `/usage-report` (writes + opens `report.html`) and `/usage-clear`. Reads from the SQLite DB. |
+| `usage-report.ts` | `/usage-report` (seeds the report web app to the data dir, generates `data.json`, starts the local report server) and `/usage-clear`. Reads from the SQLite DB. |
 | `usage-recording.ts` | Per-turn SQLite recording. Implements the `TurnRecorder` interface that core.ts calls on every `message_end`. |
 | `install.ts` | `/aftc-install` - runs `npm install` for `better-sqlite3` and locked uv sync for the packaged SSH carrier. |
 | `help.ts` | `/aftc-help` - static command/shortcut list rendered via `ctx.ui.select`. |

@@ -1,20 +1,82 @@
 # usage-report.ts
 
-Reads the per-turn SQLite database and writes a self-contained HTML
-report. Owns the report commands.
+Reads the per-turn SQLite database, generates the report data
+(`data.json`), seeds the report web app into the persistent data dir
+and starts its local server. Owns the report commands.
 
 ## What it does
 
-`/usage-report` produces a single HTML file at
-`<persistent-data-dir>/report.html` (OS-specific; see `paths-readme.md`). The HTML is one
-self-contained file - embedded CSS, embedded JSON, embedded JS. The
-only external reference is the Chart.js CDN (pinned `chart.js@4.4.7`,
-jsdelivr) used for the graphs; when offline the page degrades
-gracefully to text fallbacks and every table/card still works.
+`/usage-report` does NOT generate a single HTML file. The report UI is
+a small website that ships in the package
+(`extensions/aftc-toolset/data/usage-report/` — the seed). The command:
 
-The report is a dark-themed, tabbed page with an AFTC-branded header
-(page title, an "All For The Code" strapline, and an orange
-`Generated on: YYMMDD - HH:MM` line) and five tabs:
+1. `collectReportData()` - aggregates the whole turns/tasks history
+   from the DB (read-only).
+2. `ensureReportFiles()` - copies the seed into
+   `<persistent-data-dir>/usage-report/` (OS-specific; see
+   `paths-readme.md`) when the live copy is missing or its
+   `.usage-report-version` stamp is older than `usageReportVersion` in
+   `data/extension-config.json`. These are program files, not user
+   data - a version bump re-copies them wholesale. `copyDir` skips
+   `data.json` (the seed ships a `{}` placeholder; the live copy is
+   always regenerated).
+3. `writeReportJson()` - writes a fresh `<live>/data.json` from the
+   collected data.
+4. `spawnReportServer()` - starts the bundled zero-dependency server
+   (`server.js`). On Windows it runs `start.bat` via `cmd /c start` so
+   the report opens in its OWN terminal window - closing that window
+   or Ctrl+C stops the server. Elsewhere it spawns a detached
+   `node server.js` in the live dir.
+
+The server then opens the browser and prints its info. The page is a
+dark-themed, tabbed app titled **PI AFTC Toolset - Usage Report** with
+an "All For The Code" strapline and an orange `Generated on: YYMMDD -
+HH:MM` line (rendered client-side from `data.generatedAt`), plus five
+tabs.
+
+### Why a website + server instead of one file
+
+The old single-file report embedded ~600 lines of JS inside a TS
+template literal - an escape-mangling bug class that made the client
+code effectively uneditable. Serving over localhost also makes ES
+modules and `fetch()` work; both are blocked on `file://` pages. The
+split gives plain, editable ES-module sources (`includes/js/`) and a
+clean data contract (`data.json`).
+
+## The shipped website (seed: data/usage-report/)
+
+- `index.html` - page title / header, tab bar, all five tab panels.
+- `favicon.png`, `includes/css/styles.css` - dark theme, AFTC brand
+  colours.
+- `includes/js/libs/chart.umd.min.js` - Chart.js bundled LOCALLY. No
+  CDN, no internet needed; every chart, table and card works offline.
+- `includes/js/app.mjs` - entry module: fetches `./data.json`, boots
+  the five tab classes, wires tab switching and deep links (the active
+  tab is kept in `location.hash`, and a hash in the URL opens that
+  tab). If Chart.js is missing for any reason, each chart slot renders
+  a text fallback and everything else still works.
+- `includes/js/lib/format.mjs` - formatters/markup helpers
+  (`fmtMoney`, `fmtMs`, `fmtPct`, stat cards, sortable `makeTable`,
+  column info hints).
+- `includes/js/lib/charts.mjs` - Chart.js palette/defaults/fallback.
+- `includes/js/tabs/{overview,models,thinking,timings,projections}.mjs`
+  - one ES-module class per tab.
+- `server.js` - zero-dependency `node:http` static server, bound to
+  127.0.0.1. Port 8713, scanning upwards for a free one
+  (`USAGE_REPORT_PORT` override). Opens the browser, prints a
+  server-info banner, is traversal-safe (403 outside the served root),
+  and self-terminates: idle watchdog after 30 minutes without a
+  request (`USAGE_REPORT_IDLE_MINUTES` override), SIGINT/SIGTERM
+  (Ctrl+C / window close), and with opt-in `USAGE_REPORT_STDIN_GUARD=1`
+  (non-TTY stdin) it also exits on stdin EOF.
+- `start.bat` / `start.sh` - launchers (`node server.js` from the
+  app's own folder; the .bat pauses with a hint if Node is missing).
+- `data.json` - empty `{}` placeholder, never copied to the live dir.
+
+`syncUsageReportFiles()` is a test seam that runs the seed->live sync
+directly (tests point `AFTC_TOOLSET_DATA_ROOT` at a scratch dir).
+
+## Tabs
 
 ### Tab 1 - Overview
 - Six headline stat cards: total cost, user prompts (tasks +
@@ -24,11 +86,19 @@ The report is a dark-themed, tabbed page with an AFTC-branded header
   turns (tool-call continuations).
 - **Daily spend** bar chart (last 30 local days, zero-filled; today is
   highlighted orange; tooltips show cost / calls / prompts).
-- **Cost share by model** doughnut (all time, top 7 + Other, total in
-  the centre).
+- **Cost share by model** doughnut (top 7 + Other, total in the
+  centre) with an on-theme window selector styled like the Period
+  selects: Last 24 Hours (rolling), 1 Day, 3 Days, 5 Days, 1 Week,
+  1 Month, 3 Months, 6 Months, 1 Year, All Time — default selection
+  3 Days. Calendar windows anchor to local midnight / 1st of month /
+  Jan 1 (the footer timeframe semantics); only the 24 h window is
+  rolling. All 10 windows are precomputed server-side in
+  `collectShareWindows` as `shareWindows` (cost-by-model, paid turns
+  only); picking a window updates the chart in place. The panel title
+  carries no window text; the legend carries the share %.
 - **Period summary** - three compact cards (last 24 h / 7 d / 28 d):
   cost, `Prompts: User N / AI M`, then a **per-model scoreboard**.
-  All 11 rows are ALWAYS shown - a row whose metric is uncomputable
+  All 13 rows are ALWAYS shown - a row whose metric is uncomputable
   for the window renders `N/A` with an info-icon tooltip giving the
   reason (nothing silently disappears). The COST rows (cheapest /
   most costly) only consider models that cost something in the
@@ -41,24 +111,28 @@ The report is a dark-themed, tabbed page with an AFTC-branded header
   count), least used model (N/A when fewer than two models have
   prompts), **Avg Task Time** (mean wall-clock prompt→settle duration
   over the window's completed tasks, from the `tasks` table; the
-  value column carries the task count), best/worst cache hit (by avg
-  hit rate %), best/worst response time, best/worst think time. Time
-  values use `Xh Ym Zs` format (no padding, omit zero units).
-  units). No colour coding on scoreboard rows — polarity lives in the
-  words only. The old "Top model" total-cost line is gone; the pie
-  chart legend carries the share % instead.
+  value column carries the task count), **Longest Avg Task Time** /
+  **Shortest Avg Task Time** (completed tasks only, grouped by model
+  x thinking level; each names the model, and the value column
+  carries the thinking level + formatted average time), best/worst
+  cache hit (by avg hit rate %), best/worst response time, best/worst
+  think time. The three task-time rows all render `N/A` when the
+  window has no completed tasks. Time values use `Xh Ym Zs` format
+  (no padding, omit zero units). No colour coding on scoreboard rows
+  — polarity lives in the words only.
 
 ### Tab 2 - Models
 Sortable, horizontally responsive table with a period selector
-(Last 24 hours / 7 days / 28 days / All time, default All time) and a
-cost-by-model horizontal bar chart that follows the selected period.
-Columns: model, cost (bar), user prompts, AI prompts, AI/user,
-Avg $/Pup (avg cost per user prompt), Avg cache, avg response time,
-**Task time** (avg completed-task duration for that model). Non-obvious
-columns (AI/user, Avg $/Pup, Avg cache, Task time) carry an info icon
-that floats an on-theme tooltip explaining the metric on hover. The
-Task Time tooltip carries the root-README definition: one prompt's
-complete run across all its tool-call turns, enter → agent settled.
+(Last 24 hours / Last 7 days / Last 28 days / All time, default All
+time) and a cost-by-model horizontal bar chart (top 8) that follows
+the selected period. Columns: model, cost (bar), user prompts, AI
+prompts, AI/user, Avg $/Pup (avg cost per user prompt), Avg cache,
+avg response time, **Task time** (avg completed-task duration for
+that model). Non-obvious columns (AI/user, Avg $/Pup, Avg cache,
+Task time) carry an info icon that floats an on-theme tooltip
+explaining the metric on hover. The Task Time tooltip carries the
+root-README definition: one prompt's complete run across all its
+tool-call turns, enter → agent settled.
 
 ### Tab 3 - Thinking levels
 Same table shape keyed by model + thinking level (one row per
@@ -109,24 +183,32 @@ same period selector as Models / Thinking (default All time):
   than 7 active days are marked `~` (estimate, tooltip explains why).
   Model × thinking rows with ZERO total cost are excluded entirely -
   a $0 model has nothing to project.
+
 ## Reading the SQLite DB
 
-The DB lives at `<persistent-data-dir>/turns.db` (OS-specific; see `paths-readme.md`)
-(populated by `usage-recording.ts`). The report query is read-only
-via `better-sqlite3`. If better-sqlite3 isn't installed, the commands
-report an error and the HTML report cannot be generated.
+The DB lives at `<persistent-data-dir>/turns.db` (OS-specific; see
+`paths-readme.md`) (populated by `usage-recording.ts`). The report
+query is read-only via `better-sqlite3`. If better-sqlite3 isn't
+installed, both commands report an error (pointing at `/aftc-install`)
+and the report cannot be generated.
 
 ## Commands registered (2)
 
-- `/usage-report` - generates + writes the HTML report, opens it
-  in the user's default browser (fire-and-forget; non-UI fallback
-  logs the path to stdout).
+- `/usage-report` - collects the data, seeds/refreshes the live app,
+  writes `data.json` and starts the local server, which opens the
+  report in the user's default browser. Console messages: "Usage
+  report server starting — your browser will open." plus the live
+  dir and stop/idle behaviour. Close the server window (or Ctrl+C)
+  to stop it; it also self-exits after 30 minutes idle.
 - `/usage-clear` - permanently deletes all rows from BOTH the `turns`
   and `tasks` tables (one transaction) after user confirmation. Useful
   for resetting the dataset - the Timings tab would otherwise survive
   a turns-only clear.
 
-## Data shape (embedded JSON)
+## Data shape (data.json)
+
+Written fresh to `<persistent-data-dir>/usage-report/data.json` on
+every `/usage-report`; fetched by `app.mjs`:
 
 ```text
 {
@@ -139,10 +221,13 @@ report an error and the HTML report cannot be generated.
             activeDays, calendarDays, avgDailySpend, firstTurnMs },
   periods: {                       // compact 3-card summaries
     daily:   { label, cost, calls, prompts, aiPrompts,
-               scoreboard: [ { label, model, value } ] },
+               scoreboard: [ { label, model, value, na? } ] },
     weekly:  { ... },
     monthly: { ... },
   },
+  shareWindows: [ { key, label, models: [ { name, cost } ] } ],
+      // 10 entries, cost-by-model per Overview doughnut window,
+      // paid turns only (collectShareWindows)
   dailySeries: [ { day, label, cost, calls, prompts } ],  // 30 days, zero-filled
   modelsByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
       // ModelRow: modelName, cost, turns, userPrompts, aiPrompts,
@@ -170,12 +255,8 @@ report an error and the HTML report cannot be generated.
 }
 ```
 
-## Template maintenance note
-
-The client-side JS lives inside a TS template literal in
-`generateReportHtml`, so it must never use backticks or `${}` —
-string concatenation only. The only template interpolations are
-`${title}` and `${json}`.
+Scoreboard entries carry `na` when the row must render N/A with that
+tooltip reason (the row stays visible).
 
 ## Why "report" and not just "usage"
 

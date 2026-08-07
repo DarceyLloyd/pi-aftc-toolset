@@ -29,7 +29,7 @@ pi-aftc-toolset (pi extension package v1.19.11)
 |  |  |- 1.4.2 Footer widget (widget surface + /aftc-footer menus)
 |  |  |- 1.4.3 Subscription allowance (allowance.ts, footer line 5)
 |  |  |- 1.4.4 Usage recording (usage-recording.ts, turns.db writer)
-|  |  \- 1.4.5 Usage report (report.html, 5 tabs)
+|  |  \- 1.4.5 Usage report (usage-report app + server, 5 tabs)
 |  |- 1.5 Feature modules                                          module
 |  |  |- 1.5.1 Keyboard shortcuts (keys.ts)
 |  |  |- 1.5.2 Help & discovery (help.ts)
@@ -66,11 +66,19 @@ pi-aftc-toolset (pi extension package v1.19.11)
 |  |  |- 1.7.3 Commands (/aftc-codex-* menus & commands)
 |  |  |- 1.7.4 Model tools (codex_load/add/edit/remove)
 |  |  \- 1.7.5 Learn & live-to-seed scripts (codex-learn.ts, scripts/)
-|  \- 1.8 docx documentation generator (docx/)                     module
+|  |- 1.8 docx documentation generator (docx/)                     module
 |     |- 1.8.1 /docx command & flow (docx.ts)
 |     |- 1.8.2 Backup (docx-backup.ts)
 |     |- 1.8.3 Shipped guide & type packs (documentation_guide.md, prompts/)
 |     \- 1.8.4 Helper scripts (scripts/: map-scan, link-audit, ui-hints, zip-old)
+|  \- 1.9 Sub-agents, codename 007 (subagents/)                   module
+|     |- 1.9.1 Config (subagent-config.ts)
+|     |- 1.9.2 Catalog + seed/sync (subagent-catalog.ts)
+|     |- 1.9.3 RPC child transport (subagent-rpc-child.ts)
+|     |- 1.9.4 Child runtime (child-runtime.ts)
+|     |- 1.9.5 Supervisor (subagent-supervisor.ts)
+|     |- 1.9.6 Tool + factory (subagents.ts)
+|     \- 1.9.7 Commands & UI (subagent-commands.ts, subagent-ui.ts)
 |- 2 Packaging & shipped assets                                    module
 |  |- 2.1 Shipped data (extensions/aftc-toolset/data/)
 |  |- 2.2 Bundled skills (skills/)
@@ -96,6 +104,7 @@ pi-aftc-toolset (pi extension package v1.19.11)
 | 1.6.10 | Python carrier | `sub-project` | [1.6.10_carrier_documentation.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_documentation.md) | [1.6.10_carrier_map.md](1_extension_source/1.6_ssh/1.6.10_carrier/1.6.10_carrier_map.md) | done |
 | 1.7 | aftc-codex knowledge base | `module` | [1.7_aftc_codex_documentation.md](1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md) | [1.7_aftc_codex_map.md](1_extension_source/1.7_aftc_codex/1.7_aftc_codex_map.md) | done |
 | 1.8 | docx documentation generator | `module` | [1.8_docx_documentation.md](1_extension_source/1.8_docx/1.8_docx_documentation.md) | [1.8_docx_map.md](1_extension_source/1.8_docx/1.8_docx_map.md) | done |
+| 1.9 | Sub-agents (007) | `module` | [1.9_subagents_documentation.md](1_extension_source/1.9_subagents/1.9_subagents_documentation.md) | [1.9_subagents_map.md](1_extension_source/1.9_subagents/1.9_subagents_map.md) | done |
 | 2 | Packaging & shipped assets | `module` | [2_packaging_documentation.md](2_packaging/2_packaging_documentation.md) | [2_packaging_map.md](2_packaging/2_packaging_map.md) | done |
 | 3 | Tests | `module` | [3_tests_documentation.md](3_tests/3_tests_documentation.md) | [3_tests_map.md](3_tests/3_tests_map.md) | done |
 
@@ -119,7 +128,7 @@ Leaf-node annotations (1.1, 1.2, 1.3.x, 1.4.x, 1.5.x, 1.6.x, 1.6.10.x,
 
 ## Index By Kind
 
-- Modules: 1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 2, 3
+- Modules: 1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 3
 - Sub-projects: 1.6.10 (Python SSH carrier)
 - Containers: none (test-only Docker under 3.3/3.4)
 - Dev tools: Docker containers of the Linux gates — see [development.md](development.md)

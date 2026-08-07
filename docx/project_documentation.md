@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-07 -->
 
 > Master document. Do not follow the per-ID links below until your work
 > touches that area — each section ends with an *Only read* instruction;
@@ -17,8 +17,9 @@ extension loader (jiti — TypeScript at runtime, no build step), and it adds:
 - A **cache/token/cost diagnostics footer widget** (5 themed lines) with
   subscription allowance tracking for ChatGPT/Codex, Anthropic, MiniMax,
   ZAI/GLM and Kimi subscriptions.
-- A **persistent usage database** (SQLite) with an HTML **usage report**
-  (Overview / Models / Thinking levels / Timings / Projections tabs).
+- A **persistent usage database** (SQLite) with a **usage report** served
+  by a local server (Overview / Models / Thinking levels / Timings /
+  Projections tabs).
 - **Isolated SSH**: saved connections, a packaged Python (Paramiko) carrier
   over local stdio, 20 model tools (commands, PTY shells, SFTP, remote file
   ops) and a full-screen interactive terminal — credentials never reach the
@@ -46,7 +47,7 @@ and it never exposes SSH credentials to the model.
 | Persistence | `better-sqlite3` | 12.11.1 (pinned) |
 | Zip (docx backup) | `adm-zip` | ^0.6.0 |
 | SSH carrier | Python + `paramiko` (uv-locked sidecar) | Python >=3.10; paramiko >=3.4.0,<4.0.0; aftc-ssh-sidecar 0.1.0 |
-| Report charts | Chart.js CDN in generated report.html | 4.4.7 |
+| Report charts | Chart.js bundled in the shipped usage-report app (no CDN) | 4.4.7 |
 | Audio playback | bundled miniaudio binary (`data/aftc-intro/bin/play_sound-win-x64.exe`, C source shipped) | n/a |
 | Tests | plain Node ESM scripts + jiti; Docker/Compose for SSH + Linux gates | n/a |
 
@@ -57,6 +58,7 @@ pi-aftc-toolset
 |- 1 Extension source (extensions/aftc-toolset)   — all feature modules
 |    1.3 UI framework · 1.4 Footer/usage · 1.5 Feature modules
 |    1.6 SSH (+1.6.10 Python carrier sub-project) · 1.7 aftc-codex · 1.8 docx
+|    1.9 Sub-agents (007)
 |- 2 Packaging & shipped assets (data, skills, themes, release scripts)
 \- 3 Tests (tests/)
 ```
@@ -163,7 +165,7 @@ per-turn SQLite recording (`usage-recording.ts`) and the HTML usage report
 #### 1.4.2 Footer widget — the 4+1-line bar surface + `/aftc-footer` menu + timeframe picker. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md`.
 #### 1.4.3 Subscription allowance — ChatGPT/Codex, Anthropic headers, MiniMax, ZAI/GLM, Kimi fetchers for line 5. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.3_allowance.md`.
 #### 1.4.4 Usage recording — TurnRecorder writing metrics-only rows to turns/tasks. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.4_usage_recording.md`.
-#### 1.4.5 Usage report — `/usage-report` + `/usage-clear`, report.html with its 5 tabs. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md`.
+#### 1.4.5 Usage report — `/usage-report` + `/usage-clear`, the usage-report app + local server with its 5 tabs. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md`.
 
 ### 1.5 - Feature modules
 
@@ -268,6 +270,30 @@ context-window gates and helper scripts (map-scan, link-audit, zip-old).
 #### 1.8.2 Backup — deterministic whitelist-scoped move into docx/old_docs/. Only read `./docx/1_extension_source/1.8_docx/1.8.2_backup.md`.
 #### 1.8.3 Shipped guide & type packs — documentation_guide.md + 10 packs. Only read `./docx/1_extension_source/1.8_docx/1.8.3_guide_packs.md`.
 #### 1.8.4 Helper scripts — map-scan, link-audit, ui-hints, zip-old. Only read `./docx/1_extension_source/1.8_docx/1.8.4_scripts.md`.
+
+### 1.9 - Sub-agents, codename 007
+
+Delegate focused work to isolated child pi processes (operatives),
+each with a fresh context window, profile-owned capabilities and a
+bounded report back. Foreground-only v1: one `subagent` tool call =
+one run; `/007` + `/007-*` command family; disabled by default;
+children hermetic (only a gated read-only codex capability); no DB
+writes — spend in-memory, guarded by the allowance gate. Seed in
+`data/subagents/` (data only); config in its own
+`<dataDir>/subagents-config.json`.
+
+> Only read the following files if you need to work on subagents
+> features of this project, or if requested by the user or aftc codex:
+> `./docx/1_extension_source/1.9_subagents/1.9_subagents_documentation.md` and
+> `./docx/1_extension_source/1.9_subagents/1.9_subagents_map.md`.
+
+#### 1.9.1 Config — subagents-config.json prefs module. Only read `./docx/1_extension_source/1.9_subagents/1.9.1_config.md`.
+#### 1.9.2 Catalog + seed/sync — profile discovery (3 tiers), frontmatter, extends, seed-to-live. Only read `./docx/1_extension_source/1.9_subagents/1.9.2_catalog.md`.
+#### 1.9.3 RPC child transport — strict-LF JSONL + supervised child + tree kill. Only read `./docx/1_extension_source/1.9_subagents/1.9.3_rpc_child.md`.
+#### 1.9.4 Child runtime — worker protocol + report_result + codex brief. Only read `./docx/1_extension_source/1.9_subagents/1.9.4_child_runtime.md`.
+#### 1.9.5 Supervisor — scheduler, lifecycle, watchdogs, termination ladder. Only read `./docx/1_extension_source/1.9_subagents/1.9.5_supervisor.md`.
+#### 1.9.6 Tool + factory — subagent tool, model resolution, allowance gate, footer builder. Only read `./docx/1_extension_source/1.9_subagents/1.9.6_tool.md`.
+#### 1.9.7 Commands & UI — /007 family + aftc-ui screens. Only read `./docx/1_extension_source/1.9_subagents/1.9.7_commands_ui.md`.
 
 ## 2 - Packaging & shipped assets
 
@@ -386,6 +412,15 @@ ONLY that doc; do not follow these links for areas you are not working on.
   - [1_extension_source/1.8_docx/1.8.2_backup.md](1_extension_source/1.8_docx/1.8.2_backup.md) - ID 1.8.2
   - [1_extension_source/1.8_docx/1.8.3_guide_packs.md](1_extension_source/1.8_docx/1.8.3_guide_packs.md) - ID 1.8.3
   - [1_extension_source/1.8_docx/1.8.4_scripts.md](1_extension_source/1.8_docx/1.8.4_scripts.md) - ID 1.8.4
+  - [1_extension_source/1.9_subagents/1.9_subagents_documentation.md](1_extension_source/1.9_subagents/1.9_subagents_documentation.md) - ID 1.9
+  - [1_extension_source/1.9_subagents/1.9_subagents_map.md](1_extension_source/1.9_subagents/1.9_subagents_map.md) - ID 1.9 sub-map
+  - [1_extension_source/1.9_subagents/1.9.1_config.md](1_extension_source/1.9_subagents/1.9.1_config.md) - ID 1.9.1
+  - [1_extension_source/1.9_subagents/1.9.2_catalog.md](1_extension_source/1.9_subagents/1.9.2_catalog.md) - ID 1.9.2
+  - [1_extension_source/1.9_subagents/1.9.3_rpc_child.md](1_extension_source/1.9_subagents/1.9.3_rpc_child.md) - ID 1.9.3
+  - [1_extension_source/1.9_subagents/1.9.4_child_runtime.md](1_extension_source/1.9_subagents/1.9.4_child_runtime.md) - ID 1.9.4
+  - [1_extension_source/1.9_subagents/1.9.5_supervisor.md](1_extension_source/1.9_subagents/1.9.5_supervisor.md) - ID 1.9.5
+  - [1_extension_source/1.9_subagents/1.9.6_tool.md](1_extension_source/1.9_subagents/1.9.6_tool.md) - ID 1.9.6
+  - [1_extension_source/1.9_subagents/1.9.7_commands_ui.md](1_extension_source/1.9_subagents/1.9.7_commands_ui.md) - ID 1.9.7
 
 ### Branch 2 — Packaging & shipped assets
 

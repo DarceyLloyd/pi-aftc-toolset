@@ -16,6 +16,8 @@
 
 - [wfceGe] in-container file watchers (bun --watch, nodemon, vite HMR) never fire for edits made on a Windows-host bind mount - Docker Desktop file sharing does not propagate inotify events; keep the watch flag for Linux hosts but after host-side edits restart the container (`docker compose restart <svc>`) instead of waiting for a reload that never comes
 
+- [gxGKcy] First run of a freshly built test container fails with "Cannot find module" for bare imports: `COPY .` + a .dockerignore that excludes node_modules leaves the copied tree without deps; run the package's installer inside the container before running its tests — it is a provisioning step, not a code bug.
+
 ## Issues & Solutions
 
 

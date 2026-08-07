@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 /**
- * docx zip-old — finalise the /docx backup (LAST step of generation).
+ * docx zip-old — finalise the /docx + /docx-update backup (LAST step of
+ * the run).
  *
- * The model runs this as the final step of the generation run:
- *   node <extension>/docx/scripts/zip-old.mjs <projectRoot>
+ * The model runs this as the final step of the run:
+ *   node <extension>/docx/scripts/zip-old.mjs <projectRoot> <label>
  *
- * Zips <projectRoot>/docx/old_docs/ into <projectRoot>/docx/old_docs.zip
- * (single fixed name; an existing zip was already folded INTO old_docs/ by
- * the backup, so overwriting is safe and intended), verifies the zip
- * entry count against the files on disk, then deletes old_docs/ so future
- * AI sessions never read superseded documentation.
+ * Labels:
+ *   original  (/docx)        -> "Original Documentation Backup YYMMDD HHMM.zip"
+ *   update    (/docx-update) -> "Documentation Backup YYMMDD HHMM.zip"
+ *
+ * Zips <projectRoot>/docx/old_docs/ into <projectRoot>/docx/backups/
+ * under that timestamped name (the backups/ folder accumulates every
+ * run's backup), verifies the zip entry count against the files on
+ * disk, then deletes old_docs/ so future AI sessions never read
+ * superseded documentation.
  *
  * Zipping happens HERE and not in the pre-generation backup because the
  * model must read the old docs during recon (guide step 1).
@@ -18,7 +23,7 @@
  * Windows/macOS/Linux). Self-terminating.
  */
 
-import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import AdmZip from "adm-zip";
 
@@ -28,9 +33,20 @@ const watchdog = setTimeout(() => {
 }, 55_000);
 watchdog.unref();
 
+const LABELS = {
+    original: "Original Documentation Backup",
+    update: "Documentation Backup",
+};
+
 const root = resolve(process.argv[2] || ".");
+const label = (process.argv[3] || "original").toLowerCase();
+if (!LABELS[label]) {
+    console.error(`zip-old: unknown label "${process.argv[3]}" — expected "original" (/docx) or "update" (/docx-update).`);
+    process.exit(1);
+}
+
 const oldDir = join(root, "docx", "old_docs");
-const zipPath = join(root, "docx", "old_docs.zip");
+const backupsDir = join(root, "docx", "backups");
 
 if (!existsSync(oldDir)) {
     console.log("zip-old: no docx/old_docs folder — nothing to zip (first run or already zipped).");
@@ -53,6 +69,16 @@ if (fileCount === 0) {
     rmSync(oldDir, { recursive: true, force: true });
     process.exit(0);
 }
+
+// Timestamp: YYMMDD HHMM in LOCAL time (matches the user-facing naming).
+function stamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return `${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+mkdirSync(backupsDir, { recursive: true });
+const zipPath = join(backupsDir, `${LABELS[label]} ${stamp()}.zip`);
 
 const zip = new AdmZip();
 zip.addLocalFolder(oldDir);

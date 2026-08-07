@@ -2,8 +2,12 @@
  * pi-aftc-toolset — AFTC text intro (wordmark animation).
  *
  * One-line typewriter widget that types "AFTC" then expands to
- * "All For The Code - <random quip>". Runs as a widget (not a message),
- * so it never enters model context or session history.
+ * "All For The Code - <random quip>". After the linger delay the widget
+ * clears (see `clearAtEnd`) and the feedback prompt + clickable link is
+ * printed into the CONSOLE transcript (a display-only entry: never model
+ * context, scrolls away with normal use - it is informational output,
+ * not a pinned widget). The widget part never enters model context or
+ * session history either.
  *
  * Toggle: /aftc-intro-on / /aftc-intro-off
  * Preference key: "aftc-intro" (boolean, default true)
@@ -15,16 +19,72 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Box, Text } from "@earendil-works/pi-tui";
 import { getPreference, setPreference } from "../config";
 import type { IntroDescriptor } from "./intro-factory";
 
 const WIDGET_KEY = "aftc-intro";
 const PACKAGE_VERSION = readPackageVersion();
 
+// The wordmark prefix stays accent (orange); everything after it renders in
+// the theme's default (white) foreground.
+const PREFIX = "All For The Code - ";
+
 // ── Adjustable timings (ms) ──────────────────────────────────────────────
-const START_DELAY_MS = 925; // ms before the intro starts (session_start)
+const START_DELAY_MS = 925;  // ms before the intro starts (session_start)
 const END_DELAY_MS = 1900;   // ms the final frame lingers before it clears itself
+
+const clearAtEnd = true;     // true = the typed wordmark line clears itself when done; false = it stays
+
+// Printed to the console transcript after the wordmark finishes: a white
+// prompt line with the feedback URL underneath as an OSC 8 hyperlink, so
+// terminals that support it (Windows Terminal, iTerm2, GNOME Terminal, ...)
+// make it a clickable link.
+const FEEDBACK_PROMPT = "PI-AFTC-Toolset > Like the extension? Got some feedback?";
+const FEEDBACK_URL = "https://dev.aftc.uk/pi-aftc-toolset/feedback";
+
+/** Wrap text in an OSC 8 hyperlink escape (pi-tui skips these in width measurement). */
+function hyperlink(url: string, text: string): string {
+    return `\x1b]8;;${url}\x1b\\${text}\x1b]8;;\x1b\\`;
+}
+
+// ---------------------------------------------------------------------------
+// Console feedback entry - transcript output (scrolls with use, display-only)
+// ---------------------------------------------------------------------------
+
+/** Custom entry type for the post-intro feedback console lines. */
+export const INTRO_FEEDBACK_ENTRY = "aftc-intro-feedback";
+
+let introPi: ExtensionAPI | null = null;
+
+/**
+ * Register the feedback entry renderer. Call ONCE per session - the
+ * orchestrator (index.ts) does this at startup, next to aftcConsole.init.
+ * Idempotent on /reload (re-registration just refreshes the renderer).
+ */
+export function initTextIntro(pi: ExtensionAPI): void {
+    introPi = pi;
+    if (typeof pi.registerEntryRenderer !== "function") return;
+    pi.registerEntryRenderer(INTRO_FEEDBACK_ENTRY, (_entry, _options, theme) => {
+        // White prompt line; fall back to plain text if a theme lacks the key.
+        let prompt: string;
+        try { prompt = theme.fg("text", ` ${FEEDBACK_PROMPT}`); } catch { prompt = ` ${FEEDBACK_PROMPT}`; }
+        const link = hyperlink(FEEDBACK_URL, theme.fg("accent", ` ${FEEDBACK_URL}`));
+        const box = new Box(0, 0);
+        box.addChild(new Text(prompt, 1, 0));
+        box.addChild(new Text(link, 1, 0));
+        return box;
+    });
+}
+
+/** Print the feedback lines into the console transcript (never model context). */
+function emitFeedback(): void {
+    const pi = introPi;
+    if (pi && typeof pi.appendEntry === "function") {
+        pi.appendEntry(INTRO_FEEDBACK_ENTRY, {});
+    }
+}
 
 let endString = `All For The Code - pi-toolset v${PACKAGE_VERSION} - LOCKED & LOADED!`;
 
@@ -87,7 +147,9 @@ const getEndString = (charPos: number) => {
     return endString.slice(0, charPos);
 }
 
-const BASE_FRAMES: { text: string; delayMs: number }[] = [
+type IntroFrame = { text: string; delayMs: number };
+
+const BASE_FRAMES: IntroFrame[] = [
     { text: " ", delayMs: 100 },
     { text: "A", delayMs: 100 },
     { text: "AF", delayMs: 100 },
@@ -107,7 +169,7 @@ const BASE_FRAMES: { text: string; delayMs: number }[] = [
     { text: "All For The Code", delayMs: 500 },
 ];
 
-let FRAMES: { text: string; delayMs: number }[] = [];
+let FRAMES: IntroFrame[] = [];
 
 const rebuildFrames = () => {
     FRAMES = [...BASE_FRAMES];
@@ -155,12 +217,24 @@ export function createTextIntro(): IntroDescriptor {
         if (!ctx.hasUI) return;
         const frame = FRAMES[index];
         if (!frame) {
-            stop(ctx);
+            // Animation finished: print the feedback lines into the console
+            // transcript, then clear the widget (or leave it, per clearAtEnd).
+            emitFeedback();
+            if (clearAtEnd) stop(ctx);
+            else if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
             return;
         }
-        ctx.ui.setWidget(WIDGET_KEY, [
-            ctx.ui.theme.fg("accent", ` ${frame.text}`),
-        ]);
+        let line: string;
+        if (frame.text.startsWith(PREFIX)) {
+            // Orange prefix + white message.
+            let rest: string;
+            try { rest = ctx.ui.theme.fg("text", frame.text.slice(PREFIX.length)); }
+            catch { rest = frame.text.slice(PREFIX.length); }
+            line = ctx.ui.theme.fg("accent", ` ${PREFIX}`) + rest;
+        } else {
+            line = ctx.ui.theme.fg("accent", ` ${frame.text}`);
+        }
+        ctx.ui.setWidget(WIDGET_KEY, [line]);
         timer = setTimeout(() => showFrame(ctx, index + 1), frame.delayMs);
     }
 

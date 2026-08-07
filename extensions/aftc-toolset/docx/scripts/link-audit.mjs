@@ -15,7 +15,7 @@
  *   5. Every map ID in project_map.md has a matching doc file (1:1;
  *      _map/_layout/_sitemap/_design partner files are not deep docs).
  *   6. Layout: docx/ holds ONLY project_documentation.md, project_map.md,
- *      generation-plan.md (transient), old_docs/ + old_docs.zip
+ *      generation-plan.md (transient), old_docs/ + backups/
  *      (tooling-owned), cross-cutting .md files and the MIRRORED FOLDER
  *      TREE (ID-prefixed node folders + top-level ID leaf docs).
  *   7. Mirrored tree: every folder under docx/ carries a map ID and keeps
@@ -89,9 +89,9 @@ const ID_FILE_RE = /^(\d+(?:\.\d+)*)_[\w.-]+\.md$/;
 const ID_FOLDER_RE = /^(\d+(?:\.\d+)*)_[\w.-]+$/;
 
 // Root entries with a fixed, non-ID role. generation-plan.md is transient
-// (deleted at step 12); old_docs.zip is tooling-owned.
+// (deleted at the finalise step); old_docs/ + backups/ are tooling-owned dirs.
 const FIXED_DOCX_FILES = new Set([
-    "project_documentation.md", "project_map.md", "generation-plan.md", "old_docs.zip",
+    "project_documentation.md", "project_map.md", "generation-plan.md",
 ]);
 
 const relOf = (file) => file.slice(root.length + 1);
@@ -223,10 +223,10 @@ function ancestorIds(id) {
 
 // 5. Layout: docx/ may contain ONLY project_documentation.md,
 //    project_map.md, generation-plan.md (transient), old_docs/ +
-//    old_docs.zip (tooling-owned), cross-cutting .md files, top-level ID
+//    backups/ (tooling-owned), cross-cutting .md files, top-level ID
 //    leaf docs and ID-prefixed node folders. No invented folders/files.
 for (const entry of readdirSync(docxDir, { withFileTypes: true })) {
-    if (entry.name === "old_docs") continue; // tooling-owned staging folder
+    if (entry.name === "old_docs" || entry.name === "backups") continue; // tooling-owned folders
     checks++;
     if (entry.isDirectory()) {
         if (entry.name.startsWith(".")) continue;

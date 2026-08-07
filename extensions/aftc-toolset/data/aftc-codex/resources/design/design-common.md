@@ -17,6 +17,8 @@ both this file and a domain file.*
 
 - [yqeRDh] Never heavily round buttons or elements - use one shared 1 px border-radius value for all elements (user preference; heavy rounding 'looks bad').
 
+- [ExMlDW] Every user-facing string (menu option, toggle, confirm, warning) must be self-explanatory to a first-time user with zero internal knowledge: state the current value, add a one-line plain description of what changing it does, phrase actions as outcomes for the user, and never use bare internal jargon (seed, live copy, frontmatter, built-in) — if a newcomer could read it and ask "what does this do?", it is not finished.
+
 ## Gotchyas
 
 ## Issues & Solutions

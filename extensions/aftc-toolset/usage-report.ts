@@ -2,22 +2,27 @@
  * pi-aftc-toolset — usage-report feature module.
  *
  * Reads the per-turn SQLite database (populated by usage-recording.ts)
- * and writes a self-contained HTML report to
- * the persistent data dir (report.html; see paths.ts), then opens it in
- * the user's browser.
+ * and serves an interactive HTML report from a small local web server.
  *
- * The report is a single .html file: embedded CSS, embedded JSON,
- * embedded JS. The only external reference is the Chart.js CDN for the
- * graphs; when offline the page degrades gracefully (tables always
- * work). The report is organised into five tabs:
+ * The report UI ships as a seed website (data/usage-report/: index.html,
+ * styles.css, ES-module JS per tab, a bundled Chart.js build, favicon).
+ * /usage-report copies the seed into the persistent data dir
+ * (<dataDir>/usage-report/, version-stamped), writes a fresh data.json
+ * from the DB, and starts the bundled zero-dependency server (server.js)
+ * in its own terminal window — the server opens the browser, prints its
+ * info, and self-terminates when the window closes or after 30 minutes
+ * idle. No internet is needed: Chart.js ships locally. The report is
+ * organised into five tabs:
  *
  *   Overview      — headline stat cards (total cost, prompts, calls,
  *                   cache hit, active days), a daily-spend bar chart
- *                   (last 30 days), a cost-share doughnut, and three
- *                   period summary cards (24h / 7d / 28d). The per-model
- *                   scoreboard only lists models that cost something in
- *                   the window ($0 models never appear) and carries an
- *                   Avg Task Time row (from the tasks table).
+ *                   (last 30 days), a cost-share doughnut with a window
+ *                   selector (24h rolling / 1 Day ... 1 Year / All Time),
+ *                   and three period summary cards (24h / 7d / 28d). The
+ *                   per-model scoreboard only lists models that cost
+ *                   something in the window ($0 models never appear) and
+ *                   carries Avg / Longest / Shortest Task Time rows (from
+ *                   the tasks table, by model × thinking level).
  *   Models        — per-model sortable table with a period selector,
  *                   a cost-by-model bar chart and a Task Time column.
  *   Thinking      — per-model × thinking-level sortable table with a
@@ -52,11 +57,13 @@
  */
 
 import * as fs from "node:fs";
+import * as path from "node:path";
+import { spawn } from "node:child_process";
 import * as aftcConsole from "./ui/aftc-console";
 import { registerHelpEntry } from "./help-registry";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { getDb, isDbAvailable } from "./db";
-import { getDataDir, getReportFile } from "./paths";
+import { getDataDir, getPackageRoot } from "./paths";
 import { showConfirm } from "./ui/aftc-ui";
 
 // ---------------------------------------------------------------------------
@@ -367,7 +374,7 @@ class UsageModule {
         return out;
     }
 
-    private summarizePeriod(rows: ModelRow[], label: string, taskStats: { avgMs: number; count: number }): PeriodSummary {
+    private summarizePeriod(rows: ModelRow[], label: string, taskStats: { avgMs: number; count: number }, taskTimes: Map<string, number>): PeriodSummary {
         const cost = rows.reduce((s, r) => s + r.cost, 0);
         const calls = rows.reduce((s, r) => s + r.turns, 0);
         const prompts = rows.reduce((s, r) => s + r.userPrompts, 0);
@@ -420,6 +427,30 @@ class UsageModule {
             });
         } else {
             naRow("Avg Task Time", NA_NO_TASKS);
+        }
+
+        // Longest / shortest avg task time by model x thinking level
+        // (tasks table, completed tasks only). Row keys are
+        // "model|thinking" (taskTimeByModelThinking format).
+        const taskEntries = Array.from(taskTimes.entries())
+            .filter(([, avgMs]) => avgMs > 0)
+            .sort((a, b) => b[1] - a[1]);
+        if (taskEntries.length > 0) {
+            const pushTaskRow = (rowLabel: string, entry: [string, number]): void => {
+                const sep = entry[0].indexOf("|");
+                const modelName = entry[0].slice(0, sep);
+                const thinkingLevel = entry[0].slice(sep + 1);
+                scoreboard.push({
+                    label: rowLabel,
+                    model: modelName,
+                    value: `${thinkingLevel} · ${fmtMsServer(entry[1])}`,
+                });
+            };
+            pushTaskRow("Longest Avg Task Time", taskEntries[0]);
+            pushTaskRow("Shortest Avg Task Time", taskEntries[taskEntries.length - 1]);
+        } else {
+            naRow("Longest Avg Task Time", NA_NO_TASKS);
+            naRow("Shortest Avg Task Time", NA_NO_TASKS);
         }
 
         // Cache hit rate — all models; best = highest %, worst = lowest %.
@@ -499,6 +530,40 @@ class UsageModule {
              FROM tasks WHERE timestamp >= ? AND stop_reason = 'complete'`,
         ).get(since) as any;
         return { avgMs: num(row.avg_ms), count: num(row.n) };
+    }
+
+    /** Cost-by-model slices for the Overview cost-share chart, one entry
+     *  per selectable window (rolling 24h first, calendar-anchored after,
+     *  matching the footer timeframe semantics; 0 = all time). */
+    private collectShareWindows(db: any, now: number): Array<{ key: string; label: string; models: Array<{ name: string; cost: number }> }> {
+        const d = new Date(now);
+        const startOfDayLocal = (daysBack: number): number =>
+            new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysBack).getTime();
+        const startOfMonthLocal = (monthsBack: number): number =>
+            new Date(d.getFullYear(), d.getMonth() - monthsBack, 1).getTime();
+        const windows = [
+            { key: "24h", label: "Last 24 Hours (rolling)", since: now - DAY_MS },
+            { key: "1d", label: "1 Day", since: startOfDayLocal(0) },
+            { key: "3d", label: "3 Days", since: startOfDayLocal(2) },
+            { key: "5d", label: "5 Days", since: startOfDayLocal(4) },
+            { key: "1w", label: "1 Week", since: startOfDayLocal(6) },
+            { key: "1m", label: "1 Month", since: startOfMonthLocal(0) },
+            { key: "3m", label: "3 Months", since: startOfMonthLocal(2) },
+            { key: "6m", label: "6 Months", since: startOfMonthLocal(5) },
+            { key: "1y", label: "1 Year", since: new Date(d.getFullYear(), 0, 1).getTime() },
+            { key: "all", label: "All Time", since: 0 },
+        ];
+        return windows.map(w => ({
+            key: w.key,
+            label: w.label,
+            models: (db.prepare(
+                `SELECT model_name, COALESCE(SUM(cost_usd), 0) AS cost
+                 FROM turns
+                 WHERE timestamp >= ? AND cost_usd > 0
+                       AND model_name IS NOT NULL AND model_name != ''
+                 GROUP BY model_name ORDER BY cost DESC`,
+            ).all(w.since) as any[]).map(r => ({ name: String(r.model_name), cost: num(r.cost) })),
+        }));
     }
 
     /** Everything the Timings tab needs for one period window. */
@@ -760,11 +825,12 @@ class UsageModule {
             generatedAt: now,
             totals,
             periods: {
-                daily: this.summarizePeriod(dailyModels, "Last 24 hours", dailyTaskStats),
-                weekly: this.summarizePeriod(weeklyModels, "Last 7 days", weeklyTaskStats),
-                monthly: this.summarizePeriod(monthlyModels, "Last 28 days", monthlyTaskStats),
+                daily: this.summarizePeriod(dailyModels, "Last 24 hours", dailyTaskStats, this.taskTimeByModelThinking(db, dailySince)),
+                weekly: this.summarizePeriod(weeklyModels, "Last 7 days", weeklyTaskStats, this.taskTimeByModelThinking(db, weeklySince)),
+                monthly: this.summarizePeriod(monthlyModels, "Last 28 days", monthlyTaskStats, this.taskTimeByModelThinking(db, monthlySince)),
             },
             dailySeries: this.collectDailySeries(db, now),
+            shareWindows: this.collectShareWindows(db, now),
             modelsByPeriod: {
                 daily: dailyModels,
                 weekly: weeklyModels,
@@ -840,12 +906,12 @@ class UsageModule {
     private registerCommands(): void {
         registerHelpEntry({
             command: "usage-report",
-            description: "Open the usage HTML report (ALPHA)",
+            description: "Open the usage report (local server)",
             category: "Usage report",
         });
 
         this.pi.registerCommand("usage-report", {
-            description: "Write a self-contained model usage report (tabs, charts, projections) to the pi-aftc-toolset data folder and open it in your browser",
+            description: "Generate the usage report data, seed the report app into your data folder and start its local server (opens in your browser)",
             handler: async (_a: string, ctx: ExtensionCommandContext) => this.runReport(ctx),
         });
         registerHelpEntry({
@@ -860,977 +926,113 @@ class UsageModule {
         });
     }
 
-    private reportDir(): string { return getDataDir(); }
-
     // -------------------------------------------------------------------
-    // HTML generation
+    // Report app — seed, data.json and the local server
     //
-    // NOTE for maintainers: the client-side JS below lives inside a TS
-    // template literal, so it must NOT use backticks or ${} — string
-    // concatenation only. The only interpolations are ${title} and ${json}.
+    // The report UI ships as a small website (seed: data/usage-report/).
+    // /usage-report copies the seed into the live data dir (version
+    // stamped, refreshed when the shipped version bumps), writes a fresh
+    // data.json from the DB, and starts the bundled zero-dependency
+    // server (server.js) in its own terminal window — the server opens
+    // the browser, shows its info, and self-terminates on idle/close.
     // -------------------------------------------------------------------
 
-    private generateReportHtml(data: any): string {
-        const json = JSON.stringify(data).replace(/<\/script/gi, "<\\/script").replace(/<!--/g, "<\\!--");
-        const title = "PI AFTC Toolset - Model Usage Report";
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${title}</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" defer></script>
-<style>
-  :root {
-    --bg:#0f1115; --panel:#161a22; --panel-2:#1d2230; --border:#2a3142;
-    --text:#e6e9ef; --muted:#8b94a7; --sub-white:#aeb6c6;
-    --accent:#6aa9ff; --good:#5ad19a; --warn:#f3b664; --bad:#ef6b6b;
-    --bar:#4d8df6; --bar-2:#76e0c2;
-    --orange:#fca02f; --orange-dim:#c97e1f;
-  }
-  * { box-sizing:border-box; }
-  html, body { margin:0; padding:0; background:var(--bg); color:var(--text);
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
-  body::before { content:""; display:block; height:3px;
-    background:linear-gradient(90deg, var(--orange), rgba(252,160,47,0) 55%); }
-  main { max-width:1180px; margin:0 auto; padding:26px 20px 64px; }
-  header { margin-bottom:22px; }
-  h1 { font-size:22px; margin:0; display:flex; align-items:center; gap:10px; }
-  .title-mark { width:9px; height:22px; background:var(--orange); border-radius:2px; flex:none; }
-  .brand-sub { color:var(--sub-white); font-size:13px; font-weight:600;
-    letter-spacing:.14em; text-transform:uppercase; margin-top:6px; }
-  .generated { color:var(--orange); font-size:12px; margin-top:3px;
-    font-variant-numeric:tabular-nums; }
-  h2 { font-size:14px; margin:26px 0 10px; }
-  h2 .section-meta { color:var(--muted); font-size:11px; font-weight:400; margin-left:8px; }
-
-  /* Tabs */
-  .tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:18px; }
-  .tabs::after { content:""; flex:1; border-bottom:2px solid var(--border); }
-  .tab { background:none; border:none; color:var(--muted); font:inherit;
-    font-size:13px; font-weight:600; padding:10px 16px; cursor:pointer;
-    border-bottom:2px solid var(--border); white-space:nowrap; }
-  .tab:hover { color:var(--text); }
-  .tab.active { color:var(--orange); border-bottom-color:var(--orange); }
-  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
-  .tab-panel.hidden { display:none; }
-
-  /* Cards */
-  .panel { background:var(--panel); border:1px solid var(--border);
-    border-radius:10px; padding:14px 16px; }
-  .stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:10px; }
-  .stat-label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
-  .stat-value { font-size:20px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
-  .stat-value.money { color:var(--orange); }
-  .stat-sub { color:var(--muted); font-size:12px; margin-top:2px; }
-  .period-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
-  .period-cost { font-size:22px; font-weight:700; color:var(--orange);
-    margin-top:4px; font-variant-numeric:tabular-nums; }
-  .period-score { margin-top:8px; border-top:1px solid var(--border); padding-top:6px; }
-  .period-score-row { display:flex; justify-content:space-between; align-items:baseline;
-    font-size:11px; line-height:1.7; gap:4px; }
-  .period-score-label { color:var(--muted); white-space:nowrap; }
-  .period-score-val { color:var(--text); font-weight:600; text-align:right;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .period-score-val .metric { color:var(--muted); font-weight:400; margin-left:4px; }
-  .na-mark { color:var(--muted); font-style:italic; font-weight:600; }
-  .period-score-val .col-hint { margin-left:6px; vertical-align:0; }
-  .empty { color:var(--muted); font-style:italic; padding:12px 4px; }
-
-  /* Charts */
-  .chart-grid { display:grid; grid-template-columns:1.58fr 1fr; gap:10px; margin-top:10px; }
-  @media(max-width:900px){ .chart-grid { grid-template-columns:1fr; } }
-  /* Grid children must be able to shrink: without min-width:0 the canvas
-     locks wide after a shrink/expand resize and overflows the viewport. */
-  .chart-grid > .panel { min-width:0; }
-  .chart-box { position:relative; height:250px; overflow:hidden; }
-  .chart-box.sm { height:210px; }
-  .panel-title { font-size:13px; font-weight:700; margin-bottom:10px; }
-  .panel-sub { color:var(--muted); font-weight:400; font-size:11px; margin-left:6px; }
-  .chart-fallback { color:var(--muted); font-size:12px; font-style:italic;
-    padding:24px 8px; text-align:center; }
-
-  /* Toolbar + selects */
-  .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center;
-    justify-content:space-between; margin:0 0 10px; }
-  .period-label { color:var(--muted); font-size:12px; display:flex; align-items:center; gap:8px; }
-  select { background:var(--panel-2); color:var(--text);
-    border:1px solid var(--border); border-radius:8px;
-    padding:6px 12px; font-size:13px; font-family:inherit; cursor:pointer; }
-  select:focus { outline:none; border-color:var(--orange); }
-  select option { background:var(--panel-2); color:var(--text); }
-
-  /* Tables */
-  .table-panel { padding:6px 0 8px; }
-  .table-wrap { overflow-x:auto; }
-  table { width:100%; border-collapse:collapse; font-size:13px; min-width:780px; }
-  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
-  th { color:var(--muted); font-size:11px; text-transform:uppercase;
-    letter-spacing:.05em; cursor:pointer; user-select:none; }
-  th .arrow { color:var(--orange); margin-left:4px; opacity:0; font-size:10px; }
-  th:hover .arrow { opacity:.45; }
-  th.sorted .arrow { opacity:1; }
-  .col-hint { display:inline-flex; align-items:center; margin-left:5px;
-    color:var(--muted); vertical-align:-1px; cursor:help; }
-  .col-hint:hover { color:var(--orange); }
-  .col-tip { position:fixed; z-index:50; max-width:250px; background:var(--panel-2);
-    border:1px solid var(--border); border-radius:8px; padding:8px 11px;
-    font-size:12px; line-height:1.45; color:var(--text);
-    box-shadow:0 8px 24px rgba(0,0,0,.5); pointer-events:none;
-    opacity:0; transition:opacity .12s ease; }
-  .col-tip.show { opacity:1; }
-  tbody tr:last-child td { border-bottom:none; }
-  tbody tr:hover { background:var(--panel-2); }
-  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
-  .bar-cell { display:flex; align-items:center; gap:8px; min-width:150px; }
-  .bar-track { flex:1; height:6px; background:var(--panel-2); border-radius:3px; overflow:hidden; min-width:56px; }
-  .bar-fill { height:100%; border-radius:3px;
-    background:linear-gradient(90deg, var(--orange-dim), var(--orange)); }
-
-  /* Pills */
-  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:700; }
-  .pill.good { background:rgba(90,209,154,.14); color:var(--good); }
-  .pill.warn { background:rgba(243,182,100,.14); color:var(--warn); }
-  .pill.bad { background:rgba(239,107,107,.14); color:var(--bad); }
-  .lvl { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11px; font-weight:600;
-    background:var(--panel-2); color:var(--muted); border:1px solid var(--border); }
-  .lvl.high { background:rgba(106,169,255,.14); color:var(--accent); border-color:transparent; }
-  .lvl.medium { background:rgba(243,182,100,.14); color:var(--warn); border-color:transparent; }
-  .lvl.low { background:rgba(90,209,154,.14); color:var(--good); border-color:transparent; }
-  .est { color:var(--warn); cursor:help; font-weight:700; margin-left:3px; }
-
-  /* Timings */
-  .duo-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
-  @media(max-width:900px){ .duo-grid { grid-template-columns:1fr; } }
-  .duo-grid > .panel { min-width:0; }
-  .split-bar { display:flex; height:18px; border-radius:9px; overflow:hidden;
-    background:var(--panel-2); margin:12px 0 10px; }
-  .split-seg { height:100%; }
-  .split-legend { display:flex; flex-wrap:wrap; gap:4px 18px; font-size:12px; color:var(--muted); }
-  .split-legend .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
-  .split-legend b { color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; }
-  .mini-table { min-width:0; }
-  .mini-table th { cursor:default; }
-
-  .note { color:var(--muted); font-size:12px; line-height:1.55; margin:10px 0; }
-  .note.estimate { color:var(--warn); }
-  footer { color:var(--muted); font-size:11px; margin:34px 0 18px; text-align:center; line-height:1.7; }
-</style>
-</head>
-<body>
-<main>
-  <header>
-    <h1><span class="title-mark"></span>${title}</h1>
-    <div class="brand-sub">All For The Code</div>
-    <div class="generated" id="generated-at"></div>
-  </header>
-
-  <nav class="tabs" role="tablist" aria-label="Report sections">
-    <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
-    <button class="tab" data-tab="models" role="tab" aria-selected="false">Models</button>
-    <button class="tab" data-tab="thinking" role="tab" aria-selected="false">Thinking levels</button>
-    <button class="tab" data-tab="timings" role="tab" aria-selected="false">Timings</button>
-    <button class="tab" data-tab="projections" role="tab" aria-selected="false">Projections</button>
-  </nav>
-
-  <!-- ======================= OVERVIEW ======================= -->
-  <section class="tab-panel" id="panel-overview" role="tabpanel">
-    <div class="stat-grid" id="stat-grid"></div>
-    <p class="note" style="margin:6px 2px 0">Cost averages are based on paid turns only — free / $0 (subscription)
-    models still count toward prompt, cache and timing figures.</p>
-
-    <div class="chart-grid">
-      <div class="panel">
-        <div class="panel-title">Daily spend <span class="panel-sub">last 30 days</span></div>
-        <div class="chart-box"><canvas id="chart-daily"></canvas></div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">Cost share by model <span class="panel-sub">all time</span></div>
-        <div class="chart-box"><canvas id="chart-share"></canvas></div>
-      </div>
-    </div>
-
-    <h2>Period summary</h2>
-    <div class="period-grid" id="period-grid"></div>
-  </section>
-
-  <!-- ======================= MODELS ======================= -->
-  <section class="tab-panel hidden" id="panel-models" role="tabpanel">
-    <div class="toolbar">
-      <div class="panel-title" style="margin:0">Per-model cost report</div>
-      <label class="period-label">Period
-        <select id="models-period">
-          <option value="daily">Last 24 hours</option>
-          <option value="weekly">Last 7 days</option>
-          <option value="monthly">Last 28 days</option>
-          <option value="all" selected>All time</option>
-        </select>
-      </label>
-    </div>
-    <div class="panel" style="margin-bottom:10px">
-      <div class="panel-title">Cost by model <span class="panel-sub" id="models-chart-sub">all time</span></div>
-      <div class="chart-box sm"><canvas id="chart-models"></canvas></div>
-    </div>
-    <div class="panel table-panel">
-      <div class="table-wrap">
-        <table id="models-table"></table>
-      </div>
-      <div id="models-empty" class="empty" hidden>No data for this period.</div>
-    </div>
-  </section>
-
-  <!-- ======================= THINKING ======================= -->
-  <section class="tab-panel hidden" id="panel-thinking" role="tabpanel">
-    <div class="toolbar">
-      <div class="panel-title" style="margin:0">Per-model × thinking level</div>
-      <label class="period-label">Period
-        <select id="thinking-period">
-          <option value="daily">Last 24 hours</option>
-          <option value="weekly">Last 7 days</option>
-          <option value="monthly">Last 28 days</option>
-          <option value="all" selected>All time</option>
-        </select>
-      </label>
-    </div>
-    <div class="panel table-panel">
-      <div class="table-wrap">
-        <table id="thinking-table"></table>
-      </div>
-      <div id="thinking-empty" class="empty" hidden>No data for this period.</div>
-    </div>
-  </section>
-
-  <!-- ======================= TIMINGS ======================= -->
-  <section class="tab-panel hidden" id="panel-timings" role="tabpanel">
-    <div class="toolbar">
-      <div class="panel-title" style="margin:0">Task Time &amp; turn timings</div>
-      <label class="period-label">Period
-        <select id="timings-period">
-          <option value="daily">Last 24 hours</option>
-          <option value="weekly">Last 7 days</option>
-          <option value="monthly">Last 28 days</option>
-          <option value="all" selected>All time</option>
-        </select>
-      </label>
-    </div>
-    <div class="stat-grid" id="timings-cards"></div>
-
-    <div class="chart-grid">
-      <div class="panel">
-        <div class="panel-title">Avg Task Time by model <span class="panel-sub" id="task-model-sub">all time</span></div>
-        <div class="chart-box sm"><canvas id="chart-task-model"></canvas></div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">Daily Avg Task Time <span class="panel-sub">last 30 days · completed tasks</span></div>
-        <div class="chart-box sm"><canvas id="chart-task-daily"></canvas></div>
-      </div>
-    </div>
-
-    <div class="duo-grid">
-      <div class="panel">
-        <div class="panel-title">Where the task time goes <span class="panel-sub">completed tasks</span></div>
-        <div id="time-split"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-title">User-prompt vs AI turns <span class="panel-sub">per-turn timings</span></div>
-        <div class="table-wrap"><table class="mini-table" id="turn-split"></table></div>
-      </div>
-    </div>
-
-    <h2>Longest tasks <span class="section-meta">top 10 completed tasks in the selected period</span></h2>
-    <div class="panel table-panel">
-      <div class="table-wrap">
-        <table id="longest-table"></table>
-      </div>
-      <div id="longest-empty" class="empty" hidden>No completed tasks in this period.</div>
-    </div>
-
-    <p class="note"><b>Task Time</b> is the wall-clock time from when you press enter to when the AI fully
-    returns control &mdash; one prompt's complete agent run, across all its tool-call turns (questions, steering,
-    retries and compaction included). Averages and the longest-task list cover <b>completed</b> tasks only;
-    failed runs (error / abort) are counted in the cards above but never averaged into Task Time. Think and
-    response times come from the per-turn table.</p>
-  </section>
-
-  <!-- ======================= PROJECTIONS ======================= -->
-  <section class="tab-panel hidden" id="panel-projections" role="tabpanel">
-    <div class="stat-grid" id="proj-cards"></div>
-    <p class="note" id="proj-note"></p>
-    <div class="panel table-panel">
-      <div class="table-wrap">
-        <table id="proj-table"></table>
-      </div>
-      <div id="proj-empty" class="empty" hidden>No data recorded yet.</div>
-    </div>
-    <p class="note">Per-model figures assume each future day looks like your average <b>active day</b>
-    with that model (spend ÷ active days). The overall burn rate divides all-time spend by every
-    calendar day since recording began, including idle days. Rows marked <span class="est">~</span>
-    are estimates from fewer than 7 active days. Models with zero total cost are excluded.</p>
-  </section>
-
-  <footer>Generated by pi-aftc-toolset &middot; /usage-report &middot; All For The Code<br>Author Darcey.Lloyd@gmail.com</footer>
-</main>
-<script type="application/json" id="report-data">${json}</script>
-<script type="module">
-  var data = JSON.parse(document.getElementById("report-data").textContent || "{}");
-
-  // ---------- formatters ----------
-  function fmtMoney(v){ v=Number(v)||0; var a=Math.abs(v); if(a===0) return "$0.00";
-    var s; if(a<1) s=v.toFixed(4); else if(a<1000) s=v.toFixed(2);
-    else s=String(Math.round(v));
-    var parts=s.split("."); parts[0]=parts[0].replace(/\B(?=(\d{3})+(?!\d))/g,",");
-    return "$"+parts.join("."); }
-  function fmtInt(v){ return (Number(v)||0).toLocaleString("en-US"); }
-  function fmtTok(v){ v = Number(v)||0; if (v>=1e9) return (v/1e9).toFixed(1)+"B"; if (v>=1e6) return (v/1e6).toFixed(1)+"M"; if (v>=1e3) return (v/1e3).toFixed(1)+"K"; return String(Math.round(v)); }
-  function fmtPct(v){ return ((Number(v)||0)*100).toFixed(1)+"%"; }
-  function fmtMs(ms){ ms=Number(ms)||0; if(ms<=0) return "0s";
-    var t=Math.round(ms/1000),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60,p=[];
-    if(h>0) p.push(h+"h"); if(m>0) p.push(m+"m"); if(s>0||p.length===0) p.push(s+"s");
-    return p.join(" "); }
-  function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
-  function cachePill(rate){ var p=(Number(rate)||0)*100; var cls = p>=60?"good":p>=30?"warn":"bad"; return '<span class="pill '+cls+'">'+p.toFixed(1)+"%</span>"; }
-  function thinkingPill(level){
-    var l = String(level||"").toLowerCase(); var cls = "";
-    if (l==="high"||l==="xhigh") cls = " high";
-    else if (l==="medium"||l==="med") cls = " medium";
-    else if (l==="low"||l==="off"||l==="minimal") cls = " low";
-    return '<span class="lvl'+cls+'">'+esc(level)+'</span>';
-  }
-
-  // ---------- column info hints ----------
-  var INFO_SVG = '<svg class="info-i" viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">'
-    + '<circle cx="8" cy="8" r="6.8" fill="none" stroke="currentColor" stroke-width="1.4"/>'
-    + '<circle cx="8" cy="5" r="1.1" fill="currentColor"/>'
-    + '<rect x="7.1" y="7.2" width="1.8" height="4.6" rx="0.9" fill="currentColor"/></svg>';
-  var HINT_AI_PER_USER = "Average number of AI (self-prompted) turns per user prompt - how many tool-call loops the model runs for each prompt you type. Lower is more efficient.";
-  var HINT_AVG_PUP = "Average cost per user prompt: total cost ÷ user prompts on paid turns. Free / $0 (subscription) turns are excluded so they don't drag the average down.";
-  var HINT_AVG_CACHE = "Average cache hit rate per turn: cached tokens ÷ (cached + new input tokens). Higher means cheaper, faster repeat context.";
-  var HINT_TASK_TIME = "Task Time: This is how long the AI took to fully handle a prompt and return control.";
-  // (N/A tooltip reasons come from the data — each na row carries its own.)
-  var colTip = null;
-  function showColTip(anchor, text){
-    if (!colTip){ colTip = document.createElement("div"); colTip.className = "col-tip"; document.body.appendChild(colTip); }
-    colTip.textContent = text;
-    colTip.style.visibility = "hidden";
-    colTip.classList.add("show");
-    var r = anchor.getBoundingClientRect();
-    var tw = colTip.offsetWidth, th = colTip.offsetHeight;
-    var x = Math.min(Math.max(8, r.left + r.width/2 - tw/2), window.innerWidth - tw - 8);
-    var y = r.bottom + 8;
-    if (y + th > window.innerHeight - 8) y = Math.max(8, r.top - th - 8);
-    colTip.style.left = x+"px"; colTip.style.top = y+"px";
-    colTip.style.visibility = "";
-  }
-  function hideColTip(){ if (colTip) colTip.classList.remove("show"); }
-  function bindHints(scope){
-    scope.querySelectorAll(".col-hint").forEach(function(el){
-      el.addEventListener("mouseenter", function(){ showColTip(el, el.dataset.tip || ""); });
-      el.addEventListener("mouseleave", hideColTip);
-      el.addEventListener("click", function(e){ e.stopPropagation(); showColTip(el, el.dataset.tip || ""); });
-    });
-  }
-
-  // ---------- header ----------
-  (function(){
-    var d = new Date(data.generatedAt || Date.now());
-    function p(n){ return String(n).padStart(2,"0"); }
-    document.getElementById("generated-at").textContent =
-      "Generated on: " + String(d.getFullYear()).slice(2) + p(d.getMonth()+1) + p(d.getDate()) + " - " + p(d.getHours()) + ":" + p(d.getMinutes());
-  })();
-
-  // ---------- tabs ----------
-  var TAB_IDS = ["overview","models","thinking","timings","projections"];
-  function activateTab(id){
-    document.querySelectorAll(".tab").forEach(function(b){
-      var on = b.dataset.tab === id;
-      b.classList.toggle("active", on);
-      b.setAttribute("aria-selected", on ? "true" : "false");
-    });
-    document.querySelectorAll(".tab-panel").forEach(function(p){
-      p.classList.toggle("hidden", p.id !== "panel-"+id);
-    });
-    if (history.replaceState) history.replaceState(null, "", "#"+id);
-    if (id === "models") ensureModelsChart();
-    if (id === "timings") ensureTimingsCharts();
-  }
-  document.querySelectorAll(".tab").forEach(function(b){
-    b.addEventListener("click", function(){ activateTab(b.dataset.tab); });
-  });
-  var initialTab = (location.hash || "").replace("#","");
-  if (TAB_IDS.indexOf(initialTab) < 0) initialTab = "overview";
-
-  // ---------- stat cards ----------
-  function statCard(label, valueHtml, sub, money){
-    return '<div class="panel stat"><div class="stat-label">'+esc(label)+'</div>'
-      + '<div class="stat-value'+(money ? " money" : "")+'">'+valueHtml+'</div>'
-      + (sub ? '<div class="stat-sub">'+esc(sub)+'</div>' : '') + '</div>';
-  }
-  function renderOverview(){
-    var t = data.totals || {};
-    var since = t.firstTurnMs
-      ? new Date(t.firstTurnMs).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" })
-      : "";
-    var html = "";
-    html += statCard("Total cost", fmtMoney(t.totalCost), "avg "+fmtMoney(t.avgDailySpend)+" / day", true);
-    html += statCard("User prompts", fmtInt(t.userPromptCount), fmtInt(t.basePromptCount)+" tasks · "+fmtInt(t.subPromptCount)+" follow-ups");
-    html += statCard("AI prompts", fmtInt(t.automatedTurnCount), "self-prompting · "+((Number(t.automatedTurnCount)||0)/Math.max(1, Number(t.userPromptCount)||0)).toFixed(1)+" per user prompt");
-    html += statCard("Avg cost / user prompt", fmtMoney(t.avgCostPerUserPrompt), fmtMoney(t.avgCostPerTurn)+" per turn (user + AI)");
-    html += statCard("Avg cache hit", fmtPct(t.avgCacheRate), fmtTok(t.totalCacheRead)+" cache-read tokens");
-    html += statCard("Active days", fmtInt(t.activeDays), since ? "recording since "+since : "");
-    document.getElementById("stat-grid").innerHTML = html;
-
-    var ph = "";
-    ["daily","weekly","monthly"].forEach(function(key){
-      var p = (data.periods || {})[key] || {};
-      var scoreHtml = "";
-      if (p.scoreboard && p.scoreboard.length) {
-        scoreHtml = '<div class="period-score">';
-        p.scoreboard.forEach(function(e){
-          var valHtml = e.na
-            ? '<span class="na-mark">N/A</span><span class="col-hint" data-tip="' + esc(e.na) + '">' + INFO_SVG + '</span>'
-            : esc(e.model) + (e.value ? '<span class="metric">' + esc(e.value) + '</span>' : '');
-          scoreHtml += '<div class="period-score-row">'
-            + '<span class="period-score-label">' + esc(e.label) + '</span>'
-            + '<span class="period-score-val">' + valHtml + '</span></div>';
-        });
-        scoreHtml += '</div>';
-      }
-      ph += '<div class="panel period-card"><div class="stat-label">'+esc(p.label || key)+'</div>'
-        + '<div class="period-cost">'+fmtMoney(p.cost)+'</div>'
-        + '<div class="stat-sub">Prompts: User '+fmtInt(p.prompts)+' / AI '+fmtInt(p.aiPrompts)+'</div>'
-        + scoreHtml + '</div>';
-    });
-    document.getElementById("period-grid").innerHTML = ph;
-    bindHints(document.getElementById("period-grid"));
-  }
-
-  // ---------- charts ----------
-  var PALETTE = ["#fca02f","#4d8df6","#4ade80","#b388ff","#ef6b6b","#22d3ee","#facc15","#ff8fab","#2dd4bf","#94a3b8"];
-  var chartsOk = typeof window.Chart !== "undefined";
-  if (chartsOk){
-    Chart.defaults.color = "#8b94a7";
-    Chart.defaults.borderColor = "rgba(139,148,167,.12)";
-    Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
-  }
-  function chartFallback(canvasId, msg){
-    var c = document.getElementById(canvasId);
-    if (!c) return;
-    var d = document.createElement("div");
-    d.className = "chart-fallback";
-    d.textContent = msg || "Charts need network access to load Chart.js from the CDN — all tables and cards still work.";
-    c.parentNode.replaceChild(d, c);
-  }
-  var tooltipBase = { backgroundColor:"#1d2230", borderColor:"#2a3142", borderWidth:1, titleColor:"#e6e9ef", bodyColor:"#8b94a7", padding:10, displayColors:false };
-
-  function renderDailyChart(){
-    if (!chartsOk){ chartFallback("chart-daily"); return; }
-    var series = data.dailySeries || [];
-    var canvas = document.getElementById("chart-daily");
-    if (!canvas) return;
-    var lastIdx = series.length - 1;
-    new Chart(canvas, {
-      type: "bar",
-      data: {
-        labels: series.map(function(p){ return p.label; }),
-        datasets: [{
-          data: series.map(function(p){ return Number(p.cost)||0; }),
-          backgroundColor: series.map(function(_,i){ return i === lastIdx ? "#fca02f" : "#4d8df6"; }),
-          borderRadius: 3,
-          maxBarThickness: 22,
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: Object.assign({}, tooltipBase, {
-            callbacks: {
-              label: function(item){
-                var p = series[item.dataIndex] || {};
-                return ["Cost: "+fmtMoney(p.cost), "User prompts: "+fmtInt(p.prompts), "AI prompts: "+fmtInt(Math.max(0,(p.calls||0)-(p.prompts||0)))];
-              },
-            },
-          }),
-        },
-        scales: {
-          x: { grid:{ display:false }, ticks:{ maxTicksLimit:10, maxRotation:0 } },
-          y: { beginAtZero:true, ticks:{ maxTicksLimit:6, callback:function(v){ return fmtMoney(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
-        },
-      },
-    });
-  }
-
-  function renderShareChart(){
-    if (!chartsOk){ chartFallback("chart-share"); return; }
-    var canvas = document.getElementById("chart-share");
-    if (!canvas) return;
-    var rows = ((data.modelsByPeriod || {}).all || []).slice().sort(function(a,b){ return b.cost - a.cost; });
-    if (!rows.length){ chartFallback("chart-share", "No data recorded yet."); return; }
-    var top = rows.slice(0, 7);
-    var rest = rows.slice(7);
-    var pairs = top.map(function(r){ return { label: r.modelName, cost: Number(r.cost) || 0 }; });
-    if (rest.length){
-      pairs.push({ label: "Other", cost: rest.reduce(function(s,r){ return s + (Number(r.cost) || 0); }, 0) });
+    /** Shipped report app (pristine seed, never edited). */
+    private reportSeedDir(): string {
+        return path.join(getPackageRoot(), "extensions", "aftc-toolset", "data", "usage-report");
     }
-    // Drop slices that would format as 0.0% — invisible on the pie, legend clutter.
-    var totalAll = pairs.reduce(function(s,p){ return s + p.cost; }, 0);
-    if (totalAll > 0) pairs = pairs.filter(function(p){ return (p.cost / totalAll * 100) >= 0.05; });
-    if (!pairs.length){ chartFallback("chart-share", "No cost data recorded yet."); return; }
-    var labels = pairs.map(function(p){ return p.label; });
-    var costs = pairs.map(function(p){ return p.cost; });
-    var total = costs.reduce(function(s,v){ return s+v; }, 0);
-    var centerTotal = {
-      id: "centerTotal",
-      afterDraw: function(chart){
-        var meta = chart.getDatasetMeta(0);
-        if (!meta.data[0]) return;
-        var x = meta.data[0].x, y = meta.data[0].y;
-        var c = chart.ctx;
-        c.save();
-        c.textAlign = "center"; c.textBaseline = "middle";
-        c.fillStyle = "#e6e9ef";
-        c.font = "700 16px " + Chart.defaults.font.family;
-        c.fillText(fmtMoney(total), x, y - 8);
-        c.fillStyle = "#8b94a7";
-        c.font = "11px " + Chart.defaults.font.family;
-        c.fillText("total", x, y + 10);
-        c.restore();
-      },
-    };
-    new Chart(canvas, {
-      type: "doughnut",
-      data: { labels: labels, datasets: [{ data: costs, backgroundColor: PALETTE, borderColor: "#161a22", borderWidth: 2 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: "62%",
-        plugins: {
-          legend: { position: window.innerWidth >= 860 ? "right" : "bottom",
-            labels: { color:"#e6e9ef", boxWidth:10, boxHeight:10, padding:10, usePointStyle:true,
-              generateLabels: function(chart){
-                var ds = chart.data.datasets[0];
-                return chart.data.labels.map(function(lbl, i){
-                  var v = Number(ds.data[i])||0;
-                  var pct = total>0 ? (v/total*100).toFixed(1) : "0.0";
-                  // fontColor is read off the item with NO global fallback —
-                  // omit it and the legend text renders black (canvas default).
-                  return { text: lbl+" ("+pct+"%)", fillStyle: ds.backgroundColor[i],
-                    strokeStyle: ds.backgroundColor[i], pointStyle: "circle",
-                    fontColor: "#e6e9ef", color: "#e6e9ef",
-                    hidden: !chart.getDataVisibility(i), index: i };
-                });
-              } } },
-          tooltip: Object.assign({}, tooltipBase, {
-            displayColors: true,
-            callbacks: { label: function(item){
-              var v = Number(item.parsed)||0;
-              return " "+fmtMoney(v)+" ("+(total>0 ? (v/total*100).toFixed(1) : "0")+"%)";
-            } },
-          }),
-        },
-      },
-      plugins: [centerTotal],
-    });
-  }
 
-  var modelsChart = null;
-  function ensureModelsChart(){
-    var canvas = document.getElementById("chart-models");
-    if (!canvas) return;
-    if (!chartsOk){ chartFallback("chart-models"); return; }
-    var rows = ((data.modelsByPeriod || {})[modelsPeriod] || []).slice()
-      .sort(function(a,b){ return b.cost - a.cost; }).slice(0, 8);
-    var labels = rows.map(function(r){ return r.modelName; });
-    var costs = rows.map(function(r){ return r.cost; });
-    if (!modelsChart){
-      modelsChart = new Chart(canvas, {
-        type: "bar",
-        data: { labels: labels, datasets: [{ data: costs, backgroundColor: "#fca02f", borderRadius: 3, maxBarThickness: 18 }] },
-        options: {
-          indexAxis: "y", responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: Object.assign({}, tooltipBase, {
-              callbacks: { label: function(item){ return " "+fmtMoney(item.parsed.x); } },
-            }),
-          },
-          scales: {
-            x: { beginAtZero:true, ticks:{ callback:function(v){ return fmtMoney(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
-            y: { grid:{ display:false } },
-          },
-        },
-      });
-    } else {
-      modelsChart.data.labels = labels;
-      modelsChart.data.datasets[0].data = costs;
-      modelsChart.update();
+    /** Live report app: <dataDir>/usage-report. */
+    private reportLiveDir(): string {
+        return path.join(getDataDir(), "usage-report");
     }
-  }
 
-  // ---------- sortable table factory ----------
-  function makeTable(opts){
-    var state = { key: opts.defaultKey, dir: opts.defaultDir || "desc" };
-    var table = document.getElementById(opts.tableId);
-    table.innerHTML = "";
-    var thead = document.createElement("thead");
-    var htr = document.createElement("tr");
-    opts.cols.forEach(function(c){
-      var th = document.createElement("th");
-      if (c.num) th.className = "num";
-      th.dataset.key = c.key;
-      th.innerHTML = esc(c.label)
-        + (c.hint ? '<span class="col-hint" data-tip="'+esc(c.hint)+'">'+INFO_SVG+'</span>' : '')
-        + '<span class="arrow">↓</span>';
-      htr.appendChild(th);
-    });
-    thead.appendChild(htr);
-    table.appendChild(thead);
-    var tbody = document.createElement("tbody");
-    table.appendChild(tbody);
-    bindHints(table);
-
-    function updateHead(){
-      table.querySelectorAll("thead th").forEach(function(th){
-        var on = th.dataset.key === state.key;
-        th.classList.toggle("sorted", on);
-        var a = th.querySelector(".arrow");
-        if (a) a.textContent = on ? (state.dir === "asc" ? "↑" : "↓") : "↓";
-      });
-    }
-    function render(){
-      var rows = (opts.getRows() || []).slice();
-      var empty = document.getElementById(opts.emptyId);
-      if (!rows.length){ tbody.innerHTML = ""; empty.hidden = false; updateHead(); return; }
-      empty.hidden = true;
-      rows.sort(function(a,b){
-        var av = a[state.key], bv = b[state.key];
-        var d = state.dir === "asc" ? 1 : -1;
-        if (typeof av === "string") return String(av).localeCompare(String(bv)) * d;
-        return ((Number(av)||0) - (Number(bv)||0)) * d;
-      });
-      var html = "";
-      rows.forEach(function(r){
-        html += "<tr>";
-        opts.cols.forEach(function(c){
-          html += '<td class="'+(c.num ? "num" : "")+'">'+(c.render ? c.render(r) : esc(r[c.key]))+"</td>";
-        });
-        html += "</tr>";
-      });
-      tbody.innerHTML = html;
-      updateHead();
-    }
-    table.querySelectorAll("thead th").forEach(function(th){
-      th.addEventListener("click", function(){
-        var k = th.dataset.key;
-        if (state.key === k) state.dir = state.dir === "asc" ? "desc" : "asc";
-        else { state.key = k; state.dir = th.classList.contains("num") ? "desc" : "asc"; }
-        render();
-      });
-    });
-    return { render: render };
-  }
-
-  // ---------- models table ----------
-  var modelsPeriod = "all";
-  var modelsMaxCost = 1;
-  var modelsTable = makeTable({
-    tableId: "models-table",
-    emptyId: "models-empty",
-    defaultKey: "cost",
-    getRows: function(){
-      var rows = (data.modelsByPeriod || {})[modelsPeriod] || [];
-      modelsMaxCost = Math.max(1e-9, rows.reduce(function(s,r){ return Math.max(s, r.cost); }, 0));
-      return rows;
-    },
-    cols: [
-      { key:"modelName", label:"Model" },
-      { key:"cost", label:"Cost", num:true, render:function(r){
-          var pct = Math.max(r.cost > 0 ? 2 : 0, Math.min(100, r.cost / modelsMaxCost * 100));
-          return '<div class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:'+pct.toFixed(1)+'%"></div></div><span>'+fmtMoney(r.cost)+'</span></div>';
-      } },
-      { key:"userPrompts", label:"User prompts", num:true, render:function(r){ return fmtInt(r.userPrompts); } },
-      { key:"aiPrompts", label:"AI prompts", num:true, render:function(r){ return fmtInt(r.aiPrompts); } },
-      { key:"aiPerUserPrompt", label:"AI / user", num:true, hint:HINT_AI_PER_USER, render:function(r){ return (Number(r.aiPerUserPrompt)||0).toFixed(1); } },
-      { key:"avgCostPerUserPrompt", label:"Avg $/Pup", num:true, hint:HINT_AVG_PUP, render:function(r){ return fmtMoney(r.avgCostPerUserPrompt); } },
-      { key:"avgCacheRate", label:"Avg cache", num:true, hint:HINT_AVG_CACHE, render:function(r){ return cachePill(r.avgCacheRate); } },
-      { key:"avgResponseMs", label:"Avg response", num:true, render:function(r){ return fmtMs(r.avgResponseMs); } },
-      { key:"avgTaskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.avgTaskMs); } },
-    ],
-  });
-  document.getElementById("models-period").addEventListener("change", function(e){
-    modelsPeriod = e.target.value;
-    document.getElementById("models-chart-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase();
-    modelsTable.render();
-    ensureModelsChart();
-  });
-
-  // ---------- thinking table ----------
-  var thinkingPeriod = "all";
-  var thinkingTable = makeTable({
-    tableId: "thinking-table",
-    emptyId: "thinking-empty",
-    defaultKey: "cost",
-    getRows: function(){ return (data.modelThinkingByPeriod || {})[thinkingPeriod] || []; },
-    cols: [
-      { key:"modelName", label:"Model" },
-      { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
-      { key:"cost", label:"Cost", num:true, render:function(r){ return fmtMoney(r.cost); } },
-      { key:"userPrompts", label:"User prompts", num:true, render:function(r){ return fmtInt(r.userPrompts); } },
-      { key:"aiPrompts", label:"AI prompts", num:true, render:function(r){ return fmtInt(r.aiPrompts); } },
-      { key:"avgCostPerUserPrompt", label:"Avg $/Pup", num:true, hint:HINT_AVG_PUP, render:function(r){ return fmtMoney(r.avgCostPerUserPrompt); } },
-      { key:"avgCacheRate", label:"Avg cache", num:true, hint:HINT_AVG_CACHE, render:function(r){ return cachePill(r.avgCacheRate); } },
-      { key:"avgThinkingMs", label:"Avg think", num:true, render:function(r){ return fmtMs(r.avgThinkingMs); } },
-      { key:"avgResponseMs", label:"Avg response", num:true, render:function(r){ return fmtMs(r.avgResponseMs); } },
-      { key:"avgTaskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.avgTaskMs); } },
-    ],
-  });
-  document.getElementById("thinking-period").addEventListener("change", function(e){
-    thinkingPeriod = e.target.value;
-    thinkingTable.render();
-  });
-
-  // ---------- timings ----------
-  var timingsPeriod = "all";
-  function timingsWin(){ return (data.timings || {})[timingsPeriod] || {}; }
-  var MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  function fmtWhen(ts){
-    var d = new Date(Number(ts)||0);
-    function p(n){ return String(n).padStart(2,"0"); }
-    return d.getDate() + " " + MONTHS_SHORT[d.getMonth()] + ", " + p(d.getHours()) + ":" + p(d.getMinutes());
-  }
-  function renderTimingsCards(){
-    var w = timingsWin();
-    var html = "";
-    html += statCard("Avg Task Time", fmtMs(w.avgTaskMs), "over " + fmtInt(w.completed) + " completed tasks");
-    html += statCard("Longest task", fmtMs(w.maxTaskMs), w.maxTaskModel || "no completed tasks");
-    html += statCard("Avg turns / task", (Number(w.avgTurnsPerTask)||0).toFixed(1), "per completed task");
-    html += statCard("Errors & aborts", fmtInt((Number(w.errors)||0) + (Number(w.aborted)||0)),
-      fmtInt(w.errors) + " errors · " + fmtInt(w.aborted) + " aborts - counted, never averaged");
-    document.getElementById("timings-cards").innerHTML = html;
-  }
-  function renderTimeSplit(){
-    var w = timingsWin();
-    var el = document.getElementById("time-split");
-    var totalTask = Number(w.totalTaskMs)||0, think = Number(w.totalThinkMs)||0, resp = Number(w.totalRespMs)||0;
-    if (totalTask <= 0){ el.innerHTML = '<div class="empty">No completed tasks in this period.</div>'; return; }
-    var overhead = Math.max(0, totalTask - think - resp);
-    function seg(ms, color, label){
-      var pct = ms / totalTask * 100;
-      return {
-        bar: '<div class="split-seg" style="flex:' + (ms / totalTask) + ' 1 0%;background:' + color + '"></div>',
-        legend: '<span><span class="dot" style="background:' + color + '"></span>' + label
-          + ' <b>' + fmtMs(ms) + '</b> (' + pct.toFixed(1) + '%)</span>',
-      };
-    }
-    var s1 = seg(think, "#b388ff", "Thinking");
-    var s2 = seg(resp, "#4d8df6", "Responding");
-    var s3 = seg(overhead, "#fca02f", "Tools & overhead");
-    el.innerHTML = '<div class="split-bar">' + s1.bar + s2.bar + s3.bar + '</div>'
-      + '<div class="split-legend">' + s1.legend + s2.legend + s3.legend + '</div>';
-  }
-  function renderTurnSplit(){
-    var w = timingsWin();
-    var rows = [
-      ["User-prompt turns", Number(w.userTurns)||0, Number(w.userAvgThinkMs)||0, Number(w.userAvgRespMs)||0],
-      ["AI (auto) turns", Number(w.aiTurns)||0, Number(w.aiAvgThinkMs)||0, Number(w.aiAvgRespMs)||0],
-    ];
-    var html = "<thead><tr><th>Turn kind</th><th class='num'>Turns</th><th class='num'>Avg think</th>"
-      + "<th class='num'>Avg respond</th><th class='num'>Avg total</th></tr></thead><tbody>";
-    rows.forEach(function(r){
-      html += "<tr><td>" + esc(r[0]) + "</td><td class='num'>" + fmtInt(r[1]) + "</td><td class='num'>" + fmtMs(r[2])
-        + "</td><td class='num'>" + fmtMs(r[3]) + "</td><td class='num'>" + fmtMs(r[2] + r[3]) + "</td></tr>";
-    });
-    document.getElementById("turn-split").innerHTML = html + "</tbody>";
-  }
-  var longestTable = makeTable({
-    tableId: "longest-table",
-    emptyId: "longest-empty",
-    defaultKey: "taskMs",
-    getRows: function(){ return timingsWin().longest || []; },
-    cols: [
-      { key:"timestamp", label:"When", render:function(r){ return fmtWhen(r.timestamp); } },
-      { key:"modelName", label:"Model" },
-      { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
-      { key:"turnCount", label:"Turns", num:true, render:function(r){ return fmtInt(r.turnCount); } },
-      { key:"taskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.taskMs); } },
-    ],
-  });
-  var taskModelChart = null;
-  var taskModelRows = [];
-  var taskDailyChartDone = false;
-  function ensureTimingsCharts(){
-    var canvas = document.getElementById("chart-task-model");
-    if (canvas){
-      if (!chartsOk){ chartFallback("chart-task-model"); }
-      else {
-        taskModelRows = (timingsWin().taskByModel || []).slice()
-          .sort(function(a,b){ return b.avgTaskMs - a.avgTaskMs; }).slice(0, 8);
-        var labels = taskModelRows.map(function(r){ return r.modelName; });
-        var vals = taskModelRows.map(function(r){ return r.avgTaskMs; });
-        if (!taskModelChart){
-          taskModelChart = new Chart(canvas, {
-            type: "bar",
-            data: { labels: labels, datasets: [{ data: vals, backgroundColor: "#fca02f", borderRadius: 3, maxBarThickness: 18 }] },
-            options: {
-              indexAxis: "y", responsive: true, maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                tooltip: Object.assign({}, tooltipBase, {
-                  callbacks: { label: function(item){
-                    var r = taskModelRows[item.dataIndex] || {};
-                    return " " + fmtMs(item.parsed.x) + " avg · " + fmtInt(r.tasks) + " task" + ((Number(r.tasks)||0) === 1 ? "" : "s");
-                  } },
-                }),
-              },
-              scales: {
-                x: { beginAtZero:true, ticks:{ callback:function(v){ return fmtMs(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
-                y: { grid:{ display:false } },
-              },
-            },
-          });
-        } else {
-          taskModelChart.data.labels = labels;
-          taskModelChart.data.datasets[0].data = vals;
-          taskModelChart.update();
+    /** Shipped report-app version (data/extension-config.json). */
+    private shippedReportVersion(): number {
+        try {
+            const file = path.join(getPackageRoot(), "extensions", "aftc-toolset", "data", "extension-config.json");
+            const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as { usageReportVersion?: unknown };
+            return typeof parsed.usageReportVersion === "number" ? parsed.usageReportVersion : 0;
+        } catch {
+            return 0;
         }
-      }
-    }
-    if (!taskDailyChartDone){ taskDailyChartDone = true; renderTaskDailyChart(); }
-  }
-  function renderTaskDailyChart(){
-    if (!chartsOk){ chartFallback("chart-task-daily"); return; }
-    var series = data.taskDailySeries || [];
-    var canvas = document.getElementById("chart-task-daily");
-    if (!canvas) return;
-    var lastIdx = series.length - 1;
-    new Chart(canvas, {
-      type: "bar",
-      data: {
-        labels: series.map(function(p){ return p.label; }),
-        datasets: [{
-          data: series.map(function(p){ return Number(p.avgTaskMs)||0; }),
-          backgroundColor: series.map(function(p, i){
-            if ((Number(p.tasks)||0) === 0) return "rgba(139,148,167,.18)";
-            return i === lastIdx ? "#fca02f" : "#4d8df6";
-          }),
-          borderRadius: 3,
-          maxBarThickness: 22,
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: Object.assign({}, tooltipBase, {
-            callbacks: { label: function(item){
-              var p = series[item.dataIndex] || {};
-              var n = Number(p.tasks)||0;
-              return n === 0 ? " No completed tasks" : ["Avg Task Time: " + fmtMs(p.avgTaskMs), "Completed tasks: " + fmtInt(n)];
-            } },
-          }),
-        },
-        scales: {
-          x: { grid:{ display:false }, ticks:{ maxTicksLimit:10, maxRotation:0 } },
-          y: { beginAtZero:true, ticks:{ maxTicksLimit:6, callback:function(v){ return fmtMs(v); } }, grid:{ color:"rgba(139,148,167,.08)" } },
-        },
-      },
-    });
-  }
-  function renderTimingsAll(){
-    renderTimingsCards();
-    renderTimeSplit();
-    renderTurnSplit();
-    longestTable.render();
-    ensureTimingsCharts();
-  }
-  document.getElementById("timings-period").addEventListener("change", function(e){
-    timingsPeriod = e.target.value;
-    document.getElementById("task-model-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase();
-    renderTimingsAll();
-  });
-
-  // ---------- projections ----------
-  function estMark(r){
-    return r.estimated ? '<span class="est" title="Fewer than 7 active days recorded — estimate">~</span>' : '';
-  }
-  function renderProjCards(){
-    var p = data.projections || {};
-    var html = "";
-    html += statCard("Avg cost / day", fmtMoney(p.avgDailySpend), "all models · "+fmtInt(p.calendarDays)+" calendar days", true);
-    html += statCard("Projected / month", fmtMoney(p.projectedMonth), "avg day × 30.4");
-    html += statCard("Projected / year", fmtMoney(p.projectedYear), "avg day × 365");
-    document.getElementById("proj-cards").innerHTML = html;
-    var note = document.getElementById("proj-note");
-    note.textContent = p.note || "";
-    note.classList.toggle("estimate", !!p.estimated);
-  }
-  var projTable = makeTable({
-    tableId: "proj-table",
-    emptyId: "proj-empty",
-    defaultKey: "costPerDay",
-    getRows: function(){ return (data.projections || {}).rows || []; },
-    cols: [
-      { key:"modelName", label:"Model" },
-      { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
-      { key:"activeDays", label:"Active days", num:true, render:function(r){ return fmtInt(r.activeDays); } },
-      { key:"userPrompts", label:"Prompts (User / AI)", num:true, render:function(r){ return fmtInt(r.userPrompts)+' / '+fmtInt(r.aiPrompts); } },
-      { key:"cost", label:"Total cost", num:true, render:function(r){ return fmtMoney(r.cost); } },
-      { key:"costPerDay", label:"$ / day", num:true, render:function(r){ return fmtMoney(r.costPerDay)+estMark(r); } },
-      { key:"costPerWeek", label:"$ / week", num:true, render:function(r){ return fmtMoney(r.costPerWeek)+estMark(r); } },
-      { key:"costPerMonth", label:"$ / month", num:true, render:function(r){ return fmtMoney(r.costPerMonth)+estMark(r); } },
-      { key:"costPerYear", label:"$ / year", num:true, render:function(r){ return fmtMoney(r.costPerYear)+estMark(r); } },
-    ],
-  });
-
-  // ---------- boot ----------
-  renderOverview();
-  renderDailyChart();
-  renderShareChart();
-  modelsTable.render();
-  thinkingTable.render();
-  renderTimingsCards();
-  renderTimeSplit();
-  renderTurnSplit();
-  longestTable.render();
-  renderProjCards();
-  projTable.render();
-  activateTab(initialTab);
-</script>
-</body>
-</html>`;
     }
 
-    // -------------------------------------------------------------------
-    // Writing & launching
-    // -------------------------------------------------------------------
+    private liveReportVersion(): number {
+        try {
+            const raw = fs.readFileSync(path.join(this.reportLiveDir(), ".usage-report-version"), "utf8").trim();
+            const n = Number(raw);
+            return Number.isFinite(n) ? n : 0;
+        } catch {
+            return 0;
+        }
+    }
 
-    private writeReportHtml(html: string): string {
-        const dir = this.reportDir();
-        fs.mkdirSync(dir, { recursive: true });
-        const filePath = getReportFile();
-        fs.writeFileSync(filePath, html, "utf-8");
+    /** Recursive copy of the seed into the live dir (overwrites the
+     *  app files — they are program files, not user data; data.json is
+     *  skipped and regenerated by the caller). */
+    private copyDir(src: string, dest: string): void {
+        fs.mkdirSync(dest, { recursive: true });
+        for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+            if (entry.name === "data.json") continue; // regenerated fresh
+            const s = path.join(src, entry.name);
+            const d = path.join(dest, entry.name);
+            if (entry.isDirectory()) this.copyDir(s, d);
+            else fs.copyFileSync(s, d);
+        }
+    }
+
+    /** Seed -> live when missing or when the shipped version is newer. */
+    private ensureReportFiles(): void {
+        const live = this.reportLiveDir();
+        const shipped = this.shippedReportVersion();
+        if (fs.existsSync(live) && this.liveReportVersion() >= shipped && shipped > 0) return;
+        this.copyDir(this.reportSeedDir(), live);
+        fs.writeFileSync(path.join(live, ".usage-report-version"), String(shipped), "utf8");
+    }
+
+    /** Test seam: run the seed->live sync directly (tests point
+     *  AFTC_TOOLSET_DATA_ROOT at a scratch dir). */
+    syncUsageReportFiles(): void { this.ensureReportFiles(); }
+
+    /** Write the fresh report payload the app fetches. */
+    private writeReportJson(data: any): string {
+        const live = this.reportLiveDir();
+        fs.mkdirSync(live, { recursive: true });
+        const filePath = path.join(live, "data.json");
+        fs.writeFileSync(filePath, JSON.stringify(data), "utf8");
         return filePath;
     }
 
-    private async launchBrowser(filePath: string, ctx: ExtensionCommandContext): Promise<void> {
-        let cmd: string; let args: string[];
-        if (process.platform === "win32") { cmd = "cmd"; args = ["/c", "start", "", filePath]; }
-        else if (process.platform === "darwin") { cmd = "open"; args = [filePath]; }
-        else { cmd = "xdg-open"; args = [filePath]; }
-        try { await this.pi.exec(cmd, args, { timeout: 10_000 }); }
-        catch {
-            try { await this.pi.exec("cmd", ["/c", "start", "", filePath], { timeout: 10_000 }); }
-            catch (err2) { aftcConsole.error(ctx, `Browser launch failed (${(err2 as Error).message}). File written to ${filePath} — open it manually.`); }
+    /** Start the bundled server in its own terminal window (win32) or
+     *  detached (elsewhere). The server opens the browser itself. */
+    private spawnReportServer(): void {
+        const live = this.reportLiveDir();
+        let child: import("node:child_process").ChildProcess;
+        if (process.platform === "win32") {
+            child = spawn("cmd.exe",
+                ["/c", "start", "pi usage report", "/D", live, "start.bat"],
+                { detached: true, stdio: "ignore" });
+        } else {
+            child = spawn("node", ["server.js"],
+                { cwd: live, detached: true, stdio: "ignore" });
         }
+        child.unref();
     }
 
     private async runReport(ctx: ExtensionCommandContext): Promise<void> {
         const data = this.collectReportData();
-        if (!data) { aftcConsole.error(ctx, "Cannot generate HTML report: better-sqlite3 is not available. Run /aftc-install."); return; }
-        let reportPath: string;
-        try { reportPath = this.writeReportHtml(this.generateReportHtml(data)); }
-        catch (err) { aftcConsole.error(ctx, `Failed to write report.html: ${(err as Error).message}`); return; }
-        aftcConsole.emphasis(ctx, `Wrote ${reportPath}`);
-        if (!ctx.hasUI) { console.log(`[aftc-toolset] HTML report written: ${reportPath}`); return; }
-        void this.launchBrowser(reportPath, ctx);
+        if (!data) { aftcConsole.error(ctx, "Cannot generate the usage report: better-sqlite3 is not available. Run /aftc-install."); return; }
+        try {
+            this.ensureReportFiles();
+            this.writeReportJson(data);
+            this.spawnReportServer();
+        } catch (err) {
+            aftcConsole.error(ctx, `Failed to start the usage report: ${(err as Error).message}`);
+            return;
+        }
+        aftcConsole.emphasis(ctx, "Usage report server starting — your browser will open.");
+        aftcConsole.info(ctx, `Report app: ${this.reportLiveDir()} — close the server window to stop it (auto-stops after 30 minutes idle).`);
     }
 }
 

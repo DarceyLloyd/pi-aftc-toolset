@@ -47,12 +47,15 @@ secrets.json
 *secrets*.yml
 *secrets*.toml
 
+# Website working files (dev.aftc.uk httpdocs) - never commit
+dev.aftc.uk/
+
 # Misc
 .bak/
+.dev
 .old/
 test/
 tests/
-.dockerignore
 rules.md
 dev.md
 tasks.md

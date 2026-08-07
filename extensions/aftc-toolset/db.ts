@@ -3,7 +3,7 @@
  *
  * Owns the singleton better-sqlite3 connection used by both the recorder
  * (usage-recording.ts → recordTurn) and the report generator
- * (usage-report.ts → generateReportHtml). The DB lives in the persistent
+ * (usage-report.ts → data.json + the report app in <dataDir>/usage-report/). The DB lives in the persistent
  * OS data dir (see paths.ts getPersistentRoot/getDataDir — outside the installed
  * package so it survives `pi update --extensions`), eg
  *   %APPDATA%\pi-aftc-toolset\data\turns.db   (Windows)

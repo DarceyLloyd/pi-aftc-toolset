@@ -1,6 +1,6 @@
 # 2 - Packaging & shipped assets
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-07 -->
 
 ## References
 
@@ -31,7 +31,7 @@ included (verified by `tests/npm-package-check/`). Install:
 ## Live vs seed (terminology)
 
 - **live** = per-user copy in the persistent OS data dir (1.2): config.json,
-  aftc-codex/, turns.db, ssh.json, report.html, debug.log. Survives
+  aftc-codex/, turns.db, ssh.json, usage-report/, debug.log. Survives
   `pi update`.
 - **seed / shipped** = source-only defaults + assets inside
   `extensions/aftc-toolset/data/`. Replaced on every `pi update`. Flow is

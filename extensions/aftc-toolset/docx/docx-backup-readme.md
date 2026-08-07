@@ -32,8 +32,7 @@ folders is unreachable by construction:
 
 | Source | Action | Dest under `docx/old_docs/` |
 | --- | --- | --- |
-| Previous `docx/old_docs.zip` | move | `old_docs.zip` |
-| Previous `docx/` output (everything except `old_docs/`, zip) | move | `docx/<name>` |
+| Previous `docx/` output (everything except `old_docs/` and `backups/`) | move | `docx/<name>` |
 | Root `*.md` / `*.markdown` (except AI files) | move | `<name>` |
 | Root `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` | **copy** | `<name>` |
 | `.github/copilot-instructions.md`, `.cursor/rules/*.mdc` | **copy** | same rel path |
@@ -56,15 +55,17 @@ at the root; the copy keeps a restore path.
   itself is removed only when fully empty (`docsDirRemoved`), otherwise
   its remaining top-level names land in `docsLeftovers` and the folder
   stays.
-- **`.gitignore`**: `docx/old_docs/` and `docx/old_docs.zip` are appended once
+- **`.gitignore`**: `docx/old_docs/` and `docx/backups/` are appended once
   (idempotent; failure is a warning, never an error).
-- **Re-run fold-in**: a previous `old_docs.zip` and previous `docx/`
-  output become content of the new `docx/old_docs/`, so the final zip nests
-  the history. An `old_docs/` left by an aborted run is kept and merged into.
+- **Re-run fold-in**: previous `docx/` output becomes content of the new
+  `docx/old_docs/`. `docx/backups/` (the accumulated timestamped backup
+  zips) is NEVER folded or touched. An `old_docs/` left by an aborted run
+  is kept and merged into.
 
 ## What this module does NOT do
 
-- No zipping (that is `scripts/zip-old.mjs`, run by the model AFTER
-  generation — the old docs must stay readable for recon).
+- No zipping (that is `scripts/zip-old.mjs <root> <label>`, run by the
+  model AFTER the run — the old docs must stay readable for recon; the
+  label selects the timestamped zip name inside `docx/backups/`).
 - No deletion of documentation other than the moves above.
 - No walking of code/sub-project folders outside `./docs`.

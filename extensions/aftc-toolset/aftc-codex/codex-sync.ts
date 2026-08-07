@@ -31,6 +31,8 @@ export interface CodexSyncResult {
     newVersion: number | null;
     /** The merge reported same-[ID]-different-text conflicts (live kept). */
     conflicts: boolean;
+    /** Entries auto-updated to the shipped text (untouched by the user). */
+    updated: number;
     /** Number of obsolete live resources deleted via the seed removal list. */
     removed: number;
 }
@@ -47,7 +49,7 @@ export async function runSeedToLiveUpdate(store: CodexStore): Promise<CodexSyncR
         // resource list regenerated at the end of this run.
         const removals = applySeedRemovals(store);
         const output = await store.runSeedToLiveSync();
-        if (!output.trim()) return { output, newVersion: null, conflicts: false, removed: removals.removed };
+        if (!output.trim()) return { output, newVersion: null, conflicts: false, updated: 0, removed: removals.removed };
         // The live copy now carries everything the shipped seed has: stamp it
         // as the shipped version so the version guard clears (same as a seed).
         const newVersion = readCodexSeedVersion(store.getSeedDir());
@@ -59,9 +61,10 @@ export async function runSeedToLiveUpdate(store: CodexStore): Promise<CodexSyncR
             output: `${removalBlock}${output}`,
             newVersion,
             conflicts: /CONFLICT/.test(output),
+            updated: (output.match(/^UPDATED\s/gm) ?? []).length,
             removed: removals.removed,
         };
     } catch {
-        return { output: "", newVersion: null, conflicts: false, removed: 0 };
+        return { output: "", newVersion: null, conflicts: false, updated: 0, removed: 0 };
     }
 }

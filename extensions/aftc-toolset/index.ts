@@ -35,6 +35,9 @@
  *   - aftc-codex/     — opt-in knowledge base: injects codex rules + guidance +
  *                        resource list into the system prompt; codex_load tool;
  *                        /aftc-codex-* commands (off by default)
+ *   - subagents/      — 007 sub-agents: delegate focused work to isolated child
+ *                        pi processes (foreground subagent tool, /007 menus,
+ *                        supervisor with killable trees + watchdogs; off by default)
  *   - providers/      — LLM provider features; today: qwencloud.ts (Alibaba Qwen
  *                        Cloud + Coding Plan via pi's native /login, /qwencloud)
  *                        DISABLED: pi now ships this natively; kept on disk in
@@ -60,7 +63,7 @@ import { createKeys } from "./keys";
 // Intros: the factory (intros/intro-factory.ts) is DISCONNECTED 2026-07 —
 // files kept on disk. Only the AFTC text intro runs, wired directly below
 // (it was rock solid). Re-enable the factory to restore the random draw.
-import { createTextIntro } from "./intros/intro-text";
+import { createTextIntro, initTextIntro } from "./intros/intro-text";
 import { createTheme } from "./theme";
 import { createUsageRecording } from "./usage-recording";
 import { createUsageModule } from "./usage-report";
@@ -80,6 +83,8 @@ import { createQuickOpenDir } from "./quick-open-dir";
 import { createDebugLog } from "./debug-log";
 import { createDocx } from "./docx/docx";
 import { createAftcCodex } from "./aftc-codex/aftc-codex";
+import { createSubAgents, buildSubAgentFooterLine } from "./subagents/subagents";
+import { getSubAgentPref } from "./subagents/subagent-config";
 import { createRunScript } from "./run-script";
 import { migrateLegacyData } from "./paths";
 import * as aftcConsole from "./ui/aftc-console";
@@ -96,6 +101,8 @@ export default function (pi: ExtensionAPI): void {
 
 	// Centralised console output — register the emphasis entry renderer once.
 	aftcConsole.init(pi);
+	// Intro feedback console lines — register the entry renderer once.
+	initTextIntro(pi);
 
 	// Independent modules first (self-register commands/handlers).
 	const allowance = createAllowance(pi);
@@ -157,6 +164,7 @@ export default function (pi: ExtensionAPI): void {
 	createDebugLog(pi);
 	createDocx(pi);
 	createAftcCodex(pi);
+	const subAgents = createSubAgents(pi, { allowance });
 	createRunScript(pi);
 	// createProviders(pi); // disabled — see note at the import above
 
@@ -166,7 +174,17 @@ export default function (pi: ExtensionAPI): void {
 	// FooterDataProvider so the widget can render line 5 without importing
 	// allowance.ts.
 	const footerData = createCore(pi, recorder, allowance);
-	createFooterWidget(pi, footerData);
+	createFooterWidget(pi, footerData, {
+		// Sub-agents footer line: in-memory snapshot only (no DB). Always
+		// visible while the feature is enabled; hidden only when the feature
+		// is disabled or the footerLineEnabled toggle is off.
+		subAgentLine: (colors) => {
+			if (!getSubAgentPref("enabled", false)) return null;
+			if (!getSubAgentPref("footerLineEnabled", true)) return null;
+			const snapshot = subAgents.getStatusSnapshot();
+			return buildSubAgentFooterLine(snapshot, colors, getSubAgentPref("maxConcurrent", 4));
+		},
+	});
 
 	// usage and help are intentionally not passed to anyone — they
 	// self-register their commands/handlers in attach() and are otherwise

@@ -44,7 +44,7 @@ Host path base: `<dataDir>` = `%APPDATA%\pi-aftc-toolset\data` (override
 | `<dataDir>/config.json` | 1.2 (setPreference/migration) | every feature with a preference (1.4, 1.5.x, 1.7) |
 | `<dataDir>/ssh.json` | 1.6.3 | 1.6.1/1.6.5/1.6.6/1.6.7 |
 | `<dataDir>/turns.db` | 1.4.4 (turns+tasks) | 1.4.1 (timeframe stats), 1.4.5 (report) |
-| `<dataDir>/report.html` | 1.4.5 | browser |
+| `<dataDir>/usage-report/` (app folder + generated `data.json`) | 1.4.5 | browser via local server |
 | `<dataDir>/debug.log` | 1.3.1 | user |
 | `<dataDir>/aftc-codex/**` | 1.7.1 seeding/sync + 1.7.4 entry tools | 1.7.2 injection, 1.7.4 codex_load |
 | `<package>/extensions/aftc-toolset/data/**` (seed) | 1.7.5 live-to-seed (maintainer) | 1.7.1 seeding/sync (read) |
@@ -65,7 +65,7 @@ Host path base: `<dataDir>` = `%APPDATA%\pi-aftc-toolset\data` (override
 | --- | --- | --- | --- |
 | Footer dashboard | 1.4.2 | 1.4.1 commands, `/aftc-footer` | 1.2 (config prefs), 1.4.4 (turns.db read via 1.4.1) |
 | Subscription allowance | 1.4.2 line 5 | — (event-driven) | 1.4.3 in-memory snapshot |
-| Usage report | 1.4.5 tabs | `/usage-report`, `/usage-clear` | 1.4.4 turns/tasks, report.html |
+| Usage report | 1.4.5 tabs | `/usage-report`, `/usage-clear` | 1.4.4 turns/tasks, `usage-report/` app + `data.json` |
 | SSH | 1.6.5–1.6.9 | 1.6.1 (16 cmds + 20 tools) | 1.6.3 ssh.json |
 | aftc-codex | 1.7.3 menus | 1.7.3 commands, 1.7.4 tools | 1.7.1 live copy + seed (2.1), config prefs |
 | docx generator | 1.8.1 modals | `/docx` | target project docx/ (not this package) |
@@ -88,7 +88,7 @@ play the same role:
 | The AI model | 1.6.1 ssh_* tools · 1.7.4 codex_* tools · 1.5.12 run_script · prompt snippets/guidelines of all tools |
 | pi TUI | 1.3.2 overlay components · 1.4.2 widget · 1.5.13 intro widget · entry renderers (1.3.1, 1.5.5, 1.5.7, 1.5.8) |
 | pi event bus | every module's `pi.on` hooks (enumerated per module in 1.4.1, 1.5.4, 1.5.11, 1.7.2) |
-| Browser | 1.4.5 report.html |
+| Browser | 1.4.5 report app (via local server) |
 | OS file manager / clipboard / audio | 1.5.7 open · 1.5.1 clipboard · 1.5.4 player binary (2.1) |
 
 ## Related

@@ -23,6 +23,17 @@ last-reviewed stamp.
   - One edit call per file, then STOP: read the edited region before the next edit call on that file. Line numbers shift on every edit; anchors from before the latest edit are stale by definition.
   - On ANY warning or `[E_STALE_ANCHOR]`: do not retry blindly. Re-read the region first, verify what actually applied (a failed batch applies NOTHING — re-apply the whole batch, not just the failed entry), then edit with fresh anchors.
 - Never overwrite user settings in config.json: only ADD missing keys via the write-back migration; existing values are sacred. Never auto-store a saved replay prompt (default empty). New user-facing features are disabled by default.
+- **CRITICAL — user-facing wording.** Everything a user reads (menus, option
+  labels, descriptions, confirms, warnings, console output, guides) is
+  written from the USER's perspective, not the developer's. The user does
+  not know this extension's internals: no unexplained jargon — never
+  "seed", "live copy", "frontmatter", "built-in", "eject", "shipped
+  default" as bare terms; say what happens FOR THEM ("copies the preset to
+  your agents folder so you can edit it"). Every menu option must say what
+  it does; every toggle shows its current state plus a one-line plain
+  description of what turning it changes; every confirm says the
+  consequence, not the mechanism. The test: if a first-time user could read
+  it and think "wtf does that do?", it is not finished — rewrite it.
 
 ---
 
@@ -71,6 +82,7 @@ implementation is `ui/aftc-ui.ts` (all dialogs go through it). Read `docx/1_exte
 | SSH | `docx/1_extension_source/1.6_ssh/1.6_ssh_documentation.md` |
 | Audio notifications | `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` |
 | Slash commands (create/edit/delete) | `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` |
+| Sub-agents (/007) | `docx/1_extension_source/1.9_subagents/1.9_subagents_documentation.md` |
 | Keyboard shortcuts (add/change) | `extensions/aftc-toolset/keys-readme.md` |
 | Quick dir access (/qd) | `extensions/aftc-toolset/quick-open-dir-readme.md` |
 | docx documentation generator (/docx) | `extensions/aftc-toolset/docx/docx-readme.md` |
@@ -111,7 +123,8 @@ Every feature writes to the user's console through `ui/aftc-console.ts` — neve
 - **live** = the user's per-user copy in the persistent OS data dir
   (`<dataDir>/`, eg `%APPDATA%\pi-aftc-toolset\data\` on Windows;
   `AFTC_TOOLSET_DATA_ROOT` override). Holds `config.json`, `aftc-codex/`,
-  `turns.db`, `ssh.json`, `report.html`. Survives `pi update`.
+  `turns.db`, `ssh.json`, `subagents-config.json`, `usage-report/` (report
+  app + generated `data.json`). Survives `pi update`.
 - **seed / shipped** = source-only defaults + assets inside the package
   (`extensions/aftc-toolset/data/`): `extension-config.json`, the `aftc-codex/`
   seed, audio MP3s, intro assets. Replaced on every `pi update`. Flow is
@@ -207,10 +220,13 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
   or `node extensions/aftc-toolset/aftc-codex/scripts/live-to-seed-sync.mjs`
   (dry run) / `--apply` (writes). Ports live-only resource entries + new topics
   into the seed before a release so learned entries ship. Entry-level merge by
-  `[ID]`; conflicts are reported, never auto-overwritten; the generated
-  `codex-resource-list.md` is never copied to the seed. When an apply actually
-  wrote seed files, the command bumps the shipped `codexVersion` itself
-  (a no-op sync leaves it alone) and exits after the confirm.
+  `[ID]`; same-ID-different-text is AUTO-RESOLVED — the live text wins and
+  replaces the seed entry (the live copy is the maintainer's learning copy),
+  and the command then asks the AI to review the merged entries and correct
+  anything wrong. The generated `codex-resource-list.md` is never copied to
+  the seed. When an apply actually wrote seed files, the command bumps the
+  shipped `codexVersion` itself (a no-op sync leaves it alone) and exits
+  after the confirm.
 
 - Versioning: `major.minor.patch`.
 - If the codex seed changed (any entry/topic synced into
@@ -219,9 +235,14 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
   never receive the new content (the live copy is never auto-overwritten).
   `/codex-live-to-seed` does this bump for you when it wrote seed files;
   hand edits to the seed still need a manual bump.
-- Patch bump: fix or enhancement to existing behaviour.
-- Minor bump (reset patch): brand-new feature (new capability area).
-- Major bump: overhaul or rewrite.
+- Patch bump: any fix or change to an EXISTING feature — including new
+  commands/options added to it (eg a new `/codex-*` command is a change to
+  the codex feature, so it is a patch, not a minor).
+- Minor bump (reset patch): a brand-new feature that is NOT part of an
+  existing feature (a new capability area, eg `/docx` when it was added).
+  The ONLY time an existing feature gets a minor bump is when that feature
+  is heavily re-written.
+- Major bump: overhaul or rewrite of the package as a whole.
 - After tests pass, add entry to `change-log.txt` under `Updates v<major>.<minor>.x`.
   Newest first. Short user-facing summaries only.
 - Keep root documentation aligned with implemented behaviour.

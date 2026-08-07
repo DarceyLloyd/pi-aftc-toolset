@@ -3,16 +3,22 @@
  *
  * One slash command that regenerates a project's full documentation set
  * (per the shipped `documentation_guide.md` in this folder) into
- * `./docx/`, with the previous documentation folded into
- * `./docx/old_docs.zip`.
+ * `./docx/`, plus `/docx-update` which reconciles an EXISTING doc set
+ * with the source of truth (new/removed/changed files, in-place doc
+ * fixes, root README fact-check without rewriting) instead of
+ * regenerating. Previous documentation is staged in ./docx/old_docs/
+ * and zipped into ./docx/backups/ (timestamped: "Original Documentation
+ * Backup" for /docx, "Documentation Backup" for /docx-update).
  *
  * Flow:
  *   1. Context-window gates: ABOVE 25% used /docx flat-out refuses (even
  *      with --yes — compaction mid-generation could corrupt the docs);
  *      at 20%+ (and not --yes) an advisory modal recommends /new first.
  *   2. Confirm modal (skipped by --yes): warns that all previous
- *      documentation is moved into ./docx/old_docs/ (zipped to old_docs.zip
- *      at the end of the run) and advises making a backup first.
+ *      documentation is moved into ./docx/old_docs/ (zipped into
+ *      docx/backups/ at the end of the run) and advises making a backup
+ *      first. /docx-update additionally refuses when ./docx/ does not
+ *      exist (run /docx first).
  *   3. Project-type selection: the injected prompt is CORE + ONE type
  *      pack (prompts/<key>.md) — never the old all-in-one. TUI: a picker
  *      modal (auto-detect pre-selected). Headless: --type <key>, else
@@ -23,11 +29,12 @@
  *      (AGENTS.md etc.) are COPIED, not moved — AGENTS.md is edited in
  *      place by the generation run. Any backup error aborts BEFORE the
  *      model is engaged.
- *   5. The guide's core execution prompt (section 18 of the shipped
- *      guide) + the chosen type pack are injected as a user message with
- *      [PROJECT_PATH] / script paths substituted. The model does the
- *      generation; as its final action it runs scripts/zip-old.mjs to
- *      pack docx/old_docs into old_docs.zip.
+ *   5. The guide's core execution prompt for the mode (section 18 for
+ *      /docx, section 22 for /docx-update) + the chosen type pack are
+ *      injected as a user message with [PROJECT_PATH] / script paths /
+ *      [ZIP_OLD_LABEL] substituted. The model does the work; as its final
+ *      action it runs scripts/zip-old.mjs <root> <label> to pack
+ *      docx/old_docs into the timestamped zip inside docx/backups/.
  *
  * Self-contained feature module: no cross-module imports beyond the
  * shared ui/ + help-registry utilities, wired by index.ts via
@@ -160,13 +167,42 @@ function slashPath(p: string): string {
     return p.split(path.sep).join("/");
 }
 
+/** Run modes: full regeneration (/docx) vs drift reconciliation (/docx-update). */
+type DocxMode = "generate" | "update";
+
+interface DocxModeInfo {
+    /** Slash command name for messages. */
+    cmd: string;
+    /** Guide section header holding this mode's execution prompt. */
+    sectionHeader: string;
+    /** zip-old.mjs label argument (selects the backup zip name). */
+    zipLabel: "original" | "update";
+    /** Injected-prompt banner. */
+    banner: string;
+}
+
+const DOCX_MODES: Record<DocxMode, DocxModeInfo> = {
+    generate: {
+        cmd: "/docx",
+        sectionHeader: "## 18. AI Execution Prompt",
+        zipLabel: "original",
+        banner: "You are running /docx (pi-aftc-toolset documentation generator).",
+    },
+    update: {
+        cmd: "/docx-update",
+        sectionHeader: "## 22. AI Update Execution Prompt",
+        zipLabel: "update",
+        banner: "You are running /docx-update (pi-aftc-toolset documentation updater — reconcile, never regenerate).",
+    },
+};
+
 /**
- * Extract the section-18 CORE execution prompt (the ```text fenced block)
- * from the shipped guide. The guide is the single source of truth for the
- * core prompt — never duplicate the steps here.
+ * Extract one mode's CORE execution prompt (the ```text fenced block)
+ * from its section in the shipped guide. The guide is the single source
+ * of truth for the prompts — never duplicate the steps here.
  */
-function extractExecutionPrompt(guide: string): string | null {
-    const sectionIdx = guide.indexOf("## 18. AI Execution Prompt");
+function extractPromptSection(guide: string, sectionHeader: string): string | null {
+    const sectionIdx = guide.indexOf(sectionHeader);
     if (sectionIdx < 0) return null;
     const fenceStart = guide.indexOf("```text", sectionIdx);
     if (fenceStart < 0) return null;
@@ -176,7 +212,8 @@ function extractExecutionPrompt(guide: string): string | null {
     return guide.slice(bodyStart, fenceEnd).trim();
 }
 
-function buildDocxPrompt(projectRoot: string, backup: DocxBackupResult, type: DocxType): string | null {
+function buildDocxPrompt(projectRoot: string, backup: DocxBackupResult, type: DocxType, mode: DocxMode): string | null {
+    const modeInfo = DOCX_MODES[mode];
     const featureDir = __dirname;
     const guidePath = path.join(featureDir, "documentation_guide.md");
     let guide: string;
@@ -185,7 +222,7 @@ function buildDocxPrompt(projectRoot: string, backup: DocxBackupResult, type: Do
     } catch {
         return null;
     }
-    const core = extractExecutionPrompt(guide);
+    const core = extractPromptSection(guide, modeInfo.sectionHeader);
     if (!core) return null;
 
     // The chosen type pack (read fresh from disk on every run, like the
@@ -206,7 +243,8 @@ function buildDocxPrompt(projectRoot: string, backup: DocxBackupResult, type: Do
         .split("[GUIDE_PATH]").join("the guide appended below this prompt")
         .split("[MAP_SCAN_PATH]").join(script("map-scan.mjs"))
         .split("[LINK_AUDIT_PATH]").join(script("link-audit.mjs"))
-        .split("[ZIP_OLD_PATH]").join(script("zip-old.mjs"));
+        .split("[ZIP_OLD_PATH]").join(script("zip-old.mjs"))
+        .split("[ZIP_OLD_LABEL]").join(modeInfo.zipLabel);
 
     const backupSummary = backup.firstRun
         ? "No pre-existing documentation was found - this is a first-time generation. docx/old_docs/ is empty; skip any step that references it."
@@ -222,10 +260,11 @@ function buildDocxPrompt(projectRoot: string, backup: DocxBackupResult, type: Do
                 ? `./docs/ was kept because non-documentation files remain: ${backup.docsLeftovers.join(", ")}.`
                 : "",
             backup.docsDirRemoved ? "./docs/ was fully emptied and removed." : "",
+            "At the END of the run the tooling-owned zip script packs docx/old_docs/ into a timestamped zip inside docx/backups/.",
         ].filter(Boolean).join("\n");
 
     return [
-        "You are running /docx (pi-aftc-toolset documentation generator).",
+        modeInfo.banner,
         "",
         `PROJECT TYPE (chosen by the user): ${type.label} [${type.key}] - the matching project-type pack is appended after the core execution prompt below; follow it wherever it sharpens the core.`,
         "",
@@ -244,11 +283,15 @@ function buildDocxPrompt(projectRoot: string, backup: DocxBackupResult, type: Do
 // Command handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function handleDocx(
+async function handleDocxRun(
     pi: ExtensionAPI,
     args: string,
     ctx: ExtensionCommandContext,
+    mode: DocxMode,
 ): Promise<void> {
+    const modeInfo = DOCX_MODES[mode];
+    const cmd = modeInfo.cmd;
+    const isUpdate = mode === "update";
     const skipConfirm = args.trim().split(/\s+/).includes("--yes");
     const projectRoot = ctx.cwd;
 
@@ -259,17 +302,17 @@ async function handleDocx(
     if (usage && usage.percent >= CONTEXT_REFUSE_PERCENT) {
         if (ctx.hasUI && ctx.mode === "tui") {
             await showMenu(ctx, {
-                title: "/docx — context window too full",
+                title: `${cmd} — context window too full`,
                 body: [
                     `Your context window is ${Math.round(usage.percent)}% used.`,
                     "",
-                    "/docx will not run when your context window is 25% or above —",
+                    `${cmd} will not run when your context window is 25% or above —`,
                     "part-way through, pi would compact the conversation, and that",
                     "can corrupt the documentation.",
                     "",
                     "What to do:",
-                    "  1. Run /new   (start a fresh session)",
-                    "  2. Run /docx again",
+                    `  1. Run /new   (start a fresh session)`,
+                    `  2. Run ${cmd} again`,
                     "",
                     "Press Enter or Esc to close.",
                 ],
@@ -278,11 +321,21 @@ async function handleDocx(
         } else {
             aftcConsole.warn(
                 ctx,
-                `/docx refused: your context window is ${Math.round(usage.percent)}% used. ` +
-                "/docx will not run at 25% or above — a compaction mid-generation could corrupt the docs. " +
-                "Run /new, then /docx.",
+                `${cmd} refused: your context window is ${Math.round(usage.percent)}% used. ` +
+                `${cmd} will not run at 25% or above — a compaction mid-run could corrupt the docs. ` +
+                `Run /new, then ${cmd}.`,
             );
         }
+        return;
+    }
+
+    // 0b. Update mode REQUIRES an existing docx/ set to reconcile — a
+    //     first-time project must run /docx (one code path each).
+    if (isUpdate && !fs.existsSync(path.join(projectRoot, "docx"))) {
+        aftcConsole.warn(
+            ctx,
+            "/docx-update: no existing ./docx/ documentation found — there is nothing to update. Run /docx to generate the documentation set first.",
+        );
         return;
     }
 
@@ -290,7 +343,7 @@ async function handleDocx(
         if (!ctx.hasUI) {
             aftcConsole.warn(
                 ctx,
-                "/docx needs interactive confirmation - re-run as /docx --yes to skip the confirmations (headless).",
+                `${cmd} needs interactive confirmation - re-run as ${cmd} --yes to skip the confirmations (headless).`,
             );
             return;
         }
@@ -309,11 +362,11 @@ async function handleDocx(
                 body:
                     `Your context window is ${Math.round(usage.percent)}% used${windowText} ` +
                     `(${Math.round(usage.tokens).toLocaleString()} tokens).\n\n` +
-                    "/docx uses little context — typically well under 20% even on large\n" +
+                    `${cmd} uses little context — typically well under 20% even on large\n` +
                     "projects — but it takes a LONG time: the bigger and more complex\n" +
                     "the project, the longer the wait.\n\n" +
-                    "Highly advised: /new, then /docx. A fresh session means no\n" +
-                    "compaction risk mid-generation and no prior conversation\n" +
+                    `Highly advised: /new, then ${cmd}. A fresh session means no\n` +
+                    "compaction risk mid-run and no prior conversation\n" +
                     "steering the docs.",
                 yesLabel: "Proceed anyway",
                 noLabel: "Exit",
@@ -321,20 +374,29 @@ async function handleDocx(
             if (!proceed) return;
         }
 
-        // 2. Main confirmation.
+        // 2. Main confirmation (mode-specific wording).
         const confirmed = await showConfirm(ctx, {
-            title: "Generate project documentation?",
-            body:
-                "All existing documentation (root .md files and ./docs/) will be moved to " +
-                "./docx/old_docs/ and zipped to ./docx/old_docs.zip when generation completes. " +
-                "Make your own backup before proceeding.\n\n" +
-                "Expect a LONG wait once it starts — the bigger and more complex the project, " +
-                "the longer it takes. Generate fresh documentation for this project?",
+            title: isUpdate
+                ? "Update project documentation?"
+                : "Generate project documentation?",
+            body: isUpdate
+                ? "The existing documentation set will be reconciled with the source code: " +
+                  "new files get docs, removed files lose theirs, drifted docs are corrected " +
+                  "in place, and the root README.md is fact-checked WITHOUT rewriting it " +
+                  "(your layout and formatting are preserved). " +
+                  "Everything currently in ./docx/ is backed up first and zipped into " +
+                  "./docx/backups/ when the run completes.\n\n" +
+                  "Expect a LONG wait once it starts. Update the documentation for this project?"
+                : "All existing documentation (root .md files and ./docs/) will be moved to " +
+                  "./docx/old_docs/ and zipped into ./docx/backups/ when generation completes. " +
+                  "Make your own backup before proceeding.\n\n" +
+                  "Expect a LONG wait once it starts — the bigger and more complex the project, " +
+                  "the longer it takes. Generate fresh documentation for this project?",
             yesLabel: "Yes, proceed",
             noLabel: "No, exit",
         });
         if (!confirmed) {
-            aftcConsole.emphasis(ctx, "/docx cancelled - nothing was changed.");
+            aftcConsole.emphasis(ctx, `${cmd} cancelled - nothing was changed.`);
             return;
         }
     }
@@ -349,7 +411,7 @@ async function handleDocx(
         if (!type) {
             aftcConsole.warn(
                 ctx,
-                `/docx: unknown --type "${typeArg}". Valid types: ${DOCX_TYPE_KEYS.join(", ")}.`,
+                `${cmd}: unknown --type "${typeArg}". Valid types: ${DOCX_TYPE_KEYS.join(", ")}.`,
             );
             return;
         }
@@ -358,7 +420,7 @@ async function handleDocx(
         if (ctx.hasUI) {
             const initialIndex = detected ? DOCX_TYPES.indexOf(detected) : 0;
             const picked = await showMenu(ctx, {
-                title: "/docx — project type",
+                title: `${cmd} — project type`,
                 body: [
                     "The injected prompt is tailored to the project type (a focused",
                     "type pack is appended to the core prompt - never a giant all-in-one).",
@@ -370,7 +432,7 @@ async function handleDocx(
                 initialIndex,
             });
             if (picked === null) {
-                aftcConsole.emphasis(ctx, "/docx cancelled - nothing was changed.");
+                aftcConsole.emphasis(ctx, `${cmd} cancelled - nothing was changed.`);
                 return;
             }
             type = DOCX_TYPES.find((t) => t.key === picked) ?? null;
@@ -378,16 +440,16 @@ async function handleDocx(
             if (!detected) {
                 aftcConsole.warn(
                     ctx,
-                    `/docx: could not auto-detect the project type - re-run with --type <key> (${DOCX_TYPE_KEYS.join(", ")}).`,
+                    `${cmd}: could not auto-detect the project type - re-run with --type <key> (${DOCX_TYPE_KEYS.join(", ")}).`,
                 );
                 return;
             }
             type = detected;
-            aftcConsole.info(ctx, `/docx: project type auto-detected as "${type.label}" - re-run with --type <key> to override.`);
+            aftcConsole.info(ctx, `${cmd}: project type auto-detected as "${type.label}" - re-run with --type <key> to override.`);
         }
     }
     if (!type) {
-        aftcConsole.error(ctx, "/docx: internal error resolving the project type.");
+        aftcConsole.error(ctx, `${cmd}: internal error resolving the project type.`);
         return;
     }
 
@@ -398,14 +460,14 @@ async function handleDocx(
     } catch (err) {
         aftcConsole.error(
             ctx,
-            `/docx backup failed: ${(err as Error).message} - generation aborted, nothing was moved.`,
+            `${cmd} backup failed: ${(err as Error).message} - aborted, nothing was moved.`,
         );
         return;
     }
     if (backup.errors.length > 0) {
         aftcConsole.error(
             ctx,
-            `/docx backup incomplete - generation aborted:\n${backup.errors.join("\n")}`,
+            `${cmd} backup incomplete - aborted:\n${backup.errors.join("\n")}`,
         );
         return;
     }
@@ -413,22 +475,22 @@ async function handleDocx(
         aftcConsole.warn(ctx, warning);
     }
     if (backup.firstRun) {
-        aftcConsole.emphasis(ctx, "/docx: no existing documentation found - first-time generation.");
+        aftcConsole.emphasis(ctx, `${cmd}: no existing documentation found - first-time generation.`);
     } else {
         aftcConsole.emphasis(
             ctx,
-            `/docx: ${backup.moved.length} file(s) backed up to docx/old_docs/` +
+            `${cmd}: ${backup.moved.length} file(s) backed up to docx/old_docs/` +
             (backup.copied.length > 0 ? ` (${backup.copied.length} AI context file(s) copied)` : "") +
-            " - zipped to docx/old_docs.zip when generation completes.",
+            " - zipped into docx/backups/ when the run completes.",
         );
     }
 
-    // 5. Inject the execution prompt (core + chosen type pack).
-    const prompt = buildDocxPrompt(projectRoot, backup, type);
+    // 5. Inject the execution prompt (mode core + chosen type pack).
+    const prompt = buildDocxPrompt(projectRoot, backup, type, mode);
     if (!prompt) {
         aftcConsole.error(
             ctx,
-            "/docx: documentation_guide.md or the type pack is missing/malformed in the extension package - cannot generate.",
+            `${cmd}: documentation_guide.md or the type pack is missing/malformed in the extension package - cannot run.`,
         );
         return;
     }
@@ -450,9 +512,9 @@ async function handleDocx(
         } else {
             pi.sendUserMessage(prompt, { deliverAs: "followUp" });
         }
-        aftcConsole.emphasis(ctx, "/docx: generation started — follow the progress in the transcript. Expect a long wait (the bigger the project, the longer).");
+        aftcConsole.emphasis(ctx, `${cmd}: ${isUpdate ? "documentation update" : "generation"} started — follow the progress in the transcript. Expect a long wait (the bigger the project, the longer).`);
     } catch (err) {
-        aftcConsole.error(ctx, `/docx: failed to start generation: ${(err as Error).message}`);
+        aftcConsole.error(ctx, `${cmd}: failed to start: ${(err as Error).message}`);
     }
 }
 
@@ -464,7 +526,7 @@ export function createDocx(pi: ExtensionAPI): void {
     registerHelpEntry({
         command: "docx",
         args: "[--yes] [--type <key>]",
-        description: "Regenerate project docs into ./docx/ (old docs zipped to docx/old_docs.zip)",
+        description: "Regenerate project docs into ./docx/ (backup zipped into docx/backups/)",
         category: "General",
     });
 
@@ -472,7 +534,7 @@ export function createDocx(pi: ExtensionAPI): void {
         description:
             "Regenerate the project's full documentation set into ./docx/ per the shipped documentation guide. " +
             "The prompt is tailored by project type (picker, or --type <key>: " + DOCX_TYPE_KEYS.join(", ") + "). " +
-            "Existing docs are backed up to docx/old_docs.zip. --yes skips the confirmations (headless).",
+            "Existing docs are backed up to docx/backups/. --yes skips the confirmations (headless).",
         getArgumentCompletions: (prefix: string) => {
             const items = [
                 { value: "--yes", label: "--yes", description: "Skip confirmations (headless)" },
@@ -482,9 +544,36 @@ export function createDocx(pi: ExtensionAPI): void {
             return filtered.length > 0 ? filtered : null;
         },
         handler: async (args, ctx) => {
-            await handleDocx(pi, args, ctx);
+            await handleDocxRun(pi, args, ctx, "generate");
         },
     });
 
-    aftcConsole.log("loaded — /docx (project documentation generator)");
+    registerHelpEntry({
+        command: "docx-update",
+        args: "[--yes] [--type <key>]",
+        description: "Reconcile existing ./docx/ docs with the source (new/removed/changed files) and fact-check the root README in place",
+        category: "General",
+    });
+
+    pi.registerCommand("docx-update", {
+        description:
+            "Update the project's existing ./docx/ documentation set against the source of truth: " +
+            "docs for new files are minted, docs for removed files are retired, drifted docs are corrected in place, " +
+            "then the root README.md is fact-checked and adjusted WITHOUT rewriting it (layout and formatting preserved). " +
+            "Requires an existing ./docx/ (run /docx first otherwise). Backup zipped to docx/backups/. " +
+            "--yes skips the confirmations (headless).",
+        getArgumentCompletions: (prefix: string) => {
+            const items = [
+                { value: "--yes", label: "--yes", description: "Skip confirmations (headless)" },
+                { value: "--type", label: "--type <key>", description: `Project type: ${DOCX_TYPE_KEYS.join(", ")}` },
+            ];
+            const filtered = items.filter((i) => i.value.startsWith(prefix));
+            return filtered.length > 0 ? filtered : null;
+        },
+        handler: async (args, ctx) => {
+            await handleDocxRun(pi, args, ctx, "update");
+        },
+    });
+
+    aftcConsole.log("loaded — /docx + /docx-update (project documentation generator)");
 }

@@ -4,10 +4,11 @@
  * Runs BEFORE the /docx generation prompt is injected. Moves every
  * pre-existing documentation file into `<projectRoot>/docx/old_docs/`,
  * preserving each file's path relative to the project root, so the user
- * can restore by copying files back. The staging folder is zipped to
- * `docx/old_docs.zip` (and removed) by `scripts/zip-old.mjs` at the END
- * of the generation run — the model needs the old docs readable during
- * recon (the guide's step 1), so zipping cannot happen here.
+ * can restore by copying files back. The staging folder is zipped into
+ * `docx/backups/` (timestamped name per command; folder removed) by
+ * `scripts/zip-old.mjs` at the END of the run — the model needs the old
+ * docs readable during recon (the guide's step 1), so zipping cannot
+ * happen here.
  *
  * SCOPE IS A WHITELIST (never a blacklist). Only three places are
  * touched, so framework / sub-project documentation inside code folders
@@ -21,8 +22,9 @@
  *      basename with a non-.md sibling) stay; excluded dir names are
  *      never walked; emptied subfolders are pruned; ./docs itself is
  *      removed only when fully empty, otherwise leftovers are reported.
- * Plus the previous run's output: ./docx/old_docs.zip and everything in
- * ./docx (except old_docs/) are folded into the new backup.
+ * Plus the previous run's output: everything in ./docx (except old_docs/
+ * and backups/ — the accumulated backup zips stay put) is folded into the
+ * new backup.
  *
  * Safety contract (from the guide): if the destination cannot be
  * created, THROW — the caller must not regenerate over existing docs.
@@ -210,17 +212,12 @@ export function runDocxBackup(projectRoot: string): DocxBackupResult {
         ops.push({ kind, src, destRel });
     };
 
-    // 1. Previous run's zip folds into the new backup.
-    const prevZip = path.join(docxDir, "old_docs.zip");
-    if (fs.existsSync(prevZip)) {
-        plan("move", prevZip, "old_docs.zip");
-    }
-
-    // 2. Previous run's generated output (everything in docx/ except
-    //    old_docs/ and the zip handled above) folds in under old_docs/docx/.
+    // 1. Previous run's generated output (everything in docx/ except
+    //    old_docs/ and backups/ — the accumulated timestamped backup
+    //    zips are permanent and never folded) folds in under old_docs/docx/.
     if (fs.existsSync(docxDir)) {
         for (const name of fs.readdirSync(docxDir)) {
-            if (name === "old_docs" || name === "old_docs.zip") continue;
+            if (name === "old_docs" || name === "backups") continue;
             plan("move", path.join(docxDir, name), path.posix.join("docx", name));
         }
     }
@@ -327,7 +324,7 @@ export function runDocxBackup(projectRoot: string): DocxBackupResult {
             : "";
         const lines: string[] = [];
         if (!/^docx\/old_docs\/?$/m.test(existing)) lines.push("docx/old_docs/");
-        if (!/^docx\/old_docs\.zip$/m.test(existing)) lines.push("docx/old_docs.zip");
+        if (!/^docx\/backups\/?$/m.test(existing)) lines.push("docx/backups/");
         if (lines.length > 0) {
             const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : "";
             fs.writeFileSync(

@@ -21,7 +21,7 @@ both). Leaf annotations live here; the root map annotates branches only.
 |  |- 1.4.2 Footer widget (+ /aftc-footer menus)
 |  |- 1.4.3 Subscription allowance
 |  |- 1.4.4 Usage recording
-|  \- 1.4.5 Usage report (report.html)
+|  \- 1.4.5 Usage report (usage-report app + server)
 |- 1.5 Feature modules
 |  |- 1.5.1 Keyboard shortcuts (keys.ts)
 |  |- 1.5.2 Help & discovery (help.ts)

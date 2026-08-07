@@ -12,6 +12,8 @@
 
 - [jpXm4X] textarea selectionStart/selectionEnd reset when it blurs (eg the user clicks a button) - save the caret position on blur/keyup/mouseup/select and use the SAVED values in the button handler, never the live ones.
 
+- [njYQdH] HTML pages opened directly from disk (the file: scheme) cannot load `<script type="module" src>` or use fetch() — the browser treats each local file as an opaque origin, so module scripts and fetches are CORS-blocked even with relative ./ paths, while classic `<script src>` and `<link rel="stylesheet">` still load; for local HTML apps either inline the module code/data or serve the folder over a tiny local HTTP server.
+
 ## Issues & Solutions
 
 

@@ -8,7 +8,7 @@
  *
  * Data location (PERMANENT decision — see AGENTS.md "Data directory" section):
  *   The runtime data dir (turns.db, config.json, ssh.json,
- *   report.html) lives in a per-user OS-standard persistent directory OUTSIDE
+ *   usage-report/ app + data.json) lives in a per-user OS-standard persistent directory OUTSIDE
  *   the installed package, so it survives `pi update --extensions` (which
  *   replaces the whole package dir). Location per platform:
  *     - Windows: %APPDATA%\pi-aftc-toolset\data
@@ -123,7 +123,7 @@ export function getPersistentRoot(): string {
     return path.join(dataHome, PACKAGE_NAME);
 }
 
-/** Directory holding turns.db, config.json, ssh.json, report.html. */
+/** Directory holding turns.db, config.json, ssh.json and the usage-report app folder. */
 export function getDataDir(): string {
     return path.join(getPersistentRoot(), "data");
 }
@@ -148,11 +148,6 @@ export function getConfigJson(): string {
 /** Path to local SSH connection credentials. Never add this file to git or npm. */
 export function getSshJson(): string {
     return path.join(getDataDir(), "ssh.json");
-}
-
-
-export function getReportFile(): string {
-    return path.join(getDataDir(), "report.html");
 }
 
 /**

@@ -537,6 +537,9 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         } else {
             console.log(result.output.trim());
         }
+        if (result.updated > 0) {
+            notify(cctx, `${result.updated} shipped entr${result.updated === 1 ? "y" : "ies"} updated to the latest wording (your copy had not been edited).`, "info");
+        }
         if (result.conflicts) {
             notify(cctx, "Conflicts reported (same [ID], different text) — YOUR live versions were kept; review them by hand.", "warning");
         }
@@ -570,7 +573,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             notify(cctx, "live-to-seed sync produced no output (script missing or failed to spawn).", "error");
             return;
         }
-        const nothingPending = /0 new topic file\(s\), 0 entr\(ies\) to merge/.test(dry);
+        const nothingPending = /0 new topic file\(s\), 0 entr\(ies\) to merge, 0 entr\(ies\) updated/.test(dry);
         if (nothingPending) {
             notify(cctx, "live codex and package seed are already in sync — nothing to port. (This is the maintainer release tool; to UPDATE your codex after a shipped update, run /codex-sync.)", "info");
             return;
@@ -580,8 +583,9 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         } else {
             console.log(dry.trim());
         }
-        if (/CONFLICT/.test(dry)) {
-            notify(cctx, "Conflicts reported (same [ID], different text) — resolve them by hand before applying; the seed version is kept on conflict.", "warning");
+        const updatedMatches = dry.match(/^UPDATED\s+\S+\s+\[[^\]]+\]/gm) ?? [];
+        if (updatedMatches.length > 0) {
+            notify(cctx, `${updatedMatches.length} entr${updatedMatches.length === 1 ? "y" : "ies"} differ between live and seed — your LIVE text will win and replace the seed version (auto-resolved; the AI will be asked to review after applying).`, "info");
         }
         if (!apply) {
             if (!isTui(cctx)) {
@@ -590,7 +594,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             }
             const ok = await showConfirm(cctx, {
                 title: "Apply live -> seed sync?",
-                body: "Port the live-only entries shown above into the package seed? (Conflicts are never auto-overwritten.)",
+                body: "Port the live-only entries shown above into the package seed? (Where the same entry differs, your live text replaces the seed version.)",
             });
             if (!ok) return;
         }
@@ -608,6 +612,28 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         }
         if (!isTui(cctx)) {
             console.log(applied.trim());
+        }
+        // Auto-resolved entries: ask the AI to review the merged seed files
+        // and correct anything the merge got wrong (same injection pattern as
+        // /codex-learn - queued as a follow-up when the agent is busy).
+        const appliedUpdates = applied.match(/^UPDATED\s+(\S+)\s+\[([^\]]+)\]/gm) ?? [];
+        if (appliedUpdates.length > 0) {
+            const list = appliedUpdates.map((l) => l.replace(/^UPDATED\s+/, "")).join(", ");
+            const prompt = [
+                "The /codex-live-to-seed sync just auto-resolved same-ID differences by porting the LIVE codex text into the package seed (live is the maintainer's learning copy and wins).",
+                `Entries replaced in the seed: ${list}.`,
+                "Please review the merged result: codex_load each affected topic, read the listed entries in their seed files under extensions/aftc-toolset/data/aftc-codex/resources/, and confirm the auto-merge produced sane, complete entries (no truncation, no duplicated or mangled text, correct section).",
+                "If anything is wrong, fix the SEED file entry with codex_edit_entry (or a direct edit of the seed file if the tool cannot target the seed) and say what you corrected. If everything is fine, just say the merge checked out.",
+            ].join("\n");
+            try {
+                if (isCommandBusy(cctx)) {
+                    pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+                } else {
+                    pi.sendUserMessage(prompt);
+                }
+            } catch (err) {
+                aftcConsole.logError(`[aftc-toolset] codex live-to-seed review prompt failed: ${(err as Error).message}`);
+            }
         }
         // TUI: done — exit straight after the confirm (no second viewer).
         if (changed) {

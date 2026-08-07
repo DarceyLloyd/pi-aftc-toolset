@@ -1,6 +1,6 @@
 # 1 - Extension source — TUI sitemap
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-07 -->
 
 ## References
 
@@ -56,8 +56,8 @@ Inline transcript entries (pi.appendEntry — never in LLM context)
 |- response divider rule                         → 1.5.5
 \- codex banners / prep notices                  → 1.7.2
 
-Browser surface (opened by /usage-report)
-\- report.html — Overview/Models/Thinking/Timings/Projections tabs → 1.4.5
+Browser surface (opened in the browser by the /usage-report local server)
+\- usage-report web app — Overview/Models/Thinking/Timings/Projections tabs → 1.4.5
 ```
 
 ## LOW LEVEL
@@ -144,7 +144,8 @@ confirmation; project-type picker (10 packs, auto-detect pre-selected).
 result viewer; session-start warning line when deps are missing.
 
 ### Usage report — see [1.4.5](./1.4_footer_usage/1.4.5_usage_report.md)
-Self-contained report.html opened in the browser; 5 tabs (Overview, Models,
+Report web app in `<dataDir>/usage-report/`, served by a bundled local
+server and opened in the browser; 5 tabs (Overview, Models,
 Thinking levels, Timings, Projections); `/usage-clear` confirm overlay.
 
 ### Inline transcript entries

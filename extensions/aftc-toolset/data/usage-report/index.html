@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PI AFTC Toolset - Usage Report</title>
+<link rel="icon" type="image/png" href="./favicon.png">
+<link rel="stylesheet" href="./includes/css/styles.css">
+<!-- Chart.js shipped locally (no CDN needed) -->
+<script src="./includes/js/libs/chart.umd.min.js"></script>
+</head>
+<main>
+  <div id="loading" class="note" style="text-align:center">Loading report data<main>hellip;</div>
+  <header>
+    <h1><span class="title-mark"></span>PI AFTC Toolset - Usage Report</h1>
+    <div class="brand-sub">All For The Code</div>
+    <div class="generated" id="generated-at"></div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Report sections">
+    <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="models" role="tab" aria-selected="false">Models</button>
+    <button class="tab" data-tab="thinking" role="tab" aria-selected="false">Thinking levels</button>
+    <button class="tab" data-tab="timings" role="tab" aria-selected="false">Timings</button>
+    <button class="tab" data-tab="projections" role="tab" aria-selected="false">Projections</button>
+  </nav>
+
+  <!-- ======================= OVERVIEW ======================= -->
+  <section class="tab-panel" id="panel-overview" role="tabpanel">
+    <div class="stat-grid" id="stat-grid"></div>
+    <p class="note" style="margin:6px 2px 0">Cost averages are based on paid turns only — free / $0 (subscription)
+    models still count toward prompt, cache and timing figures.</p>
+
+    <div class="chart-grid">
+      <div class="panel">
+        <div class="panel-title">Daily spend <span class="panel-sub">last 30 days</span></div>
+        <div class="chart-box"><canvas id="chart-daily"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-title">Cost share by model</div>
+          <label class="period-label">Window
+            <select id="share-period">
+              <option value="24h">Last 24 Hours (rolling window)</option>
+              <option value="1d">1 Day</option>
+              <option value="3d" selected>3 Days</option>
+              <option value="5d">5 Days</option>
+              <option value="1w">1 Week</option>
+              <option value="1m">1 Month</option>
+              <option value="3m">3 Months</option>
+              <option value="6m">6 Months</option>
+              <option value="1y">1 Year</option>
+              <option value="all">All Time</option>
+            </select>
+          </label>
+        </div>
+        <div class="chart-box"><canvas id="chart-share"></canvas></div>
+      </div>
+    </div>
+
+    <h2>Period summary</h2>
+    <div class="period-grid" id="period-grid"></div>
+  </section>
+
+  <!-- ======================= MODELS ======================= -->
+  <section class="tab-panel hidden" id="panel-models" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Per-model cost report</div>
+      <label class="period-label">Period
+        <select id="models-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="panel" style="margin-bottom:10px">
+      <div class="panel-title">Cost by model <span class="panel-sub" id="models-chart-sub">all time</span></div>
+      <div class="chart-box sm"><canvas id="chart-models"></canvas></div>
+    </div>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="models-table"></table>
+      </div>
+      <div id="models-empty" class="empty" hidden>No data for this period.</div>
+    </div>
+  </section>
+
+  <!-- ======================= THINKING ======================= -->
+  <section class="tab-panel hidden" id="panel-thinking" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Per-model × thinking level</div>
+      <label class="period-label">Period
+        <select id="thinking-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="thinking-table"></table>
+      </div>
+      <div id="thinking-empty" class="empty" hidden>No data for this period.</div>
+    </div>
+  </section>
+
+  <!-- ======================= TIMINGS ======================= -->
+  <section class="tab-panel hidden" id="panel-timings" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Task Time &amp; turn timings</div>
+      <label class="period-label">Period
+        <select id="timings-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="stat-grid" id="timings-cards"></div>
+
+    <div class="chart-grid">
+      <div class="panel">
+        <div class="panel-title">Avg Task Time by model <span class="panel-sub" id="task-model-sub">all time</span></div>
+        <div class="chart-box sm"><canvas id="chart-task-model"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Daily Avg Task Time <span class="panel-sub">last 30 days · completed tasks</span></div>
+        <div class="chart-box sm"><canvas id="chart-task-daily"></canvas></div>
+      </div>
+    </div>
+
+    <div class="duo-grid">
+      <div class="panel">
+        <div class="panel-title">Where the task time goes <span class="panel-sub">completed tasks</span></div>
+        <div id="time-split"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">User-prompt vs AI turns <span class="panel-sub">per-turn timings</span></div>
+        <div class="table-wrap"><table class="mini-table" id="turn-split"></table></div>
+      </div>
+    </div>
+
+    <h2>Longest tasks <span class="section-meta">top 10 completed tasks in the selected period</span></h2>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="longest-table"></table>
+      </div>
+      <div id="longest-empty" class="empty" hidden>No completed tasks in this period.</div>
+    </div>
+
+    <p class="note"><b>Task Time</b> is the wall-clock time from when you press enter to when the AI fully
+    returns control &mdash; one prompt's complete agent run, across all its tool-call turns (questions, steering,
+    retries and compaction included). Averages and the longest-task list cover <b>completed</b> tasks only;
+    failed runs (error / abort) are counted in the cards above but never averaged into Task Time. Think and
+    response times come from the per-turn table.</p>
+  </section>
+
+  <!-- ======================= PROJECTIONS ======================= -->
+  <section class="tab-panel hidden" id="panel-projections" role="tabpanel">
+    <div class="stat-grid" id="proj-cards"></div>
+    <p class="note" id="proj-note"></p>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="proj-table"></table>
+      </div>
+      <div id="proj-empty" class="empty" hidden>No data recorded yet.</div>
+    </div>
+    <p class="note">Per-model figures assume each future day looks like your average <b>active day</b>
+    with that model (spend ÷ active days). The overall burn rate divides all-time spend by every
+    calendar day since recording began, including idle days. Rows marked <span class="est">~</span>
+    are estimates from fewer than 7 active days. Models with zero total cost are excluded.</p>
+  </section>
+
+  <footer>Generated by pi-aftc-toolset &middot; /usage-report &middot; All For The Code<br>Author Darcey.Lloyd@gmail.com</footer>
+</main>
+<script type="module" src="./includes/js/app.mjs"></script>
+</body>
+</html>

@@ -15,8 +15,12 @@
  *     appended at the END of the matching section (Rules / Gotchyas /
  *     Issues & Solutions).
  *   - Live-only entries are KEPT (never deleted — that is the point).
- *   - Same-ID-different-text is reported as a CONFLICT and the LIVE version is
- *     kept, never auto-overwritten.
+ *   - Same-ID-different-text: the live copy keeps a sync manifest
+ *     (codex-live-manifest.json) recording which entries still matched the
+ *     shipped text at the last sync. Entries the USER has not touched are
+ *     UPDATED to the new shipped text (so shipped improvements reach users);
+ *     entries the user HAS edited (or that predate the manifest) keep the
+ *     user's version and are reported as a CONFLICT — user edits are sacred.
  *   - codex-resource-list.md is GENERATED — never copied.
  *   - Top-level fixed docs (codex-rules.md etc. — maintainer-curated, never
  *     learned into) are updated to the seed version when they differ.
@@ -26,6 +30,7 @@
  * relative to this script.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -114,9 +119,23 @@ function keyedEntries(sections) {
     return m;
 }
 
+const sha = (text) => createHash("sha256").update(text, "utf8").digest("hex");
+
+// Sync manifest: records, per shipped entry ("<rel>#<id>"), the hash of the
+// live text at the last sync and whether the user owns a divergent version.
+//   { h: <sha256>, u: true }  -> user-edited; NEVER auto-updated.
+//   { h: <sha256>, u: false } -> matched shipped at last sync; safe to update
+//                                while the live text still equals h.
+const MANIFEST = join(LIVE, "codex-live-manifest.json");
+let manifest = {};
+try {
+    const decoded = JSON.parse(readFileSync(MANIFEST, "utf8"));
+    if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) manifest = decoded;
+} catch { /* first sync after this feature ships: no manifest yet */ }
+
 const seedFiles = walk(join(SEED, "resources"));
 const planned = [];
-let copied = 0, merged = 0, conflicts = 0;
+let copied = 0, merged = 0, updated = 0, conflicts = 0;
 
 for (const rel of seedFiles) {
     if (rel === "codex-resource-list.md") continue; // generated, never copied
@@ -141,17 +160,28 @@ for (const rel of seedFiles) {
     for (const [h, entries] of seed.sections) {
         for (const e of entries) if (!liveMap.has(e.key)) missing.push({ heading: h, entry: e });
     }
+    // Same ID, different text. The manifest tells us whether the user touched
+    // the live entry since the last sync: untouched -> update to the shipped
+    // text; touched (or untracked) -> keep the user's version.
+    const replace = new Map(); // key -> seed entry block
     for (const [key, s] of seedMap) {
         const l = liveMap.get(key);
-        if (l && l.entry.text !== s.entry.text) {
+        if (!l || l.entry.text === s.entry.text) continue;
+        const mkey = `${rel}#${key}`;
+        const rec = manifest[mkey];
+        if (rec && rec.u !== true && rec.h === sha(l.entry.text)) {
+            replace.set(key, s.entry);
+            updated++;
+            console.log(`UPDATED    ${rel} [${key}] — updated to the shipped version (you had not edited it)`);
+        } else {
             conflicts++;
             console.log(`CONFLICT   ${rel} [${key}] — same ID, different text (kept YOUR live version, review manually)`);
         }
     }
-    if (missing.length === 0) continue;
+    if (missing.length === 0 && replace.size === 0) continue;
 
-    // Rebuild the live text with the missing seed entries appended at the end
-    // of their section. Live-only entries stay exactly where they are.
+    // Rebuild the live text: missing seed entries appended at the end of their
+    // section, updated entries swapped in place. Live-only entries stay put.
     const out = [];
     let current = null;
     const flushSection = (heading) => {
@@ -167,19 +197,40 @@ for (const rel of seedFiles) {
         // (for the final section this collapses to the file's trailing newline).
         if (appended) out.push("");
     };
+    let skippingEntry = false;
+    let pendingBlank = false;
     for (const line of liveText.replace(/\r\n/g, "\n").split("\n")) {
+        if (skippingEntry) {
+            if (line.startsWith("  ")) continue;
+            if (line.trim() === "") { pendingBlank = true; continue; }
+            skippingEntry = false;
+            if (pendingBlank && out.length && out[out.length - 1].trim() !== "") out.push("");
+            pendingBlank = false;
+        }
         if (line.startsWith("## ")) {
             if (current !== null) flushSection(current);
             current = line.trim();
+            out.push(line);
+            continue;
+        }
+        const id = (line.match(/^- \[([^\]]+)\]/) || [])[1];
+        if (line.startsWith("- ") && id !== undefined && replace.has(id)) {
+            out.push(...replace.get(id).block.map((x) => x.trimEnd()));
+            skippingEntry = true;
+            continue;
         }
         out.push(line);
     }
+    if (skippingEntry && pendingBlank && out.length && out[out.length - 1].trim() !== "") out.push("");
     if (current !== null) flushSection(current);
     for (const m of missing) {
         if (!m.done) console.log(`WARN       ${rel} [${m.entry.key}] — heading "${m.heading}" not in live file, skipped`);
     }
 
-    console.log(`MERGE      ${rel} +${missing.length} entr${missing.length === 1 ? "y" : "ies"}: ${missing.map((m) => m.entry.id ?? "?").join(", ")}`);
+    const parts = [];
+    if (missing.length) parts.push(`+${missing.length} entr${missing.length === 1 ? "y" : "ies"}: ${missing.map((m) => m.entry.id ?? "?").join(", ")}`);
+    if (replace.size) parts.push(`${replace.size} updated`);
+    console.log(`MERGE      ${rel} ${parts.join(", ")}`);
     let text = out.join("\n");
     if (!text.endsWith("\n")) text += "\n"; // preserve the trailing-newline convention
     planned.push({ livePath, text });
@@ -208,10 +259,40 @@ try {
     console.log(`TOP-LEVEL  skipped (error: ${err && err.message ? err.message : String(err)})`);
 }
 
-console.log(`\n${copied} new topic file(s), ${merged} entr(ies) merged, ${topLevelUpdated} top-level doc(s) updated, ${conflicts} conflict(s).`);
+console.log(`\n${copied} new topic file(s), ${merged} entr(ies) merged, ${updated} entr(ies) updated, ${topLevelUpdated} top-level doc(s) updated, ${conflicts} conflict(s).`);
 for (const p of planned) {
     mkdirSync(dirname(p.livePath), { recursive: true });
     writeFileSync(p.livePath, p.text);
 }
+
+// Rebuild the sync manifest from the post-sync state: for every shipped
+// entry, record what the live copy now holds. Entries that match the seed
+// are future-update-eligible; divergent ones are marked user-owned so they
+// are never auto-overwritten. Entries the seed no longer ships drop out.
+const newManifest = {};
+for (const rel of seedFiles) {
+    if (rel === "codex-resource-list.md") continue;
+    const seedPath = join(SEED, "resources", rel);
+    const livePath = join(LIVE, "resources", rel);
+    if (!existsSync(livePath)) continue; // newly copied whole on a later run
+    const seedMap = keyedEntries(parse(readFileSync(seedPath, "utf8")).sections);
+    const liveMap = keyedEntries(parse(readFileSync(livePath, "utf8")).sections);
+    for (const [key, s] of seedMap) {
+        const l = liveMap.get(key);
+        if (!l) continue; // missing live entries are appended on the next sync
+        const mkey = `${rel}#${key}`;
+        if (l.entry.text === s.entry.text) {
+            newManifest[mkey] = { h: sha(s.entry.text), u: false };
+        } else {
+            // Divergent (user edit kept, or first-run unknown): user-owned —
+            // never auto-updated on a future sync.
+            newManifest[mkey] = { h: sha(l.entry.text), u: true };
+        }
+    }
+}
+try {
+    writeFileSync(MANIFEST, JSON.stringify(newManifest, null, 2) + "\n", "utf8");
+} catch { /* manifest is an optimisation — never fail the sync over it */ }
+
 console.log(`APPLIED — wrote ${planned.length} live file(s). Your learned entries were not touched.`);
 process.exit(0);

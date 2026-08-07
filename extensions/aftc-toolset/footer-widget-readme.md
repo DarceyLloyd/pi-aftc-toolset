@@ -57,6 +57,18 @@ Renders a 4-line bar showing:
   whenever the usage endpoint fails or returns unexpected data. Data
   comes from `allowance.ts` via `data.getAllowance()`; see
   `allowance-readme.md`.
+- **Line 6** (sub-agents): always visible while the sub-agents feature
+  is enabled — hidden only when the feature is disabled or its
+  `footerLineEnabled` toggle is off (no idle auto-hide). Format:
+  `Sub Agents running: 2/4 | Session cost: $0.14 | Agent avg task time: 1m 30s | Agents running: worker 42%, explorer 18%`
+  with a `! ` warning prefix when any run is stalled, looping or over
+  the context threshold. Supplied by the orchestrator as the
+  `extras.subAgentLine(colors)` callback (`FooterWidgetExtras`);
+  the widget passes its c1/c2/c3 color helpers (`FooterLineColors`)
+  and the callback returns an already-themed line or null. This module
+  stays subagent-agnostic and never imports the feature (AGENTS.md
+  module rule). See
+  `docx/1_extension_source/1.9_subagents/1.9.6_tool.md`.
 
 The widget uses `setWidget` (not `setFooter`) so it composes with
 other footer/status extensions instead of replacing them. The
@@ -110,13 +122,16 @@ ticker cleanly. Without this, recreating the widget (theme change,
 ```typescript
 export function createFooterWidget(
     pi: ExtensionAPI,
-    data: FooterDataProvider
+    data: FooterDataProvider,
+    extras?: FooterWidgetExtras
 ): void
 ```
 
 Wires the widget into pi and registers the `/aftc-footer` command.
 The orchestrator passes `data` (a `FooterDataProvider` returned by
-`createCore`) so the widget never imports core directly.
+`createCore`) so the widget never imports core directly. `extras`
+carries optional extra line sources (today: `subAgentLine()` for the
+007 line); a thrown callback is swallowed — an extra line is cosmetic.
 
 ## Commands registered (1)
 

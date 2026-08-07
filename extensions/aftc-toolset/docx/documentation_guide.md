@@ -361,8 +361,8 @@ Must work as a complete overview even if nothing else exists. In order:
   folder in the mirrored tree - NEVER a folder itself. `docx/` contains
   exactly these entries when generation completes: `project_documentation.md`,
   `project_map.md`, the cross-cutting `.md` files, the `<id>_<name>/` node
-  folders, any top-level leaf docs, and the tooling-owned `old_docs.zip`
-  (plus the transient `generation-plan.md` mid-run). Never invent extra
+  folders, any top-level leaf docs, and the tooling-owned `backups/`
+  folder (plus the transient `generation-plan.md` mid-run). Never invent extra
   files or folders under `docx/`.
 - Same shape as the root map: last-verified header, tree, annotations,
   status legend. Sub-IDs hang off the parent ID.
@@ -622,11 +622,11 @@ Never traverse, never ID, never read for container detection:
 `target/`, `.next/`, `.nuxt/`, `.svelte-kit/`, `.turbo/`, `.parcel-cache/`,
 `.gradle/`, `__pycache__/`, `.pytest_cache/`, `.venv/`, `venv/`, `env/`,
 `Pods/`, `DerivedData/`, `.idea/`, `.vscode/`, `.git/`, `.hg/`, `.svn/`,
-`coverage/`, `.cache/`, `.tmp/`, `tmp/`, `docx/old_docs/`.
+`coverage/`, `.cache/`, `.tmp/`, `tmp/`, `docx/old_docs/`, `docx/backups/`.
 
 A `.md` inside an excluded directory is never project documentation. When in
-doubt, skip. `docx/old_docs.zip` is the zipped previous documentation -
-NEVER read it for recon (superseded content is a spoiler, not a source).
+doubt, skip. `docx/backups/` holds the zipped previous documentation runs -
+NEVER read them for recon (superseded content is a spoiler, not a source).
 
 **Folders to never touch** (never read, edit or create unless the user or
 project docs explicitly lift the rule per-file per-request; if ambiguous,
@@ -666,20 +666,25 @@ folder chain, every node-with-children has its folder).
 **Backup (tooling-owned, not the model's job):** when `/docx` runs, the
 extension moves every pre-existing documentation file (root-level project
 `.md` files, known AI-tool context files, everything under `./docs/`, and
-any previous `./docx/` output incl. a previous `old_docs.zip`) into
-`./docx/old_docs/`, preserving each file's relative path from the project root.
+any previous `./docx/` output incl. earlier staging leftovers) into
+`./docx/old_docs/`, preserving each file's relative path from the project
+root. The `docx/backups/` folder (accumulated backup zips) is NEVER
+folded or touched.
 Partner docs (a `.md` sharing its basename with a non-`.md` sibling) are
 left in place. Excluded and never-touch folders are never walked. The move
 count is verified against the collected count before generation starts.
 
-The old docs stay readable at `./docx/old_docs/` for the WHOLE generation run
+The old docs stay readable at `./docx/old_docs/` for the WHOLE run
 (recon input - HINTS ONLY, never truth; verify every claim against source).
-As the FINAL step the model runs the shipped zip script, which packs
-`./docx/old_docs/` into `./docx/old_docs.zip` and deletes the folder -
-future sessions never read superseded docs. To restore old documentation:
-unzip `old_docs.zip` and copy files back to their paths.
+As the FINAL step the model runs the shipped zip script with the run's
+label, which packs `./docx/old_docs/` into a TIMESTAMPED zip inside
+`./docx/backups/` - "Original Documentation Backup YYMMDD HHMM.zip" for
+/docx, "Documentation Backup YYMMDD HHMM.zip" for /docx-update - and
+deletes the folder, so future sessions never read superseded docs. To
+restore old documentation: unzip the relevant backup and copy files back
+to their paths.
 
-`./docx/old_docs/` and `./docx/old_docs.zip` are added to `.gitignore` by the
+`./docx/old_docs/` and `./docx/backups/` are added to `.gitignore` by the
 backup tooling.
 
 ---
@@ -726,7 +731,7 @@ are files in their parent's folder; child nodes are subfolders,
 recursively). A top-level leaf node is a file directly in docx/. There is
 NO docs/ subfolder - docx/ IS the documentation folder. The only other
 files ever allowed in docx/ are the transient generation-plan.md (deleted
-at step 12) and the tooling-owned old_docs/ + old_docs.zip. Every other
+at step 12) and the tooling-owned old_docs/ + backups/. Every other
 folder - including sub-projects (frontends, backends, frameworks) - is
 READ-ONLY: read freely for reconnaissance, never create, edit, move, or
 delete anything inside them.
@@ -735,7 +740,7 @@ STEP 0 - BACKUP: ALREADY DONE by the /docx tooling. Pre-existing
 documentation was moved to [PROJECT_PATH]/docx/old_docs/ (rel-from-root
 paths preserved). Do NOT move, delete or zip anything yourself. The old
 docs under docx/old_docs/ are recon INPUT ONLY - a HINT, never truth.
-NEVER read docx/old_docs.zip (a previous run's zipped backup).
+NEVER read docx/backups/ (previous runs' zipped backups).
 
 STEP 1 - RECONNAISSANCE (SOURCE OVER DOCS - the core discipline)
 - Run the shipped scan script FIRST and work from its output instead of
@@ -922,13 +927,13 @@ STEP 12 - REPORT + FINALISE
   recorded with a fix plan in docx/known-gaps.md (create the file when
   at least one item is unchecked).
 - LAST ACTION, after everything else passes: zip the backup away so future
-  sessions never read superseded docs:
-  node "[ZIP_OLD_PATH]" "[PROJECT_PATH]"
+  sessions never read superseded docs (timestamped zip inside docx/backups/):
+  node "[ZIP_OLD_PATH]" "[PROJECT_PATH]" [ZIP_OLD_LABEL]
 ```
 
 ### 18.1 Project-type packs (appended by the tooling)
 
-The `/docx` command asks the user for the project type (a picker modal in
+The `/docx` and `/docx-update` commands ask the user for the project type (a picker modal in
 the TUI; `--type <key>` for headless runs; auto-detection pre-selects or
 fills in when it can) and appends ONE pack from `docx/prompts/<key>.md` to
 the injected prompt, verbatim after the core. The pack defines that stack's
@@ -965,7 +970,8 @@ belong in the core above, never duplicated into packs.
   into docx/old_docs/ first (the tooling backup is all-or-nothing), then run
   the steps scoped to that module.
 - **Re-run on a docx'd project**: the tooling folds the previous ./docx/
-  output AND the previous old_docs.zip into the new backup automatically.
+  output into the new backup automatically (the accumulated backup zips
+  in docx/backups/ stay put).
 
 ---
 
@@ -995,7 +1001,7 @@ Fix any unchecked item, or document the gap in `docx/known-gaps.md`.
 - [ ] Map annotations use full file names as link text; every generated `.md` under `docx/` appears in the master's Documentation Index at its nested path.
 - [ ] link-audit script prints PASS.
 - [ ] A new session can onboard from the root README + master + map + AGENTS.md + one deep doc.
-- [ ] `docx/old_docs.zip` exists (previous docs zipped, `docx/old_docs/` removed).
+- [ ] A new timestamped backup zip exists in `docx/backups/` (previous docs zipped, `docx/old_docs/` removed).
 
 ---
 
@@ -1025,3 +1031,101 @@ Defaults, not laws - document the project's actual shape:
 
 - The aftc-codex knowledge base, when available, holds language/tool
   conventions that `AGENTS.md` should reference where relevant.
+
+---
+
+## 22. AI Update Execution Prompt
+
+The `/docx-update` command injects the following core execution prompt
+(the section-18 sibling is the FULL regeneration run; this one reconciles
+an EXISTING doc set with the source of truth and never regenerates from
+scratch). Same placeholder conventions: `[PROJECT_PATH]`, `[GUIDE_PATH]`,
+`[MAP_SCAN_PATH]`, `[LINK_AUDIT_PATH]`, `[ZIP_OLD_PATH]`,
+`[ZIP_OLD_LABEL]` (substituted by the tooling; the label selects the
+timestamped backup-zip name).
+
+```text
+You are running /docx-update for the project at [PROJECT_PATH]:
+RECONCILE the existing documentation set (./docx/) with the source code.
+This is an UPDATE run, not a regeneration - you edit the existing docs,
+you do not rebuild them. Follow [GUIDE_PATH] (appended below this
+prompt) for structure, ID rules, house style and the link-audit
+contract in everything you change.
+
+NON-NEGOTIABLE RULES
+- Source beats docs beats memory: every correction must be verifiable
+  in source. Never invent; never leave a claim you cannot verify -
+  correct it or remove it, and say so in the summary.
+- Stable IDs: never renumber or reassign an existing doc ID. A node
+  whose source is gone gets its docs removed and its ID marked
+  `reserved` in the map status legend (never reused).
+- Edit in place: keep each doc's structure, headings and house style;
+  change what drifted; refresh the last-reviewed stamp of every doc
+  you touch.
+- Four-way sync on every mint/retire: map node, master per-ID section,
+  Documentation Index entry, deep doc - created or removed together.
+
+STEP 0 - BACKUP: ALREADY DONE by the /docx-update tooling. The previous
+doc set was staged into [PROJECT_PATH]/docx/old_docs/. Do NOT move,
+delete or zip anything yourself. Treat old_docs as recon INPUT ONLY.
+
+STEP 1 - DIFF PLAN (source of truth vs documented tree)
+- Run [MAP_SCAN_PATH] over the project to build the CURRENT structure
+  (nodes, files, UI-surface hints).
+- Read the docx/ master + map + Documentation Index.
+- Build the diff and write it to [PROJECT_PATH]/docx/generation-plan.md
+  (transient - deleted in STEP 7):
+  (a) NEW nodes: source structure that has no documentation yet.
+  (b) REMOVED nodes: documented nodes whose source no longer exists.
+  (c) DRIFT candidates: docs whose subject demonstrably changed since
+      their last-reviewed stamp - verify against source, prioritising
+      the areas map-scan flags as new and any areas the invoking
+      session calls out.
+
+STEP 2 - MINT new nodes (guide mint rules): map node (next free sibling
+ID) + master per-ID section + Documentation Index entry + ID-prefixed
+deep doc in the mirrored folder; UI surfaces also get their sitemap
+leaf. Write from source, never from assumption.
+
+STEP 3 - RETIRE removed nodes: delete the deep doc, remove the master
+section + index entry + map node, mark the ID `reserved` in the status
+legend, and fix every doc that cross-references it.
+
+STEP 4 - CORRECT drift: update facts, commands, signatures, tables and
+examples to match current source. Docs update in the SAME pass - never
+deferred. Refresh last-reviewed stamps.
+
+STEP 5 - CROSS-REFERENCES: master Documentation Index, map annotations
++ status column, sitemap(s), dependency rows. Then run
+[LINK_AUDIT_PATH] and fix every failure until it prints PASS.
+
+STEP 6 - ROOT README.md (ADJUST IN PLACE - NEVER REWRITE)
+- Read the ENTIRE README first. Its layout, formatting, heading
+  structure, tables, images, badges, tone and emphasis conventions are
+  the USER'S - preserve all of them.
+- Fact-check every claim against source: features, commands + args,
+  options/flags, install/usage steps, tech-stack and version tables,
+  file locations, screenshots that no longer match, links.
+- Incorrect or stale facts: fix with MINIMAL targeted edits that match
+  the surrounding formatting exactly.
+- Features present in source but missing from the README: add them to
+  the matching existing section (or a new subsection styled exactly
+  like its siblings when no section fits).
+- Features documented but gone from source: remove or correct the
+  claims.
+- Never reorder sections, never restyle, never "normalise" the user's
+  style choices. If the README is already accurate, change nothing and
+  say so.
+
+STEP 7 - REPORT + FINALISE
+- Delete [PROJECT_PATH]/docx/generation-plan.md.
+- Summarise: nodes minted, nodes retired (IDs reserved), drift fixed
+  per doc, link-audit PASS, and the README verdict (edits made, or
+  "already accurate").
+- Confirm explicitly: nothing was created, modified, or moved outside
+  ./docx/, the root README.md and the root AGENTS.md (+ its AI-tool
+  copies).
+- LAST ACTION, after everything else passes: zip the backup away
+  (timestamped zip inside docx/backups/):
+  node "[ZIP_OLD_PATH]" "[PROJECT_PATH]" [ZIP_OLD_LABEL]
+```

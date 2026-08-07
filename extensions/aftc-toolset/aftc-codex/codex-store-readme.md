@@ -6,7 +6,9 @@ Pure data module — no pi imports, no event subscriptions, no commands.
 ## What it adds to the extension
 
 The "live copy" side of a strict **one-way** model (seed → live; the live copy is
-never merged back into the seed, and the seed never auto-overwrites a live file):
+merged back into the seed only by the maintainer's dev-gated live->seed tool,
+and the seed never overwrites a USER-edited live file — untouched entries do
+follow shipped improvements):
 
 - **Shipped seed (source only):** `<packageRoot>/extensions/aftc-toolset/data/aftc-codex/`
 - **User live copy (per-user):** `<dataDir>/aftc-codex/` (always — there is no
@@ -65,8 +67,9 @@ There is **no** drift detection, no `.sync.json`, no backup/restore in this
 module — the codex is a one-way seed->live copy, and user edits (e.g. via
 `/aftc-codex-learn`) live only in the live copy. "Start Fresh" / re-install
 simply delete the live copy and re-seed it; `/codex-sync` is the
-non-destructive alternative (entry-level merge by `[ID]`, live kept on
-conflict).
+non-destructive alternative (entry-level merge by `[ID]`; entries the user
+never touched are updated to new shipped wording via the sync manifest
+`codex-live-manifest.json`, user-edited entries kept on conflict).
 
 Also exports `CODEX_CATEGORIES` and the `CodexStore` / `CodexResourceRead` /
 `CodexCounts` types.

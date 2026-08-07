@@ -39,6 +39,9 @@ secrets.json
 *secrets*.yml
 *secrets*.toml
 
+# Website working files (dev.aftc.uk httpdocs) - never ship
+dev.aftc.uk/
+
 # Manually added
 .npm-token
 publish.bat
