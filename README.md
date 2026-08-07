@@ -1,39 +1,59 @@
-[![GitHub Stars](https://img.shields.io/github/stars/henriquesebastiao/badges?style=flat&color=FFD700&logo=starship&logoColor=white)](https://github.com/henriquesebastiao/badges/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/henriquesebastiao/badges?style=flat&color=0891b2&logo=github&logoColor=white)](https://github.com/henriquesebastiao/badges/network)
-[![GitHub License](https://img.shields.io/github/license/henriquesebastiao/badges?style=flat&color=22c55e)](https://github.com/henriquesebastiao/badges/blob/main/LICENSE)
-[![NPM](https://nodei.co/npm/pi-aftc-toolset.svg?style=shields&data=n,v,u,d)](https://nodei.co/npm/pi-aftc-toolset/)
-
-
 # **pi-aftc-toolset**
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=darcey.lloyd@gmail.com) 
-Help keep the AI bills paid ;)
 
 
-## **Description**
 
-This is a collection of this and that which I find useful in my daily work.
-When I find something I'm missing I build it and thus the pi-aftc-toolset was born.
+![Static Badge](https://img.shields.io/badge/pi-aftc-toolset) [![GitHub Stars](https://img.shields.io/github/stars/henriquesebastiao/badges?style=flat&color=FFD700&logo=starship&logoColor=white)](https://github.com/henriquesebastiao/badges/stargazers) [![GitHub Forks](https://img.shields.io/github/forks/henriquesebastiao/badges?style=flat&color=0891b2&logo=github&logoColor=white)](https://github.com/henriquesebastiao/badges/network) 
+[![NPM](https://nodei.co/npm/pi-aftc-toolset.svg?style=shields&data=v,u,d)](https://nodei.co/npm/pi-aftc-toolset/)
 
-Main features:
-- Very informative S
 
-Stats bar. Isolated SSH. Documentation generation (docx). Persistent
-self-educating cache-aware skills on demand (codex). Usage reports. Audio
-notifications. Shortcuts. Skills. Themes ++
 
-A productivity extension package for [pi](https://pi.dev)
-(`@earendil-works/pi-coding-agent`): install it, run `/aftc-install`, and
-pi grows a cache/cost diagnostics footer, a persistent usage database with
-a local report web app, credential-isolated SSH tooling for the model and for you,
-an opt-in knowledge base, a documentation generator, and a long tail of
-workflow conveniences.
 
 ---
 
+Got any suggestions or want to leave a message feel free by visiting:
+https://dev.aftc.uk/pi-aftc-toolset/feedback/
+
+
+
+## **Description**
+This is an extension for pi (pi.dev) which helps me in my every day work. If there's something I feel I need I usually bolt it on. So what does it do?
+
+- **AFTC Codex (/codex)**
+  
+  Self learning, self loading (manual also), cache aware resource (like skills) to better help one shot those complex tasks and to stop the AI model from making the same mistakes over and over and over.
+
+- **DocX (/docx)**
+  
+  Will back up your old documentation (if you have any) and generate a hierarchical load on demand, AI and human friendly documentation and maps for each part of your project. Just added /docx-update to keep your documentation updated.
+
+- **SSH (/ssh-*)**
+  
+  Full and isolated SSH for pi, saved connections, slash commands for you, 20 tools for the AI model and a full-screen interactive terminal. Runs through a packaged Python carrier, opens no listening sockets, and your credentials never reach the model.
+
+- **Usage Report (/usage-report)**
+  
+  Records metrics for every assistant turn (never your prompts) into a local SQLite database, then generates and serves a web report — cost, cache hit rates, timings, task times and projections. All your data stays on your machine.
+
+- **Footer Widget (/aftc-footer)**
+  
+  A themed dashboard bar under the editor showing live model, context, cache and cost info, plus long-term averages and subscription quota countdowns for supported providers.
+
+- **run_script**
+  
+  A model tool for running large or multi-line shell scripts reliably — the script is written to a temp file first, working around a pi bug that silently truncates big inline bash commands.
+
+- **Sub Agents (/007 Alpha 1)**
+  
+  Delegate work to your own custom AI agents (planner, researcher, worker — whatever you build). Off by default, enable it via /007 > settings and create your own agents from the agents folder. NOTE: This is in ALPHA 1 release.
+
+
+
+
 ## **WHATS NEW**
 
-### **Sub Agents /007 (APHA 1)**
+### **Sub Agents /007 (ALPHA 1)**
 
 I had been thinking about it for a while, and finally gave it a go. It's in alpha 
 but it's live and usable. It is **turned off by default**, to enable it sub agents
@@ -41,18 +61,18 @@ use **/007 > settings > enable**. This is in alpha, it works but it has a way to
 consider it respectable. Make your own agents via /007 > open agents folder, there's a
 .MD file there with guidance. **/007-edit** is a quick edit tool for them and **/007-new** is 
 work in progress. At the moment it's best to see the MD file and create your own in vscode etc.
-I have also intergrated it into the footer widget, so you can see what your sub agents are doing.
+I have also integrated it into the footer widget, so you can see what your sub agents are doing.
 
 
 ### **DocX gets "/docx-update" to maintain generated DocX project documentation (BETA 1)**
 
 Stop the drift! You know AI models even when instructed wont do it right, so /docx-update
-is here to help keep your documantation up to date. It will backup the previous version of docx,
-just encase.
+is here to help keep your documentation up to date. It will backup the previous version of docx,
+just in case.
 
 ### **Usage Reports /usage-report (Beta 8)**
 
-I've moved away from a single self contained html file as it was a nightmare to edit and maintain, it will now open a dir and attempt to run a nodejs server to display the usage report, there will be start.bat, start.sh and server.js (for direct node use), so you can see your usage report. I expect there will be fixes and changes for this over the coming days/week, your data remains on your machine so even if the report fails to output correctly it your data will be intact and on upcoming fixes and adjustments it will be fixed.
+I've moved away from a single self contained html file as it was a nightmare to edit and maintain, it will now open a dir and attempt to run a nodejs server to display the usage report, there will be start.bat, start.sh and server.js (for direct node use), so you can see your usage report. I expect there will be fixes and changes for this over the coming days/week, your data remains on your machine so even if the report fails to output correctly your data will be intact and on upcoming fixes and adjustments it will be fixed.
 
 
 ### **Project Documentation Generator /DocX (BETA 6)**
@@ -76,7 +96,9 @@ Various resource updates, usually is with every update. Would anyone like this t
 
 Testing, and a few minor adjustments.
 
----
+--- 
+<br>
+
 
 ## **Install**
 
@@ -111,7 +133,7 @@ Then in pi:
 - [**Usage Report**](#usage-report)
 - [**AFTC Codex**](#aftc-codex-knowledge-base)
 
-    > **WARNING**: AFTC Codex injects rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This results in the model having access to potentially a lot of rules, issues & solutions and gotchyas. Loading 1 to 5 is light enough, loading 20 can be costly but necessary when you have something complex that you want the AI to have its best shot at working out and one shotting it.
+    > **WARNING**: AFTC Codex injects rules + guidance into your system prompt and tells the model to load additional topic docs on demand. This results in the model having access to potentially a lot of rules, issues & solutions and gotchas. Loading 1 to 5 is light enough, loading 20 can be costly but necessary when you have something complex that you want the AI to have its best shot at working out and one shotting it.
 
     > I recommend you create a plan.md and a tasks.md first so that you can maximise your use of the codex skills.
 

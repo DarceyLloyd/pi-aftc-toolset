@@ -249,19 +249,28 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
 
 ## Shipping ("ship it", "push it up to github", "release it", "ship vX.X.X")
 
-When the user says any of these, do the full release WITHOUT asking again
-(first finish whatever task is in progress, if any):
+When the user says any of these (first finish whatever task is in
+progress, if any), do NOT start running release steps automatically. Ask
+the user which steps they want this time, offering the full checklist:
 
-1. Ensure the changelog entry exists and the version bump rules above are applied.
-2. Ensure tests are green (Windows first, Linux container per the workflow).
-3. Read the version from `package.json` — that is ALWAYS the X.X.X (never invent it).
-4. Commit everything with a clear message, push to the remote.
-5. Create the GitHub release: `gh release create vX.X.X --title "vX.X.X"`
-   (tag name = title = `vX.X.X`), notes = the changelog entry for the release.
-6. Publish to npm locally with `publish.bat` (reads the npm granular access
-   token from `.env` at the repo root — gitignored + npmignored, never
-   committed; the script feeds it through a temp .npmrc it deletes after).
-   No CI, no Docker. Verify with `npm view pi-aftc-toolset version`.
+1. Changelog entry + version bump (per the bump rules above).
+2. Run tests — Windows suites, and/or the Linux container gates.
+3. Commit everything + push to the remote.
+4. Create the GitHub release.
+5. Publish to npm.
+
+Then run ONLY the approved steps. Standing details for the steps, when
+approved:
+
+- The version always comes from `package.json` — that is ALWAYS the
+  X.X.X (never invent it).
+- GitHub release: `gh release create vX.X.X --title "vX.X.X"` (tag name
+  = title = `vX.X.X`), notes = the changelog entry for the release.
+- npm publish runs locally with `publish.bat` (reads the npm granular
+  access token from `.env` at the repo root — gitignored + npmignored,
+  never committed; the script feeds it through a temp .npmrc it deletes
+  after). No CI, no Docker. Verify with
+  `npm view pi-aftc-toolset version`.
 
 ---
 
