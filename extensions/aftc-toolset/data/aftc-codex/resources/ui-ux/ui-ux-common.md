@@ -1,4 +1,4 @@
-# Design Common (All Domains)
+# UI-UX Common (All Domains)
 
 *Scope: VISUAL design lessons that hold on EVERY platform (web, mobile, desktop, plugin) -
 colour, contrast, typography, spacing, sizing, usability universals. A lesson that only fits one

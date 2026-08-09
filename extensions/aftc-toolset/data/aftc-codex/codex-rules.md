@@ -55,10 +55,14 @@
 There is a self-improvement process for you to follow on every project - it is all in
 this file now (no separate rules file). The codex is a shared knowledge base of hard-won
 fixes, gotchyas and rules: one markdown file per technology/topic under `resources/`, organised
-into `languages/`, `libraries/`, `frameworks/`, `engines/`, `tools/`, `runtimes/`, `design/`
-(visual/UX design: one file per domain + `design-common.md` for lessons that fit EVERY domain),
-`database/` (engine-agnostic database lessons), `os/` (platform lessons: `windows`,
-`osx`, `linux`), plus the top-level guidance files. The file name is the topic. Read the relevant resource when you hit a
+into `languages/`, `libraries/`, `frameworks/`, `engines/`, `tools/`, `runtimes/`,
+`servers-and-containers/` (server + container topics: apache, nginx, vsftpd, docker),
+`ui-ux/` (visual/UX design: one file per domain nested by platform - `ui-ux/web/`,
+`ui-ux/desktop/`, `ui-ux/mobile/`, `ui-ux/plugin/` - + `ui-ux-common.md` for lessons
+that fit EVERY domain), `database/` (engine-agnostic database lessons +
+engine-specific topics like `mysql.md`), `os/` (platform lessons: `windows`,
+`osx`, `linux`), plus the root-level `documentation-and-planning.md` (how-we-work
+lessons: planning, documentation) and the top-level guidance files. The file name is the topic. Read the relevant resource when you hit a
 problem; add an entry when you solve a non-obvious one.
 
 ### The codex resources (how to read them)
@@ -89,12 +93,13 @@ Identify the project's technologies/languages/tools/visual design/ui & ux requir
 then load the relevant codex resources for those technologies via `codex_load` 
 (plus `thought-and-action-guidance.md` always - `codex_load('guidance')`). This happens
 BEFORE exploring project files, BEFORE planning, BEFORE any implementation. No exceptions.
+When the user's request involves planning or documentation work, your FIRST tool call is `codex_load('documentation-and-planning')` - its work-methodology rules apply even before the project stack is known, so load it before exploring files, asking questions, or answering.
 
 ### Project tech-stack block (AFTC-CODEX-STACK)
 
 Every project should declare its stack in the coding agent's auto-inject file so
 codex auto-detection can pin the right resources (this block is the ONLY way the
-design domains and target OS are detected - no file scan can infer them):
+ui-ux domains and target OS are detected - no file scan can infer them):
 
 ```
 <!-- AFTC-CODEX-STACK
@@ -109,7 +114,7 @@ topics: typescript, scss, vite, web-app, windows
   across every recognised file the project has.
 - `topics:` is a flat comma-separated list of codex topic names (the resource file
   basenames: typescript, cpp, cs, rs, java, vite, docker, ...). Include languages,
-  frameworks, libraries, tools, runtimes, the DESIGN domain (web-app, web-page,
+  frameworks, libraries, tools, runtimes, the UI-UX domain (web-app, web-page,
   web-backend, desktop-app, desktop-web-app, mobile-app, vst-plugin) and the target
   OS (windows, linux, osx) when the project targets one specifically.
 - Names with no live resource are not errors - detection reports them as "no
@@ -169,7 +174,7 @@ When the user tells you a codex entry is wrong, outdated, or has a better fix:
    there and say so - never fabricate or pad an entry to fill an expected file. An
    honestly-reported empty result beats a contrived entry.
 
-### Which resource? (tool vs framework vs language vs design)
+### Which resource? (tool vs framework vs language vs ui-ux)
 
 Ask: **"would this issue exist without the tool / framework?"**
 
@@ -181,20 +186,24 @@ Ask: **"would this issue exist without the tool / framework?"**
   A framework's own quirk beats the language file.
 - **Language** - the issue WOULD exist without any tool/framework → the language file
   (`typescript.md` = type system / compile; `javascript.md` = runtime / syntax / modules).
-- **Design (visual/UX)** - the lesson is about how a UI LOOKS or is USED (layout, contrast,
+- **UI-UX (visual/UX design)** - the lesson is about how a UI LOOKS or is USED (layout, contrast,
   spacing, usability, domain conventions) and is independent of the tech stack → the matching
-  `design/<domain>.md`: `web-app` (browser apps), `web-page` (content/marketing pages),
-  `web-backend` (admin/back-office UIs - visual only, never API), `desktop-web-app` (web tech in
-  a desktop shell, eg Electron), `desktop-app` (native desktop), `mobile-app` (touch-first),
-  `vst-plugin` (DAW-hosted audio plugins). Pick by the DOMAIN the UI lives in, never by the
-  technology, and never mix web and desktop conventions in one file. A lesson that holds on EVERY
-  platform (colour, contrast, typography, spacing, sizing, usability universals) goes to
-  `design/design-common.md` instead - and never duplicate an entry in both design-common and a
+  `ui-ux/<platform>/<domain>.md`: `ui-ux/web/web-app.md` (browser apps), `ui-ux/web/web-page.md`
+  (content/marketing pages), `ui-ux/web/web-backend.md` (admin/back-office UIs - visual only,
+  never API), `ui-ux/desktop/desktop-web-app.md` (web tech in a desktop shell, eg Electron),
+  `ui-ux/desktop/desktop-app.md` (native desktop), `ui-ux/mobile/mobile-app.md` (touch-first),
+  `ui-ux/plugin/vst-plugin.md` (DAW-hosted audio plugins). Pick by the DOMAIN the UI lives in,
+  never by the technology, and never mix web and desktop conventions in one file. A lesson that
+  holds on EVERY platform (colour, contrast, typography, spacing, sizing, usability universals)
+  goes to `ui-ux/ui-ux-common.md` instead - and never duplicate an entry in both ui-ux-common and a
   domain file. A lesson that is BOTH a design lesson and a technology quirk goes to the
   technology file, with the design file getting it only if a design searcher would look for it
   there.
+- **How we work (planning / documentation)** - the lesson is about WORK METHODOLOGY (how to
+  plan, verify a plan against reality, generate or audit documentation) and holds for ANY
+  project → the root-level `documentation-and-planning.md` (no category folder).
 - **Database** - engine-specific (a MySQL error, an engine's syntax/behavior quirk) → that
-  engine's tool file (`mysql.md`, ...). Holds for ANY database (storage conventions, migration
+  engine's topic file (`database/mysql.md`, ...). Holds for ANY database (storage conventions, migration
   discipline, NULL semantics) → `database/database-common.md`.
 - **OS (platform)** - the lesson is OS-level behaviour (shells, paths, permissions,
   installers, windowing, services) that depends on the operating system → `os/<platform>.md`
@@ -207,7 +216,7 @@ Ask: **"would this issue exist without the tool / framework?"**
   technique - it stays in `css.md` / `scss.md`, even when the symptom is visual. If it is a
   CHOICE that would still be true implemented in any other technology (contrast, ink-on-fill
   pairings, spacing, touch-target sizes, layout/usability conventions) it goes to
-  `design/<domain>.md`. Mechanism → language file; choice → design file.
+  `ui-ux/<platform>/<domain>.md`. Mechanism → language file; choice → ui-ux file.
 
 Pick the BEST-fit file in ONE pass and move on - do not agonise over borderline cases
 (eg a JUCE symptom of a general CMake rule). Good-enough routing is correct: the grep
@@ -224,14 +233,15 @@ writes to the fixed top-level docs. FIRST decide whether the lesson is recordabl
   only replaced by a full reinstall - Start Fresh or `/codex-install`). If a process rule belongs in the codex, tell the user to
   add it to the seed - do not write it via `-learn`.
 - **Tech lesson** > the ONLY kind `-learn` records: the right
-  `resources/{languages|libraries|frameworks|engines|tools|runtimes|design|database|os}/<topic>.md` (create the
+  `resources/{languages|libraries|frameworks|engines|tools|runtimes|servers-and-containers|database|os|ui-ux}/<topic>.md`
+  (nested domain files use `ui-ux/<platform>/<domain>.md`; create the
   folder/file if missing). THEN classify it as a Rule, a Gotcha or an Issue & Solution -
   see `### Entry format` below.
 - **Design / planning deliberation** > NOT a codex entry. Architectural tradeoffs, "X vs Y"
   decisions, feature specs and discussion conclusions are project/task-specific and
   ephemeral - they belong in the project's plan/spec doc or the relevant module readme,
   not the general codex. (This is about PLANNING deliberation, not visual design: reusable
-  visual/UX lessons ARE recorded - in `resources/design/<domain>.md`.)
+  visual/UX lessons ARE recorded - in `resources/ui-ux/<platform>/<domain>.md`.)
 
 ### Entry format (three KINDS: Rules, Gotchyas, Issues & Solutions)
 
@@ -293,7 +303,7 @@ the ONLY kind with Cause:/Fix: lines and a date:
    change)? > **Gotcha**.
 
 > **EXCEPTION - `thought-and-action-guidance.md` uses NO `[ID]`s.** The `[ID]` format here
-> is for files under `resources/` ONLY (`languages|libraries|frameworks|engines|tools|runtimes|design|database|os/<topic>.md`).
+> is for files under `resources/` ONLY (`languages|libraries|frameworks|engines|tools|runtimes|servers-and-containers|database|os|ui-ux/<topic>.md`).
 > Entries in `thought-and-action-guidance.md` are PLAIN PROSE LEADS - `- one-line symptom`
 > then `  Cause:` / `  Fix:` - with **no `[ID]` and no brackets**. For that file: write the
 > prose lead, check it is not a duplicate of an existing lead, stop. Never add an `[ID]`
@@ -350,7 +360,7 @@ project-specific) into the codex resources, using the codex entry tools
 list to avoid duplicates; codex_loads each target topic (the write tools refuse a topic
 not loaded this session); classifies each lesson (Rule / Gotcha / Issue & Solution) and
 writes it under the matching section of the right
-`languages|libraries|frameworks|engines|tools|runtimes|design|database|os/<topic>.md` ONLY (the tools
+`languages|libraries|frameworks|engines|tools|runtimes|servers-and-containers|database|os|ui-ux/<topic>.md` ONLY (the tools
 create the file with the three-section skeleton in the correct category folder if missing
 and regenerate the resource list for new topics); proposes entries
 and writes only after user

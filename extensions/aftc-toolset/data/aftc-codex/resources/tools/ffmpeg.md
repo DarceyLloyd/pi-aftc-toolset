@@ -2,7 +2,11 @@
 
 ## Rules
 
+- [qd0aNg] Preserve the source channel count when re-encoding by NOT passing -ac (ffmpeg keeps the input layout by default); convert to a temp file, verify output size and a readable duration, then os.replace - never delete the source before the output is verified.
+
 ## Gotchyas
+
+- [oksuKj] ffmpeg "Unable to choose an output format for 'out.mp3.tmp'" - a non-standard temp extension (.tmp) defeats muxer inference; pass -f mp3 (or the real target format) before the temp output path, then os.replace onto the final name.
 
 ## Issues & Solutions
 

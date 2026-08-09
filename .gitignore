@@ -104,3 +104,5 @@ docx/old_docs.zip
 .npm-token
 .vs/
 shipit.ps1
+# aftc docx backup artifacts
+docx/backups/

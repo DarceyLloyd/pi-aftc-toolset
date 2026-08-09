@@ -5,7 +5,7 @@ key conventions and output-severity rules. Every surface in the
 [sitemap](1_extension_source/1_tui_sitemap.md) follows this; per-surface
 docs reference it instead of repeating it.
 
-<!-- last-reviewed: 2026-08-07 -->
+<!-- last-reviewed: 2026-08-09 22:30 21:35 -->
 
 ## References
 

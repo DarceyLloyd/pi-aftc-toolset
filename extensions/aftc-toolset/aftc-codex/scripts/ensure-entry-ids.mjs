@@ -140,33 +140,28 @@ function processFile(absPath) {
     return added;
 }
 
-/** Recursively find all .md files in category subfolders. Category folders are
- *  discovered DYNAMICALLY (any subdirectory of the resources dir) so new
- *  categories (eg runtimes/) are picked up without a code change. */
+/** Recursively find all .md resource files under the resources dir: category
+ *  folders may nest topics one level deep (eg ui-ux/web/web-app.md), and
+ *  root-level loose topics (eg documentation-and-planning.md) are included.
+ *  The generated codex-resource-list.md is excluded. Category folders are
+ *  discovered DYNAMICALLY so new categories need no code change. */
 function findResourceFiles(dir) {
     const files = [];
-    let categories;
+    let entries;
     try {
-        categories = fs.readdirSync(dir, { withFileTypes: true });
+        entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
         return files;
     }
-    for (const cat of categories) {
-        if (!cat.isDirectory()) continue;
-        const catDir = path.join(dir, cat.name);
-        let entries;
+    for (const e of entries) {
+        const p = path.join(dir, e.name);
         try {
-            entries = fs.readdirSync(catDir);
-        } catch {
-            continue;
-        }
-        for (const name of entries) {
-            if (!name.toLowerCase().endsWith(".md")) continue;
-            const abs = path.join(catDir, name);
-            try {
-                if (fs.statSync(abs).isFile()) files.push(abs);
-            } catch { /* skip */ }
-        }
+            if (e.isDirectory()) {
+                files.push(...findResourceFiles(p));
+            } else if (e.isFile() && e.name.toLowerCase().endsWith(".md") && e.name !== "codex-resource-list.md") {
+                files.push(p);
+            }
+        } catch { /* skip */ }
     }
     return files;
 }

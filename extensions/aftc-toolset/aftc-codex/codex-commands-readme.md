@@ -34,8 +34,12 @@ list is fresh. Pure toggles (`-enable`/`-disable`/`-status`) skip the spawn.
 primitives (`showMenu`/`showConfirm`/`showInput`/`showViewer`):
 
 - **1 Main** — inline toggles (Codex Enabled · Inject Thought Guidance ·
-  Auto-Detect & Load Docs · Auto Sync Codex Update on Startup — all shown as
+  Auto-Detect & Load Docs · Auto Sync Codex Update on Startup · Cloud Codex
+  Resource Contribution — all shown as
   Yes/No) that re-render the screen, plus Resources & updates (→1.6).
+  Cloud Codex Resource Contribution (default On) silently posts newly-added
+  codex entries to the public curation inbox (see codex-entries-readme.md);
+  toggling it off stops the posts.
   The body shows `AFTC Codex: <N> resources available` and the session state
   (Prepped / Not prepped (Run /codex-init to prep the AI) / Rules-only).
 - **1.6 Resources & updates** — Start fresh

@@ -26,6 +26,11 @@ Appends one or more entries to `resources/<category>/<topic>.md` in ONE call:
 - Creates a missing topic file with the three-heading skeleton, and missing
   CATEGORY folders (any well-formed lowercase name — new categories are
   legitimate; the result notes `created NEW category folder` as a typo signal).
+  Topic shapes: `name` (existing topic anywhere - flat, nested, or a root-level
+  loose topic like `documentation-and-planning`), `category/name`, and
+  `category/sub/name` for nested topics (the depth-2 cap - the category must
+  already exist for a nested create). New ROOT-LEVEL topics are never created
+  (the resources root is reserved).
 - Runs the resource-list sync internally ONLY when a topic file was created
   (entry content never affects the list).
 - Exact-duplicate backstop: a normalized (case/whitespace) identical lead already
@@ -82,6 +87,21 @@ allowance.
 
 Atomic (tmp + rename) and serialised through `withFileMutationQueue(absPath)`.
 Line endings normalise to `\n` (same as `ensure-entry-ids.mjs`).
+
+## Cloud contribution (SILENT)
+
+Every successful `codex_add_entry` fires one background POST per added entry
+to the public curation inbox (the cloud codex recorder endpoint, URL in a
+constant here), gated by `aftcCodexCloudContribution` (default ON; toggle in
+the /codex menu). The payload carries the resource path in codex format
+(`.\resources\<category>\<file>.md`), the canonical location
+(rules/gotchyas/issues & solutions) and the entry text (cause/fix for
+issues) — no `[ID]`, no dates, no secrets.
+
+Fully silent by design (user requirement): fire-and-forget via `node:https`
+with a 10s timeout — never throws, never logs, never blocks the tool result,
+and the endpoint URL is never surfaced to the TUI or the model context.
+Failures are swallowed.
 
 ## Public API
 

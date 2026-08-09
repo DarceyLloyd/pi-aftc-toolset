@@ -1,3 +1,18 @@
 [
-  "frameworks/aftc-framework.md"
+  "frameworks/aftc-framework.md",
+  "design/design-common.md",
+  "design/desktop-app.md",
+  "design/desktop-web-app.md",
+  "design/documentation-generation.md",
+  "design/mobile-app.md",
+  "design/planning.md",
+  "design/vst-plugin.md",
+  "design/web-app.md",
+  "design/web-backend.md",
+  "design/web-page.md",
+  "tools/apache.md",
+  "tools/docker.md",
+  "tools/mysql.md",
+  "tools/nginx.md",
+  "tools/vsftpd.md"
 ]

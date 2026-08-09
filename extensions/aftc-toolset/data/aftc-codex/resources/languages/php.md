@@ -7,6 +7,8 @@
 - [nR5vK8] missing `use` import passes `php -l` but dies at call time - an unqualified `Foo::bar()` in namespace `X` silently resolves to `X\Foo` with NO error at lint/parse; the "Class not found" only throws when that line actually executes, so a single untested code path (eg a refresh/status endpoint) can be broken in production while everything else works; after adding a new class reference, verify with a runtime smoke of the exact endpoint, not just `php -l`.
 - [tY9wQ3] exit/die inside try - finally blocks STILL run when `exit`/`die` is called inside a try block (PHP runs them before terminating); safe to rely on a dispatch-wrapper finally for cleanup (db close, temp files) even on early-exit paths like binary-stream-then-exit actions.
 
+- [zh5DaS] Reloading a page that was reached by POST resubmits the form (duplicate submissions/dupes); countermeasure: Post/Redirect/Get - after successful processing, redirect to a separate confirmation page and render nothing but the redirect from the handler.
+
 ## Issues & Solutions
 
 

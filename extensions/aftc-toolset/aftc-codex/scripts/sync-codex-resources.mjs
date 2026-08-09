@@ -15,8 +15,9 @@
  *     AFTC_TOOLSET_DATA_ROOT override -> win32 %APPDATA%\pi-aftc-toolset\data ->
  *     darwin ~/Library/Application Support/pi-aftc-toolset/data -> linux
  *     $XDG_DATA_HOME or ~/.local/share (then + "/data").
- *   - Scan <dataDir>/aftc-codex/resources/{languages,libraries,frameworks,
- *     engines,tools}/*.md plus the top-level guidance files.
+ *   - Scan <dataDir>/aftc-codex/resources/ recursively (category folders may
+ *     nest topics one level deep, eg ui-ux/web/web-app.md) plus the top-level
+ *     guidance files.
  *   - Write <dataDir>/aftc-codex/resources/codex-resource-list.md: a categorised
  *     list of relative paths (forward slashes) + a one-line description (each
  *     file's first heading).
@@ -46,9 +47,14 @@ const LIST_FILENAME = "codex-resource-list.md";
 // never "discovered" via the list; the output file obviously is not listed either.
 const TOP_LEVEL_EXCLUDE = new Set([LIST_FILENAME, "codex-rules.md"]);
 // Known category folders are listed first in this fixed order; ANY additional
-// folder discovered on disk (eg runtimes/) is appended after, sorted — so
-// output stays byte-stable while no folder is ever silently ignored.
-const KNOWN_CATEGORY_ORDER = ["languages", "libraries", "frameworks", "engines", "tools"];
+// folder discovered on disk (eg a community-created category) is appended
+// after, sorted — so output stays byte-stable while no folder is ever silently
+// ignored. Nested topics (depth 2, eg ui-ux/web/) list as path-form lines under
+// their TOP-LEVEL category header (no sub-group headers — spec D16).
+const KNOWN_CATEGORY_ORDER = [
+    "languages", "libraries", "frameworks", "engines", "runtimes",
+    "tools", "servers-and-containers", "database", "os", "ui-ux",
+];
 
 /** All category folders: known order first, then any extra dirs (sorted). */
 function listCategoryFolders(resourcesDir) {
@@ -122,6 +128,30 @@ function listMarkdown(dir) {
     }
 }
 
+/** All *.md files under a dir, RECURSIVE (nested topics, depth 2), as
+ *  forward-slash paths relative to `base`, code-unit sorted. */
+function listMarkdownRecursive(dir, base) {
+    const out = [];
+    let entries;
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return out;
+    }
+    for (const e of entries) {
+        const p = path.join(dir, e.name);
+        try {
+            if (e.isDirectory()) out.push(...listMarkdownRecursive(p, base));
+            else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+                out.push(path.relative(base, p).replace(/\\/g, "/"));
+            }
+        } catch {
+            // skip unreadable entries
+        }
+    }
+    return out.sort(byCodeUnit);
+}
+
 /** Build the resource-list markdown (deterministic / byte-stable). */
 function buildList(codexRoot, resourcesDir) {
     const lines = [];
@@ -154,15 +184,15 @@ function buildList(codexRoot, resourcesDir) {
     }
 
     // Category folders (known order first, then any other dirs found on disk;
-    // empty categories are omitted).
+    // empty categories are omitted). Nested topics appear as path-form lines
+    // under their top-level category header (D16).
     for (const cat of listCategoryFolders(resourcesDir)) {
-        const files = listMarkdown(path.join(resourcesDir, cat));
+        const files = listMarkdownRecursive(path.join(resourcesDir, cat), resourcesDir);
         if (files.length === 0) continue;
         lines.push("");
         lines.push(`## ${cat}`);
-        for (const name of files) {
-            const rel = `${cat}/${name}`; // forward slashes -> stable across platforms
-            lines.push(`- ${rel} — ${describeFile(path.join(resourcesDir, cat, name))}`);
+        for (const rel of files) {
+            lines.push(`- ${rel} — ${describeFile(path.join(resourcesDir, rel))}`);
             count++;
         }
     }

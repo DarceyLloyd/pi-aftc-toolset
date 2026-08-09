@@ -1,4 +1,4 @@
-# Documentation-generation
+# Documentation & Planning
 
 ## Rules
 
@@ -22,9 +22,23 @@
 
 - [DML7gd] migrating a doc tree onto renamed infrastructure: copy the tree, run ONE case-preserving token sweep (a separate sed pattern per case variant), then grep for BOTH the old token and old-platform terms afterwards - prose mentioning old platform concepts is what the token sweep misses
 
+- [lxCcOL] Before executing an inherited planning/design document (especially one from a degraded or looping prior session), verify its load-bearing claims against live reality one by one: CLI flags via --help, protocol/API claims against the official docs, and which-competitor-does-what attributions against the actual package sources - and scan the files for corruption (out-of-range characters, blank-run spam) first, because a terminal meltdown may or may not have reached the artifacts.
+
+- [jFqMgz] Renumber hierarchical IDs (1.11 -> 1.12) in one pass with exact-token matching over the original tokens (regex on quoted strings plus a dict lookup) - sequential substring replacement cascades ('1.11'->'1.12' then '1.12'->'1.13' double-shifts) and longest-first ordering is still fragile.
+
+- [65y9iQ] Build upgrade/migration test fixtures from the ACTUAL shipped artifact - npm pack the published version and extract its data - never from a dev snapshot, whose content drifts from what users really have and makes the test assert the upgrade against the wrong old state.
+
+- [GyAQJ0] When restructuring a file tree with a move map, plan for the long tail: user-created files at old locations must be evaluated (entries merged into the matching new file, or the file relocated to the right new folder) - never silently deleted or left orphaned in a folder the new layout no longer has.
+
 ## Gotchyas
 
 - [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.
+
+- [6e9Zig] A "load X first" directive aimed at a weaker model gets rationalised away when a prerequisite seems missing (no detectable project stack -> "I'll load it after you point me at the repo") - state in the directive that the resource applies even before the prerequisite is known, and re-test against the weak model, not just the dev model.
+
+- [l40a53] Force-killing a process found by fuzzy command-line substring match can kill your own interactive host session - the pattern matches every process built on the same entry script; enumerate the matches and verify identity (parentage, start time, who spawned it) before killing, or kill only PIDs captured at spawn time.
+
+- [E1FfVB] Exact-count assertions on tracked side-effects (read/log/record counts) go stale when a feature adds an implicit extra side-effect (an auto-cascade load) - update the expected count to include the implicit record rather than assuming the tracking broke.
 
 ## Issues & Solutions
 

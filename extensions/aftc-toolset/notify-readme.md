@@ -74,7 +74,11 @@ estimate the footer widget shows). Semantics:
 - When one message crosses several thresholds at once (a 20% -> 80% jump),
   only the **highest** newly-crossed threshold plays, but every crossed
   threshold is marked so none of them re-fires while usage stays above.
-- All threshold state resets on `session_start`.
+- Threshold state is NEVER reset on session start: every session start
+  (including /reload, which re-imports the module) PRE-MARKS thresholds that
+  usage is already at or above, so a session that starts at 39% does NOT
+  replay the 25% sound; only a genuine drop back below a threshold (e.g. a
+  compaction) re-arms it.
 
 ## Binaries
 

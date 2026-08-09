@@ -12,6 +12,8 @@
 
 - [pZttsf] npm view <pkg> version` can still return the OLD version for a minute or so right after a successful publish (registry/CDN cache lag) - wait and retry against the official registry explicitly before concluding the publish failed.
 
+- [2DacVD] npm publish failing with E404 'Not found - PUT ...' during LOCAL token-based publish is an auth problem, not a missing package - an expired granular access token or one without read+write access to that package produces 404; regenerate the token (with package-scoped write access) and retry instead of changing the package name.
+
 ## Issues & Solutions
 
 - [P72ROm] npm publish via trusted publishing (OIDC) fails E404 'Not Found - PUT' or ENEEDAUTH despite a correct trusted-publisher entry and id-token: write

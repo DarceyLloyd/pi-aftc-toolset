@@ -19,6 +19,8 @@
  *   - codex-detect.ts   — project technology auto-detection        (Phase 4)
  *   - codex-learn.ts    — /aftc-codex-learn                         (Phase 5)
  *   - codex-entries.ts  — codex_add_entry / codex_edit_entry / codex_remove_entry tools
+ *   - codex-intent.ts   — planning/documentation intent suggestion (D14)
+ *   - codex-migrate.ts  — legacy -> v1 structural resource migration (D18)
  *
  * This file also registers the `codex_load` model tool (step 2.4), owns the
  * shared read-tracker (durable read-entry dedup + the session-scoped set the
@@ -39,14 +41,16 @@ import {
     formatSize,
     truncateTail,
 } from "@earendil-works/pi-coding-agent";
-import { createCodexStore, type CodexStore } from "./codex-store";
+import { createCodexStore, type CodexStore, type CodexResourceRead } from "./codex-store";
 import { createCodexInject, type CodexInjectApi, CODEX_READ_ENTRY } from "./codex-inject";
 import { createCodexDetect } from "./codex-detect";
 import { createCodexLearn, type CodexLearnApi } from "./codex-learn";
 import { createCodexEntries, type CodexReadTracker } from "./codex-entries";
+import { createCodexIntent } from "./codex-intent";
 import { createCodexCommands } from "./codex-commands";
 import { checkCodexCompatibility, type CodexCompatResult } from "./codex-compat";
 import { runSeedToLiveUpdate } from "./codex-sync";
+import { runCodexResourceMigration } from "./codex-migrate";
 import { getPreference } from "../config";
 import * as aftcConsole from "../ui/aftc-console";
 
@@ -96,16 +100,47 @@ export interface CodexContext {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker: CodexReadTracker, checkCompat: () => CodexCompatResult): void {
+    /** Track a successful read (session set for the entry tools' guard +
+     *  durable entry for /aftc-codex-status). */
+    function trackRead(relPath: string): void {
+        readTracker.sessionReads.add(relPath);
+        if (!readTracker.durableSeen.has(relPath)) {
+            readTracker.durableSeen.add(relPath);
+            try { pi.appendEntry(CODEX_READ_ENTRY, { relPath }); } catch { /* fail-soft */ }
+        }
+    }
+
+    /**
+     * D10 cascade: loading a topic whose TOP-LEVEL category has a
+     * `<category>-common.md` loads that common too, once per session. Scoped
+     * by the top-level path segment (ui-ux/web/web-app.md cascades
+     * ui-ux/ui-ux-common.md); root-level topics and the common itself never
+     * cascade.
+     */
+    function cascadeCommon(read: CodexResourceRead): { text?: string; relPath?: string; absPath?: string } | null {
+        const rel = read.relPath;
+        if (!rel.includes("/")) return null; // root-level topic: no category common
+        const topSeg = rel.split("/")[0]!;
+        const commonRel = `${topSeg}/${topSeg}-common.md`;
+        if (rel === commonRel) return null; // the common itself
+        if (readTracker.sessionReads.has(commonRel)) return null; // already loaded this session
+        const common = store.readResource(`${topSeg}/${topSeg}-common`);
+        if (!common) return null; // the category has no common
+        trackRead(common.relPath);
+        return { text: common.content, relPath: common.relPath, absPath: common.absPath };
+    }
+
     pi.registerTool({
         name: "codex_load",
         label: "Codex Load",
         description:
             "Load an aftc-codex knowledge-base resource by topic name. Searches across " +
-            "all category folders (languages, libraries, frameworks, engines, tools) and " +
-            "the top-level guidance files, so a file's folder does not matter. Accepts " +
-            "aliases (ts, py, js) and the special topics 'rules', 'guidance', 'list', " +
-            "'markdown'. Use this to fetch the conventions/gotchas for a technology " +
-            "before you rely on them.",
+            "all category folders (flat and nested) and the top-level guidance files, so a " +
+            "file's folder does not matter. Accepts aliases (ts, py, js) and the special " +
+            "topics 'rules', 'guidance', 'list', 'markdown'. Loading a topic also loads its " +
+            "category's <category>-common.md once per session (when the category has one). " +
+            "Use this to fetch the conventions/gotchas for a " +
+            "technology before you rely on them.",
         promptSnippet: "Load an aftc-codex knowledge-base resource (topic doc) by name on demand",
         promptGuidelines: [
             "Use codex_load to fetch the conventions and gotchas for a language, library, framework, engine, or tool before relying on them (eg codex_load(\"typescript\")).",
@@ -118,8 +153,8 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker:
                     "Aliases: ts, py, js. Specials: rules, guidance, list, markdown.",
             }),
         }),
-        async execute(_toolCallId, params) {
-            // Version guard: an out-of-date live codex is updated by
+        async execute(_toolCallId, params, _signal, _onUpdate, _ectx) {
+            // Version guard FIRST (D24): an out-of-date live codex is updated by
             // /codex-sync (or wiped + re-seeded by /codex-install); until then
             // serve the guard message instead of stale docs (a normal result,
             // not a tool error, so the model can relay the instruction to the
@@ -143,14 +178,21 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker:
 
             // Session-scoped read set: the codex entry tools (codex-entries.ts)
             // require a codex_load of the topic THIS session before any write.
-            readTracker.sessionReads.add(read.relPath);
-            // Track the read durably so /aftc-codex-status can count files read.
-            // The entry survives /reload, resume and compaction; durableSeen only
-            // avoids appending duplicate entries within this process (the count
-            // is rebuilt from the entries themselves).
-            if (!readTracker.durableSeen.has(read.relPath)) {
-                readTracker.durableSeen.add(read.relPath);
-                try { pi.appendEntry(CODEX_READ_ENTRY, { relPath: read.relPath }); } catch { /* fail-soft */ }
+            // The durable entry lets /aftc-codex-status count files read.
+            trackRead(read.relPath);
+
+            // D10 cascade: the category's <category>-common.md rides along once
+            // per session.
+            const cascade = cascadeCommon(read);
+            let cascadeText = "";
+            if (cascade?.text !== undefined) {
+                const cTrunc = truncateTail(cascade.text, {
+                    maxLines: DEFAULT_MAX_LINES,
+                    maxBytes: DEFAULT_MAX_BYTES,
+                });
+                cascadeText =
+                    `\n\n# codex resource (auto-loaded category common): ${cascade.relPath}\n# file: ${cascade.absPath}\n\n${cTrunc.content}` +
+                    (cTrunc.truncated ? `\n\n[Truncated. Full file: ${cascade.absPath}]` : "");
             }
 
             // Empty skeleton (headings but no entry bullets): a fixed one-liner
@@ -159,8 +201,8 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker:
             // read-before-write guard (adding the FIRST entry needs it).
             if (!/^- \S/m.test(read.content)) {
                 return {
-                    content: [{ type: "text", text: `codex resource "${read.relPath}" exists but has no entries yet.` }],
-                    details: { relPath: read.relPath, absPath: read.absPath, empty: true },
+                    content: [{ type: "text", text: `codex resource "${read.relPath}" exists but has no entries yet.${cascadeText}` }],
+                    details: { relPath: read.relPath, absPath: read.absPath, empty: true, cascaded: cascade?.relPath },
                 };
             }
 
@@ -176,10 +218,11 @@ function registerCodexLoadTool(pi: ExtensionAPI, store: CodexStore, readTracker:
                     ` (${formatSize(truncation.outputBytes)} of ${formatSize(truncation.totalBytes)}).` +
                     ` Full file: ${read.absPath}]`;
             }
+            text += cascadeText;
 
             return {
                 content: [{ type: "text", text }],
-                details: { relPath: read.relPath, absPath: read.absPath, truncated: truncation.truncated },
+                details: { relPath: read.relPath, absPath: read.absPath, truncated: truncation.truncated, cascaded: cascade?.relPath },
             };
         },
     });
@@ -227,35 +270,74 @@ export function createAftcCodex(pi: ExtensionAPI): void {
     // topic/category creation, internal list-sync on new topic files.
     createCodexEntries(ctx, readTracker);
 
+    // Planning/documentation intent suggestion (D14 - the optional heuristic
+    // layer; the D5 directive wording in the marker/rules stays the robust path).
+    createCodexIntent(ctx, readTracker);
+
     // The /aftc-codex-* commands + config menu (sync-first wrapper).
     createCodexCommands(ctx, inject, learn);
 
-    // ---- auto-sync (aftcCodexAutoSync, default ON) ----
-    // When the shipped seed is newer than the live codex, merge it in
-    // NON-DESTRUCTIVELY at the earliest opportunity (same engine as
-    // /codex-sync) so the user never hits the out-of-date pause. Attempted ONCE
-    // per extension load, on the FIRST session_start of ANY reason: a fresh
-    // process start is the classic update path, but a /reload after an on-disk
-    // package update surfaces a newer seed in-process too, and resuming an old
-    // session in a new process must not be left stale either. The pref, seeded
-    // and compat checks are all fresh disk reads, so a no-op attempt costs
-    // nothing. Fire-and-forget: never blocks session start, never throws; on
-    // any failure the version guard + its messages remain as the fallback.
-    let autoSyncDone = false;
+    // ---- startup maintenance: structural migration, THEN auto-sync ----
+    // Attempted ONCE per extension load, on the FIRST session_start of ANY
+    // reason. Order is LOCKED (D18/D24): the structural migration (legacy ->
+    // v1 live layout, learned entries preserved) runs BEFORE the seed sync /
+    // removal list can touch old paths; when the migration ran but could not
+    // finish, the sync is SKIPPED this run so removals can never delete
+    // learned entries from not-yet-migrated files. Both are fire-and-forget:
+    // never block session start, never throw.
+    let startupMaintenanceDone = false;
     pi.on("session_start", (event, sctx) => {
         try {
-            if (autoSyncDone) return;
-            if (!getPreference("aftcCodexAutoSync", true)) return;
-            if (!store.isSeeded()) return; // nothing to sync into — /codex-install is the path
-            if (ctx.checkCompat().isSafe) return;
-            autoSyncDone = true;
-            const liveBefore = getPreference("aftcCodexVersion", 0) ?? 0;
+            if (startupMaintenanceDone) return;
+            startupMaintenanceDone = true;
+            // pi can REPLACE the session (-p mode, /new) while this async work
+            // is still running - a captured sctx then goes stale and THROWS on
+            // any access. Capture primitives synchronously and never touch
+            // sctx after an await (the notice is cosmetic; the work is not).
+            const hasUI = sctx.hasUI;
+            const notifyStartup = (msg: string): void => {
+                try { if (hasUI) aftcConsole.emphasis(sctx, msg); else aftcConsole.print(msg); }
+                catch { aftcConsole.log(`startup notice (session ctx stale): ${msg}`); }
+            };
             void (async () => {
+              try {
+                // 1. Structural migration (idempotent, resumable).
+                let migrationIncomplete = false;
+                try {
+                    if (store.isSeeded()) {
+                        const mig = runCodexResourceMigration(store);
+                        if (mig.ran && mig.moves.length > 0) {
+                            await store.runSyncScript(); // the list reflects the new layout
+                            notifyStartup(`AFTC Codex resources moved to the new layout (${mig.moves.length} change(s)); your learned entries were kept.`);
+                        }
+                        if (mig.ran && !mig.ok) {
+                            migrationIncomplete = true;
+                            aftcConsole.logError("[aftc-toolset] codex migration incomplete - retries on next start; auto-sync skipped this run.");
+                        }
+                    }
+                } catch (err) {
+                    migrationIncomplete = true;
+                    aftcConsole.logError(`[aftc-toolset] codex migration error: ${(err as Error).message}`);
+                }
+
+                // 2. Auto-sync (aftcCodexAutoSync, default ON). When the shipped
+                // seed is newer than the live codex, merge it in NON-DESTRUCTIVELY
+                // (same engine as /codex-sync) so the user never hits the
+                // out-of-date pause.
+                if (migrationIncomplete) return;
+                if (!getPreference("aftcCodexAutoSync", true)) return;
+                if (!store.isSeeded()) return; // nothing to sync into — /codex-install is the path
+                if (ctx.checkCompat().isSafe) return;
+                const liveBefore = getPreference("aftcCodexVersion", 0) ?? 0;
                 const result = await runSeedToLiveUpdate(store);
                 if (!result.output.trim()) return; // spawn failed — the guard stays as fallback
-                const msg = `AFTC Codex auto-synced v${liveBefore} -> v${result.newVersion ?? "?"} — new shipped resources merged in${result.removed > 0 ? `, ${result.removed} obsolete resource(s) removed` : ""}; your learned entries were kept.`;
-                if (sctx.hasUI) aftcConsole.emphasis(sctx, msg);
-                else aftcConsole.print(msg);
+                notifyStartup(`AFTC Codex auto-synced v${liveBefore} -> v${result.newVersion ?? "?"} — new shipped resources merged in${result.removed > 0 ? `, ${result.removed} obsolete resource(s) removed` : ""}; your learned entries were kept.`);
+              } catch (err) {
+                // The whole body is fire-and-forget - nothing here may escape
+                // as an unhandled rejection (a stale session ctx throw used to
+                // crash headless pi).
+                aftcConsole.logError(`[aftc-toolset] codex startup maintenance error: ${(err as Error).message}`);
+              }
             })();
         } catch { /* fail-soft */ }
     });

@@ -3,7 +3,7 @@
 How pi-aftc-toolset reaches users: npm publication, GitHub releases, and
 what happens on the user's machine at update time.
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-09 22:30 22:05 -->
 
 ## References
 
@@ -27,7 +27,7 @@ via `shipit.ps1` / `publish.bat` (2.4). Distribution channels: npm
 
 ## Pipeline (manual, scripted)
 
-1. Tests green: Windows suites first, Linux gates (3.4).
+1. Tests green: Windows suites first, Linux gates.
 2. Changelog entry + version bump in `package.json` (+ `codexVersion`
    when the codex seed changed — 2.1).
 3. `shipit.ps1`: git commit `v<version>` → push → `gh release create

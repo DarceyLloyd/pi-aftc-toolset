@@ -17,7 +17,7 @@
  *                       the marked <!-- AFTC-CODEX-STACK topics: ... --> block
  *                       (explicit pins) + a strict whole-word keyword scan of the
  *                       full text (stoplisted against ambiguous English words)
- *   - implied topics   (any design domain -> design-common; mysql -> database-common)
+ *   - implied topics   (any ui-ux domain -> ui-ux-common; mysql -> database-common)
  *
  * Results split in two: `topics` (a live resource exists — loadable) and
  * `missing` (mapped but no resource file yet — the model may bootstrap one with
@@ -156,14 +156,25 @@ const KEYWORD_STOPLIST = new Set([
 
 /** Implied companions: detecting a specific topic implies its common resource. */
 const IMPLIED_TOPICS: Record<string, string[]> = {
-    "web-app": ["design-common"],
-    "web-page": ["design-common"],
-    "web-backend": ["design-common"],
-    "desktop-app": ["design-common"],
-    "desktop-web-app": ["design-common"],
-    "mobile-app": ["design-common"],
-    "vst-plugin": ["design-common"],
+    "web-app": ["ui-ux-common"],
+    "web-page": ["ui-ux-common"],
+    "web-backend": ["ui-ux-common"],
+    "desktop-app": ["ui-ux-common"],
+    "desktop-web-app": ["ui-ux-common"],
+    "mobile-app": ["ui-ux-common"],
+    "vst-plugin": ["ui-ux-common"],
     "mysql": ["database-common"],
+};
+
+/** Legacy topic names (pre-v1 layout) -> their v1 home. Applied to every
+ *  detected token so a stale AFTC-CODEX-STACK pin or keyword match never
+ *  surfaces a permanent "no resource yet" hint for a renamed/dissolved topic
+ *  (spec D17). */
+const LEGACY_TOPIC_RENAMES: Record<string, string> = {
+    "design-common": "ui-ux-common",
+    "planning": "documentation-and-planning",
+    "documentation-generation": "documentation-and-planning",
+    "path-classification": "languages-common",
 };
 
 /** Tool keywords scanned in package.json scripts keys AND values (word-boundary
@@ -275,9 +286,18 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
         walk(cwd, 0);
         scanAutoInjectDocs(cwd, found);
 
-        // Implied companions (design domain -> design-common, mysql -> database-common).
+        // Implied companions (ui-ux domain -> ui-ux-common, mysql -> database-common).
         for (const t of [...found]) {
             for (const implied of IMPLIED_TOPICS[t] ?? []) found.add(implied);
+        }
+
+        // Legacy renames (pre-v1 pins/keywords -> their v1 topic, D17).
+        for (const t of [...found]) {
+            const renamed = LEGACY_TOPIC_RENAMES[t];
+            if (renamed) {
+                found.delete(t);
+                found.add(renamed);
+            }
         }
 
         // Split: topics with a live resource vs mapped-but-uncreated.

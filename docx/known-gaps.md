@@ -2,7 +2,7 @@
 
 Pre-launch checklist items that could not be checked, with fix plans.
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-09 22:30 21:35 -->
 
 ## References
 
@@ -13,7 +13,7 @@ Pre-launch checklist items that could not be checked, with fix plans.
 ## AGENTS.md exceeds the 200-line pointer guideline
 
 **Unchecked item:** the guide asks for AGENTS.md to stay under 200 lines
-(pointer, not master). This project's pre-existing AGENTS.md is 303 lines
+(pointer, not master). This project's pre-existing AGENTS.md is 333 lines
 of critical maintainer rules (edit-tool lessons, config binding rules,
 release discipline, test timeouts, …).
 

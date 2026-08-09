@@ -133,18 +133,34 @@ function defaultCodexRoot(): string {
     return path.join(base, "data", "aftc-codex");
 }
 
-/** Find a topic file across all category folders + top-level files. */
+/** Find a topic file across all category folders (flat AND nested) +
+ *  top-level files. A path-form topic ("ui-ux/web/web-app") resolves
+ *  directly; a basename ("web-app") is searched recursively. */
 export function findCodexTopicFile(codexRoot: string, topic: string): string | null {
     const wanted = topic.trim().toLowerCase();
     if (!wanted) return null;
     const resourcesDir = path.join(codexRoot, "resources");
+    // Explicit path form (nested ok).
+    if (wanted.includes("/")) {
+        const direct = path.join(resourcesDir, `${wanted}.md`);
+        try { if (fs.existsSync(direct) && fs.statSync(direct).isFile()) return direct; } catch { /* fall through */ }
+        return null;
+    }
     const candidates: string[] = [];
-    try {
-        candidates.push(path.join(resourcesDir, `${wanted}.md`));
-        for (const entry of fs.readdirSync(resourcesDir, { withFileTypes: true })) {
-            if (!entry.isDirectory()) continue;
-            candidates.push(path.join(resourcesDir, entry.name, `${wanted}.md`));
+    const walk = (dir: string): void => {
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            return;
         }
+        for (const entry of entries) {
+            if (entry.isDirectory()) walk(path.join(dir, entry.name));
+            else if (entry.name.toLowerCase() === `${wanted}.md`) candidates.push(path.join(dir, entry.name));
+        }
+    };
+    try {
+        walk(resourcesDir);
         // Top-level guidance files live at the codex root.
         candidates.push(path.join(codexRoot, `${wanted}.md`));
     } catch {

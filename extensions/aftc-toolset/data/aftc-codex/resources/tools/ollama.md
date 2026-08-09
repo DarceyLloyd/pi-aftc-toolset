@@ -4,6 +4,8 @@
 
 ## Gotchyas
 
+- [VOBwe6] Batch classification prompts (format=json, temperature 0) and cache verdicts; treat results as advisory - a small local model makes confident wrong calls, so present verdicts for human review instead of auto-filtering on them.
+
 ## Issues & Solutions
 
 - [oL5mA3] /api/generate returns done:true with an EMPTY response intermittently (same prompt works on retry; worse with longer inputs and with "produce a formatted multi-section document" prompts, which also hit done_reason:"length" mid-structure)

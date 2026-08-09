@@ -32,15 +32,22 @@ import { spawn } from "node:child_process";
 import { setPreference } from "../config";
 import { getDataDir, getPackageRoot } from "../paths";
 import { readCodexSeedVersion } from "./codex-compat";
+import { CODEX_RESOURCE_VERSION } from "./codex-migrate";
 import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The five well-known category folders (listed first; ANY other folder found
- *  on disk, eg runtimes/, is appended after — retrieval never ignores folders). */
-export const CODEX_CATEGORIES = ["languages", "libraries", "frameworks", "engines", "tools", "runtimes"] as const;
+/** The well-known category folders (listed first; ANY other folder found
+ *  on disk, eg a community-created category, is appended after — retrieval
+ *  never ignores folders). Category folders may nest topics one level deep
+ *  (eg ui-ux/web/web-app.md — spec D7); loose root-level topics (eg
+ *  documentation-and-planning.md) sit directly in resources/. */
+export const CODEX_CATEGORIES = [
+    "languages", "libraries", "frameworks", "engines", "runtimes",
+    "tools", "servers-and-containers", "database", "os", "ui-ux",
+] as const;
 export type CodexCategory = (typeof CODEX_CATEGORIES)[number];
 
 /** All category folders: known order first, then any extra dirs (sorted). */
@@ -81,8 +88,12 @@ export interface CodexCounts {
     libraries: number;
     frameworks: number;
     engines: number;
-    tools: number;
     runtimes: number;
+    tools: number;
+    "servers-and-containers": number;
+    database: number;
+    os: number;
+    "ui-ux": number;
     topLevel: number;
     total: number;
 }
@@ -183,6 +194,31 @@ function listMarkdownNames(dir: string): string[] {
     } catch {
         return [];
     }
+}
+
+/** All *.md files under a dir, RECURSIVE (nested topics, depth 2), as
+ *  forward-slash paths relative to `base` (deterministic order: a folder's
+ *  direct files first, then sub-folders sorted). */
+function listMarkdownRecursive(dir: string, base: string): string[] {
+    const out: string[] = [];
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+        return out;
+    }
+    const sorted = entries.slice().sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const e of sorted) {
+        if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
+            out.push(path.relative(base, path.join(dir, e.name)).replace(/\\/g, "/"));
+        }
+    }
+    for (const e of sorted) {
+        if (e.isDirectory()) {
+            out.push(...listMarkdownRecursive(path.join(dir, e.name), base));
+        }
+    }
+    return out;
 }
 
 /** Recursively copy a directory tree, COPY-ONLY (never overwrites an existing
@@ -286,6 +322,10 @@ export function createCodexStore(): CodexStore {
             // the live copy the shipped version, so stamp it as such.
             const v = readCodexSeedVersion(seedDir);
             if (v !== null) setPreference("aftcCodexVersion", v);
+            // The shipped seed ships the v1 structural layout, so any fresh
+            // seed stamps the resource version too (legacy copies never pass
+            // through seed() - they are migrated by codex-migrate.ts).
+            setPreference("aftcCodexResourceVersion", CODEX_RESOURCE_VERSION);
         } catch (err) {
             aftcConsole.logError(`[aftc-toolset] codex seed: error: ${(err as Error).message}`);
         }
@@ -309,7 +349,7 @@ export function createCodexStore(): CodexStore {
         if (raw.toLowerCase().endsWith(".md")) raw = raw.slice(0, -3);
         const lower = raw.toLowerCase();
 
-        // Explicit "category/name" form.
+        // Explicit path form: "category/name" or "category/sub/name" (nested).
         if (lower.includes("/")) {
             const absPath = path.join(getResourcesDir(), `${raw}.md`);
             if (fs.existsSync(absPath)) return { absPath, relPath: `${raw}.md`.replace(/\\/g, "/") };
@@ -328,11 +368,13 @@ export function createCodexStore(): CodexStore {
         const resLevel = path.join(resourcesDir, fileName);
         if (fs.existsSync(resLevel)) return { absPath: resLevel, relPath: fileName };
 
-        // Then each category folder (known order first, then any extra dirs).
+        // Then each category folder, RECURSIVE (nested topics resolve by
+        // basename too — retrieval is folder-agnostic).
         for (const cat of listCategoryFolders(resourcesDir)) {
-            const candidate = path.join(resourcesDir, cat, fileName);
-            if (fs.existsSync(candidate)) {
-                return { absPath: candidate, relPath: `${cat}/${fileName}` };
+            for (const rel of listMarkdownRecursive(path.join(resourcesDir, cat), resourcesDir)) {
+                if (path.basename(rel).toLowerCase() === fileName) {
+                    return { absPath: path.join(resourcesDir, rel), relPath: rel };
+                }
             }
         }
         return null;
@@ -358,8 +400,8 @@ export function createCodexStore(): CodexStore {
             names.add(name.slice(0, -3));
         }
         for (const cat of listCategoryFolders(resourcesDir)) {
-            for (const name of listMarkdownNames(path.join(resourcesDir, cat))) {
-                names.add(name.slice(0, -3));
+            for (const rel of listMarkdownRecursive(path.join(resourcesDir, cat), resourcesDir)) {
+                names.add(path.basename(rel).slice(0, -3));
             }
         }
         return [...names].sort();
@@ -393,17 +435,19 @@ export function createCodexStore(): CodexStore {
 
     function getCounts(): CodexCounts {
         const counts: CodexCounts = {
-            languages: 0, libraries: 0, frameworks: 0, engines: 0, tools: 0,
-            runtimes: 0, topLevel: 0, total: 0,
+            languages: 0, libraries: 0, frameworks: 0, engines: 0, runtimes: 0,
+            tools: 0, "servers-and-containers": 0, database: 0, os: 0, "ui-ux": 0,
+            topLevel: 0, total: 0,
         };
         // Top-level guidance files at the codex root.
         counts.topLevel = listMarkdownNames(getRoot()).length;
         const resourcesDir = getResourcesDir();
-        // Known categories report into their named fields; extra folders added in
-        // future count towards the total only (CodexCounts has fixed fields).
+        // Known categories report into their named fields (recursive: nested
+        // topics count towards their top-level category); extra folders added
+        // in future count towards the total only.
         let allFolders = 0;
         for (const cat of listCategoryFolders(resourcesDir)) {
-            const n = listMarkdownNames(path.join(resourcesDir, cat)).length;
+            const n = listMarkdownRecursive(path.join(resourcesDir, cat), resourcesDir).length;
             allFolders += n;
             if ((CODEX_CATEGORIES as readonly string[]).includes(cat)) {
                 counts[cat as CodexCategory] = n;
@@ -421,8 +465,11 @@ export function createCodexStore(): CodexStore {
         const resourcesDir = getResourcesDir();
         let n = 0;
         for (const cat of listCategoryFolders(resourcesDir)) {
-            n += listMarkdownNames(path.join(resourcesDir, cat)).length;
+            n += listMarkdownRecursive(path.join(resourcesDir, cat), resourcesDir).length;
         }
+        // Loose root-level topics (eg documentation-and-planning.md) count too;
+        // the generated list itself does not.
+        n += listMarkdownNames(resourcesDir).filter((name) => name !== "codex-resource-list.md").length;
         return n;
     }
 

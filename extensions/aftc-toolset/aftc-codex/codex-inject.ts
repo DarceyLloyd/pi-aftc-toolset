@@ -72,15 +72,26 @@ function extractCriticalRules(rules: string): string {
 }
 
 const MARKER_CONTENT =
-    "AFTC-CODEX ACTIVE — the codex rules + guidance are loaded into your system prompt, " +
+    "AFTC-CODEX ACTIVE - the codex rules + guidance are loaded into your system prompt, " +
     "and the Codex Resource List is available there too.\n\n" +
-    "Based on the project tech stack and the current task, retrieve the relevant codex " +
-    "resources with the codex_load tool (eg codex_load(\"typescript\")). Load a resource " +
-    "before you rely on that technology's conventions. " +
-    "Do NOT codex_load rules, guidance, or list — they are already in your system prompt.\n\n" +
-    "After loading, confirm with ONE short line stating which topics were loaded " +
-    "(eg \"Codex resources loaded for: css, html, javascript.\") — do NOT list or summarise " +
-    "the individual gotchas/entries you found inside them. Then wait for the user's task.";
+    "Do these steps IN ORDER:\n" +
+    "1. Work out the project tech stack and the current task, then retrieve the relevant " +
+    "codex resources with the codex_load tool (eg codex_load(\"typescript\")). Load a resource " +
+    "before you rely on that technology's conventions. Do NOT codex_load rules, guidance, or " +
+    "list - they are already in your system prompt. When the user's request involves planning or " +
+    "documentation work, your first tool call is codex_load(\"documentation-and-planning\") - its " +
+    "work-methodology rules apply even before the project stack is known.\n" +
+    "2. Confirm with ONE short line stating which topics were loaded (eg \"Codex resources " +
+    "loaded for: css, html, javascript.\") - do NOT list or summarise the individual " +
+    "gotchas/entries you found inside them.\n" +
+    "3. Find the default entry point: this agent tool's auto-loaded context file (AGENTS.md, " +
+    "CLAUDE.md, GEMINI.md, .github/copilot-instructions.md, .cursorrules or .windsurfrules). " +
+    "It is usually already in your context; if it is not, look for those files in the project " +
+    "root and read the one that exists.\n" +
+    "4. LAST STEP: if the entry point contains a docx section (an AFTC-DOCX block), follow its " +
+    "instructions and read the root documentation and map files (docx/project_documentation.md " +
+    "and docx/project_map.md) immediately after completing step 1's codex resource discovery " +
+    "and loading.";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
@@ -230,28 +241,32 @@ export function createCodexInject(
 
             let str:any = "";
             str = theme.fg("warning", "- Kimi K3 - Vivace plan\n");
-            str += theme.fg("text", "  WARNING: Lots of server outages even on Vivace.");
+            str += theme.fg("text", "  WARNING: I think the model has been nerfed.\n");
+            str += theme.fg("text", "  DeepSeek v4 Flash done what K3 couldn't do in 4 hours in less than 20 minutes (1 prompt each).\n");
+            str += theme.fg("text", "  If your context window goes above 30%, your Allegro 5h usage window is gone in 1.5 hours or less.\n");
             box.addChild(new Text(
                 str,
                 0, 0,
             ));
 
             str = theme.fg("warning", "- Qwen 3.8 Max - Token Pro plan minimum\n");
-            str += theme.fg("text", "  RECOMMEND: Team Pro or Team Max Seat plans.");
+            str += theme.fg("text", "  RECOMMENDED: Team Pro or Team Max Seat plans.\n");
+            str += theme.fg("text", "  You will go through a Token Pro plan quotas quickly, not as bad as Kimi K3 but quickly.\n");
             box.addChild(new Text(
                 str,
                 0, 0,
             ));
 
             str = theme.fg("warning", "- ZAI GLM 5.2 - Max plan\n");
-            str += theme.fg("text", "  WARNING: ALL plans have been nerfed and prices increased!");
+            str += theme.fg("text", "  WARNING: ALL plans have been nerfed and prices increased! It's back to OpenAI.");
             box.addChild(new Text(
                 str,
                 0, 0,
             ));
 
             str = theme.fg("warning", "- GPT 5.6 Terra - $100 or $200 p/m plans\n");
-            str += theme.fg("text", "  WARNING: Careful using SOL and speed multipliers.");
+            str += theme.fg("text", "  WARNING: Careful using SOL and speed multipliers.\n");
+            str += theme.fg("text", "  Considering the only useful plans on zai and kimi are now over $100, open ai is the better option.\n");
             box.addChild(new Text(
                 str,
                 0, 0,
@@ -260,7 +275,7 @@ export function createCodexInject(
             box.addChild(new Spacer(1));
             
             box.addChild(new Text(
-                "Usage cost depend greatly on how complex or big your task and project is.",
+                "Usage cost depends greatly on how complex or big your task and project is.",
                 0, 0,
             ));
 

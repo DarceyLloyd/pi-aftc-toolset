@@ -18,6 +18,8 @@
 
 - [gxGKcy] First run of a freshly built test container fails with "Cannot find module" for bare imports: `COPY .` + a .dockerignore that excludes node_modules leaves the copied tree without deps; run the package's installer inside the container before running its tests — it is a provisioning step, not a code bug.
 
+- [geE9P3] Upgrading a containerized install by overlaying the new package with cp -r MERGES - files the new version removed survive in the install dir, and a later sync/merge step can copy those stale files back into user data; wipe + replace the install dir (or delete the removed paths) in upgrade-test overlays to emulate real package-manager update semantics.
+
 ## Issues & Solutions
 
 

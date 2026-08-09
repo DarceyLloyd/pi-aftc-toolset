@@ -339,6 +339,32 @@ async function handleDocxRun(
         return;
     }
 
+    // 0c. Generate mode with an existing docx/ set: offer update vs rebuild
+    //     BEFORE anything is confirmed or backed up (TUI only — headless keeps
+    //     the plain rebuild behaviour: --yes rebuilds, no --yes refuses below).
+    //     Choosing update hands the run over to the update pipeline (its own
+    //     gates + wording), never a duplicated flow.
+    if (!isUpdate && !skipConfirm && ctx.hasUI && ctx.mode === "tui" && fs.existsSync(path.join(projectRoot, "docx"))) {
+        const pick = await showMenu(ctx, {
+            title: "Existing documentation detected",
+            body: ["An existing docx folder has been detected, would you like to:"],
+            labelWidth: 40,
+            items: [
+                { value: "update", label: "Update your existing documentation" },
+                { value: "rebuild", label: "Re-build your documentation fresh" },
+            ],
+        });
+        if (!pick) {
+            aftcConsole.emphasis(ctx, `${cmd} cancelled - nothing was changed.`);
+            return;
+        }
+        if (pick === "update") {
+            await handleDocxRun(pi, args, ctx, "update");
+            return;
+        }
+        // "rebuild" falls through to the normal generate flow.
+    }
+
     if (!skipConfirm) {
         if (!ctx.hasUI) {
             aftcConsole.warn(

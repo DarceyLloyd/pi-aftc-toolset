@@ -35,6 +35,14 @@ Both commands share one handler (`handleDocxRun`), parameterised by the
    project root -> warn and refuse ("nothing to update - run /docx
    first"). Requires an existing doc set; a first-time project runs
    `/docx`.
+1b. **Existing-docx modal** (`/docx` only, TUI only): when a `./docx/`
+   folder already exists, a modal asks "An existing docx folder has been
+   detected, would you like to:" — *Update your existing documentation*
+   (hands the run over to the update pipeline: its own gates, wording and
+   zip label) or *Re-build your documentation fresh* (the normal generate
+   flow continues). Esc cancels cleanly. Headless is unchanged: `--yes`
+   rebuilds as before; without `--yes` the command already refuses and
+   asks for `--yes`.
 2. **Context-window advisory** (skipped by `--yes`): at >= 20% used, a
    modal notes that context use is modest but the run is LONG, and highly
    advises `/new` first. Options: *Exit* (default) / *Proceed anyway*.

@@ -1,6 +1,6 @@
 # 2 - Packaging & shipped assets
 
-<!-- last-reviewed: 2026-08-07 -->
+<!-- last-reviewed: 2026-08-09 22:30 21:35 -->
 
 ## References
 
@@ -19,13 +19,13 @@ consumed by 1.5.4/1.5.13. Does NOT own live per-user files (those are
 
 ## The npm artifact
 
-`package.json` (repo root): name `pi-aftc-toolset`, version 1.19.11,
+`package.json` (repo root): name `pi-aftc-toolset`, version 1.20.2,
 license MIT, author Darcey Lloyd. `pi` manifest points at `./extensions`,
 `./skills`, `./themes`. Dependencies: `better-sqlite3` 12.11.1 (pinned;
 `allowScripts` granted), `adm-zip` ^0.6.0. Peer deps (any): the three pi
 packages + `typebox`. `.npmignore` (110 lines) excludes credentials,
 env files, dev folders, tests fixtures' secrets etc.; carrier SOURCE is
-included (verified by `tests/npm-package-check/`). Install:
+included (verified by the tests/ folder - see AGENTS.md). Install:
 `pi install pi-aftc-toolset` (npm) or from GitHub — see the README.
 
 ## Live vs seed (terminology)

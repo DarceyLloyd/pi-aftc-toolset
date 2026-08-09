@@ -39,7 +39,6 @@ import { runSeedToLiveUpdate } from "./codex-sync";
 import type { CodexContext, CodexDetectResult } from "./aftc-codex";
 import { type CodexInjectApi, CODEX_READ_ENTRY, CODEX_STATUS_ENTRY } from "./codex-inject";
 import type { CodexLearnApi } from "./codex-learn";
-import { CODEX_CATEGORIES } from "./codex-store";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -142,7 +141,7 @@ async function openSeedChoice(ctx: CodexContext, cctx: ExtensionCommandContext):
         ],
         labelWidth: 26,
         items: [
-            { value: "pretrained", label: "Pre-trained (Recommended)", description: " rules + ~27 topic docs" },
+            { value: "pretrained", label: "Pre-trained (Recommended)", description: " rules + all shipped topic docs" },
             { value: "fresh", label: "Fresh Start", description: " rules + guidance only" },
         ],
     });
@@ -151,13 +150,23 @@ async function openSeedChoice(ctx: CodexContext, cctx: ExtensionCommandContext):
     return true;
 }
 
+/** Reads of these relPaths are NOT topic docs (fixed top-level guidance files
+ *  at the codex root + the generated resource list). */
+const NON_TOPIC_READS = new Set([
+    "codex-rules.md",
+    "thought-and-action-guidance.md",
+    "markdown-guidance.md",
+    "codex-resource-list.md",
+]);
+
 /**
  * Count distinct codex topic docs read this session by scanning the durable
  * read-tracking entries (CODEX_READ_ENTRY) the codex_load tool appends. Works
  * in fresh, resumed, reloaded and compacted sessions alike (custom entries
- * persist and survive compaction). Counts only category topic docs so it stays
- * coherent with the available total (which excludes top-level guidance + the
- * generated resource list).
+ * persist and survive compaction). Counts category topic docs (flat AND
+ * nested) plus root-level loose topics (documentation-and-planning.md) so it
+ * stays coherent with the available total (which excludes top-level guidance
+ * + the generated resource list).
  */
 function countReadTopicDocs(cctx: ExtensionCommandContext): number {
     const seen = new Set<string>();
@@ -177,7 +186,7 @@ function countReadTopicDocs(cctx: ExtensionCommandContext): number {
     }
     let n = 0;
     for (const rel of seen) {
-        if (CODEX_CATEGORIES.some((cat) => rel.startsWith(`${cat}/`))) n++;
+        if (rel.includes("/") || !NON_TOPIC_READS.has(rel)) n++;
     }
     return n;
 }
@@ -264,6 +273,7 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             { value: "guidance", label: "Inject Thought Guidance", description: ` | ${yn(getPreference("aftcCodexInjectGuidance", true))}` },
             { value: "autoload", label: "Auto-Detect & Load Docs", description: ` | ${yn(getPreference("aftcCodexAutoLoad", true))}` },
             { value: "autosync", label: "Auto Sync Codex Update on Startup", description: ` | ${yn(getPreference("aftcCodexAutoSync", true))}` },
+            { value: "cloud", label: "Codex Cloud Resource Contribution", description: ` | ${yn(getPreference("aftcCodexCloudContribution", true))}` },
             { value: "resources", label: "Resources & Updates" },
         ];
         const choice = await showMenu(cctx, {
@@ -297,6 +307,8 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             setPreference("aftcCodexAutoSync", !getPreference("aftcCodexAutoSync", true));
         } else if (choice === "resources") {
             await openResourcesMenu(ctx, cctx);
+        } else if (choice === "cloud") {
+            setPreference("aftcCodexCloudContribution", !getPreference("aftcCodexCloudContribution", true));
         }
         // loop re-renders screen 1 so state hints update
     }

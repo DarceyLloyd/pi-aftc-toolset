@@ -8,6 +8,8 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 
 - [a4jAl3] Shipped default assets that get copied into a user's persistent dir need a version stamp (shipped version in the package manifest vs a stamp file in the live copy): re-copy the program assets only when the shipped version bumps, never overwrite user-generated files — keeps the seed->live flow copy-only, idempotent and update-safe.
 
+- [USf8Ae] To make pi-tui-rendered text (widgets, entries, Text) a clickable terminal link, wrap it in OSC 8 hyperlink escapes - extractAnsiCode explicitly recognizes OSC 8 and APC sequences, so width measurement and truncation skip them cleanly; supporting terminals (Windows Terminal, iTerm2, GNOME Terminal) render the link, others show plain text.
+
 ## Gotchyas
 
 - [cL1pBd] Clipboard write from an extension - hand-rolling clip/pbcopy/wl-copy/OSC 52 per platform is error-prone and unnecessary; import { copyToClipboard } from "@earendil-works/pi-coding-agent" (pi's own cross-platform helper: native addon, platform tools, OSC 52 fallback - it throws "Failed to copy to clipboard" when every method fails, so await it in try/catch and only clear the source text AFTER it resolves).
@@ -23,6 +25,11 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [VhSQOp] CLI tool-allowlist flags (eg `--tools`) filter EXTENSION-registered tools too, not just built-ins — an empty allowlist strips everything, including the handoff tool your injected child extension registers; omit the flag entirely for "all tools", and when you do use it re-append your extension's required tool names.
 
 - [UX5CuK] A delegated sub-agent that reports near its ~300s timeout is flagged 'partial' and may have finished only some of its file writes — verify the actual on-disk state (grep/read the targets) before trusting its report or building on it.
+
+
+- [DRb3Eg] pi-tui Box() constructor defaults to nonzero padding, so a 2-child box renders extra blank edge lines; pass explicit zero padding (new Box(0, 0)) when composing tight multi-line entry renderers.
+
+- [BesN8I] pi's bash tool on Windows executes Git Bash, NOT PowerShell - getShellConfig resolves: shellPath -> Git Bash known locations -> bash on PATH (Windows) / /bin/bash -> bash -> sh (Unix), so never assume the platform's native shell for user_bash commands; reuse/wrap pi's resolution via createLocalBashOperations({shellPath}) and detect the real environment with process.platform + ComSpec/PSModulePath/SHELL. PI_* env vars carry session/model/provider only - there is no PI_SHELL or PI_PLATFORM.
 
 ## Issues & Solutions
 
@@ -188,3 +195,19 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [E7xjd7] A jiti test harness rooted at a copied package tree fails with "Cannot find module" for bare dependencies while the host runtime loads the same code fine
   Cause: node_modules is usually excluded when source is copied (dockerignore etc.), and jiti resolves imports by walking UP from the loaded file — it never reaches the host's own install.
   Fix: run the package's installer inside the copy first (creates node_modules), or point NODE_PATH at a full install before creating the jiti instance. (2026-08)
+
+- [ZykZzq] Headless `pi -p` child hangs forever with zero output when spawned from a script harness (works fine interactively)
+  Cause: the harness runs the child with stdin inherited as an open pipe that never reaches EOF, and print mode blocks on it instead of running the -p prompt.
+  Fix: always give a pi -p child a closed/empty stdin: spawn with stdio ["ignore", ...] (node child_process) or redirect `< /dev/null` in shell loops; never let it inherit a harness stdin pipe. (2026-08)
+
+- [b32ESX] Headless pi -p crashes with "This extension ctx is stale after session replacement or reload" from a session_start handler's async continuation
+  Cause: the async continuation touched the captured session ctx after pi had replaced the session (print mode replaces the startup session for the prompt run), and every property access on a stale ctx throws; an unguarded throw in a fire-and-forget async body becomes an unhandled rejection that kills the process.
+  Fix: in session_start handlers that run async work, capture primitives (eg const hasUI = sctx.hasUI) BEFORE the first await and never touch the captured ctx after an await; wrap the whole fire-and-forget body in try/catch so nothing escapes as an unhandled rejection; route late user notices through a helper that falls back to a plain log when the ctx has gone stale. (2026-08)
+
+- [bYDxWU] Loading a pi extension through jiti outside pi fails ERR_PACKAGE_PATH_NOT_EXPORTED for @earendil-works/pi-ai (or pi-tui) on Node 22+
+  Cause: on Node >= 22, require(esm) fails the ESM-only pi packages (pi-ai, pi-tui, pi-agent-core) with ERR_PACKAGE_PATH_NOT_EXPORTED even when NODE_PATH is right, because their exports maps only define the "import" condition.
+  Fix: replicate pi's own loader aliases (getAliases in dist/core/extensions/loader.js): create jiti with alias mapping @earendil-works/pi-ai -> its dist/compat.js (the compat entrypoint is a superset of index), pi-tui/pi-agent-core -> their dist/index.js, and pi-coding-agent -> its dist/index.js; find the real paths under <pi install>/node_modules/@earendil-works/. (2026-08)
+
+- [kSRdzi] pi -p "/my-command" --flag fails with "Unknown option: --flag" even though the command itself supports that flag
+  Cause: pi's own CLI argument parser runs before the prompt is dispatched, so any --flag passed as a SEPARATE argv item after the prompt string is consumed by pi itself and rejected.
+  Fix: pass the slash command and its flags as ONE prompt argument (eg the single string "/my-command --apply") - inside the prompt string the flags reach the command handler untouched. (2026-08)

@@ -1,5 +1,7 @@
 # **pi-aftc-toolset**
 
+<!-- last-reviewed: 2026-08-07 21:35 -->
+
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=darcey.lloyd@gmail.com) 
 
 
@@ -17,11 +19,11 @@ Got any feedback? Spotted any issues? Feel free to log an issue on github or lea
 
 
 ## **Description**
-This is an extension for pi (pi.dev) which helps me in my every day work. If there's something I feel I need I usually bolt it on. So what does it do?
+This is an extension for pi (pi.dev) which helps me in my everyday work. If there's something I feel I need I usually bolt it on. So what does it do?
 
 - **AFTC Codex (/codex)**
   
-  Self learning, self loading (manual also), cache aware resource (like skills) to better help one shot those complex tasks and to stop the AI model from making the same mistakes over and over and over.
+  Self learning, self loading (manual also), cache aware resource (like skills) to better one-shot those complex tasks and to stop the AI model from making the same mistakes over and over and over.
 
 - **DocX (/docx)**
   
@@ -33,7 +35,7 @@ This is an extension for pi (pi.dev) which helps me in my every day work. If the
 
 - **Usage Report (/usage-report)**
   
-  Records metrics for every assistant turn (never your prompts) into a local SQLite database, then generates and serves a web report — cost, cache hit rates, timings, task times and projections. All your data stays on your machine.
+  Records metrics for every assistant turn (never your prompts) into a local SQLite database, then generates and serves a web report - cost, cache hit rates, timings, task times and projections. All your data stays on your machine.
 
 - **Footer Widget (/aftc-footer)**
   
@@ -41,16 +43,24 @@ This is an extension for pi (pi.dev) which helps me in my every day work. If the
 
 - **run_script**
   
-  A model tool for running large or multi-line shell scripts reliably — the script is written to a temp file first, working around a pi bug that silently truncates big inline bash commands.
+  A model tool for running large or multi-line shell scripts reliably - the script is written to a temp file first, working around a pi bug that silently truncates big inline bash commands.
 
 - **Sub Agents (/007 Alpha 1)**
   
-  Delegate work to your own custom AI agents (planner, researcher, worker — whatever you build). Off by default, enable it via /007 > settings and create your own agents from the agents folder. NOTE: This is in ALPHA 1 release.
+  Delegate work to your own custom AI agents (planner, researcher, worker - whatever you build). Off by default, enable it via /007 > settings and create your own agents from the agents folder. NOTE: This is an ALPHA 1 release.
+
+- **Audio Notifications (/aftc-notifications) (Beta 2)**
+  
+  I didn't think it would be useful, I started programming it as some fun, but it turns out I use it all the time now. What do you get? You get to choose from a set list of MP3s for different spoken sequences for startup, question, task complete, error and aborted (questions when detected by pi), there are also context notifications for 25%, 50% and 75%, feel free to add your own, restart pi or /reload and they will be shown.
 
 
 
 
 ## **WHATS NEW**
+
+### **AFTC CODEX UPDATES (/codex)**
+
+Various resource updates, usually with every update. **Codex cloud contributions** are stored online, *I may remove this as I'm not sure how much data I will get any parsing it all for shipping in codex resources may be more work than it's worth*. **You can turn this feature off via the /codex menu and setting Codex Cloud Resource Contribution to No.**. Codex resources are now re-structured for a 2 tier category system rather than a single flat category (it was bugging me).
 
 ### **Sub Agents /007 (ALPHA 1)**
 
@@ -69,10 +79,6 @@ Stop the drift! You know AI models even when instructed wont do it right, so /do
 is here to help keep your documentation up to date. It will backup the previous version of docx,
 just in case.
 
-### **Usage Reports /usage-report (Beta 8)**
-
-I've moved away from a single self contained html file as it was a nightmare to edit and maintain, it will now open a dir and attempt to run a nodejs server to display the usage report, there will be start.bat, start.sh and server.js (for direct node use), so you can see your usage report. I expect there will be fixes and changes for this over the coming days/week, your data remains on your machine so even if the report fails to output correctly your data will be intact and on upcoming fixes and adjustments it will be fixed.
-
 
 ### **Project Documentation Generator /DocX (BETA 6)**
 
@@ -81,15 +87,12 @@ confirmations a picker modal (auto-detect pre-selected) asks for the
 closest stack and ONE focused type pack is appended to a slim core prompt
 (10 packs: web-app, basic-website, webgpu-webgl, desktop-app, juce-vst,
 mobile-app, python-app, cli-tool, shell-scripts, generic). The generated
-layout changed: `docx/` IS the documentation folder — the docs tree mirrors
+layout changed: `docx/` IS the documentation folder - the docs tree mirrors
 the structure map as `<id>_<name>/` folders, every reachable surface gets
 its own build-ready doc, and old docs are recon hints only (source wins).
-The hard context gate dropped from 50% to 25% — `/new` first above that,
+The hard context gate dropped from 50% to 25% - `/new` first above that,
 even with `--yes`.
 
-### **AFTC CODEX RESOURCE UPDATES**
-
-Various resource updates, usually is with every update. Would anyone like this to be synced via an online database? Then we can all contribute to resources, not just me for the base pi-aftc-toolset extension.
 
 ### **PI UPDATE COMPATIBILITY CHECK**
 
@@ -122,12 +125,13 @@ Then in pi:
 # **Quick Documentation & Links**
 - [**Footer Widget**](#footer-widget)
 - [**SSH**](#ssh)
+- [**Sub Agents (/007)**](#sub-agents-007)
 
 - [**DOCX Documentation Generator (BETA 6)**](#docx-project-documentation-generator)
     > **WARNING: This will re-write readme.md and move all existing documentation.**
-    If you have a docs folder it will move all documentation to `./docx/old_docs.zip` before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is.
+    If you have a docs folder it will move all documentation to `./docx/old_docs/` (zipped into `./docx/backups/` when the run completes) before generating in-depth modular documentation designed for AI use while staying human-friendly. This can take a long time the larger the project is.
 
-    > **NOTE: run `/new` first, then `/docx`** — a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. `/docx` flat-out refuses at 25%+ context use (even with `--yes`) and advises a fresh session at 20%+. Context use itself is modest — measured runs used only 5–8% of a 1M-token window and even large projects stayed under 20% — but expect a LONG wait: the bigger and more complex the project, the longer it takes.
+    > **NOTE: run `/new` first, then `/docx`** - a fresh session means no compaction risk mid-generation and no prior conversation steering the docs. `/docx` flat-out refuses at 25%+ context use (even with `--yes`) and advises a fresh session at 20%+. Context use itself is modest - measured runs used only 5-8% of a 1M-token window and even large projects stayed under 20% - but expect a LONG wait: the bigger and more complex the project, the longer it takes.
 
 - [**Usage Report**](#usage-report)
 - [**AFTC Codex**](#aftc-codex-knowledge-base)
@@ -136,7 +140,7 @@ Then in pi:
 
     > I recommend you create a plan.md and a tasks.md first so that you can maximise your use of the codex skills.
 
-- [**Audio notifications**](#slash-commands) /aftc-notifications
+- [**Audio notifications**](#audio-notifications) /aftc-notifications
 - [**Slash commands**](#slash-commands) /aftc-* /codex-*
 - [**Keyboard shortcuts**](#keyboard-shortcuts) Alt+C / Alt+N / Alt+X
 - [**run_script**](#run_script-reliable-large-scripts)
@@ -144,6 +148,7 @@ Then in pi:
     > Reliable large/multi-line script execution. Works around a pi bash-tool truncation bug that silently drops inline commands past a few KB.
 - [**Cache diagnostics**](#cache-diagnostics)
 - [**Bundled skills**](#bundled-skills)
+- [**Bundled themes**](#bundled-themes)
 - [**Feature defaults**](#pi-aftc-toolset-defaults)
 - [**Data location**](#data-location)
 - [**Advanced installation and uninstall guide**](#advanced-installation)
@@ -158,40 +163,48 @@ Then in pi:
 ![Footer widget](images/footer-widget.png)
 
 A themed dashboard bar below the editor (`/aftc-footer` to configure:
-enable, averages line, timeframe). Lines 1–4 always available; line 5 only
-for supported subscription providers.
+enable, averages line, timeframe). Lines 1-4 always available; line 5 only
+for supported subscription providers; line 6 only while Sub Agents (/007)
+is enabled.
 
-### Line 1 — what's happening right now
+### Line 1 - what's happening right now
 
 Model name + thinking level, context window size with pi's own context-use
 %, last-turn cache hit vs session average (with trend arrow), and the
 session's cached vs new token split.
 
-### Line 2 — your money and prompts
+### Line 2 - your money and prompts
 
 User vs AI prompt counts, last turn cost, live Task Time, Session Time
 (wall-clock since your first prompt), Session Time Cost, and the burn rate
 ($/hr and $/min).
 
-### Line 3 — speed and tools
+### Line 3 - speed and tools
 
 Turn thinking time and response time (last + averages), active tool count
 with estimated schema tokens, and skills used/available.
 
-### Line 4 — long-term averages
+### Line 4 - long-term averages
 
 Prefixed with the chosen window (eg `3 Day Averages:`), from the persistent
 usage DB: total cost, window prompt sums (User/AI), average cache hit %,
 and Avg Task Time (completed tasks only). 19 windows via `/aftc-footer` →
-Set averages timeframe: ten rolling "Last …" windows (1h–72h) and nine
+Set averages timeframe: ten rolling "Last …" windows (1h-72h) and nine
 calendar-anchored windows (1 Day → 1 Year).
 
-### Line 5 — subscription quota (some providers only)
+### Line 5 - subscription quota (some providers only)
 
 5-hour rolling + weekly allowance usage with live reset countdowns.
 Supported: ChatGPT/Codex (OAuth), Anthropic (OAuth subscription headers),
 MiniMax Token Plan, ZAI/GLM Coding Plan, Kimi for Coding. All other
 providers: the line stays hidden.
+
+### Line 6 - sub agents (only while /007 is enabled)
+
+Always visible while the Sub Agents feature is on: runs active vs max
+concurrent, this session's total sub-agent cost, the average task time of
+completed runs, and which agents are running right now (each with its
+context-window %).
 
 ---
 
@@ -199,9 +212,9 @@ providers: the line stays hidden.
 
 ## **SSH**
 
-Operate remote servers from pi — model tools for the AI, slash commands
+Operate remote servers from pi - model tools for the AI, slash commands
 for you, a full-screen interactive terminal for hands-on work. Everything
-runs through a packaged Python (Paramiko) carrier over local stdio — it
+runs through a packaged Python (Paramiko) carrier over local stdio - it
 opens **no** listening socket.
 
 ### Ensure dependencies are installed
@@ -241,24 +254,24 @@ locally, never exposed to the model).
 
 ### How to connect
 
-`/ssh-connect [name]` — or just ask the model, which uses `ssh_connect`.
+`/ssh-connect [name]` - or just ask the model, which uses `ssh_connect`.
 New host keys ask for approval (or auto-accept when enabled).
 
 ### How to disconnect
 
-`/ssh-disconnect [id]` — or the model's `ssh_disconnect`. Idle carriers are
+`/ssh-disconnect [id]` - or the model's `ssh_disconnect`. Idle carriers are
 reaped automatically and re-spawned on demand.
 
 ### Run commands and pick a session
 
 `/ssh-select` chooses the session the local commands act on. For driven
 work, the model uses `ssh_run` (bounded, 120 s max timeout, optional
-bounded stdin — never for credentials).
+bounded stdin - never for credentials).
 
 ### Interactive shells
 
 `/ssh-shell` opens a full-screen terminal (nano, vim, htop, top, less all
-render properly). All keys go to the remote program — including Esc;
+render properly). All keys go to the remote program - including Esc;
 **Ctrl+] exits locally**. The model drives programs through
 `ssh_open_shell` + `ssh_send_keys` / `ssh_paste` / `ssh_peek` /
 `ssh_resize` / `ssh_interrupt` / `ssh_close`.
@@ -272,7 +285,7 @@ cancellable, `--preserve` restores timestamps/permissions.
 ### Manage remote files
 
 Model tools: `ssh_list_dir`, `ssh_read_file`, `ssh_stat`, `ssh_write_file`,
-`ssh_mkdir`, `ssh_rename`, `ssh_remove` — every mutation needs local-user
+`ssh_mkdir`, `ssh_rename`, `ssh_remove` - every mutation needs local-user
 approval.
 
 ### Model tools
@@ -288,8 +301,119 @@ approval.
 Connections are saved in your local `ssh.json`; the model only ever sees
 saved NAMES and opaque session/shell ids. Credentials are collected by
 local prompts, all model-facing output is redacted, and errors are mapped
-to safe categories (timeout, cancelled, not connected, unavailable) — no
+to safe categories (timeout, cancelled, not connected, unavailable) - no
 host/port/key diagnostics ever reach the model.
+
+
+---
+
+<br><br>
+
+
+
+## **aftc-codex (knowledge base)**
+
+An OPT-IN, self-educating knowledge base: the maintainer's unified rules +
+thinking guidance + a generated resource list ride your system prompt, and
+the model fetches topic docs on demand with `codex_load` (aliases: ts, py,
+js; specials: rules, guidance, list, markdown).
+
+- `/codex` - settings menu (enable, guidance inject, auto-detect & load,
+  auto-sync on startup, cloud contribution, resources & updates).
+- **Cloud codex contribution (on by default)** - when the AI records a new
+  codex entry (`codex_add_entry`), a copy is silently submitted in the
+  background to the maintainer's curation inbox so the best lessons can be
+  included in future releases. Nothing is shown in the chat, nothing is
+  logged, and it only ever fires when the AI adds an entry. **Turn it off**
+  with `/codex` → *Cloud Codex Resource Contribution* → **No** (it's on by
+  default because it costs nothing and nobody would ever turn it on
+  themselves).
+- `/codex-enable` / `/codex-disable` - first enable asks: **Pre-trained**
+  (rules + all shipped topic docs) or **Fresh Start**.
+- `/codex-init` / `/codex-refresh` - prep the session (auto-detects your
+  project's stack and loads the relevant docs) / strip + re-prep.
+- `/codex-status` - state, resource counts, version row.
+- `/codex-sync` - NON-DESTRUCTIVE update: merges new shipped content into
+  your live codex; learned entries are never touched.
+- `/codex-install` - wipe + fresh re-seed.
+- `/codex-learn` - record durable lessons via the `codex_add_entry` /
+  `codex_edit_entry` / `codex_remove_entry` tools (IDs generated, formats
+  validated, generality + secrets guards enforced).
+- `/codex-inject-rules` - session-only critical-rules injection (works
+  even when disabled; cleared by `/new`).
+
+Your live copy lives in your data dir (`aftc-codex/`); the shipped seed is
+versioned (`codexVersion` 14) and merges forward automatically on startup
+when Auto Sync is on.
+
+---
+
+<br><br>
+
+## **Usage report**
+
+`/usage-report` seeds a small report web app into your data dir
+(`usage-report/`), generates a fresh `data.json` from your recorded
+usage, and starts a bundled local server in its own terminal window -
+your browser opens automatically. No internet needed: Chart.js ships
+with the app. Close the server window (or Ctrl+C) to stop it; it also
+shuts itself down after 30 minutes idle. Requires Node.js (you have it
+if pi runs). Every assistant turn is recorded as metrics only -
+**never prompt or response text**. `/usage-clear` wipes the database
+behind a confirmation.
+
+![Usage report overview](images/ur-overview.png)
+
+Five tabs:
+
+| Tab | Contents |
+| --- | --- |
+| **Overview** | Headline cards (total cost, prompts, calls, cache hit, active days), 30-day spend chart, cost-share doughnut, 24h/7d/28d summaries with per-model scoreboards |
+| **Models** | Per-model sortable table + period selector + cost-by-model chart, Task Time column |
+| **Thinking levels** | Per-model × thinking-level table + period selector |
+| **Timings** | Task Time analysis: avg/longest task, turns per task, error/abort counts, think/respond/overhead split, user vs AI turns, top-10 longest tasks |
+| **Projections** | Burn rate ($/day, projected month/year) + per-model × thinking projections from spend ÷ active days |
+
+![Models tab](images/ur-models.png)
+
+
+![Thinking levels tab](images/ur-thinking-levels.png)
+
+
+![Timings tab](images/ur-timings.png)
+
+
+![Projections tab](images/ur-projections.png)
+
+
+---
+
+<br><br>
+
+## **/docx project documentation generator**
+
+Regenerates a project's full documentation set: a fresh GitHub README
+(written last), plus `./docx/` - master document, structure map, and a
+mirrored tree of ID-prefixed deep docs - per the shipped documentation
+guide. Before anything is generated, existing documentation is moved to
+`./docx/old_docs/` (zipped into `./docx/backups/` as a timestamped backup
+at the end); AGENTS.md is edited in place, never replaced.
+
+```text
+/docx                # confirmations + project-type picker (auto-detect pre-selected)
+/docx --yes          # headless: skip confirmations
+/docx --type <key>   # headless: pick the prompt pack
+```
+
+Already have a `./docx/` set? `/docx-update` reconciles it with the source
+instead of regenerating: new files get docs, removed files lose theirs,
+drifted docs are corrected in place, and your README is fact-checked
+WITHOUT being rewritten (same gates, confirmations and backup).
+
+Safeguards: refuses at ≥25% context use (compaction-corruption risk),
+advises `/new` at ≥20%, verified backup counts, sub-project folders stay
+read-only.
+
 
 ---
 
@@ -308,118 +432,20 @@ aborted turns, and provider-signed text.
 
 <br><br>
 
-## **QwenCloud / Alibaba providers**
-
-Currently **disabled** — pi 0.81+ registers providers natively. The module
-(Qwen Cloud/DashScope + Qwen Coding Plan via pi's native `/login`, live
-model catalogs, `/qwencloud` command) stays in the package and can be
-re-enabled in `index.ts` if the built-in proves weaker.
-
----
-
-<br><br>
-
 ## **Cache diagnostics**
 
 Everything the footer shows, on demand:
 
-- `/cache-profile` — per-tool schema token costs, skills loaded, cache
+- `/cache-profile` - per-tool schema token costs, skills loaded, cache
   prefix shape (system/tools/prefix hashes), churn analysis.
-- `/cache-stats` — session cache statistics, cache-write ROI (net saved,
+- `/cache-stats` - session cache statistics, cache-write ROI (net saved,
   payback turns), cost burn rate.
-- `/cache-reset` — zero the accumulators (debugging).
-- `/cls` — clear the terminal screen.
+- `/cache-reset` - zero the accumulators (debugging).
+- `/cls` - clear the terminal screen.
 
-Hit-rate formula: `cacheRead / (cacheRead + input)` — pi's `input` is NEW
+Hit-rate formula: `cacheRead / (cacheRead + input)` - pi's `input` is NEW
 prompt tokens only. Prefix churn (system prompt or tool schema changes
 breaking the cache) is detected per turn and warned.
-
----
-
-<br><br>
-
-## **Usage report**
-
-`/usage-report` seeds a small report web app into your data dir
-(`usage-report/`), generates a fresh `data.json` from your recorded
-usage, and starts a bundled local server in its own terminal window —
-your browser opens automatically. No internet needed: Chart.js ships
-with the app. Close the server window (or Ctrl+C) to stop it; it also
-shuts itself down after 30 minutes idle. Requires Node.js (you have it
-if pi runs). Every assistant turn is recorded as metrics only —
-**never prompt or response text**. `/usage-clear` wipes the database
-behind a confirmation.
-
-![Usage report overview](images/ur-overview.png)
-
-Five tabs:
-
-| Tab | Contents |
-| --- | --- |
-| **Overview** | Headline cards (total cost, prompts, calls, cache hit, active days), 30-day spend chart, cost-share doughnut, 24h/7d/28d summaries with per-model scoreboards |
-| **Models** | Per-model sortable table + period selector + cost-by-model chart, Task Time column |
-| **Thinking levels** | Per-model × thinking-level table + period selector |
-| **Timings** | Task Time analysis: avg/longest task, turns per task, error/abort counts, think/respond/overhead split, user vs AI turns, top-10 longest tasks |
-| **Projections** | Burn rate ($/day, projected month/year) + per-model × thinking projections from spend ÷ active days |
-
-![Models tab](images/ur-models.png)
-![Thinking levels tab](images/ur-thinking-levels.png)
-![Timings tab](images/ur-timings.png)
-![Projections tab](images/ur-projections.png)
-
----
-
-<br><br>
-
-## **aftc-codex (knowledge base)**
-
-An OPT-IN, self-educating knowledge base: the maintainer's unified rules +
-thinking guidance + a generated resource list ride your system prompt, and
-the model fetches topic docs on demand with `codex_load` (aliases: ts, py,
-js; specials: rules, guidance, list, markdown).
-
-- `/codex` — settings menu (enable, guidance inject, auto-detect & load,
-  auto-sync on startup, resources & updates).
-- `/codex-enable` / `/codex-disable` — first enable asks: **Pre-trained**
-  (rules + ~27 topic docs) or **Fresh Start**.
-- `/codex-init` / `/codex-refresh` — prep the session (auto-detects your
-  project's stack and loads the relevant docs) / strip + re-prep.
-- `/codex-status` — state, resource counts, version row.
-- `/codex-sync` — NON-DESTRUCTIVE update: merges new shipped content into
-  your live codex; learned entries are never touched.
-- `/codex-install` — wipe + fresh re-seed.
-- `/codex-learn` — record durable lessons via the `codex_add_entry` /
-  `codex_edit_entry` / `codex_remove_entry` tools (IDs generated, formats
-  validated, generality + secrets guards enforced).
-- `/codex-inject-rules` — session-only critical-rules injection (works
-  even when disabled; cleared by `/new`).
-
-Your live copy lives in your data dir (`aftc-codex/`); the shipped seed is
-versioned (`codexVersion` 7) and merges forward automatically on startup
-when Auto Sync is on.
-
----
-
-<br><br>
-
-## **/docx project documentation generator**
-
-Regenerates a project's full documentation set: a fresh GitHub README
-(written last), plus `./docx/` — master document, structure map, and a
-mirrored tree of ID-prefixed deep docs — per the shipped documentation
-guide. Before anything is generated, existing documentation is moved to
-`./docx/old_docs/` (zipped to `old_docs.zip` at the end); AGENTS.md is
-edited in place, never replaced.
-
-```text
-/docx                # confirmations + project-type picker (auto-detect pre-selected)
-/docx --yes          # headless: skip confirmations
-/docx --type <key>   # headless: pick the prompt pack
-```
-
-Safeguards: refuses at ≥25% context use (compaction-corruption risk),
-advises `/new` at ≥20%, verified backup counts, sub-project folders stay
-read-only.
 
 ---
 
@@ -428,10 +454,74 @@ read-only.
 ## **run_script (reliable large scripts)**
 
 The `run_script` model tool writes the script body to a temp file and runs
-`bash <file>` — no inline-size limit, working around pi's bash-tool
+`bash <file>` - no inline-size limit, working around pi's bash-tool
 truncation bug (a few KB+ inline commands get silently cut). Bash-only
 (git-bash on Windows); default timeout 120 s, max 1800 s. Toggle:
 `/run-script-on` / `/run-script-off` (default on).
+
+
+---
+
+<br><br>
+
+## Sub Agents (/007)
+
+Delegate focused work to isolated child pi processes. Each sub-agent runs in
+its own fresh context window with a profile-locked toolset and hands back a
+bounded report - your main session stays clean. Nine built-in agents ship
+(worker, planner, researcher, reviewer, explorer, advisor, documenter,
+designer, tester); make your own in your agents folder (a guide file lives
+there too).
+
+- **Off by default** - enable and configure via `/007` - Settings.
+- `/007` is the main menu: browse agents, active work, settings, guide.
+- `/007-status` shows a live table of running agents.
+- The footer (line 6) shows what sub-agents are running while /007 is enabled.
+- Your agents live in your data dir (`subagents/`); `/007-edit` tweaks them.
+
+---
+
+<br><br>
+
+## Audio notifications
+
+Play event sounds as pi works - enabled via the `/aftc-audio-notifications`
+settings hub, which also has per-category sound pickers and an "open sounds
+dir" option. Off by default (fresh installs are silent).
+
+- Sounds fire for: startup, when the agent asks a question, task complete,
+  error, aborted, and when context-window usage crosses 25% / 50% / 75%.
+- `/aftc-notify-time [sec]` sets the minimum task duration before the
+  completion sound plays (0 disables it).
+- Context-window alerts fire on the way UP past a threshold and stay quiet
+  until usage genuinely drops back below it - reloading or resuming never
+  replays them.
+
+---
+
+<br><br>
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Alt+C` | Clear the input editor |
+| `Alt+N` | Insert a newline at the cursor |
+| `Alt+X` | Cut all input text to the clipboard |
+| `Ctrl+T` | Toggle thinking blocks (pi built-in) |
+
+---
+
+<br><br>
+
+## Bundled themes
+
+- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default, recommended).
+- **cache-viz** - cache-focused green/cyan colour scheme.
+- **aftc-black-n-blue** - dark blue accents on black.
+
+Switch themes with `/theme`.
+
 
 ---
 
@@ -439,7 +529,7 @@ truncation bug (a few KB+ inline commands get silently cut). Bash-only
 
 ## Bundled skills
 
-34 skills ship with the package — activate with `/skill:<name>`:
+34 skills ship with the package - activate with `/skill:<name>`:
 
 - **Workflows:** `cache-audit`, `bulk-read`, `aftc-codex`, `ssh`, `tmux`
 - **Languages:** `typescript`, `javascript-mjs`, `javascript-transpiled`,
@@ -450,6 +540,8 @@ truncation bug (a few KB+ inline commands get silently cut). Bash-only
 - **Styling/markup:** `html`, `css`, `scss`
 - **Ops:** `docker`, `devops`, `nginx`, `linux`, `godot`
 - **Media:** `ffmpeg`
+
+
 
 ---
 
@@ -475,7 +567,8 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/aftc-debug-log-on` | Turn on `[aftc-toolset]` diagnostic console output (off by default; errors always print) |
 | `/aftc-debug-log-off` | Turn diagnostic console output back off |
 | `/aftc-cut-input` | Cut all input-editor text to the clipboard (same as `Alt+X`) |
-| `/docx [--yes] [--type <key>]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped to `docx/old_docs.zip` (`--yes` skips the confirmations, `--type` picks the prompt pack) |
+| `/docx [--yes] [--type <key>]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped into `docx/backups/` (`--yes` skips the confirmations, `--type` picks the prompt pack) |
+| `/docx-update [--yes] [--type <key>]` | Reconcile an existing `./docx/` set with the source: mint/retire docs, fix drift, fact-check the README without rewriting it |
 
 ### Interrupt
 
@@ -496,7 +589,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 
 | Command | What it does |
 | --- | --- |
-| `/aftc-footer` | Open the footer dashboard menu: Enable footer (ON/OFF), Show recorded averages (ON/OFF — the line-4 averages), Set averages timeframe (19 rolling / calendar windows) |
+| `/aftc-footer` | Open the footer dashboard menu: Enable footer (ON/OFF), Show recorded averages (ON/OFF - the line-4 averages), Set averages timeframe (19 rolling / calendar windows) |
 | `/cache-profile` | Per-tool token costs, prefix shape, churn analysis |
 | `/cache-stats` | Current-context cache diagnostics + cost rate |
 | `/cache-reset` | Zero accumulators and timer (debugging) |
@@ -518,14 +611,14 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 | --- | --- |
 | `/save-replay-prompt <text>` | Save `<text>` as a replay prompt (persists across reload/sessions) and add a visual save confirmation to conversation history |
 | `/replay` | Re-execute the saved prompt as a fresh user message (queued as follow-up when busy) |
-| `/r` | Short alias for `/replay` — same action, fewer keystrokes |
+| `/r` | Short alias for `/replay` - same action, fewer keystrokes |
 
 ### Model behaviour
 
 | Command | What it does |
 | --- | --- |
 | `/keep-it-short` | Send a fixed "be concise" instruction prompt to the active model (queued as follow-up when busy) |
-| `/kis` | Short alias for `/keep-it-short` — same action, fewer keystrokes |
+| `/kis` | Short alias for `/keep-it-short` - same action, fewer keystrokes |
 
 ### Thinking
 
@@ -533,6 +626,22 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 | --- | --- |
 | `/aftc-enable-think-processing` | Turn on inline `<think>…</think>` tag parsing (off by default; `/reload` to apply) |
 | `/aftc-disable-think-processing` | Turn off inline `<think>…</think>` tag parsing (`/reload` to apply) |
+
+### Sub Agents
+
+| Command | What it does |
+| --- | --- |
+| `/007` | Main menu: browse agents, active work, settings, guide, enable/disable |
+| `/007-status` | Live table of running agents (state, elapsed, context %) |
+| `/007-kill [id]` | Kill running agents (multi-select, or a single run id) |
+| `/007-edit [name]` | Agent picker → options menu (feature toggles, edit raw file, reset to default) |
+| `/007-reset <name>` | Reset an agent to the shipped default (with confirmation) |
+| `/007-install` | Seed the built-in agents into your agents folder |
+| `/007-sync` | Merge improved shipped agents in without touching your edits |
+| `/007-open-agent-dir` | Open your agents folder in the OS file manager |
+| `/007-guide` | The sub-agents walkthrough |
+| `/007-settings` | Presets, concurrency, budgets, watchdogs, footer line |
+| `/007-doctor` | Check your sub-agents setup |
 
 ### Audio notification
 
@@ -543,31 +652,14 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 
 ### aftc-codex
 
-See the [aftc-codex](#aftc-codex-knowledge-base) section — `/codex`,
+See the [aftc-codex](#aftc-codex-knowledge-base) section - `/codex`,
 `/codex-enable`, `/codex-disable`, `/codex-init`, `/codex-refresh`,
 `/codex-status`, `/codex-install`, `/codex-sync`, `/codex-learn`,
-`/codex-inject-rules` (+ `/aftc-codex-*` full names).
+`/codex-inject-rules`, `/codex-live-to-seed` (maintainer, dev-gated) (+ `/aftc-codex-*` full names).
 
 ### Providers
 
-Currently **disabled** — pi now registers providers natively. The module stays in the package and can be re-enabled in a future release.
-
-### Keyboard shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| `Alt+C` | Clear the input editor |
-| `Alt+N` | Insert a newline at the cursor |
-| `Alt+X` | Cut all input text to the clipboard |
-| `Ctrl+T` | Toggle thinking blocks (pi built-in) |
-
-### Bundled themes
-
-- **aftc-orange-viz** - orange-accented variant of the sea-shells palette (the AFTC default, recommended).
-- **cache-viz** - cache-focused green/cyan colour scheme.
-- **aftc-black-n-blue** - dark blue accents on black.
-
-Switch themes with `/theme`.
+Currently **disabled** - pi now registers providers natively. The module stays in the package and can be re-enabled in a future release.
 
 ---
 
@@ -584,9 +676,11 @@ Switch themes with `/theme`.
 | Usage recording | Enabled (when SQLite installed) |
 | aftc-codex knowledge base | Disabled |
 | Codex guidance inject / auto-load / auto-sync | Enabled (once codex is on) |
+| Cloud codex contribution | Enabled (silent; toggle off in the /codex menu) |
 | Audio notifications | Disabled (fresh installs silent) |
 | run_script tool | Enabled |
 | Think-tag processing | Disabled |
+| Sub Agents (/007) | Disabled |
 | Response divider | Enabled |
 | AFTC text intro | Enabled |
 | Debug logging (stdout chatter) | Disabled (errors always print) |
@@ -597,7 +691,7 @@ Switch themes with `/theme`.
 
 ## Data location
 
-The toolset stores its runtime data — usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`), the live codex (`aftc-codex/`), the debug log (`debug.log`) and the report web app (`usage-report/` with its generated `data.json`) — in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
+The toolset stores its runtime data - usage history (`turns.db`), preferences (`config.json`), saved SSH connections (`ssh.json`), the live codex (`aftc-codex/`), sub-agent config and agents (`subagents-config.json`, `subagents/`), the debug log (`debug.log`) and the report web app (`usage-report/` with its generated `data.json`) - in a per-user folder **outside** the installed package, so it survives `pi update`. Location per operating system:
 
 | OS | Data folder |
 | --- | --- |
@@ -607,7 +701,7 @@ The toolset stores its runtime data — usage history (`turns.db`), preferences 
 
 Set the `AFTC_TOOLSET_DATA_ROOT` environment variable to override the location (used by tests and power users). `/qd` opens the folder in your file manager.
 
-> **Uninstall note:** this folder lives outside the package, so `pi remove` does **not** delete it — your usage history and preferences remain after uninstall. Delete the folder above manually for a full clean-up.
+> **Uninstall note:** this folder lives outside the package, so `pi remove` does **not** delete it - your usage history and preferences remain after uninstall. Delete the folder above manually for a full clean-up.
 
 ---
 
@@ -626,7 +720,7 @@ pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
 ```
 
 Then `/reload` in pi. When an update ships new codex content, your live
-codex merges it automatically on startup (Auto Sync) — otherwise
+codex merges it automatically on startup (Auto Sync) - otherwise
 `/codex-sync` (non-destructive) or `/codex-install` (fresh) when prompted.
 
 ---
@@ -720,8 +814,9 @@ pi install /path/to/pi-aftc-toolset -l
 ```
 
 After edits, reload pi with `/reload`. Full developer documentation
-(workflow, test suites, Linux gates, release discipline) lives in
-`./docx/`.
+(workflow, release discipline, architecture) lives in `./docx/`; how to
+run the tests (which suites, timeouts, the full-suite policy) is in
+AGENTS.md.
 
 ---
 
@@ -733,9 +828,10 @@ After edits, reload pi with `/reload`. Full developer documentation
 pi-aftc-toolset
 |- 1 Extension source (extensions/aftc-toolset)   all feature modules
 |    UI framework · Footer/cache/usage · Feature modules
-|    SSH (+ Python carrier) · aftc-codex · docx generator
+|    SSH (+ Python carrier) · aftc-codex · docx generator · Sub Agents (007)
 |- 2 Packaging & shipped assets (data, skills, themes, release scripts)
-\- 3 Tests (tests/)
+|- 3 Tests (tests/)
+\- 4 Project website & feedback (dev.aftc.uk/)
 ```
 
 ---
@@ -746,17 +842,19 @@ pi-aftc-toolset
 
 Runtime data lives in a per-user folder **outside** the installed package
 (see [Data location](#data-location)), so it survives `pi update`. Every
-file is created lazily from built-in defaults — none of it is shipped or
+file is created lazily from built-in defaults - none of it is shipped or
 committed, and the whole data dir is excluded from git and npm publishing.
 
 | File | Purpose |
 | --- | --- |
 | `config.json` | Cross-session user preferences: footer (on/off, averages line on/off, timeframe window), response divider, think-tag processing, intro animation, audio notifications, replay prompt, run_script tool and aftc-codex switches. Created with defaults on first access; only re-written when a value actually changes. |
 | `ssh.json` | Local SSH connection metadata (name, username, host, port, timeout, optional key path, optional saved password) + new-host-key auto-accept flag. Local-only, never shipped. |
-| `turns.db` | SQLite usage database (turns + tasks tables — metrics only, never prompt text) |
+| `turns.db` | SQLite usage database (turns + tasks tables - metrics only, never prompt text) |
 | `usage-report/` | Seeded report web app + freshly generated `data.json` (your recorded usage) |
 | `debug.log` | Rotating `[aftc-toolset]` diagnostic log (5 MB cap + one `.old` generation) |
 | `aftc-codex/` | Your live codex knowledge base (seeded from the shipped copy; learned entries yours) |
+| `subagents-config.json` | Sub Agents (/007) preferences: presets, concurrency, budgets, watchdogs |
+| `subagents/` | Your live sub-agents (seeded built-ins you can edit) + per-run records |
 
 **Your data survives updates.** Because the data dir is outside the
 package, `pi update` no longer wipes it. Upgrading from a version that

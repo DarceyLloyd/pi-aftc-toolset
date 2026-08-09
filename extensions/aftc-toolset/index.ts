@@ -143,7 +143,11 @@ export default function (pi: ExtensionAPI): void {
 			aftcConsole.emphasis(ctx, "AFTC text intro: OFF");
 		},
 	});
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
+		// The intro plays ONLY on a real pi startup (reason "startup"):
+		// /reload, /new, resume and fork re-fire session_start in the SAME
+		// process and must not replay the wordmark + feedback line.
+		if (event.reason !== "startup") return;
 		// Default START_DELAY_MS applies so pi's startup paint settles first.
 		if (textIntro.isEnabled()) textIntro.play(ctx);
 	});

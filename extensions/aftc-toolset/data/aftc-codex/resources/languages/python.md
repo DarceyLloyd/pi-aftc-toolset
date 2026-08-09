@@ -6,12 +6,15 @@
 
 - [6HvM68] To find which import emits a FutureWarning/DeprecationWarning at startup, import candidate modules one at a time under warnings.catch_warnings(record=True) instead of guessing from log order.
 
+- [0RRiPx] For very large directory trees, dump every path once with os.scandir (no per-entry stat calls) into a plain text file, then re-read the dump for all analysis and planning - recursive scans of hundreds of thousands of files (du, find, os.walk with stats) are far slower, and repeated scans waste time.
+
 ## Gotchyas
 
 - [q2F1UY] argparse options with nargs='*' or action='append' yield lists (often default []), so passing such a value straight to logging.setLevel raises 'Level not an integer or a valid string' - normalize to a scalar level before use.
 
-## Issues & Solutions
+- [awlqBF] Deeply nested directory trees hit RecursionError - raise sys.setrecursionlimit or walk iteratively with an explicit stack.
 
+- [kv9k6Y] str.rpartition(sep) returns ('', '', s) when sep is absent (unlike partition's (s, '', '')) - splitting extensions with rpartition gives an EMPTY stem for extension-less names, so collision naming yields " (1)" instead of "name (1)"; use os.path.splitext for stem/extension splits.
 
 - [egIWMk] Multiple python procs at 100% CPU, work duplicated, zero training progress
   Cause: Windows multiprocessing spawn re-imports and re-runs the whole script per worker (DataLoader, Lightning Fabric).

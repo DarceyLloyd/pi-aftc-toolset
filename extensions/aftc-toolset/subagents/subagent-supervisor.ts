@@ -514,11 +514,23 @@ export function createSubAgentSupervisor(deps: SubAgentSupervisorDeps = {}): Sub
         try {
             const resourcesDir = path.join(getDataDir(), "aftc-codex", "resources");
             const topics: string[] = [];
+            // Loose root-level topics (eg documentation-and-planning).
+            for (const file of fs.readdirSync(resourcesDir, { withFileTypes: true })) {
+                if (file.isFile() && file.name.endsWith(".md") && file.name !== "codex-resource-list.md") {
+                    topics.push(file.name.slice(0, -3));
+                }
+            }
+            // Category folders, RECURSIVE (nested topics, eg ui-ux/web/web-app).
+            const walk = (dir: string, prefix: string): void => {
+                for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                    const rel = `${prefix}${entry.name}`;
+                    if (entry.isDirectory()) walk(path.join(dir, entry.name), `${rel}/`);
+                    else if (entry.name.endsWith(".md")) topics.push(rel.slice(0, -3));
+                }
+            };
             for (const category of fs.readdirSync(resourcesDir, { withFileTypes: true })) {
                 if (!category.isDirectory()) continue;
-                for (const file of fs.readdirSync(path.join(resourcesDir, category.name))) {
-                    if (file.endsWith(".md")) topics.push(`${category.name}/${file.slice(0, -3)}`);
-                }
+                walk(path.join(resourcesDir, category.name), `${category.name}/`);
             }
             return topics.sort();
         } catch {

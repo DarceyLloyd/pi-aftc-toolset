@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-07 -->
+<!-- last-reviewed: 2026-08-09 22:30 21:35 -->
 
 > Master document. Do not follow the per-ID links below until your work
 > touches that area — each section ends with an *Only read* instruction;
@@ -14,7 +14,7 @@
 installed into pi (`pi install pi-aftc-toolset` or from GitHub), loaded by pi's
 extension loader (jiti — TypeScript at runtime, no build step), and it adds:
 
-- A **cache/token/cost diagnostics footer widget** (5 themed lines) with
+- A **cache/token/cost diagnostics footer widget** (6 themed lines) with
   subscription allowance tracking for ChatGPT/Codex, Anthropic, MiniMax,
   ZAI/GLM and Kimi subscriptions.
 - A **persistent usage database** (SQLite) with a **usage report** served
@@ -26,7 +26,10 @@ extension loader (jiti — TypeScript at runtime, no build step), and it adds:
   model context.
 - **aftc-codex**: an opt-in, self-educating knowledge base injected into the
   system prompt with `codex_load`/entry tools.
-- **/docx**: a documentation generator (the feature that produced this doc set).
+- **/docx + /docx-update**: a documentation generator (the feature that
+  produced this doc set) and its reconcile-only update mode.
+- **Sub-agents (007)**: delegate focused work to isolated child pi processes,
+  each with a fresh context window and a profile-locked toolset.
 - Audio notifications, keyboard shortcuts, startup intros, response divider,
   replay prompts, think-tag parsing, theme picker, quick dir access,
   emergency stop, `run_script`, 34 bundled skills and 3 bundled themes.
@@ -43,12 +46,12 @@ and it never exposes SSH credentials to the model.
 | Host | `@earendil-works/pi-coding-agent` (peer) | any; developed against 0.83.0 |
 | Host peers | `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, `typebox` | any (peer `*`) |
 | Extension runtime | TypeScript via pi's jiti loader (no build step) | TS 5.x syntax |
-| Package version | pi-aftc-toolset | 1.19.11 (npm: 1.19.10 published) |
+| Package version | pi-aftc-toolset | 1.20.2 (npm: 1.20.2 published) |
 | Persistence | `better-sqlite3` | 12.11.1 (pinned) |
 | Zip (docx backup) | `adm-zip` | ^0.6.0 |
 | SSH carrier | Python + `paramiko` (uv-locked sidecar) | Python >=3.10; paramiko >=3.4.0,<4.0.0; aftc-ssh-sidecar 0.1.0 |
 | Report charts | Chart.js bundled in the shipped usage-report app (no CDN) | 4.4.7 |
-| Audio playback | bundled miniaudio binary (`data/aftc-intro/bin/play_sound-win-x64.exe`, C source shipped) | n/a |
+| Audio playback | bundled miniaudio binary (`extensions/aftc-toolset/bin/play_sound-win-x64.exe`, C source shipped) | n/a |
 | Tests | plain Node ESM scripts + jiti; Docker/Compose for SSH + Linux gates | n/a |
 
 ## Lite project map
@@ -60,7 +63,8 @@ pi-aftc-toolset
 |    1.6 SSH (+1.6.10 Python carrier sub-project) · 1.7 aftc-codex · 1.8 docx
 |    1.9 Sub-agents (007)
 |- 2 Packaging & shipped assets (data, skills, themes, release scripts)
-\- 3 Tests (tests/)
+|- 3 Tests (tests/)
+\- 4 Project website & feedback (dev.aftc.uk/)
 ```
 
 The FULL tree of every node lives only in [project_map.md](project_map.md).
@@ -81,7 +85,6 @@ The FULL tree of every node lives only in [project_map.md](project_map.md).
 - New user-facing features are disabled by default; never overwrite user
   settings — only add missing keys via write-back migration (see 1.2).
 - Every `.ts` file has a sibling `<name>-readme.md`, kept current.
-- Tests: every test registers a watchdog timeout; scripts must self-terminate.
 - Before writing/modifying pi extension code, read the aftc-codex resource
   `tools/pi-extension.md` (live copy) — see 1.7.
 
@@ -106,7 +109,7 @@ The single pi extension that powers the package: one orchestrator
 (`index.ts`) wiring ~30 self-contained feature modules, shared utilities
 (`paths.ts`, `config.ts`, `db.ts`, `ui/`), the SSH subsystem, the aftc-codex
 knowledge base and the docx generator. Owns every runtime behaviour of the
-toolset; does NOT own shipped assets (2) or tests (3).
+toolset; does NOT own shipped assets (2) or tests.
 
 > Only read the following files if you need to work on extension-source
 > features of this project, or if requested by the user or aftc codex:
@@ -151,7 +154,7 @@ the SSH terminal). Leaf utilities — every feature may import them.
 
 ### 1.4 - Footer, cache & usage
 
-Cache/token/cost accumulators (`core.ts`), the 4+1-line footer widget
+Cache/token/cost accumulators (`core.ts`), the 6-line footer widget
 (`footer-widget.ts`), subscription allowance fetching (`allowance.ts`),
 per-turn SQLite recording (`usage-recording.ts`) and the HTML usage report
 (`usage-report.ts`). Depends on 1.2 (db, config); rendered through 1.3.
@@ -162,7 +165,7 @@ per-turn SQLite recording (`usage-recording.ts`) and the HTML usage report
 > `./docx/1_extension_source/1.4_footer_usage/1.4_footer_usage_map.md`.
 
 #### 1.4.1 Cache diagnostics core — accumulators, timings, shape tracker, task timer, `/cache-profile|stats|reset`, `/cls`, timeframe definitions. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.1_cache_core.md`.
-#### 1.4.2 Footer widget — the 4+1-line bar surface + `/aftc-footer` menu + timeframe picker. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md`.
+#### 1.4.2 Footer widget — the 6-line bar surface + `/aftc-footer` menu + timeframe picker. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md`.
 #### 1.4.3 Subscription allowance — ChatGPT/Codex, Anthropic headers, MiniMax, ZAI/GLM, Kimi fetchers for line 5. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.3_allowance.md`.
 #### 1.4.4 Usage recording — TurnRecorder writing metrics-only rows to turns/tasks. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.4_usage_recording.md`.
 #### 1.4.5 Usage report — `/usage-report` + `/usage-clear`, the usage-report app + local server with its 5 tabs. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md`.
@@ -257,9 +260,11 @@ default; fail-soft; never destroys user data.
 
 ### 1.8 - docx documentation generator
 
-`/docx`: regenerates a project's full documentation set (this one included)
+`/docx` regenerates a project's full documentation set (this one included)
 from a shipped guide + per-type prompt packs, with deterministic backup,
 context-window gates and helper scripts (map-scan, link-audit, zip-old).
+`/docx-update` reconciles an EXISTING doc set with the source instead —
+same gates and packs, never a regeneration.
 
 > Only read the following files if you need to work on the docx generator of
 > this project, or if requested by the user or aftc codex:
@@ -273,13 +278,13 @@ context-window gates and helper scripts (map-scan, link-audit, zip-old).
 
 ### 1.9 - Sub-agents, codename 007
 
-Delegate focused work to isolated child pi processes (operatives),
+Delegate focused work to isolated child pi processes,
 each with a fresh context window, profile-owned capabilities and a
 bounded report back. Foreground-only v1: one `subagent` tool call =
 one run; `/007` + `/007-*` command family; disabled by default;
 children hermetic (only a gated read-only codex capability); no DB
 writes — spend in-memory, guarded by the allowance gate. Seed in
-`data/subagents/` (data only); config in its own
+`data/subagents/` (9 built-in agents); config in its own
 `<dataDir>/subagents-config.json`.
 
 > Only read the following files if you need to work on subagents
@@ -314,21 +319,22 @@ seed→live flow inputs (consumed by 1.7) and the npm artifact shape.
 
 ## 3 - Tests (tests/)
 
-~50 suites, one folder per check (`tests/<name>/<name>.mjs` + README):
-plain Node ESM with jiti + mock pi APIs locally; disposable Docker SSH
-fixtures; two Docker-Compose Linux gates; plus the docx fixture projects.
-Every script carries a watchdog timeout. Rules live in AGENTS.md and 3.1.
+All test suites live in `tests/` at the repo root (gitignored, NEVER
+committed). How to run and use them - which suites, timeout rules, the
+full-suite policy, the Linux verification cycle - lives in AGENTS.md.
 
-> Only read the following files if you need to work on tests of this project,
-> or if requested by the user or aftc codex:
-> `./docx/3_tests/3_tests_documentation.md` and
-> `./docx/3_tests/3_tests_map.md`.
+> Only read `./docx/3_tests/3_tests_documentation.md` if you need the
+> (intentionally minimal) tests node; it contains no suite details by design.
 
-#### 3.1 Test conventions & harness — watchdog timeouts, harness mechanics, workflow order. Only read `./docx/3_tests/3.1_conventions.md`.
-#### 3.2 Local suites — the no-Docker node checks (full table). Only read `./docx/3_tests/3.2_local_suites.md`.
-#### 3.3 Docker suites — disposable SSH fixture end-to-end suites. Only read `./docx/3_tests/3.3_docker_suites.md`.
-#### 3.4 Linux gates — pi-linux-integration + pi-linux-ssh-verify Compose gates + verification cycle. Only read `./docx/3_tests/3.4_linux_gates.md`.
-#### 3.5 docx fixtures — the fixture projects under tests/docx/ (not sub-projects) + their surface inventory. Only read `./docx/3_tests/3.5_docx_fixtures.md`.
+## 4 - Project website & feedback (dev.aftc.uk/)
+
+The project's public web presence: a landing page shell and the PHP
+feedback app the startup intro (1.5.13) and README link to
+(`https://dev.aftc.uk/pi-aftc-toolset/feedback`). Static + PHP, no build;
+lives in the repo for reference/deployment, owns no extension code.
+
+> Only read `./docx/4_project_website_documentation.md` when working on
+> the project website or the feedback form.
 
 ---
 
@@ -433,13 +439,11 @@ ONLY that doc; do not follow these links for areas you are not working on.
 
 ### Branch 3 — Tests
 
-- [3_tests/3_tests_documentation.md](3_tests/3_tests_documentation.md) - ID 3
-- [3_tests/3_tests_map.md](3_tests/3_tests_map.md) - ID 3 sub-map
-- [3_tests/3.1_conventions.md](3_tests/3.1_conventions.md) - ID 3.1
-- [3_tests/3.2_local_suites.md](3_tests/3.2_local_suites.md) - ID 3.2
-- [3_tests/3.3_docker_suites.md](3_tests/3.3_docker_suites.md) - ID 3.3
-- [3_tests/3.4_linux_gates.md](3_tests/3.4_linux_gates.md) - ID 3.4
-- [3_tests/3.5_docx_fixtures.md](3_tests/3.5_docx_fixtures.md) - ID 3.5
+- [3_tests/3_tests_documentation.md](3_tests/3_tests_documentation.md) - ID 3 (minimal: tests live in `tests/`, usage rules in AGENTS.md)
+
+### Branch 4 — Project website & feedback
+
+- [4_project_website_documentation.md](4_project_website_documentation.md) - ID 4
 
 ---
 

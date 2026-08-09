@@ -1,6 +1,6 @@
 # 1 - Extension source (extensions/aftc-toolset)
 
-<!-- last-reviewed: 2026-08-07 -->
+<!-- last-reviewed: 2026-08-09 22:30 21:35 -->
 
 ## References
 
@@ -12,7 +12,7 @@
 
 The single pi extension that powers pi-aftc-toolset. Owns ALL runtime
 behaviour: every slash command, model tool, shortcut, overlay and event hook
-the package contributes to pi. Does NOT own shipped assets (2), tests (3),
+the package contributes to pi. Does NOT own shipped assets (2), tests,
 the root README, or the pi host APIs it builds on (peer dependencies
 `@earendil-works/pi-coding-agent` / `pi-ai` / `pi-tui` / `typebox`, developed
 against pi 0.83.0).
@@ -87,8 +87,7 @@ first preference access; the codex live copy seeds on first enable (1.7.1).
 
 ## Testing
 
-Every suite lives under `tests/` (3). Module-specific checks are named
-`tests/<area>-check/`. TUI visuals are user-verified, never automated.
+Tests live in `tests/` (gitignored - not committed); how to run them is in AGENTS.md.
 
 ## Operational notes & known limitations
 
@@ -104,4 +103,4 @@ Every suite lives under `tests/` (3). Module-specific checks are named
 - [1.1_orchestration.md](./1.1_orchestration.md) — entry & module layout
 - [1.2_core_infrastructure_documentation.md](./1.2_core_infrastructure_documentation.md) — plumbing
 - [1_tui_sitemap.md](./1_tui_sitemap.md) — every reachable TUI surface
-- Packaging (2), Tests (3)
+- Packaging (2), Tests

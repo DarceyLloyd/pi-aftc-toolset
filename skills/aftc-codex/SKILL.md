@@ -33,8 +33,8 @@ the structure-map documentation pattern.
 ## codex_load - fetch a resource on demand
 
 Call codex_load with a topic name. It searches across every category folder
-(languages, libraries, frameworks, engines, tools) and the top-level guidance
-files, so the folder does not matter.
+(flat AND nested, eg ui-ux/web/) and the top-level guidance files, so the
+folder does not matter.
 
 - codex_load("typescript"), codex_load("docker"), codex_load("threejs")
 - Aliases: ts, py, js, pine, gd
@@ -42,6 +42,10 @@ files, so the folder does not matter.
   codex_load("markdown")
 - codex_load("list") shows every available resource. Call it when you are unsure
   what exists.
+- Loading a topic also loads its category's <category>-common.md once per
+  session (when the category has one) - no separate call needed.
+- When the user starts planning or documentation work,
+  codex_load("documentation-and-planning") first.
 - An unknown topic returns the full valid list - pick from it.
 - An empty resource (headings, no entries) returns a one-line "no entries yet"
   answer - nothing to load, but a candidate for codex_add_entry when you learn
@@ -50,7 +54,7 @@ files, so the folder does not matter.
 Project stack pinning: a project can declare its stack with an
 `<!-- AFTC-CODEX-STACK topics: typescript, vite, web-app -->` block in its
 auto-inject file (AGENTS.md, CLAUDE.md, .github/copilot-instructions.md, ...).
-Detection reads that block first - it is the only way design domains and target
+Detection reads that block first - it is the only way ui-ux domains and target
 OS get detected. Help maintain it when you notice the stack drift (the codex
 rules define the format).
 
@@ -60,12 +64,23 @@ round trips.
 
 ## Resource categories
 
-- languages - css, html, javascript, php, pinescript, python, typescript
-- libraries - chartjs, gradio, gsap, pytorch, threejs (mixed across languages)
-- frameworks - aftc-framework
+- languages - cpp, css, html, javascript, php, pinescript, python, scss,
+  typescript
+- libraries - chartjs, gradio, gsap, hono, jose, mysql2, pytorch, shoelace,
+  threejs, xtermjs
+- frameworks - blazor, bun-aftc-framework, dotnet-maui, juce, php-aftc-framework
 - engines - godot
-- tools - apache, bun, composer, docker, ffmpeg, mysql, pi-extension, powershell,
-  puppeteer, vite, webpack, winrar
+- runtimes - deno, nodejs
+- tools - bash, batch, bun, cmake, comfyui, composer, electron, ffmpeg, git,
+  headless-chrome, npm, ollama, powershell, puppeteer, uv, vite, webpack,
+  winrar, wix
+- servers-and-containers - apache, docker, nginx, vsftpd
+- database - database-common, mysql
+- os - linux, osx, windows
+- ui-ux - ui-ux-common plus domains nested by platform: web/ (web-app,
+  web-page, web-backend), desktop/ (desktop-app, desktop-web-app),
+  mobile/ (mobile-app), plugin/ (vst-plugin)
+- root-level - documentation-and-planning (how-we-work: planning, documentation)
 - top-level guidance - codex-rules, thought-and-action-guidance, markdown-guidance,
   and the generated codex-resource-list
 

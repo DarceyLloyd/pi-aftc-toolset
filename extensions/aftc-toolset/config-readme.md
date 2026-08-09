@@ -74,6 +74,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexSeeded: false,         // first-run seed choice done
     aftcCodexAutoSync: true,        // merge a newer shipped seed into live on pi start
     aftcCodexVersion: 0,            // live codex version (vs shipped data/extension-config.json)
+    aftcCodexResourceVersion: 0,    // live layout version (0=legacy, 1=v1 tree)
+    aftcCodexCloudContribution: true, // silently post newly-added entries to the public curation inbox
 };
 
 ```

@@ -32,19 +32,28 @@ live codex root, and only when the live file does not already exist (copy-only).
   creates empty category folders. Never overwrites an existing file. Sets
   `aftcCodexSeeded = true` AND records the shipped version into
   `aftcCodexVersion` (any seed path leaves the live copy at the shipped
-  version, so the version bookkeeping lives here centrally).
+  version, so the version bookkeeping lives here centrally) AND stamps
+  `aftcCodexResourceVersion = CODEX_RESOURCE_VERSION` (the shipped seed is the
+  v1 structural layout; legacy live copies are migrated by codex-migrate.ts,
+  never by seeding).
 - `ensureSeeded(mode)` — seed only if not already seeded.
-- `readResource(topic)` — resolve a topic across ALL category folders +
-  top-level; fuzzy aliases (`ts`→typescript, `py`→python, `js`→javascript,
+- `readResource(topic)` — resolve a topic across ALL category folders (flat
+  AND nested one level deep, eg `ui-ux/web/web-app.md`) + loose root-level
+  topics (eg `documentation-and-planning.md`) + top-level guidance; fuzzy
+  aliases (`ts`→typescript, `py`→python, `js`→javascript,
   `rules`/`guidance`/`list`/`markdown` specials); strips a leading `@`; drops a
-  trailing `.md`; supports explicit `category/name`. Returns
-  `{ absPath, relPath, content }` or `null`.
+  trailing `.md`; supports explicit `category/name` and `category/sub/name`.
+  Returns `{ absPath, relPath, content }` or `null`.
 - `listTopics()` — all valid topic names (basename without `.md`), sorted.
 - `readRules()` / `readGuidance()` / `readList()` — read the always-on files.
 - `listCategories()` — all category folders under `resources/` (known order
-  first, extras sorted; only folders that exist). Used by the codex entry tools
-  for new-topic guidance and by `listTopics()`/`getCounts()` internally.
-- `getCounts()` — resource counts by category + totals.
+  first, extras sorted; only folders that exist). The known order
+  (`CODEX_CATEGORIES`): languages, libraries, frameworks, engines, runtimes,
+  tools, servers-and-containers, database, os, ui-ux. Used by the codex entry
+  tools for new-topic guidance and by `listTopics()`/`getCounts()` internally.
+- `getCounts()` — resource counts by category + totals (recursive: nested
+  topics count towards their top-level category; loose root-level topics count
+  towards the total and `getCategoryCount()`).
 - `runSyncScript()` — spawn `node sync-codex-resources.mjs` to regenerate
   `codex-resource-list.md` (arg array, no shell; falls back to
   `process.execPath` if `node` is not on PATH; 10s watchdog). Never throws.

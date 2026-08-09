@@ -11,7 +11,10 @@
  *   5. Context-window usage crosses 25%, 50% or 75% (checked on each
  *      assistant message_end via ctx.getContextUsage().percent; a threshold
  *      fires once on the upward crossing and re-arms when usage drops back
- *      below it, e.g. after compaction).
+ *      below it, e.g. after compaction; session starts (including /reload,
+ *      which re-imports the module) PRE-MARK thresholds usage is already at
+ *      or above, so a high session never re-fires — only a drop below
+ *      re-arms).
  *
  * The AI model is completely unaware of this feature. Detection is
  * pure TypeScript-side event handling -- no model tool, no prompt
@@ -319,8 +322,25 @@ export function createNotify(pi: ExtensionAPI): void {
 
 
     // -- Event: startup sound on fresh session start ----------------------
-    pi.on("session_start", async (event) => {
-        contextCrossed[25] = contextCrossed[50] = contextCrossed[75] = false;
+    // NEVER reset the threshold state on session_start: a /reload, /new,
+    // resume or fork must not re-fire a sound while usage is already above a
+    // threshold. pi re-imports the extension module on /reload, so the
+    // closure state starts fresh every reload — therefore this handler
+    // PRE-MARKS every threshold usage is ALREADY at or above, so the first
+    // message_end of the new session cannot re-fire either. Thresholds re-arm
+    // ONLY when usage drops back below them (e.g. after compaction).
+    pi.on("session_start", async (event, ctx) => {
+        try {
+            const usage = typeof ctx.getContextUsage === "function" ? ctx.getContextUsage() : null;
+            const pct = usage && typeof usage.percent === "number" && Number.isFinite(usage.percent)
+                ? usage.percent
+                : null;
+            if (pct !== null) {
+                for (const t of CONTEXT_THRESHOLDS) {
+                    if (pct >= t.pct) contextCrossed[t.pct] = true;
+                }
+            }
+        } catch { /* fail-soft: no pre-mark, the next message_end decides */ }
         if (event.reason === "startup" || event.reason === "new") {
             playConfiguredSound("startup");
         }

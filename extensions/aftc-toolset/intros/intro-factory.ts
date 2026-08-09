@@ -112,9 +112,13 @@ export function createIntros(pi: ExtensionAPI): void {
         });
     }
 
-    // Session lifecycle: pick one random enabled intro on start; stop all on shutdown.
-    pi.on("session_start", async (_event, ctx) => {
-        dlog(`intros: session_start fired, hasUI=${ctx.hasUI}, mode=${ctx.mode}`);
+    // Session lifecycle: pick one random enabled intro on REAL pi startup only;
+    // stop all on shutdown. /reload, /new, resume and fork re-fire
+    // session_start in the SAME process — the intro must not replay on them
+    // (the user asked for startup-only, not on every reload).
+    pi.on("session_start", async (event, ctx) => {
+        dlog(`intros: session_start fired, reason=${event.reason}, hasUI=${ctx.hasUI}, mode=${ctx.mode}`);
+        if (event.reason !== "startup") { dlog(`intros: reason ${event.reason} != startup — not playing`); return; }
         dlog(`intros: all intros: ${intros.map(i => `${i.id}(enabled=${i.isEnabled()})`).join(", ")}`);
         const enabled = intros.filter(i => i.isEnabled());
         dlog(`intros: enabled count=${enabled.length}`);

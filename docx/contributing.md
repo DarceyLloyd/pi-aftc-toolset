@@ -3,7 +3,7 @@
 Workflow, code rules and release discipline for pi-aftc-toolset. Load this
 when making any change to the extension or preparing a release.
 
-<!-- last-reviewed: 2026-08-05 22:05 -->
+<!-- last-reviewed: 2026-08-09 22:30 22:05 -->
 
 ## References
 
@@ -22,7 +22,7 @@ releases are scripted locally (2.4). The authoritative rules live in
 - pi (`@earendil-works/pi-coding-agent`, developed against 0.83.0)
   installed globally; the extension loads via jiti — no build step.
 - Node.js (npm), Python 3.10+ and `uv` for the SSH carrier; Docker for the
-  SSH fixtures (3.3) and Linux gates (3.4); WinRAR only for `backup.ps1`.
+  SSH fixtures and Linux gates; WinRAR only for `backup.ps1`.
 - `/aftc-install` inside pi installs the runtime deps (1.5.3).
 
 ## Code rules (binding)
@@ -41,7 +41,7 @@ releases are scripted locally (2.4). The authoritative rules live in
   say when truncated; file-mutating tools through `withFileMutationQueue`;
   throw from `execute()` to report errors; strip leading `@` from paths.
 - Shortcuts live ONLY in `keys.ts` (1.5.1); help entries next to every
-  command registration (help-registry-check enforces).
+  command registration (enforced by the tests/ folder - see AGENTS.md).
 - Never use '§' in code/docs; never name enable flags "master"
   (`featureNameEnabled` convention).
 
@@ -52,7 +52,7 @@ releases are scripted locally (2.4). The authoritative rules live in
    aftc-codex resource `tools/pi-extension.md` before touching pi APIs.
 3. Implement + update the module readme in the same change.
 4. Windows tests for the changed feature (3.2/3.3); full suite only when
-   requested; ask before running tests/docx.
+   requested (the docx test suites are in the tests/ folder - see AGENTS.md).
 5. Linux gates last (3.4 cycle: copy → /aftc-install → test; Windows fixes
    first).
 6. Docs: update the affected docx docs + stamps in the same change (see
@@ -76,7 +76,7 @@ entry in the same commit. Renames keep IDs; deletions reserve them.
 ## Examples
 
 ```powershell
-node tests/ssh-module-check/ssh-module-check.mjs   # one suite
+See AGENTS.md for which tests to run and the timeout rules.
 .\shipit.ps1                                       # full release
 ```
 

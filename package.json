@@ -1,6 +1,6 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.20.2",
+  "version": "1.20.4",
   "description": "Stats bar. Isolated SSH. Documentation generation (docx). Persistent self-educating cache-aware skills on demand (codex). Usage reports. Audio notifications. Shortcuts. Skills. Themes ++",
   "keywords": [
     "pi-package",

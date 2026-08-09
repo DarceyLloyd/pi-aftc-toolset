@@ -12,8 +12,15 @@ The cache-friendly "hybrid" injection (spec D1 / D7):
   Read fresh from disk each turn (byte-stable files → no prefix churn). Never
   pollutes history, never accumulates, resume-proof.
 - **Marker message** (`aftc-codex-marker` custom message) — the detectable/prunable
-  "codex presence" in history: a short visible note + the instruction to fetch docs
-  via `codex_load`. Rendered in the transcript.
+  "codex presence" in history: a NUMBERED checklist (D22/D24) — 1: codex_load the
+  relevant/detected resources (and `documentation-and-planning` first when the
+  user starts planning or documentation work); 2: confirm the loaded topics in one
+  line; 3: locate the default entry point (the agent tool's auto-loaded context
+  file: AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md,
+  .cursorrules, .windsurfrules) when it is not already in context; 4: LAST STEP,
+  the docx handoff — when the entry point contains an AFTC-DOCX block, follow it
+  and read `docx/project_documentation.md` + `docx/project_map.md` immediately
+  after the codex loading. Rendered in the transcript.
 - **Durable per-session state** (`prepped` / `silent`) persisted via
   `pi.appendEntry("aftc-codex-state", …)` (a custom entry — NOT in LLM context),
   restored on `session_start` by scanning the entries. Survives compaction.

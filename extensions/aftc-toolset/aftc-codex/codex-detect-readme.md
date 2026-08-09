@@ -29,11 +29,14 @@ Scans a working directory and maps signals to codex topic docs:
   `.windsurfrules`, `.github/copilot-instructions.md`; ≤64 KB each):
   - the marked `<!-- AFTC-CODEX-STACK \n topics: a, b, c \n -->` block — explicit
     pins, unioned across all files present (this is the ONLY detection path for the
-    design domains and target OS, and the escape hatch for stoplisted topics);
+    ui-ux domains and target OS, and the escape hatch for stoplisted topics);
+    legacy pre-v1 pins (planning, documentation-generation, path-classification,
+    design-common) are remapped to their v1 topics so stale pins never surface
+    permanent "no resource yet" hints).
   - a strict whole-word keyword scan of the full text against the live topic list,
     with a stoplist of ambiguous English words (`go`, `deno`, `vue`, `batch`, `bun`,
     `twig`, `cs`, `rs`, `composer`, `windows`) that are ignored in prose.
-- **Implied topics** — any design domain → `design-common`; `mysql` → `database-common`.
+- **Implied topics** — any ui-ux domain → `ui-ux-common`; `mysql` → `database-common`.
 
 ## topics vs missing
 
