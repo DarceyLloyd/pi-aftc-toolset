@@ -3,7 +3,7 @@
 Workflow, code rules and release discipline for pi-aftc-toolset. Load this
 when making any change to the extension or preparing a release.
 
-<!-- last-reviewed: 2026-08-09 22:30 22:05 -->
+<!-- last-reviewed: 2026-08-09 22:30 -->
 
 ## References
 
@@ -63,9 +63,9 @@ releases are scripted locally (2.4). The authoritative rules live in
 
 Version read from `package.json`; patch/minor/major rules; codex seed
 change ⇒ `codexVersion` bump in the same release; ship = commit → push →
-`gh release create vX.X.X` → `publish.bat` → verify
-`npm view pi-aftc-toolset version`. "Ship it" phrases trigger the full
-flow without re-asking.
+`gh release create vX.X.X` (notes = changelog entry). npm publishing is the
+MAINTAINER's manual step — the AI never runs `npm publish` (AGENTS.md
+Shipping). "Ship it" phrases trigger the full flow without re-asking.
 
 ## Structure-map discipline
 

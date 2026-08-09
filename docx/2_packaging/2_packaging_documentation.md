@@ -1,6 +1,6 @@
 # 2 - Packaging & shipped assets
 
-<!-- last-reviewed: 2026-08-09 22:30 21:35 -->
+<!-- last-reviewed: 2026-08-09 22:30 -->
 
 ## References
 

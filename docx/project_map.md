@@ -83,7 +83,7 @@ pi-aftc-toolset (pi extension package v1.20.2)
 |  |- 2.1 Shipped data (extensions/aftc-toolset/data/)
 |  |- 2.2 Bundled skills (skills/)
 |  |- 2.3 Bundled themes (themes/)
-|  \- 2.4 Release & maintainer scripts (publish.bat, shipit.ps1, backup.ps1, clear-docker.bat)
+|  \- 2.4 Release & maintainer scripts (shipit.ps1, backup.ps1, clear-docker.bat)
 \- 3 Tests (tests/ - not committed; usage rules in AGENTS.md)         module
 \- 4 Project website & feedback (dev.aftc.uk/)                      module
 ```

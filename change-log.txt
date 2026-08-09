@@ -4,6 +4,7 @@ pi-aftc-toolset - Change Log
 Updates v1.20.x
 ---------------
 
+- Release process: npm publishing is no longer automated and is never part of the release steps - the maintainer publishes to npm manually. The npm token and the publish.bat helper script were removed from the repository (2026-08); the shipping checklist in AGENTS.md now stops at the GitHub release.
 - Theme: the bundled aftc-orange-viz theme has been updated.
 
 - Startup intro: the AFTC wordmark + feedback line now plays ONLY on a real pi startup - /reload, /new, resume and fork no longer replay it.

@@ -3,7 +3,7 @@
 Dev environment for pi-aftc-toolset: toolchain, running the extension
 from source, and the dev-only tooling.
 
-<!-- last-reviewed: 2026-08-09 22:30 22:05 -->
+<!-- last-reviewed: 2026-08-09 22:30 -->
 
 ## References
 

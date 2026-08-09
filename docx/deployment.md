@@ -3,7 +3,7 @@
 How pi-aftc-toolset reaches users: npm publication, GitHub releases, and
 what happens on the user's machine at update time.
 
-<!-- last-reviewed: 2026-08-09 22:30 22:05 -->
+<!-- last-reviewed: 2026-08-09 22:30 -->
 
 ## References
 
@@ -14,7 +14,8 @@ what happens on the user's machine at update time.
 ## Overview
 
 No CI, no Docker in the release path. The maintainer ships from Windows
-via `shipit.ps1` / `publish.bat` (2.4). Distribution channels: npm
+via `shipit.ps1` (2.4) and publishes to npm MANUALLY (the AI never runs
+`npm publish` — AGENTS.md Shipping). Distribution channels: npm
 (`pi install pi-aftc-toolset`) and GitHub (git URL install).
 
 ## Environments
@@ -32,14 +33,18 @@ via `shipit.ps1` / `publish.bat` (2.4). Distribution channels: npm
    when the codex seed changed — 2.1).
 3. `shipit.ps1`: git commit `v<version>` → push → `gh release create
    vX.X.X --title vX.X.X` (notes: changelog entry; skipped when it
-   exists) → `publish.bat`.
-4. `publish.bat`: token from `.env` (gitignored + npmignored) fed through
-   a TEMP `.npmrc` deleted afterwards; never touches global/project
-   npmrc. Verify: `npm view pi-aftc-toolset version`.
+   exists). npm publishing is NOT part of the pipeline.
+4. The MAINTAINER publishes to npm manually (outside the repo — no
+   publish script or token file exists in it). Verify:
+   `npm view pi-aftc-toolset version` after the maintainer says it is
+   done.
 
-Secrets handling: the npm granular access token lives ONLY in `.env`
-(publish permission for pi-aftc-toolset, bypass-2FA enabled). No token in
-the repo, the npm artifact, or CI (there is no CI).
+Secrets handling: the npm granular access token lives ONLY with the
+maintainer — `.env` / `publish.bat` were removed from the repo 2026-08.
+The maintainer's npm access token (publish permission for
+pi-aftc-toolset, bypass-2FA enabled) is configured in the maintainer's own
+npm session. No token exists in the repo, the npm artifact, or CI (there
+is no CI).
 
 ## Rollback
 

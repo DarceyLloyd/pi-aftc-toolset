@@ -266,7 +266,6 @@ the user which steps they want this time, offering the full checklist:
 2. Run tests — Windows suites, and/or the Linux container gates.
 3. Commit everything + push to the remote.
 4. Create the GitHub release.
-5. Publish to npm.
 
 Then run ONLY the approved steps. Standing details for the steps, when
 approved:
@@ -275,11 +274,13 @@ approved:
   X.X.X (never invent it).
 - GitHub release: `gh release create vX.X.X --title "vX.X.X"` (tag name
   = title = `vX.X.X`), notes = the changelog entry for the release.
-- npm publish runs locally with `publish.bat` (reads the npm granular
-  access token from `.env` at the repo root — gitignored + npmignored,
-  never committed; the script feeds it through a temp .npmrc it deletes
-  after). No CI, no Docker. Verify with
-  `npm view pi-aftc-toolset version`.
+- **npm publishing is NEVER automated and NEVER attempted by the AI.**
+  The user publishes to npm themselves (`publish.bat` and the npm token
+  are not kept in the repo — they were removed 2026-08). Do not run
+  `npm publish`, do not ask the user to approve it as a release step,
+  and do not include it in the offered checklist. `npm view
+  pi-aftc-toolset version` may only be used to CHECK the user's own
+  publish after they say it is done.
 
 ---
 
