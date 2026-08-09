@@ -144,10 +144,11 @@ export default function (pi: ExtensionAPI): void {
 		},
 	});
 	pi.on("session_start", async (event, ctx) => {
-		// The intro plays ONLY on a real pi startup (reason "startup"):
-		// /reload, /new, resume and fork re-fire session_start in the SAME
-		// process and must not replay the wordmark + feedback line.
-		if (event.reason !== "startup") return;
+		// The intro plays on a REAL pi startup AND on /new (a genuinely fresh
+		// session). /reload, resume and fork re-fire session_start in the SAME
+		// process with the existing transcript - they must not replay the
+		// wordmark + feedback line and stack messages.
+		if (event.reason !== "startup" && event.reason !== "new") return;
 		// Default START_DELAY_MS applies so pi's startup paint settles first.
 		if (textIntro.isEnabled()) textIntro.play(ctx);
 	});

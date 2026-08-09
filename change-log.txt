@@ -4,10 +4,11 @@ pi-aftc-toolset - Change Log
 Updates v1.20.x
 ---------------
 
+- Codex: the "AI is not prepped yet" banner now warns that on-demand codex loads can burn low-tier subscription quotas fast, advises keeping 1M-context models under 35% (the dumb zone starts above 45%), and adds a Kimi K3 Vivace recommendation.
 - Release process: npm publishing is no longer automated and is never part of the release steps - the maintainer publishes to npm manually. The npm token and the publish.bat helper script were removed from the repository (2026-08); the shipping checklist in AGENTS.md now stops at the GitHub release.
 - Theme: the bundled aftc-orange-viz theme has been updated.
 
-- Startup intro: the AFTC wordmark + feedback line now plays ONLY on a real pi startup - /reload, /new, resume and fork no longer replay it.
+- Startup intro: the AFTC wordmark + feedback line now plays on a real pi startup AND on /new - /reload, resume and fork no longer replay it (they used to stack the animation on every reload).
 
 - Notifications: the context-window 25/50/75% sounds no longer re-fire after a /reload or session resume while usage stays above the threshold - every session start pre-marks thresholds usage is already at or above, so only a genuine drop below (eg after compaction) re-arms them.
 

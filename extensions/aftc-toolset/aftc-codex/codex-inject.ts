@@ -216,6 +216,10 @@ export function createCodexInject(
         }
 
         box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
+
+            let str:any = "";
+
+
             box.addChild(new Text(
                 "Run " + boldWhite("`/codex-init`", theme) + " to load the codex resources relevant for this project.",
                 0, 0,
@@ -227,8 +231,12 @@ export function createCodexInject(
                 theme.fg("warning", boldOrange("WARNING:", theme)),
                 0, 0,
             ));
+
+            str = theme.fg("text", "Codex loads resources on-demand and can use low tier subscriptions hourly & weekly quotas fast.\n");
+            str += theme.fg("warning", "You don't have to auto load, you can use `codex load <resource>` yourself (if available it will load).\n");
+            str += theme.fg("text", "ADVICE: Keep context windows < 35% on 1M ctx window models (dumb zone > 45%, limits & costs).\n");
             box.addChild(new Text(
-                "Codex loads resources on-demand and can use low tier subscriptions hourly & weekly quotas fast.\nTry to keep your context window below 45% usage on 1M context window token models.",
+                str,
                 0, 0,
             ));
             box.addChild(new Spacer(1));
@@ -239,26 +247,25 @@ export function createCodexInject(
                 0, 0,
             ));
 
-            let str:any = "";
-            str = theme.fg("warning", "- Kimi K3 - Vivace plan\n");
-            str += theme.fg("text", "  WARNING: I think the model has been nerfed.\n");
-            str += theme.fg("text", "  DeepSeek v4 Flash done what K3 couldn't do in 4 hours in less than 20 minutes (1 prompt each).\n");
+            
+            str = theme.fg("warning", "- Kimi K3 - Vivace plan recommended\n");
+            str += theme.fg("text", "  WARNING: I think the model has been nerfed!\n");
             str += theme.fg("text", "  If your context window goes above 30%, your Allegro 5h usage window is gone in 1.5 hours or less.\n");
+            str += theme.fg("text", "  There's no point in having a 1M context window if no plan can reach get near it without hitting usage limit.\n");
             box.addChild(new Text(
                 str,
                 0, 0,
             ));
 
-            str = theme.fg("warning", "- Qwen 3.8 Max - Token Pro plan minimum\n");
-            str += theme.fg("text", "  RECOMMENDED: Team Pro or Team Max Seat plans.\n");
-            str += theme.fg("text", "  You will go through a Token Pro plan quotas quickly, not as bad as Kimi K3 but quickly.\n");
+            str = theme.fg("warning", "- Qwen 3.8 Max - Team Pro or Team Max Seat plans recommended\n");
+            str += theme.fg("text", "  Token Pro plan can be used, but it won't last long, still more usage than Kimi K3.\n");
             box.addChild(new Text(
                 str,
                 0, 0,
             ));
 
-            str = theme.fg("warning", "- ZAI GLM 5.2 - Max plan\n");
-            str += theme.fg("text", "  WARNING: ALL plans have been nerfed and prices increased! It's back to OpenAI.");
+            str = theme.fg("warning", "- ZAI GLM 5.2 - Max plan recommended\n");
+            str += theme.fg("text", "  WARNING: ALL plans have been nerfed and prices increased!\n");
             box.addChild(new Text(
                 str,
                 0, 0,
@@ -266,18 +273,16 @@ export function createCodexInject(
 
             str = theme.fg("warning", "- GPT 5.6 Terra - $100 or $200 p/m plans\n");
             str += theme.fg("text", "  WARNING: Careful using SOL and speed multipliers.\n");
-            str += theme.fg("text", "  Considering the only useful plans on zai and kimi are now over $100, open ai is the better option.\n");
+            str += theme.fg("text", "  Who would have thought OpenAI $100 a month plan would be cheaper than the Chinese models?!\n");
             box.addChild(new Text(
                 str,
                 0, 0,
             ));
 
-            box.addChild(new Spacer(1));
+
+
+            // box.addChild(new Spacer(1));
             
-            box.addChild(new Text(
-                "Usage cost depends greatly on how complex or big your task and project is.",
-                0, 0,
-            ));
 
         return box;
     });

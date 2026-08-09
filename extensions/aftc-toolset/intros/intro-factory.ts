@@ -118,7 +118,7 @@ export function createIntros(pi: ExtensionAPI): void {
     // (the user asked for startup-only, not on every reload).
     pi.on("session_start", async (event, ctx) => {
         dlog(`intros: session_start fired, reason=${event.reason}, hasUI=${ctx.hasUI}, mode=${ctx.mode}`);
-        if (event.reason !== "startup") { dlog(`intros: reason ${event.reason} != startup — not playing`); return; }
+        if (event.reason !== "startup" && event.reason !== "new") { dlog(`intros: reason ${event.reason} - not playing (startup/new only)`); return; }
         dlog(`intros: all intros: ${intros.map(i => `${i.id}(enabled=${i.isEnabled()})`).join(", ")}`);
         const enabled = intros.filter(i => i.isEnabled());
         dlog(`intros: enabled count=${enabled.length}`);
