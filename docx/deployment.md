@@ -14,8 +14,7 @@ what happens on the user's machine at update time.
 ## Overview
 
 No CI, no Docker in the release path. The maintainer ships from Windows
-via `ship-it.bat` (2.4) and publishes to npm MANUALLY (the AI never runs
-`npm publish` — AGENTS.md Shipping). Distribution channels: npm
+via `ship-it.bat` (2.4). Distribution channels: npm
 (`pi install pi-aftc-toolset`) and GitHub (git URL install).
 
 ## Environments
@@ -32,19 +31,10 @@ via `ship-it.bat` (2.4) and publishes to npm MANUALLY (the AI never runs
 2. Changelog entry + version bump in `package.json` (+ `codexVersion`
    when the codex seed changed — 2.1).
 3. `ship-it.bat`: git commit `v<version>` → push → `gh release create
-   vX.X.X --title vX.X.X` (no notes; skipped when it exists). npm
-   publishing is NOT part of the pipeline.
-4. The MAINTAINER publishes to npm manually (outside the repo — no
-   publish script or token file exists in it). Verify:
-   `npm view pi-aftc-toolset version` after the maintainer says it is
-   done.
+   vX.X.X --title vX.X.X` (no notes; skipped when it exists).
 
-Secrets handling: the npm granular access token lives ONLY with the
-maintainer — `.env` / `publish.bat` were removed from the repo 2026-08.
-The maintainer's npm access token (publish permission for
-pi-aftc-toolset, bypass-2FA enabled) is configured in the maintainer's own
-npm session. No token exists in the repo, the npm artifact, or CI (there
-is no CI).
+Secrets handling: nothing is stored in the repo or CI (there is no CI) -
+the maintainer's credentials live only with the maintainer.
 
 ## Rollback
 

@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-10 16:30 -->
+<!-- last-reviewed: 2026-08-10 19:30 -->
 
 > Master document. Do not follow the per-ID links below until your work
 > touches that area — each section ends with an *Only read* instruction;
@@ -316,7 +316,7 @@ seed→live flow inputs (consumed by 1.7) and the npm artifact shape.
 #### 2.1 Shipped data — extension-config.json (codexVersion), codex seed, audio MP3s, intro assets, play_sound binary. Only read `./docx/2_packaging/2.1_shipped_data.md`.
 #### 2.2 Bundled skills — the 34 shipped pi skills. Only read `./docx/2_packaging/2.2_skills.md`.
 #### 2.3 Bundled themes — aftc-black-n-blue, aftc-orange-viz, cache-viz. Only read `./docx/2_packaging/2.3_themes.md`.
-#### 2.4 Release & maintainer scripts — shipit.ps1, backup.ps1, clear-docker.bat + release discipline (npm publishing is maintainer-manual, never automated). Only read `./docx/2_packaging/2.4_release.md`.
+#### 2.4 Release & maintainer scripts — ship-it.bat, shipit.ps1, backup.ps1, clear-docker.bat + release discipline. Only read `./docx/2_packaging/2.4_release.md`.
 
 ## 3 - Tests (tests/)
 
@@ -351,7 +351,7 @@ ONLY that doc; do not follow these links for areas you are not working on.
 
 - [project_map.md](project_map.md) — full structure map
 - [contributing.md](contributing.md) — workflow, rules, release discipline
-- [deployment.md](deployment.md) — GitHub releases, updates (npm publishing is maintainer-manual)
+- [deployment.md](deployment.md) — GitHub releases, updates
 - [development.md](development.md) — dev environment, install, dev tools
 - [dependency_map.md](dependency_map.md) — cross-ID dependency view
 - [design.md](design.md) — AFTC UI design language & key conventions

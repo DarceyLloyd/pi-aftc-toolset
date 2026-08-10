@@ -258,29 +258,22 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
 
 ## Shipping ("ship it", "push it up to github", "release it", "ship vX.X.X")
 
-Fast and minimal - no ceremony, no descriptions, no review. The version is
-ALWAYS `package.json`'s `version` field: read it, never invent it. To ship,
-run `ship-it.bat` (local maintainer tool in the repo root - excluded from
-git/docker/npm ignores, never committed, contains NO credentials; it uses
-the existing git + gh login) or do it by hand:
+When the user says ANY of these, run `ship-it.bat` from the repo root
+(Windows, `cmd /c ship-it.bat`). That is the ENTIRE flow - one run, no
+checklist, no asking which steps, no manual git/gh steps:
 
-1. Read `version` from `package.json` - that is the X.X.X.
-2. `git add -A` then `git commit -m "vX.X.X"` then `git push`.
-3. `gh release create vX.X.X --title "vX.X.X"` (tag name = title =
-   `vX.X.X`). No release notes are written - descriptions are not part of
-   the flow.
+1. Make sure `package.json`'s `version` is what is being shipped - never
+   invent it. If the user named a version ("ship vX.X.X") or a bump is
+   needed per the version rules above, set it now, then continue.
+2. Run `cmd /c ship-it.bat` from the repo root.
 
-Nothing more: no changelog review, no version comparisons with npm or
-older releases, no tests run by the flow, no descriptions for the commit
-or the release. (Bump `package.json` FIRST per the version rules above when
-a bump is needed - the ship flow never bumps.)
-
-**npm publishing is NEVER automated and NEVER attempted by the AI.**
-The user publishes to npm themselves (`publish.bat` and the npm token
-are not kept in the repo — they were removed 2026-08). Do not run
-`npm publish` and do not ask the user to approve it as a release step.
-`npm view pi-aftc-toolset version` may only be used to CHECK the user's
-own publish after they say it is done.
+The bat reads the version, `git add -A` (stages everything - make sure the
+working tree is what you want shipped), commits `vX.X.X`, pushes, and
+creates the GitHub release (tag = title = vX.X.X, no notes), skipping the
+commit or release when there is nothing to do. Do NOT repeat any of those
+steps by hand afterwards, and do NOT add extra steps (no tests run by the
+flow, no changelog review, no descriptions). `ship-it.bat` is local-only
+(git/docker/npm ignored, never committed) and contains no credentials.
 
 ---
 
