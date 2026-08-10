@@ -12,6 +12,8 @@
 
 - [tYsXsm] Relocating a folder breaks consumers that hardcode the old location: leave a directory junction at the original path pointing at the new home (no admin rights needed, transparent to every reader, and future files written there land in the shared location).
 
+- [Be9wL9] Windows reserves `nul`, `con`, `aux`, `prn`, `com1-9`, `lpt1-9` as device names - only cmd/PowerShell treat `>nul` as the null device; git-bash (MSYS) and other POSIX shells create a REAL file named `nul`, which then breaks `git add -A` and trips the no-NUL-files rule. Redirect to `/dev/null` in bash, never `>nul`.
+
 ## Issues & Solutions
 
 

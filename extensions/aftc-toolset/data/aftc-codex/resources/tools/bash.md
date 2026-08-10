@@ -11,6 +11,8 @@
 
 - [i4iUAP] git-bash/MSYS on Windows silently rewrites leading-slash arguments AND `-e VAR=/abs/path` values into install-relative Windows paths (`/opt/x` becomes `<git-root>/opt/x`), breaking docker exec targets and container env vars; set `MSYS_NO_PATHCONV=1` for the command (or use a `//` prefix, or wrap the remote command in `sh -c`).
 
+- [sRhSOw] In git-bash (MSYS) on Windows, a `>nul` redirect creates a real file named 'nul' - the null device name is only special to cmd/PowerShell; the stray file breaks `git add -A` ('unable to index file nul') and trips the no-NUL-files rule. Use `>/dev/null` in bash and reserve `>nul` for cmd/batch scripts.
+
 ## Issues & Solutions
 
 

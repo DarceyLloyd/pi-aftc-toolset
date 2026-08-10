@@ -353,7 +353,7 @@ js; specials: rules, guidance, list, markdown).
   even when disabled; cleared by `/new`).
 
 Your live copy lives in your data dir (`aftc-codex/`); the shipped seed is
-versioned (`codexVersion` 15) and merges forward automatically on startup
+versioned (`codexVersion` 17) and merges forward automatically on startup
 when Auto Sync is on.
 
 ---
