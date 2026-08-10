@@ -211,8 +211,15 @@ been `codex_load`ed this session), exact-duplicate backstop, atomic writes throu
 `/aftc-codex` (menu), `-enable` (enable + prep; warns if already active; alias
 `/codex-enable`), `-disable` (disable + strip all codex from context; alias
 `/codex-disable`), `-install` (fresh install or re-install), `-init`, `-refresh`,
-`-learn`, `-status`, plus `/codex-inject-rules` (per-session rules-only mode:
-ONLY the Critical Global Rules inject — no docs/learn; `/new` + `/codex-init`
+`-learn`, `-status`, `-list` (scrollable full-screen modal of every available
+codex resource - type-to-filter, first item highlighted, ↑/↓ to move; the
+`documentation-and-planning` guide is pinned at the top; headless prints),
+`-load` (pick ONE codex resource to load via a menu - type-to-filter;
+Enter picks it and the menu closes; the AI `codex_load`s it now - a load
+action, not a prep action, so rules-only /
+un-prepped sessions are not refused), plus
+`/codex-inject-rules` (per-session rules-only mode:
+ONLY the Critical Global Rules inject - no docs/learn; `/new` + `/codex-init`
 returns to full).
 The resources menu, `-learn` and
 `-install` run the
@@ -222,11 +229,17 @@ list-regeneration script first; pure toggles skip the spawn.
 
 `aftcCodexEnabled` (false), `aftcCodexInjectGuidance` (true), `aftcCodexAutoLoad`
 (true), `aftcCodexSeeded` (false),
-`aftcCodexAutoSync` (true — merge a newer shipped seed into the live codex on
+`aftcCodexAutoSync` (true - merge a newer shipped seed into the live codex on
 pi start, non-destructive),
-`aftcCodexVersion` (0 — live codex version, internal bookkeeping). All migrated
+`aftcCodexCloudContribution` (true - silently post newly-added entries to the
+public curation inbox),
+`aftcCodexAutoInsertAgentsEnabled` (false - when ON the AI may write/update
+the codex resources-to-load list (the AFTC-CODEX-STACK block) in the project's
+AGENTS.md / auto-inject files; OFF (default) = codex never writes those files,
+and /codex-init reports an existing block as left untouched),
+`aftcCodexVersion` (0 - live codex version, internal bookkeeping). All migrated
 into an existing config.json via the write-back pattern. (Rules-only mode is
-per-session STATE, not a preference — see codex-inject-readme.md.)
+per-session STATE, not a preference - see codex-inject-readme.md.)
 
 ## Sub-modules
 

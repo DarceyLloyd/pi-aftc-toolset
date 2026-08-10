@@ -1,8 +1,8 @@
 # intro-text.ts
 
-AFTC text intro — the wordmark animation. A one-line typewriter widget
-that types "AFTC", then expands to "All For The Code — \<random quip\>".
-After the linger the widget clears (`clearAtEnd`, default `true`) and the
+AFTC text intro - the wordmark animation. A one-line typewriter widget
+that types "AFTC", then expands to "All For The Code - \<random quip\>".
+After the linger the widget clears (`clearAtEnd`, default `true`); the
 feedback prompt ("PI-AFTC-Toolset > Like the extension? Got some
 feedback?") with the feedback-page URL
 (`https://dev.aftc.uk/pi-aftc-toolset/feedback`) underneath is printed
@@ -12,6 +12,11 @@ index.ts): white prompt line + accent URL wrapped in an OSC 8 hyperlink
 (clickable in terminals that support links), scrolling away with normal
 use instead of staying pinned. Runs as a widget + display entries (not
 messages), so nothing enters model context or session history.
+
+**Feedback prompt DISABLED by default (2026-08):** the emit is gated by
+the `feedbackEnabled` flag in intro-text.ts (currently `false`); flip it
+back to `true` to re-enable the feedback lines. The renderer stays
+registered either way.
 
 ## Commands and preference
 
@@ -31,7 +36,8 @@ messages), so nothing enters model context or session history.
   frame by frame via `ctx.ui.setWidget`. The final quip frame lingers
   `END_DELAY_MS` (1900ms); the animation then emits ONE
   `INTRO_FEEDBACK_ENTRY` console entry (`emitFeedback()`, fail-soft when
-  `initTextIntro(pi)` was never called) and clears the widget when
+  `initTextIntro(pi)` was never called) - but ONLY when `feedbackEnabled`
+  is true (disabled by default 2026-08) - and clears the widget when
   `clearAtEnd` is `true` (default) or leaves it up when `false`. The
   entry renderer draws two lines: `FEEDBACK_PROMPT` in the theme's
   default (white) foreground (fail-soft plain text if the theme lacks

@@ -59,6 +59,9 @@ tests/
 rules.md
 dev.md
 tasks.md
+# aftc-resume work-state handoff (transient — never commit; snapshots too)
+aftc-resume.md
+aftc-resume-*.md
 skills/cache-audit/SKILL.old
 *.zip
 *.rar

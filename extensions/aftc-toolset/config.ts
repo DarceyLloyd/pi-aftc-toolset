@@ -157,6 +157,11 @@ export interface Preferences {
      *  curate them into future releases. On by default; fully silent — failures
      *  never surface, no logs, the endpoint URL never reaches the TUI. */
     aftcCodexCloudContribution?: boolean;
+    /** aftc-codex: when on, the AI may auto-insert/update the codex resources-to-load
+     *  list (the AFTC-CODEX-STACK block) in the project's AGENTS.md / auto-inject
+     *  files. Off by default: codex never touches those files (no insert, no
+     *  cleanup) - detection may still READ an existing block. */
+    aftcCodexAutoInsertAgentsEnabled?: boolean;
     /** run_script tool: reliable large-script execution (workaround for a pi bash-tool
      *  truncation bug). On = tool registered; off = tool absent. /run-script-on|off. */
     runScriptEnabled?: boolean;
@@ -216,7 +221,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexAutoSync: true,
     aftcCodexVersion: 0,
     aftcCodexResourceVersion: 0,
-    aftcCodexCloudContribution: true,
+        aftcCodexCloudContribution: true,
+    aftcCodexAutoInsertAgentsEnabled: false,
     runScriptEnabled: true,
     debugLoggingEnabled: false,
 };

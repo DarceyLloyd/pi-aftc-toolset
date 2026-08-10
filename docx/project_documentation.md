@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-09 22:30 -->
+<!-- last-reviewed: 2026-08-10 16:30 -->
 
 > Master document. Do not follow the per-ID links below until your work
 > touches that area — each section ends with an *Only read* instruction;
@@ -196,6 +196,7 @@ and the (disabled) provider integrations. Each is one file, self-registering.
 #### 1.5.12 run_script tool — reliable large-script execution + on/off. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.12_run_script.md`.
 #### 1.5.13 Startup intros — AFTC wordmark widget (WarGames dormant). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.13_intros.md`.
 #### 1.5.14 Providers — DISABLED QwenCloud module kept on disk. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.14_providers.md`.
+#### 1.5.15 aftc-resume — `/aftc-resume-save` + `/aftc-resume`: hand work off between context windows via `./aftc-resume.md` (no config surface; reads the codex `aftcCodexEnabled` preference only). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.15_aftc_resume.md`.
 
 ### 1.6 - SSH feature (ssh/)
 
@@ -329,9 +330,12 @@ full-suite policy, the Linux verification cycle - lives in AGENTS.md.
 ## 4 - Project website & feedback (dev.aftc.uk/)
 
 The project's public web presence: a landing page shell and the PHP
-feedback app the startup intro (1.5.13) and README link to
+feedback app at
 (`https://dev.aftc.uk/pi-aftc-toolset/feedback`). Static + PHP, no build;
 lives in the repo for reference/deployment, owns no extension code.
+(The startup intro (1.5.13) no longer prints the feedback link - gated
+behind the `feedbackEnabled` flag, off by default 2026-08 - and the
+root README's feedback line was removed 2026-08.)
 
 > Only read `./docx/4_project_website_documentation.md` when working on
 > the project website or the feedback form.
@@ -388,6 +392,7 @@ ONLY that doc; do not follow these links for areas you are not working on.
   - [1_extension_source/1.5_feature_modules/1.5.12_run_script.md](1_extension_source/1.5_feature_modules/1.5.12_run_script.md) - ID 1.5.12
   - [1_extension_source/1.5_feature_modules/1.5.13_intros.md](1_extension_source/1.5_feature_modules/1.5.13_intros.md) - ID 1.5.13
   - [1_extension_source/1.5_feature_modules/1.5.14_providers.md](1_extension_source/1.5_feature_modules/1.5.14_providers.md) - ID 1.5.14
+  - [1_extension_source/1.5_feature_modules/1.5.15_aftc_resume.md](1_extension_source/1.5_feature_modules/1.5.15_aftc_resume.md) - ID 1.5.15
   - [1_extension_source/1.6_ssh/1.6_ssh_documentation.md](1_extension_source/1.6_ssh/1.6_ssh_documentation.md) - ID 1.6
   - [1_extension_source/1.6_ssh/1.6_ssh_map.md](1_extension_source/1.6_ssh/1.6_ssh_map.md) - ID 1.6 sub-map
   - [1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md](1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md) - ID 1.6.1

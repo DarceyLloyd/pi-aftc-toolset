@@ -10,6 +10,10 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 
 - [USf8Ae] To make pi-tui-rendered text (widgets, entries, Text) a clickable terminal link, wrap it in OSC 8 hyperlink escapes - extractAnsiCode explicitly recognizes OSC 8 and APC sequences, so width measurement and truncation skip them cleanly; supporting terminals (Windows Terminal, iTerm2, GNOME Terminal) render the link, others show plain text.
 
+- [adqAtd] New user-facing features default OFF: add the enable flag as a config preference (featureNameEnabled, never 'master') in the Preferences interface + DEFAULT_PREFERENCES with the value a fresh install gets, and read it fresh from disk on every access.
+
+- [n1oVSs] Type-to-filter in a shared selectable list: reuse pi-tui's fuzzyFilter(items, query, getText) (whitespace/slash-separated tokens, best matches first), show the query with CURSOR_MARKER as the caret, let Backspace edit, Ctrl+U clear, Esc clear the query first (a second Esc closes), and reset the highlight to the top of the narrowed list on every filter edit - ship it as an OPT-IN option (default off) so existing callers behave identically.
+
 ## Gotchyas
 
 - [cL1pBd] Clipboard write from an extension - hand-rolling clip/pbcopy/wl-copy/OSC 52 per platform is error-prone and unnecessary; import { copyToClipboard } from "@earendil-works/pi-coding-agent" (pi's own cross-platform helper: native addon, platform tools, OSC 52 fallback - it throws "Failed to copy to clipboard" when every method fails, so await it in try/catch and only clear the source text AFTER it resolves).
@@ -30,6 +34,14 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [DRb3Eg] pi-tui Box() constructor defaults to nonzero padding, so a 2-child box renders extra blank edge lines; pass explicit zero padding (new Box(0, 0)) when composing tight multi-line entry renderers.
 
 - [BesN8I] pi's bash tool on Windows executes Git Bash, NOT PowerShell - getShellConfig resolves: shellPath -> Git Bash known locations -> bash on PATH (Windows) / /bin/bash -> bash -> sh (Unix), so never assume the platform's native shell for user_bash commands; reuse/wrap pi's resolution via createLocalBashOperations({shellPath}) and detect the real environment with process.platform + ComSpec/PSModulePath/SHELL. PI_* env vars carry session/model/provider only - there is no PI_SHELL or PI_PLATFORM.
+
+- [wDbGXl] A command that only triggers a model tool (eg a picker that loads a resource) is wrongly refused by rules-only/prep-state gates - calling it is the same as the user typing the tool call; gate it with the underlying tool's own guards (version-compat + data present + TUI), never the session's rules-only or prepped state.
+
+- [Lo9Jab] A command registers fine but the help-registry check fails when its help entry is keyed on the alias name - the check scans pi.registerCommand calls and demands a matching registerHelpEntry keyed on the FULL command name with the short alias in the aliases array; key the entry on the full name with aliases listed.
+
+- [eRgGt1] Making a static injected rules-file instruction conditional on a preference - do not edit the shipped rules file (byte-stable, versioned); inject an override block AFTER the rules text in the system-prompt prefix, flipped per the preference value, so the later instruction wins.
+
+- [RqPc9l] A 'fix' that skips a folder emitting no signals leaves the reported symptom unchanged - reproduce first and probe which input actually contributes (count contributions); the noise often comes from a different source entirely (eg a docs-heavy auto-inject file's keyword scan) than the folder suspected.
 
 ## Issues & Solutions
 

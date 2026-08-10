@@ -42,6 +42,8 @@
  *                        Cloud + Coding Plan via pi's native /login, /qwencloud)
  *                        DISABLED: pi now ships this natively; kept on disk in
  *                        case the built-in proves weaker (see index body)
+ *   - resume.ts       — /aftc-resume-save + /aftc-resume: hand work off between
+ *                        context windows via ./aftc-resume.md
  *   - db.ts           — shared SQLite connection utility
  *   - paths.ts        — package/runtime path helpers
  *   - types.ts        — shared TurnRecord / FooterDataProvider interfaces
@@ -86,6 +88,7 @@ import { createAftcCodex } from "./aftc-codex/aftc-codex";
 import { createSubAgents, buildSubAgentFooterLine } from "./subagents/subagents";
 import { getSubAgentPref } from "./subagents/subagent-config";
 import { createRunScript } from "./run-script";
+import { createResume } from "./resume";
 import { migrateLegacyData } from "./paths";
 import * as aftcConsole from "./ui/aftc-console";
 // DISABLED 2026-07: pi 0.81 added native provider support. Module kept on
@@ -171,6 +174,7 @@ export default function (pi: ExtensionAPI): void {
 	createAftcCodex(pi);
 	const subAgents = createSubAgents(pi, { allowance });
 	createRunScript(pi);
+	createResume(pi);
 	// createProviders(pi); // disabled — see note at the import above
 
 	// Core owns the data; the widget renders it. The orchestrator wires

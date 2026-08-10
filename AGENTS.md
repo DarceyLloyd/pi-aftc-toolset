@@ -1,7 +1,7 @@
 # CRITICAL GLOBAL RULES
 
 <!-- AFTC-CODEX-STACK
-topics: typescript, javascript, nodejs, npm, powershell, bash, batch, python, docker, git, pi-extension, php, web-page, windows, linux, documentation-and-planning
+topics: pi-extension, typescript, powershell, nodejs, npm, git, bash, docker, documentation-and-planning
 -->
 
 <!-- AFTC-DOCX

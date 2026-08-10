@@ -74,6 +74,10 @@ test/
 skills/*.rar
 skills/*.zip
 
+# aftc-resume work-state handoff (transient — never ship to npm; snapshots too)
+aftc-resume.md
+aftc-resume-*.md
+
 # Audio notification: build source (miniaudio.h + play_sound.c) not needed at runtime
 extensions/aftc-toolset/bin/src/
 # Audio notification: WAV originals (MP3s are the shipped format)

@@ -171,7 +171,7 @@ export function createCodexInject(
 
     pi.registerEntryRenderer(CODEX_PREP_NOTICE_ENTRY, (_entry, _opts, theme) => {
         const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-        box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX" + randSpaces())), 0, 0));
+        box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX [PI Skills on steroids]" + randSpaces())), 0, 0));
 
         let noticeData: { outOfSync?: boolean } = {};
         try { noticeData = (_entry.data ?? {}) as { outOfSync?: boolean }; } catch { /* fail-soft */ }
@@ -207,82 +207,79 @@ export function createCodexInject(
             ));
             return box;
         }
+
+
         if (state.prepped && !state.silent) {
             box.addChild(new Text(
-                "Codex is active — rules + resources are in the AI's system prompt.",
+                "Codex is active - rules + resources are in the AI's system prompt.",
                 0, 0,
             ));
             return box;
         }
 
-        box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
-
-            let str:any = "";
 
 
-            box.addChild(new Text(
-                "Run " + boldWhite("`/codex-init`", theme) + " to load the codex resources relevant for this project.",
-                0, 0,
-            ));
-            box.addChild(new Spacer(1));
+        // box.addChild(new Text("Codex is ENABLED but the AI is not prepped yet.", 0, 0));
+
+        let str: any = "";
 
 
-            box.addChild(new Text(
-                theme.fg("warning", boldOrange("WARNING:", theme)),
-                0, 0,
-            ));
+        str += theme.fg("text", "1. Load codex resources on demand via");
+        str += theme.fg("warning", " `codex load <resource>`");
+        str += theme.fg("text", ".\nList available codex resources via ");
+        str += theme.fg("warning", "`codex load <resource>`");
 
-            str = theme.fg("text", "Codex loads resources on-demand and can use low tier subscriptions hourly & weekly quotas fast.\n");
-            str += theme.fg("warning", "You don't have to auto load, you can use `codex load <resource>` yourself (if available it will load).\n");
-            str += theme.fg("text", "ADVICE: Keep context windows < 35% on 1M ctx window models (dumb zone > 45%, limits & costs).\n");
-            box.addChild(new Text(
-                str,
-                0, 0,
-            ));
-            box.addChild(new Spacer(1));
+        str += theme.fg("text", "\n\n2. Auto prep the AI via");
+        str += theme.fg("warning", " `/codex-init` ");
+        str += theme.fg("text", "(injects rules + guidance into the SYSTEM PROMPT).\n");
+        str += theme.fg("warning", "WARNING: this could load a lot of skills into the SYSTEM PROMPT.");
 
+        str += theme.fg("text", "\n\n3. Inject codex rules only into system prompt via");
+        str += theme.fg("warning", " `/codex-rules-only`.");
 
-            box.addChild(new Text(
-                theme.fg("warning", boldOrange("AI Models plans:", theme)),
-                0, 0,
-            ));
+        str += theme.fg("text", "\n\n4. List available codex resources via");
+        str += theme.fg("warning", " `/codex-list`.");
 
-            
-            str = theme.fg("warning", "- Kimi K3 - Vivace plan recommended\n");
-            str += theme.fg("text", "  WARNING: I think the model has been nerfed!\n");
-            str += theme.fg("text", "  If your context window goes above 30%, your Allegro 5h usage window is gone in 1.5 hours or less.\n");
-            str += theme.fg("text", "  There's no point in having a 1M context window if no plan can reach get near it without hitting usage limit.\n");
-            box.addChild(new Text(
-                str,
-                0, 0,
-            ));
+        str += theme.fg("text", "\n\n5. Pick codex resources to load via");
+        str += theme.fg("warning", " `/codex-load` ");
+        str += theme.fg("text", "(loads into the chat - NOT the system prompt).\n");
+        str += theme.fg("text", "You can also ask the AI to load resources via ");
+        str += theme.fg("warning", "`codex load <resource>");
+        str += theme.fg("text", ".");
 
-            str = theme.fg("warning", "- Qwen 3.8 Max - Team Pro or Team Max Seat plans recommended\n");
-            str += theme.fg("text", "  Token Pro plan can be used, but it won't last long, still more usage than Kimi K3.\n");
-            box.addChild(new Text(
-                str,
-                0, 0,
-            ));
+        str += theme.fg("text", "\n\nDissable codex via the `/codex` menu.");
 
-            str = theme.fg("warning", "- ZAI GLM 5.2 - Max plan recommended\n");
-            str += theme.fg("text", "  WARNING: ALL plans have been nerfed and prices increased!\n");
-            box.addChild(new Text(
-                str,
-                0, 0,
-            ));
-
-            str = theme.fg("warning", "- GPT 5.6 Terra - $100 or $200 p/m plans\n");
-            str += theme.fg("text", "  WARNING: Careful using SOL and speed multipliers.\n");
-            str += theme.fg("text", "  Who would have thought OpenAI $100 a month plan would be cheaper than the Chinese models?!\n");
-            box.addChild(new Text(
-                str,
-                0, 0,
-            ));
+        box.addChild(new Text(
+            str,
+            0, 0,
+        ));
+        box.addChild(new Spacer(1));
 
 
 
-            // box.addChild(new Spacer(1));
-            
+        str = theme.fg("warning", "IMPORTANT:\n");
+        str += theme.fg("text", "When you're done, run ");
+        str += theme.fg("warning", "`/codex-learn`",);
+        str += theme.fg("text", ", CODEX will learn ");
+        str += theme.fg("warning", "Rules, Gotchyas and Issues & Solutions\n");
+        str += theme.fg("text", "for your tech stack and help AI models better one shot your tasks, making codex skills more effective.\n");
+        box.addChild(new Text(
+            str,
+            0, 0,
+        ));
+
+
+        box.addChild(new Spacer(1));
+
+        str = theme.fg("text", "DISSABLE CODEX VIA:");
+        str += theme.fg("warning", "`/codex` ");
+        box.addChild(new Text(
+            str,
+            0, 0,
+        ));
+
+
+
 
         return box;
     });
@@ -393,6 +390,30 @@ export function createCodexInject(
             const parts: string[] = [];
             parts.push("\n\n---\n\n# AFTC Codex — Knowledge Base Rules & Resources\n");
             parts.push(rules.trim());
+
+            // Auto-insert AGENTS.md codex load list: gated by the
+            // aftcCodexAutoInsertAgentsEnabled preference. The base rules
+            // instruct creating/updating the AFTC-CODEX-STACK block; when the
+            // user turned auto-insert OFF (default) that instruction must be
+            // overridden so codex never writes those files (it may still READ
+            // an existing block for detection).
+            if (getPreference("aftcCodexAutoInsertAgentsEnabled", false)) {
+                parts.push(
+                    "\n\n## Auto-insert AGENTS.md codex load list (ON)\n" +
+                    "Auto-insert of the codex resources-to-load list (the AFTC-CODEX-STACK block) into " +
+                    "the project's auto-inject files is ENABLED - maintain it as the rules above say " +
+                    "(create when missing, update when the stack changes, keep it identical across " +
+                    "the recognised files).",
+                );
+            } else {
+                parts.push(
+                    "\n\n## Auto-insert AGENTS.md codex load list (OFF)\n" +
+                    "Auto-insert of the codex resources-to-load list (the AFTC-CODEX-STACK block) into " +
+                    "auto-inject files (AGENTS.md, CLAUDE.md, GEMINI.md, .cursorrules, .windsurfrules, " +
+                    ".github/copilot-instructions.md) is DISABLED. Do NOT create, update, or remove an " +
+                    "AFTC-CODEX-STACK block in any of them. Detection may still read an existing block.",
+                );
+            }
 
             if (getPreference("aftcCodexInjectGuidance", true)) {
                 const guidance = store.readGuidance();

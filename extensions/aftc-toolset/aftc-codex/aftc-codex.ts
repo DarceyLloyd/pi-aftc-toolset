@@ -65,7 +65,7 @@ export interface CodexState {
     /** Per-session suppression set by /codex-disable (cleared by -run). */
     silent: boolean;
     /** Per-session rules-only mode set by /codex-inject-rules: inject ONLY the
-     *  Critical Global Rules section; init/refresh/learn refuse; a fresh
+     *  Critical Global Rules section; init/refresh refuse, learn still works; a fresh
      *  session (/new) clears it. Works even when the feature is disabled. */
     rulesOnly: boolean;
     /** Guard so the fresh-session notice is appended once per session. */
@@ -87,6 +87,10 @@ export interface CodexContext {
     state: CodexState;
     /** Detect codex topics relevant to a cwd (Phase 4). Set after detect is built. */
     detect?(cwd: string): CodexDetectResult;
+    /** The auto-inject file at `cwd` declaring an AFTC-CODEX-STACK block, or
+     *  null. Set after detect is built (backing the auto-insert AGENTS.md
+     *  notification). */
+    stackBlockFile?(cwd: string): string | null;
     /** CENTRAL version-compatibility guard. Every codex feature calls this before
      *  touching the live codex: isSafe=false means the live copy is out of
      *  date — hold off, show `message`, and let /codex-sync merge (or
@@ -250,6 +254,7 @@ export function createAftcCodex(pi: ExtensionAPI): void {
     // can name detected topics without importing codex-detect directly.
     const detect = createCodexDetect(ctx);
     ctx.detect = (cwd: string) => detect.detect(cwd);
+    ctx.stackBlockFile = (cwd: string) => detect.stackBlockFile(cwd);
 
     // Injection + session lifecycle (+ marker). Registers the entry/message
     // renderers and the before_agent_start / session_start / context handlers.

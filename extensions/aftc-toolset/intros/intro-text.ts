@@ -3,11 +3,11 @@
  *
  * One-line typewriter widget that types "AFTC" then expands to
  * "All For The Code - <random quip>". After the linger delay the widget
- * clears (see `clearAtEnd`) and the feedback prompt + clickable link is
- * printed into the CONSOLE transcript (a display-only entry: never model
- * context, scrolls away with normal use - it is informational output,
- * not a pinned widget). The widget part never enters model context or
- * session history either.
+ * clears (see `clearAtEnd`) and - when `feedbackEnabled` is on - the
+ * feedback prompt + clickable link is printed into the CONSOLE transcript
+ * (a display-only entry: never model context, scrolls away with normal
+ * use - it is informational output, not a pinned widget). The widget part
+ * never enters model context or session history either.
  *
  * Toggle: /aftc-intro-on / /aftc-intro-off
  * Preference key: "aftc-intro" (boolean, default true)
@@ -41,6 +41,10 @@ const clearAtEnd = true;     // true = the typed wordmark line clears itself whe
 // prompt line with the feedback URL underneath as an OSC 8 hyperlink, so
 // terminals that support it (Windows Terminal, iTerm2, GNOME Terminal, ...)
 // make it a clickable link.
+// DISABLED by default (2026-08): flip `feedbackEnabled` back to true to
+// show the "Like the extension? Got some feedback?" lines again.
+const feedbackEnabled = false;
+
 const FEEDBACK_PROMPT = "PI-AFTC-Toolset > Like the extension? Got some feedback?";
 const FEEDBACK_URL = "https://dev.aftc.uk/pi-aftc-toolset/feedback";
 
@@ -104,12 +108,13 @@ const setEndString = () => {
     // switch to a { message, weight }[] shape - a maintainer call.
     let endStrings = [
         `All For The Code - pi-aftc-toolset v${PACKAGE_VERSION}`,
-        `All For The Code - Damn, I just stepped into a log file, I hate it when that happens!`,
-        `All For The Code - Are you noticing NUL files appearing from nowhere? Me too!`,
-        `All For The Code - Only Minimax M3 knows how to mess up that bad!`,
-        `All For The Code - If your using Kimi K3, you better keep that context window below 30%.`,
-        `All For The Code - Context window over 40%, using Kimi K3? How's that 5 hours allowance holding up?`,
         `All For The Code - You can turn these messages off using /aftc-intro-off`,
+        `All For The Code - I will work for github stars...`,
+        `All For The Code - Show some love and give me a star on github...`,
+        `All For The Code - Damn, I just stepped into a log file...`,
+        `All For The Code - Are you noticing NUL files appearing from nowhere? Me too!`,
+        `All For The Code - Kimi K3 and your context window is above 30%? Yikes! Kiss your allowance goodbye!`,
+        `All For The Code - I don't think it's possible to get to 80% context window using Kimi K3 before your 5 hour usage is up...`,
         `All For The Code - This is my IF statement, there are many like it, but this one is mine...`,
         `All For The Code - I will work for openrouter credits! I don't need food...`,
         `All For The Code - Claude! WOW! WOW! No wonder Elon Musk is the only person who can afford to use you!`,
@@ -120,7 +125,7 @@ const setEndString = () => {
         `All For The Code - Hey ZAI GLM 5.2 did you use my weekly quota in the last 5 minutes again?!`,
         `All For The Code - Hey ZAI GLM 5.2 you used to be the affordable one! Anakin nooooo!`,
         `All For The Code - Hey ZAI did you just nerf all your plans and increase your prices? Sneaky, really sneaky...`,
-        `All For The Code - Hey ZAI did you just nerf all your plans and increase your prices? Damn you! Damn you to hell!`,
+        `All For The Code - Looks like Kimi and ZAI are getting greedy, might be time to return to open ai or anthropic...`,
         `All For The Code - Wow! GPT SOL on ULTRA & FAST mode, not even Elon Musk can afford to use that!`,
         `All For The Code - Skynet achieved consciousness at ${formatTodayTimestamp(new Date())}! There's no point in running...`,
         `All For The Code - Reasoning mode ON, common sense mode coming soon...`,
@@ -220,8 +225,9 @@ export function createTextIntro(): IntroDescriptor {
         const frame = FRAMES[index];
         if (!frame) {
             // Animation finished: print the feedback lines into the console
-            // transcript, then clear the widget (or leave it, per clearAtEnd).
-            emitFeedback();
+            // transcript (when `feedbackEnabled`), then clear the widget
+            // (or leave it, per clearAtEnd).
+            if (feedbackEnabled) emitFeedback();
             if (clearAtEnd) stop(ctx);
             else if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
             return;

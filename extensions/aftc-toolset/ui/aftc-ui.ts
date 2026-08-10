@@ -27,7 +27,7 @@
 //     spans are never nested, so colours cannot bleed across segments.
 
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { Input, Key, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Focusable } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, Input, Key, fuzzyFilter, matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi, type Focusable } from "@earendil-works/pi-tui";
 
 // ─── palette ────────────────────────────────────────────────────────────────
 
@@ -418,12 +418,21 @@ export interface AftcMenuOptions {
     onHighlight?: (item: AftcMenuItem, index: number) => void;
     /** Pad item labels to this width so descriptions align in a vertical column. */
     labelWidth?: number;
+    /**
+     * Type-to-filter: typing printable chars narrows the list (fuzzy match
+     * on the label, best matches first). Backspace edits the query, Ctrl+U
+     * clears it, and Escape clears the query first (a second Esc closes).
+     * Off by default so existing menus behave exactly as before.
+     */
+    filterable?: boolean;
 }
 
 /**
  * A selectable list screen. Navigation contract: ↑/↓ wrap,
  * PageUp/PageDown jump by the visible viewport, Home/End jump to edges.
  * Enter resolves the highlighted item's value, Escape resolves null.
+ * With `filterable`, typing narrows the list (fuzzy), Backspace/Ctrl+U
+ * edit the query, and Escape clears the query before it closes.
  */
 export class AftcMenu implements Focusable {
     focused = false;
@@ -433,6 +442,8 @@ export class AftcMenu implements Focusable {
     private scrollOffset = 0;
     /** Rows painted on the last render — the PageUp/PageDown step. */
     private viewportRowCount = 10;
+    /** Type-to-filter query (filterable menus only). */
+    private filterQuery = "";
 
     constructor(
         private readonly options: AftcMenuOptions,
@@ -446,16 +457,35 @@ export class AftcMenu implements Focusable {
 
     /** The currently highlighted item, or undefined when the list is empty. */
     public selected(): AftcMenuItem | undefined {
-        return this.options.items[this.selectedIndex];
+        return this.filtered()[this.selectedIndex];
+    }
+
+    /** Items narrowed by the type-to-filter query (fuzzy, best matches first). */
+    private filtered(): AftcMenuItem[] {
+        if (!this.filterQuery.trim()) return this.options.items;
+        return fuzzyFilter(this.options.items, this.filterQuery, (item) => item.label);
+    }
+
+    /** After a filter edit, jump the highlight to the top of the narrowed list. */
+    private resetSelection(): void {
+        this.selectedIndex = 0;
+        this.clampScroll();
+        this.fireHighlight();
     }
 
     handleInput(data: string): void {
         if (matchesKey(data, Key.escape)) {
+            // Type-to-filter: Esc clears the query first; a second Esc closes.
+            if (this.options.filterable && this.filterQuery.length > 0) {
+                this.filterQuery = "";
+                this.resetSelection();
+                return;
+            }
             this.done(null);
             return;
         }
         if (matchesKey(data, Key.enter)) {
-            const item = this.options.items[this.selectedIndex];
+            const item = this.filtered()[this.selectedIndex];
             this.done(item ? item.value : null);
             return;
         }
@@ -467,11 +497,30 @@ export class AftcMenu implements Focusable {
         if (matchesKey(data, "ctrl+pagedown")) return this.edge("bottom");
         if (matchesKey(data, Key.home) || matchesKey(data, Key.ctrl("a"))) return this.edge("top");
         if (matchesKey(data, Key.end) || matchesKey(data, Key.ctrl("e"))) return this.edge("bottom");
+
+        // ---- type-to-filter editing (filterable menus only) ----
+        if (this.options.filterable) {
+            if (matchesKey(data, Key.backspace)) {
+                this.filterQuery = this.filterQuery.slice(0, -1);
+                this.resetSelection();
+                return;
+            }
+            if (matchesKey(data, "ctrl+u")) {
+                this.filterQuery = "";
+                this.resetSelection();
+                return;
+            }
+            if (data.length === 1 && data.charCodeAt(0) >= 32) {
+                this.filterQuery += data;
+                this.resetSelection();
+                return;
+            }
+        }
     }
 
     /** ↑/↓ — wraps at the edges (the standard list behaviour in this UI). */
     private move(delta: number): void {
-        const total = this.options.items.length;
+        const total = this.filtered().length;
         if (total === 0) return;
         this.selectedIndex = (this.selectedIndex + delta + total) % total;
         this.clampScroll();
@@ -480,7 +529,7 @@ export class AftcMenu implements Focusable {
 
     /** PageUp/PageDown — clamps at the edges (no wrap for page nav). */
     private page(delta: number): void {
-        const total = this.options.items.length;
+        const total = this.filtered().length;
         if (total === 0) return;
         const previous = this.selectedIndex;
         this.selectedIndex = Math.min(total - 1, Math.max(0, this.selectedIndex + delta));
@@ -489,7 +538,7 @@ export class AftcMenu implements Focusable {
     }
 
     private edge(edge: "top" | "bottom"): void {
-        const total = this.options.items.length;
+        const total = this.filtered().length;
         if (total === 0) return;
         const previous = this.selectedIndex;
         this.selectedIndex = edge === "top" ? 0 : total - 1;
@@ -503,7 +552,7 @@ export class AftcMenu implements Focusable {
     }
 
     private clampScroll(): void {
-        const total = this.options.items.length;
+        const total = this.filtered().length;
         const max = Math.max(0, total - this.viewportRowCount);
         if (this.scrollOffset > max) this.scrollOffset = max;
         if (this.scrollOffset < 0) this.scrollOffset = 0;
@@ -522,7 +571,7 @@ export class AftcMenu implements Focusable {
         const termH = terminalRows();
         const panelW = ui.panelWidth(width);
         const innerW = Math.max(1, panelW - 2);
-        const items = this.options.items;
+        const items = this.filtered();
         const rawBody = this.options.body ?? [];
         // Word-wrap body text to the panel width so long lines flow within
         // the box instead of being clipped at the edge (mirrors showViewer).
@@ -539,8 +588,17 @@ export class AftcMenu implements Focusable {
         }
         if (bodyLines.length > 0) panel.push(ui.panelBlank(innerW));
 
+        if (this.options.filterable) {
+            const cursor = this.focused ? CURSOR_MARKER : "";
+            panel.push(ui.panelRow([
+                ui.span(" Filter: ", { fg: palette.muted }),
+                ui.span(this.filterQuery + cursor),
+            ], innerW));
+            panel.push(ui.panelBlank(innerW));
+        }
+
         if (items.length === 0) {
-            panel.push(ui.panelRow([ui.span(" (empty)", { fg: palette.muted })], innerW));
+            panel.push(ui.panelRow([ui.span(this.options.filterable && this.filterQuery ? " (no matches)" : " (empty)", { fg: palette.muted })], innerW));
         } else {
             const viewportEnd = Math.min(items.length, this.scrollOffset + maxVisible);
             if (viewportEnd > this.scrollOffset) {
@@ -562,7 +620,9 @@ export class AftcMenu implements Focusable {
         panel.push(ui.panelBlank(innerW));
         panel.push(ui.panelBottom(innerW));
 
-        const help = this.options.help ?? "↑↓ navigate   Enter select   PgUp/PgDn jump   Home/End edges   Esc cancel";
+        const help = this.options.help ?? (this.options.filterable
+            ? "type to filter   ↑↓ navigate   Enter select   PgUp/PgDn jump   Home/End edges   Esc clear/cancel"
+            : "↑↓ navigate   Enter select   PgUp/PgDn jump   Home/End edges   Esc cancel");
         const footer = [[ui.span(help, { fg: palette.muted })]];
         if (this.options.fullscreen === false) {
             // Floating panel: no screen fill — the surrounding pi UI

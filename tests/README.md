@@ -38,6 +38,7 @@ watchdog timeout near the top (see `AGENTS.md` — non-negotiable).
 | `quick-open-dir-check` | 30s local | /qd menu: title/body, dev-gate option visibility, dir resolution, open dispatch, Esc. |
 | `install-check` | 15s local | `/aftc-install` redaction, recovery guidance, concurrency, and the intelligent session-start dependency warning. |
 | `install-platform-uv-check` | 15s local | Platform-native uv resolution. |
+| `aftc-resume-check` | 30s local | aftc-resume: factory registration, save + snapshot rename (from the old file's mtime), metadata merge, resume no-file/with-file prompts, busy followUp delivery, codex on/off branching. |
 | `npm-package-check` | 15s local | Published package contents (carrier source included; credentials/venv excluded). |
 | `ssh-carrier-check` | 60s local | Carrier ready handshake, terminated state, redaction. |
 | `ssh-carrier-lifecycle-check` | 30s local (fake carrier) | Protocol, lifecycle, timeout, cancellation, crash, process-tree. |

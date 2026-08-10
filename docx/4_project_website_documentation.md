@@ -4,7 +4,7 @@ The public web presence for pi-aftc-toolset: the landing page shell and
 the PHP feedback app that the startup intro (1.5.13) and the root README
 link to.
 
-<!-- last-reviewed: 2026-08-09 22:30 -->
+<!-- last-reviewed: 2026-08-10 16:30 -->
 
 ## References
 
@@ -124,6 +124,7 @@ Tests live in `tests/` (gitignored - not committed); how to run them is in AGENT
 
 ## Related
 
-- Linked from: [1.5.13_intros.md](./1_extension_source/1.5_feature_modules/1.5.13_intros.md)
-  (startup feedback line) and the root README.
+- Linked from: the feedback form page itself (the startup intro feedback
+  line and the root README link were removed 2026-08 - the intro emit is
+  gated behind the `feedbackEnabled` flag in intro-text.ts, default off).
 - Master section: [project_documentation.md](./project_documentation.md) ID 4.

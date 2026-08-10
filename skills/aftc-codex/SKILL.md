@@ -54,9 +54,14 @@ folder does not matter.
 Project stack pinning: a project can declare its stack with an
 `<!-- AFTC-CODEX-STACK topics: typescript, vite, web-app -->` block in its
 auto-inject file (AGENTS.md, CLAUDE.md, .github/copilot-instructions.md, ...).
-Detection reads that block first - it is the only way ui-ux domains and target
-OS get detected. Help maintain it when you notice the stack drift (the codex
-rules define the format).
+The block is AUTHORITATIVE: detection reads it and then skips prose-scanning
+the doc (only the declared topics load - no "detected everything mentioned"
+noise), and it is the only way ui-ux domains and target OS get detected.
+Help maintain it when you notice the stack drift (the codex rules define the
+format). Whether YOU may write/update the block is controlled by the "Auto
+Insert Codex Skills to Load into AGENTS.md" setting in the /codex menu -
+when it is off (default), never create, update or remove the block; report
+an existing one to the user instead.
 
 Load the relevant resource BEFORE you rely on a technology's conventions, and
 before you edit a file in that technology. One load replaces many guess-and-check
@@ -181,6 +186,8 @@ Load codex_load("markdown") for the template and the full how-to, or invoke
 - /codex-disable - remove codex from the context for this session
 - /aftc-codex-learn - record durable lessons into the codex
 - /aftc-codex-status - show status
+- /codex-list - browse every available codex resource (full-screen modal with type-to-filter; Documentation & Planning pinned at the top)
+- /codex-load - pick ONE codex resource to load (menu with type-to-filter; Enter closes + the AI codex_loads it now)
 
 ## Safety
 

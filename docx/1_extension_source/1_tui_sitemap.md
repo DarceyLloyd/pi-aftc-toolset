@@ -1,6 +1,6 @@
 # 1 - Extension source — TUI sitemap
 
-<!-- last-reviewed: 2026-08-09 22:30 -->
+<!-- last-reviewed: 2026-08-10 16:30 -->
 
 ## References
 
@@ -65,7 +65,7 @@ Inline transcript entries (pi.appendEntry — never in LLM context)
 |- replay saved/empty notices                    → 1.5.8
 |- response divider rule                         → 1.5.5
 \- codex banners / prep notices                  → 1.7.2
-\- intro feedback line (link to the feedback page) → 1.5.13
+\- intro feedback line (disabled 2026-08) → 1.5.13
 
 Browser surface (opened in the browser by the /usage-report local server)
 \- usage-report web app — Overview/Models/Thinking/Timings/Projections tabs → 1.4.5
@@ -175,8 +175,9 @@ Thinking levels, Timings, Projections); `/usage-clear` confirm overlay.
 ### Inline transcript entries
 `/dir` `/ls` listing card and `/cwd` card (customMessageBg Box); replay
 save/empty notices; response divider rule; aftc-console severity lines;
-codex banners; the intro feedback line (`aftc-intro-feedback` renderer —
-feedback prompt + clickable link, display-only). All rendered via
+codex banners; the intro feedback line (`aftc-intro-feedback` renderer -
+feedback prompt + clickable link, display-only; disabled 2026-08 via the
+`feedbackEnabled` flag in intro-text.ts). All rendered via
 `pi.appendEntry` / custom message renderers — persisted in the session,
 filtered from LLM context.
 

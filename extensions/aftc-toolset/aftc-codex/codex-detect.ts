@@ -198,6 +198,18 @@ const SKIP_DIRS = new Set([
     ".old", "target", "vendor",
 ]);
 
+/** The toolset's own codex data folder (shipped seed in the dev checkout;
+ *  the live copy mirrors the same layout): never a "project" signal. Working
+ *  in the pi-aftc-toolset repo used to flag the codex's OWN resource docs as
+ *  detected topics. Matched on the normalized forward-slash path (lowercase,
+ *  so Windows/macOS/Linux agree). The folder itself stays visible and
+ *  accessible - only its contents are skipped by the walk. */
+const CODEX_DATA_PATH_SEGMENT = "extensions/aftc-toolset/data/aftc-codex";
+
+function isCodexDataPath(dir: string): boolean {
+    return dir.replace(/\\/g, "/").toLowerCase().includes(CODEX_DATA_PATH_SEGMENT);
+}
+
 /** Guidance topics already injected via the system prompt — never suggest fetching. */
 const GUIDANCE_TOPICS = new Set([
     "codex-rules", "thought-and-action-guidance", "codex-resource-list", "markdown-guidance",
@@ -215,6 +227,11 @@ const MAX_FILES = 8000;
 export interface CodexDetectApi {
     /** Detect codex topics relevant to a cwd. Cached per cwd for the session. */
     detect(cwd: string): CodexDetectResult;
+    /** The auto-inject file at `cwd` that declares an AFTC-CODEX-STACK block
+     *  (display name, eg "AGENTS.md", ".github/copilot-instructions.md"), or
+     *  null when none does. Used by the commands to tell the user an existing
+     *  block is being left untouched (auto-insert AGENTS.md setting off). */
+    stackBlockFile(cwd: string): string | null;
     /** Drop the per-session cache (call on session_start). */
     resetCache(): void;
 }
@@ -227,6 +244,31 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
         cache = null;
     }
 
+/** User-facing display name for a matched auto-inject file (the scan list is
+ *  lowercase; real files are usually AGENTS.md / CLAUDE.md / GEMINI.md). */
+const STACK_BLOCK_FILE_DISPLAY: Record<string, string> = {
+    "agents.md": "AGENTS.md",
+    "claude.md": "CLAUDE.md",
+    "gemini.md": "GEMINI.md",
+    ".cursorrules": ".cursorrules",
+    ".windsurfrules": ".windsurfrules",
+    "copilot-instructions.md": ".github/copilot-instructions.md",
+};
+
+    function stackBlockFile(cwd: string): string | null {
+        for (const rel of AUTO_INJECT_FILES) {
+            try {
+                const abs = path.join(cwd, rel);
+                const stat = fs.statSync(abs);
+                if (!stat.isFile() || stat.size > AUTO_INJECT_MAX_BYTES) continue;
+                if (STACK_BLOCK_RE.test(fs.readFileSync(abs, "utf8"))) {
+                    return STACK_BLOCK_FILE_DISPLAY[path.basename(rel)] ?? path.basename(rel);
+                }
+            } catch { /* not present - fine */ }
+        }
+        return null;
+    }
+
     function detect(cwd: string): CodexDetectResult {
         if (cache && cache.cwd === cwd) return cache.result;
         const result = scan(cwd);
@@ -235,6 +277,11 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
     }
 
     function scan(cwd: string): CodexDetectResult {
+        // Working INSIDE the package's own codex data folder (eg browsing the
+        // shipped seed or its live mirror): there is no project technology to
+        // detect - nothing to scan.
+        if (isCodexDataPath(cwd)) return { topics: [], missing: [] };
+
         const found = new Set<string>();
         let visited = 0;
         let contentScanned = 0;
@@ -267,8 +314,13 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
                 const lower = name.toLowerCase();
                 if (entry.isDirectory()) {
                     if (SKIP_DIRS.has(lower) || lower.startsWith(".")) continue;
+                    const childDir = path.join(dir, name);
+                    // The package's own codex data folder is never scanned as
+                    // project content (its dir entry stays visible; only its
+                    // contents are skipped).
+                    if (isCodexDataPath(childDir)) continue;
                     if (DIR_MAP[lower]) for (const t of DIR_MAP[lower]) found.add(t);
-                    walk(path.join(dir, name), depth + 1);
+                    walk(childDir, depth + 1);
                 } else if (entry.isFile()) {
                     visited++;
                     const ext = lower.includes(".") ? lower.slice(lower.lastIndexOf(".") + 1) : "";
@@ -326,8 +378,10 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
         if (texts.length === 0) return;
 
         // 1. Marked blocks: <!-- AFTC-CODEX-STACK \n topics: a, b, c \n -->
+        let hasStackBlock = false;
         for (const text of texts) {
             for (const m of text.matchAll(new RegExp(STACK_BLOCK_RE, "gi"))) {
+                hasStackBlock = true;
                 const body = m[1] ?? "";
                 const topicsLine = /topics:\s*(.+)/i.exec(body);
                 if (!topicsLine) continue;
@@ -339,6 +393,15 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
         }
 
         // 2. Whole-word keyword scan against the live topic list (stoplisted).
+        // SKIPPED when any auto-inject doc declares an AFTC-CODEX-STACK block:
+        // the block is the authoritative stack declaration (the manual
+        // override), and prose-scanning a doc that declares its stack produces
+        // false positives - docs-heavy files mention many technologies they
+        // don't actually use (the pi-aftc-toolset repo's own AGENTS.md used to
+        // flag nearly every codex topic). Docs without a block are still
+        // keyword-scanned.
+        if (hasStackBlock) return;
+
         const available = store.listTopics()
             .filter((t) => !GUIDANCE_TOPICS.has(t) && !KEYWORD_STOPLIST.has(t));
         const fullText = texts.join("\n").toLowerCase();
@@ -387,5 +450,5 @@ export function createCodexDetect(ctx: CodexContext): CodexDetectApi {
         if (pkg.pi) found.add("pi-extension");
     }
 
-    return { detect, resetCache };
+    return { detect, stackBlockFile, resetCache };
 }

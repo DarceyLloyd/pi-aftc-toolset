@@ -32,10 +32,14 @@ Scans a working directory and maps signals to codex topic docs:
     ui-ux domains and target OS, and the escape hatch for stoplisted topics);
     legacy pre-v1 pins (planning, documentation-generation, path-classification,
     design-common) are remapped to their v1 topics so stale pins never surface
-    permanent "no resource yet" hints).
+    permanent "no resource yet" hints). AUTHORITATIVE: when any auto-inject doc
+    declares a stack block, the keyword scan below is skipped — the declared
+    stack wins over prose mentions (a docs-heavy file must not silently add
+    topics it merely describes).
   - a strict whole-word keyword scan of the full text against the live topic list,
     with a stoplist of ambiguous English words (`go`, `deno`, `vue`, `batch`, `bun`,
-    `twig`, `cs`, `rs`, `composer`, `windows`) that are ignored in prose.
+    `twig`, `cs`, `rs`, `composer`, `windows`) that are ignored in prose. Skipped
+    entirely when a stack block is present (see above).
 - **Implied topics** — any ui-ux domain → `ui-ux-common`; `mysql` → `database-common`.
 
 ## topics vs missing
@@ -65,6 +69,14 @@ a command. The root `package.json` is parsed first (guaranteed even if the walk
 budget runs out); every other `package.json` found in the walk is parsed too, so
 tools declared in a nested app (eg `web/package.json`) are still detected.
 Auto-inject docs are read at the root (+ `.github/`) only, never walked for.
+
+Also NEVER scanned: the toolset's own codex data folder - any directory whose
+normalized path contains `extensions/aftc-toolset/data/aftc-codex` (the shipped
+seed in the pi-aftc-toolset dev checkout; the live per-user copy mirrors the
+same layout). Its dir entry stays visible (opening pi at `.../data` still shows
+the `aftc-codex` folder) but its contents are never walked, so the codex's own
+resource docs / fixtures can never leak into detection. A cwd INSIDE that folder
+returns an empty result.
 
 ## Integration (step 4.2)
 

@@ -45,6 +45,10 @@ live codex root, and only when the live file does not already exist (copy-only).
   trailing `.md`; supports explicit `category/name` and `category/sub/name`.
   Returns `{ absPath, relPath, content }` or `null`.
 - `listTopics()` — all valid topic names (basename without `.md`), sorted.
+- `listTopicPaths()` — every loadable topic as a `category/name` path
+  (recursive incl. nested topics + loose root-level topics, excluding the
+  generated resource list and the top-level always-on guidance files),
+  sorted. Feeds `/codex-list` and the `/codex-load` picker.
 - `readRules()` / `readGuidance()` / `readList()` — read the always-on files.
 - `listCategories()` — all category folders under `resources/` (known order
   first, extras sorted; only folders that exist). The known order

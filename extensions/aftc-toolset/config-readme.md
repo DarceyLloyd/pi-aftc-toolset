@@ -76,6 +76,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexVersion: 0,            // live codex version (vs shipped data/extension-config.json)
     aftcCodexResourceVersion: 0,    // live layout version (0=legacy, 1=v1 tree)
     aftcCodexCloudContribution: true, // silently post newly-added entries to the public curation inbox
+    aftcCodexAutoInsertAgentsEnabled: false, // allow the AI to auto-insert the codex load list into AGENTS.md (off by default)
 };
 
 ```

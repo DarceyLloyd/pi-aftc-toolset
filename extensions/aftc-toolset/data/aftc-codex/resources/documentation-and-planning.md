@@ -30,6 +30,8 @@
 
 - [GyAQJ0] When restructuring a file tree with a move map, plan for the long tail: user-created files at old locations must be evaluated (entries merged into the matching new file, or the file relocated to the right new folder) - never silently deleted or left orphaned in a folder the new layout no longer has.
 
+- [OOB1lb] README quick-scan structure: Description/What's New sections carry short 'what it is + the slash command' bullets, each ending with a 'Click here for more information' anchor to its main section; all real detail lives ONLY in the main sections, and never keep a separate quick-links block that duplicates the bullets (it drifts and its anchors rot).
+
 ## Gotchyas
 
 - [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.
@@ -39,6 +41,8 @@
 - [l40a53] Force-killing a process found by fuzzy command-line substring match can kill your own interactive host session - the pattern matches every process built on the same entry script; enumerate the matches and verify identity (parentage, start time, who spawned it) before killing, or kill only PIDs captured at spawn time.
 
 - [E1FfVB] Exact-count assertions on tracked side-effects (read/log/record counts) go stale when a feature adds an implicit extra side-effect (an auto-cascade load) - update the expected count to include the implicit record rather than assuming the tracking broke.
+
+- [165sMY] Hand-written GitHub heading anchors go dead - the auto-generated slug strips punctuation: '## **My Tool (v2 - stable release)**' anchors to #my-tool-v2---stable-release (parens removed, spaces to hyphens, ' - ' to '---'); derive the anchor from the ACTUAL heading text and verify it, or the link goes nowhere.
 
 ## Issues & Solutions
 

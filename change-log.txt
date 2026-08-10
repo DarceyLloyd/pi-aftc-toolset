@@ -1,6 +1,29 @@
 pi-aftc-toolset - Change Log
 ============================
 
+Updates v1.21.x
+---------------
+
+- Codex: /codex-learn now works in RULES-ONLY mode - it only injects a self-contained instruction and the entry tools enforce their own guards (compat, read-before-write, duplicates), so it needs no system-prompt codex context. Previously it refused along with init/refresh.
+
+- Codex seed updated: 8 new learned entries (6 in pi-extension, 2 in documentation-and-planning - help-registry check, type-to-filter menus, rules-only gating, conditional rules overrides, README quick-scan structure, GitHub anchor slugs, etc.); shipped codexVersion bumped to 15 (live stamped to match).
+
+- README: removed the duplicate quick-links section; each Description feature now ends with a "Click here for more information" link to its main section; the AFTC Codex section documents the context cost (turned on alone costs nothing - the ~50 KB rules/guidance/list only enter the cached system prompt once /codex-init preps the session); the /docx re-write warning moved into its section.
+
+- Codex: new "Auto Insert Codex Skills to Load into AGENTS.md" toggle in the /codex menu (default No). When on, the AI may write/update the codex resources-to-load list (the AFTC-CODEX-STACK block) in the project's AGENTS.md / auto-inject files. When off (default), codex never touches those files - no insert, no cleanup - and /codex-init warns if an existing block is being left untouched. New preference aftcCodexAutoInsertAgentsEnabled (default false); the injected rules block gates the behavior per the setting.
+
+- Codex detection: an AFTC-CODEX-STACK block in an auto-inject doc is now AUTHORITATIVE - when present, the prose keyword scan of that doc is skipped, so a docs-heavy AGENTS.md no longer silently flags every technology it merely mentions. This repo's AGENTS.md stack block was trimmed to the real stack (pi-extension, typescript, powershell, nodejs, npm, git, bash, docker, documentation-and-planning).
+
+- Codex detection: the walk never scans the package's own codex data folder (any path containing extensions/aftc-toolset/data/aftc-codex) - the shipped seed / live copy's resource docs can no longer be detected as project technology when working in the pi-aftc-toolset repo; the folder stays visible, only its contents are skipped, and a cwd inside it returns an empty result. No effect for normal users.
+
+- Startup intro: the post-intro feedback prompt ("Like the extension? Got some feedback?") is now DISABLED by default - the emit is gated behind the `feedbackEnabled` flag in intro-text.ts (flip it back to true to re-enable; the renderer stays registered), and the feedback line was removed from the root README.
+
+- Codex: new /codex-list shows every available codex resource in a scrollable full-screen modal (type-to-filter like the retired /cd picker, first item highlighted, Documentation & Planning pinned at the top; headless prints instead), and new /codex-load opens a picker menu (type-to-filter) to load a selected resource into the session - Enter picks one and the menu closes; the AI codex_loads it immediately (same as telling the AI "codex load <resource>", so rules-only and un-prepped sessions are not refused). Both also have /aftc-codex-* names. The shared aftc-ui menu gained an opt-in filterable mode (fuzzy match, Backspace/Ctrl+U edit the query, Esc clears it first) - off by default, existing menus unchanged.
+
+- AFTC Resume: the handoff + snapshots (aftc-resume.md, aftc-resume-*.md) are now ignored in .gitignore / .npmignore / .dockerignore so they never reach GitHub, npm or Docker images.
+- AFTC Resume: the resume instruction now requires reading BOTH docx docs (docx/project_documentation.md and docx/project_map.md, each only when present) before resuming.
+- New: AFTC Resume (/aftc-resume-save, /aftc-resume) - hand work off between context windows. /aftc-resume-save stops the current work and has the model write aftc-resume.md (goal, current state, decisions made, knowledge learned, key files, tasks & progress, next steps, open questions; an existing handoff is kept as a timestamped snapshot, never overwritten), then /new + /aftc-resume continue the work in a fresh window - the model re-loads the codex resources the handoff lists (when codex is on), reads the project's docx docs and AGENTS.md, and picks up where it left off. The /new is always the user's job; the flow works with codex on or off.
+
 Updates v1.20.x
 ---------------
 

@@ -7,7 +7,7 @@ documented node, at every level. Convention: deep doc
 the owning node's ID. The on-disk `docx/` tree mirrors this map — a node's
 folder path IS its ID ancestry.
 
-<!-- structure-map - last-verified: 2026-08-07 21:35 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
+<!-- structure-map - last-verified: 2026-08-10 14:57 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
 
 > Do not follow these links until your work touches that area — load only the
 > doc for the area you are about to work on (discovery via the master's
@@ -44,7 +44,8 @@ pi-aftc-toolset (pi extension package v1.20.2)
 |  |  |- 1.5.11 Think-tag parser (think-parser.ts)
 |  |  |- 1.5.12 run_script tool (run-script.ts)
 |  |  |- 1.5.13 Startup intros (intros/)
-|  |  \- 1.5.14 Providers (providers/ — DISABLED)
+|  |  |- 1.5.14 Providers (providers/ — DISABLED)
+|  |  \- 1.5.15 aftc-resume (resume.ts)
 |  |- 1.6 SSH feature (ssh/)                                       module
 |  |  |- 1.6.1 Command & tool surface (ssh/index.ts)
 |  |  |- 1.6.2 Sessions & lifecycle (session.ts)

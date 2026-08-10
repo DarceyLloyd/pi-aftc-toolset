@@ -11,6 +11,8 @@
  *   /aftc-codex-learn    Self-education prompt injection (Phase 5).
  *   /aftc-codex-status   Quick status viewer.
  *   /aftc-codex-sync     Non-destructive shipped-seed -> live update (alias /codex-sync).
+ *   /aftc-codex-list     List every available codex resource, alphabetically (alias /codex-list).
+ *   /aftc-codex-load     Pick codex resources to load via a menu (alias /codex-load).
  *   /codex-inject-rules     Rules-only mode for this session (critical rules only).
  *   /codex-live-to-seed   Maintainer-only (dev-gated): port live codex entries
  *                            into the package seed (dry run + confirm; --apply).
@@ -64,6 +66,21 @@ function isTui(ctx: ExtensionCommandContext): boolean {
 function isCommandBusy(ctx: ExtensionCommandContext | undefined): boolean {
     if (!ctx) return false;
     return ctx.isIdle ? !ctx.isIdle() : false;
+}
+
+/** When the auto-insert AGENTS.md setting is OFF but the project already
+ *  declares an AFTC-CODEX-STACK block, tell the user it is being left
+ *  untouched (codex never writes those files, but it may still read the
+ *  block for detection). Warns once per init/refresh. */
+function notifyStackBlockUntouched(ctx: CodexContext, cctx: ExtensionCommandContext): void {
+    if (getPreference("aftcCodexAutoInsertAgentsEnabled", false)) return;
+    if (!cctx.cwd) return;
+    const file = ctx.stackBlockFile?.(cctx.cwd);
+    if (!file) return;
+    notify(cctx,
+        `${file} already contains an AFTC-CODEX-STACK block (the codex resources to load). ` +
+        "Auto-insert is OFF, so codex will not touch it - remove it by hand if you do not want it there.",
+        "warning");
 }
 
 function detectedTopics(ctx: CodexContext, cctx: ExtensionCommandContext): CodexDetectResult | undefined {
@@ -273,13 +290,14 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             { value: "guidance", label: "Inject Thought Guidance", description: ` | ${yn(getPreference("aftcCodexInjectGuidance", true))}` },
             { value: "autoload", label: "Auto-Detect & Load Docs", description: ` | ${yn(getPreference("aftcCodexAutoLoad", true))}` },
             { value: "autosync", label: "Auto Sync Codex Update on Startup", description: ` | ${yn(getPreference("aftcCodexAutoSync", true))}` },
+            { value: "agents", label: "Auto Insert Codex Skills to Load into AGENTS.md", description: ` | ${yn(getPreference("aftcCodexAutoInsertAgentsEnabled", false))}` },
             { value: "cloud", label: "Codex Cloud Resource Contribution", description: ` | ${yn(getPreference("aftcCodexCloudContribution", true))}` },
             { value: "resources", label: "Resources & Updates" },
         ];
         const choice = await showMenu(cctx, {
             title: "Menu:",
             body,
-            labelWidth: 34,
+            labelWidth: 48,
             initialIndex: selectedIndex,
             items,
         });
@@ -305,6 +323,8 @@ async function openMainMenu(ctx: CodexContext, cctx: ExtensionCommandContext, in
             setPreference("aftcCodexAutoLoad", !getPreference("aftcCodexAutoLoad", true));
         } else if (choice === "autosync") {
             setPreference("aftcCodexAutoSync", !getPreference("aftcCodexAutoSync", true));
+        } else if (choice === "agents") {
+            setPreference("aftcCodexAutoInsertAgentsEnabled", !getPreference("aftcCodexAutoInsertAgentsEnabled", false));
         } else if (choice === "resources") {
             await openResourcesMenu(ctx, cctx);
         } else if (choice === "cloud") {
@@ -403,6 +423,7 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
             busy ? "aftc-codex initialised — marker queued (agent is busy)."
                 : "aftc-codex initialised — rules + guidance loaded; the AI will fetch relevant docs.",
             "info");
+        notifyStackBlockUntouched(ctx, cctx);
     };
     registerHelpEntry({ command: "aftc-codex-init", description: "Initialise: load rules + fetch relevant docs", category: "aftc-codex", aliases: ["codex-init"] });
     pi.registerCommand("aftc-codex-init", { description: "Initialise codex: load rules + fetch relevant docs for this project", handler: initHandler });
@@ -431,17 +452,17 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
         const det = detectedTopics(ctx, cctx);
         inject.injectMarker(busy, true, det?.topics, det?.missing);
         notify(cctx, "aftc-codex refreshed — old codex stripped; fresh rules + marker injected.", "info");
+        notifyStackBlockUntouched(ctx, cctx);
     };
     registerHelpEntry({ command: "aftc-codex-refresh", description: "Strip all codex, then re-init", category: "aftc-codex", aliases: ["codex-refresh"] });
     pi.registerCommand("aftc-codex-refresh", { description: "Strip all codex, then re-init (clean restart)", handler: refreshHandler });
     pi.registerCommand("codex-refresh", { description: "Strip all codex, then re-init (alias)", handler: refreshHandler });
 
     // ---- /aftc-codex-learn (alias /codex-learn) ----
+    // NOT refused in rules-only mode: learning only injects a self-contained
+    // instruction and the entry tools enforce their own guards (compat,
+    // read-before-write, duplicates) - it needs no system-prompt codex context.
     const learnHandler = async (_args: string, cctx: ExtensionCommandContext) => {
-        if (state.rulesOnly) {
-            notify(cctx, "AFTC Codex has been injected in RULES mode only, you will have to start a new session to use the full AFTC Codex via /codex-init", "warning");
-            return;
-        }
         if (!getPreference("aftcCodexEnabled", false)) {
             notify(cctx, "aftc-codex is OFF. Enable it with /codex-enable first.", "warning");
             return;
@@ -665,7 +686,8 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     // Per-session rules-only mode: inject ONLY the Critical Global Rules
     // section — no docs, list, guidance, marker or learn. Works even with the
     // feature disabled (never touches the enabled pref). One-way: a fresh
-    // session (/new) clears it; init/refresh/learn refuse while it is active.
+    // session (/new) clears it; init/refresh refuse while it is active
+    // (learn still works - it only injects an instruction).
     const rulesOnlyHandler = async (_args: string, cctx: ExtensionCommandContext) => {
         if (state.rulesOnly) {
             notify(cctx, "AFTC Codex rules-only mode is already active for this session.", "info");
@@ -680,5 +702,73 @@ export function createCodexCommands(ctx: CodexContext, inject: CodexInjectApi, l
     };
     registerHelpEntry({ command: "codex-inject-rules", description: "Rules-only injection for this session (critical rules only)", category: "aftc-codex" });
     pi.registerCommand("codex-inject-rules", { description: "Rules-only codex injection for this session (critical rules only)", handler: rulesOnlyHandler });
+
+    // ---- /aftc-codex-list (alias /codex-list) - list every resource ----
+    // A scrollable FULL-SCREEN modal (first item highlighted; ↑/↓ to move,
+    // Esc/Enter close) so the list stays browsable even at 60+ resources.
+    // The documentation-and-planning guide is PINNED at the top (manual
+    // insertion - it would otherwise sort into the middle); the rest keep
+    // their alphabetical category/name structure. Headless prints the same
+    // list to the console instead. Read-only; no gates.
+    const listHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        const topics = store.listTopicPaths();
+        if (topics.length === 0) {
+            notify(cctx, "No codex resources installed yet - run /codex-enable (or /codex-install) to seed them.", "warning");
+            return;
+        }
+        // Manual insertion: the documentation-and-planning topic rides the
+        // top of the list (it is the planning/documentation topic users reach
+        // for first); everything else keeps its alphabetical structure.
+        const pinned = "documentation-and-planning";
+        const ordered = [pinned, ...topics.filter((t) => t !== pinned)];
+        if (!isTui(cctx)) {
+            aftcConsole.print(`AFTC Codex resources available (${topics.length}):\n${ordered.map((t) => `  ${t}`).join("\n")}`);
+            return;
+        }
+        await showMenu(cctx, {
+            title: "AFTC Codex resources",
+            body: [`${topics.length} available - up/down to move, Esc to close.`],
+            filterable: true,
+            items: ordered.map((t) => ({ value: t, label: t })),
+        });
+    };
+    registerHelpEntry({ command: "aftc-codex-list", description: "List all available codex resources (alphabetical)", category: "aftc-codex", aliases: ["codex-list"] });
+    pi.registerCommand("aftc-codex-list", { description: "List all available codex resources, alphabetically", handler: listHandler });
+    pi.registerCommand("codex-list", { description: "List all available codex resources, alphabetically (alias)", handler: listHandler });
+
+    // ---- /aftc-codex-load (alias /codex-load) - pick a resource to load ----
+    // A picker menu (same pattern as /qd) with type-to-filter: Enter picks a
+    // resource and the menu CLOSES - the marker instruction tells the AI to
+    // codex_load that topic now (eager turn when idle). The same action as
+    // the user typing "codex load <resource>". It is NOT a prep action, so
+    // rules-only and un-prepped sessions are not refused (only the compat
+    // guard + a seeded list apply, matching codex_load itself).
+    const loadHandler = async (_args: string, cctx: ExtensionCommandContext) => {
+        if (!(await guardCompat(ctx, cctx))) return;
+        const topics = store.listTopicPaths();
+        if (topics.length === 0) {
+            notify(cctx, "No codex resources installed yet - run /codex-enable (or /codex-install) to seed them.", "warning");
+            return;
+        }
+        if (!isTui(cctx)) {
+            notify(cctx, "The picker needs the TUI - list them with /codex-list and tell the AI which to codex_load here.", "warning");
+            return;
+        }
+        const choice = await showMenu(cctx, {
+            title: "Load codex resource",
+            body: ["Pick a resource to load (Enter). Esc cancels."],
+            filterable: true,
+            items: topics.map((t) => ({ value: t, label: t })),
+        });
+        if (!choice) {
+            notify(cctx, "Nothing selected - no codex resources loaded.", "info");
+            return;
+        }
+        inject.injectMarker(isCommandBusy(cctx), true, [choice]);
+        notify(cctx, `Loading codex resource into the chat (not the system prompt): ${choice}`, "info");
+    };
+    registerHelpEntry({ command: "aftc-codex-load", description: "Pick codex resources to load (menu)", category: "aftc-codex", aliases: ["codex-load"] });
+    pi.registerCommand("aftc-codex-load", { description: "Pick codex resources to load into the session (menu)", handler: loadHandler });
+    pi.registerCommand("codex-load", { description: "Pick codex resources to load into the session (menu, alias)", handler: loadHandler });
 
 }

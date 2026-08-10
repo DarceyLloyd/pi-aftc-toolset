@@ -31,6 +31,7 @@ commands/shortcuts/tools it registers. See `AGENTS.md`.
 | `dir.ts` | `/dir` and `/ls` slash commands - print the current directory name and run a platform-native directory listing (`dir` on Windows, `ls -la` on macOS/Linux). |
 | `cwd.ts` | `/cwd` slash command - show the current working directory as an inline card (same style as `/dir`). |
 | `replay.ts` | `/save-replay-prompt` and `/replay` slash commands - save a prompt string to `config.json` and re-send it as a fresh user message (queued as follow-up when busy). |
+| `resume.ts` | `/aftc-resume-save` + `/aftc-resume` - hand work off between context windows via `./aftc-resume.md` (save the work state, then resume it after `/new`). |
 | `db.ts` | Shared better-sqlite3 connection. Lazy-opens the DB; returns `null` if the native binding isn't installed. |
 | `config.ts` | Persistent configuration module. Owns `config.json` (footer timeframe, footer on/off, response divider on/off, intro animation on/off). Creates the file with defaults on first use; only updates it when a preference changes. Never committed or shipped — the whole `.pi-aftc-toolset/` dir is ignored. |
 | `paths.ts` | Resolves the package root and runtime data directory. |

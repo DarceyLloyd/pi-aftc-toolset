@@ -117,6 +117,10 @@ export interface CodexStore {
     readResource(topic: string): CodexResourceRead | null;
     /** All valid topic names (basename without .md), sorted. */
     listTopics(): string[];
+    /** All loadable topic paths (relPath without ".md": category topics,
+     *  recursive + loose root-level topics), sorted. Excludes the generated
+     *  resource list and the top-level always-on guidance files. */
+    listTopicPaths(): string[];
     /** Read the always-on rules file ("" if missing). */
     readRules(): string;
     /** Read the SEED rules file ("" if missing) — rules-only mode fallback when
@@ -407,6 +411,25 @@ export function createCodexStore(): CodexStore {
         return [...names].sort();
     }
 
+    function listTopicPaths(): string[] {
+        const resourcesDir = getResourcesDir();
+        const out: string[] = [];
+        // Loose root-level topic docs in resources/ (eg documentation-and-planning.md).
+        for (const name of listMarkdownNames(resourcesDir)) {
+            if (name === "codex-resource-list.md") continue;
+            out.push(name.slice(0, -3));
+        }
+        // Category topics, RECURSIVE (nested topics included) - a topic's
+        // folder does not matter for codex_load, but the path disambiguates
+        // same-named topics across categories.
+        for (const cat of listCategoryFolders(resourcesDir)) {
+            for (const rel of listMarkdownRecursive(path.join(resourcesDir, cat), resourcesDir)) {
+                out.push(rel.slice(0, -3));
+            }
+        }
+        return out.sort();
+    }
+
     function readRules(): string {
         return safeRead(path.join(getRoot(), "codex-rules.md")) ?? "";
     }
@@ -658,6 +681,7 @@ export function createCodexStore(): CodexStore {
         ensureSeeded,
         readResource,
         listTopics,
+        listTopicPaths,
         readRules,
         readSeedRules,
         readGuidance,
