@@ -23,3 +23,7 @@ tests/docx/**
 # aftc-resume work-state handoff (transient — never copy into images; snapshots too)
 aftc-resume.md
 aftc-resume-*.md
+
+# Maintainer-only local release scripts (never copy into images)
+ship-it.bat
+shipit.ps1

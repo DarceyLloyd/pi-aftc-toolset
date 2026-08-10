@@ -3,7 +3,7 @@
 How pi-aftc-toolset reaches users: npm publication, GitHub releases, and
 what happens on the user's machine at update time.
 
-<!-- last-reviewed: 2026-08-09 22:30 -->
+<!-- last-reviewed: 2026-08-10 19:00 -->
 
 ## References
 
@@ -14,7 +14,7 @@ what happens on the user's machine at update time.
 ## Overview
 
 No CI, no Docker in the release path. The maintainer ships from Windows
-via `shipit.ps1` (2.4) and publishes to npm MANUALLY (the AI never runs
+via `ship-it.bat` (2.4) and publishes to npm MANUALLY (the AI never runs
 `npm publish` — AGENTS.md Shipping). Distribution channels: npm
 (`pi install pi-aftc-toolset`) and GitHub (git URL install).
 
@@ -31,9 +31,9 @@ via `shipit.ps1` (2.4) and publishes to npm MANUALLY (the AI never runs
 1. Tests green: Windows suites first, Linux gates.
 2. Changelog entry + version bump in `package.json` (+ `codexVersion`
    when the codex seed changed — 2.1).
-3. `shipit.ps1`: git commit `v<version>` → push → `gh release create
-   vX.X.X --title vX.X.X` (notes: changelog entry; skipped when it
-   exists). npm publishing is NOT part of the pipeline.
+3. `ship-it.bat`: git commit `v<version>` → push → `gh release create
+   vX.X.X --title vX.X.X` (no notes; skipped when it exists). npm
+   publishing is NOT part of the pipeline.
 4. The MAINTAINER publishes to npm manually (outside the repo — no
    publish script or token file exists in it). Verify:
    `npm view pi-aftc-toolset version` after the maintainer says it is

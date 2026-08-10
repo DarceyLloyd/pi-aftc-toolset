@@ -4,6 +4,8 @@ pi-aftc-toolset - Change Log
 Updates v1.21.x
 ---------------
 
+- Shipping streamlined: new ship-it.bat (local maintainer tool - excluded from git/docker/npm ignores, never committed, no credentials) reads the version from package.json, commits vX.X.X, pushes and creates the GitHub release with no notes. AGENTS.md Shipping section + release docs (2.4, deployment) updated to the minimal flow - no changelog review, no descriptions, no extra steps.
+
 - Codex: /codex-learn now works in RULES-ONLY mode - it only injects a self-contained instruction and the entry tools enforce their own guards (compat, read-before-write, duplicates), so it needs no system-prompt codex context. Previously it refused along with init/refresh.
 
 - Codex seed updated: 8 new learned entries (6 in pi-extension, 2 in documentation-and-planning - help-registry check, type-to-filter menus, rules-only gating, conditional rules overrides, README quick-scan structure, GitHub anchor slugs, etc.); shipped codexVersion bumped to 15 (live stamped to match).

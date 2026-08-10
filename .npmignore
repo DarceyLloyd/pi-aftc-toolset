@@ -47,6 +47,7 @@ dev.aftc.uk/
 publish.bat
 clear-docker.bat
 shipit.ps1
+ship-it.bat
 .github/
 .gitignore
 .npmignore

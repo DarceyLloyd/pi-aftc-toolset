@@ -258,29 +258,29 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
 
 ## Shipping ("ship it", "push it up to github", "release it", "ship vX.X.X")
 
-When the user says any of these (first finish whatever task is in
-progress, if any), do NOT start running release steps automatically. Ask
-the user which steps they want this time, offering the full checklist:
+Fast and minimal - no ceremony, no descriptions, no review. The version is
+ALWAYS `package.json`'s `version` field: read it, never invent it. To ship,
+run `ship-it.bat` (local maintainer tool in the repo root - excluded from
+git/docker/npm ignores, never committed, contains NO credentials; it uses
+the existing git + gh login) or do it by hand:
 
-1. Changelog entry + version bump (per the bump rules above).
-2. Run tests — Windows suites, and/or the Linux container gates.
-3. Commit everything + push to the remote.
-4. Create the GitHub release.
+1. Read `version` from `package.json` - that is the X.X.X.
+2. `git add -A` then `git commit -m "vX.X.X"` then `git push`.
+3. `gh release create vX.X.X --title "vX.X.X"` (tag name = title =
+   `vX.X.X`). No release notes are written - descriptions are not part of
+   the flow.
 
-Then run ONLY the approved steps. Standing details for the steps, when
-approved:
+Nothing more: no changelog review, no version comparisons with npm or
+older releases, no tests run by the flow, no descriptions for the commit
+or the release. (Bump `package.json` FIRST per the version rules above when
+a bump is needed - the ship flow never bumps.)
 
-- The version always comes from `package.json` — that is ALWAYS the
-  X.X.X (never invent it).
-- GitHub release: `gh release create vX.X.X --title "vX.X.X"` (tag name
-  = title = `vX.X.X`), notes = the changelog entry for the release.
-- **npm publishing is NEVER automated and NEVER attempted by the AI.**
-  The user publishes to npm themselves (`publish.bat` and the npm token
-  are not kept in the repo — they were removed 2026-08). Do not run
-  `npm publish`, do not ask the user to approve it as a release step,
-  and do not include it in the offered checklist. `npm view
-  pi-aftc-toolset version` may only be used to CHECK the user's own
-  publish after they say it is done.
+**npm publishing is NEVER automated and NEVER attempted by the AI.**
+The user publishes to npm themselves (`publish.bat` and the npm token
+are not kept in the repo — they were removed 2026-08). Do not run
+`npm publish` and do not ask the user to approve it as a release step.
+`npm view pi-aftc-toolset version` may only be used to CHECK the user's
+own publish after they say it is done.
 
 ---
 
