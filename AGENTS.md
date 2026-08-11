@@ -19,7 +19,7 @@ last-reviewed stamp.
 - The codex cloud contribution endpoint URL lives ONLY in code
   (codex-entries.ts). Never display it to pi (TUI, model context, tool
   output), never write it to logs, and never document it - not in docx, not
-  in readmes, not in change-log.txt, not in website docs. It is not a
+  in readmes, not in website docs. It is not a
   secret; it must just never be surfaced anywhere but the code constant.
 - Never read or process any files in folders named ".bak", ".old", ".git", unless specifically asked.
 - Keep answers short and to the point. Only give detailed responses when asked or when planning. It is fine to just say "done" or "ready". Never leave the user wondering if you are finished.
@@ -217,7 +217,7 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
 # Package layout
 
 - `package.json` `pi` manifest points at `./extensions`, `./skills`, `./themes`.
-- Root `README.md` is user-facing (not a changelog). Changelog: `change-log.txt`.
+- Root `README.md` is user-facing.
 - Technical detail belongs in per-module `*-readme.md` files and `./docx/`.
 
 ---
@@ -252,8 +252,6 @@ read-modify-write. Full contract + edge cases: `docx/1_extension_source/1.2_core
   The ONLY time an existing feature gets a minor bump is when that feature
   is heavily re-written.
 - Major bump: overhaul or rewrite of the package as a whole.
-- After tests pass, add entry to `change-log.txt` under `Updates v<major>.<minor>.x`.
-  Newest first. Short user-facing summaries only.
 - Keep root documentation aligned with implemented behaviour.
 
 ## Shipping ("ship it", "push it up to github", "release it", "ship vX.X.X")
@@ -272,7 +270,7 @@ working tree is what you want shipped), commits `vX.X.X`, pushes, and
 creates the GitHub release (tag = title = vX.X.X, no notes), skipping the
 commit or release when there is nothing to do. Do NOT repeat any of those
 steps by hand afterwards, and do NOT add extra steps (no tests run by the
-flow, no changelog review, no descriptions). `ship-it.bat` is local-only
+flow, no descriptions). `ship-it.bat` is local-only
 (git/docker/npm ignored, never committed) and contains no credentials.
 
 ---

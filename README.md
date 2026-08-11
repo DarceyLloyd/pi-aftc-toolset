@@ -946,10 +946,6 @@ SSH sessions, shell buffers, credentials, and carrier processes are in-memory on
 
 <br><br>
 
-## Change log
-
-The full change history is now in [change-log.txt](./change-log.txt).
-
 ---
 
 <br><br>

@@ -415,7 +415,6 @@ dependency_map which is mandatory):
 - `glossary.md` - domain terms (when >10 specialised terms)
 - `roadmap.md` - direction without dates
 - `faq.md` - only when a question has been asked 3+ times
-- `changelog.md` - user-visible changes per release
 - `known-gaps.md` - unchecked pre-launch items + fix plan
 - `license.md` - only for custom licenses
 
