@@ -117,3 +117,4 @@ dev.aftc.uk/httpdocs/pi-aftc-toolset/usage/az8120aoec-3.php
 # AI comms file contains the API key - keep out of any release
 dev.aftc.uk/httpdocs/pi-aftc-toolset/usage/AI communications.txt
 regenerate-usage-report.mjs
+scripts/usage-report-screenshots.mjs

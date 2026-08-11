@@ -60,8 +60,14 @@ Migrated columns (added via `MIGRATIONS`, each idempotent):
   `allow_weekly_end` (nullable REAL) on `tasks`.
 - v1.21.x device owner tag: `device_id` (text, `''` default) on
   `turns`, `tasks` AND `errors` — one UUID per data dir
-  (`paths.ts getDeviceId`) tagging this machine's rows for the online
-  usage mirror.
+  (`paths.ts getDeviceId`) tagging rows with this installation's owner id.
+- v1.21.x allowance availability: `allowance_reported` (int, 0 default)
+  on `tasks` — 1 when the active provider reported a 5h / weekly
+  allowance window (subscription plans only; footer line-5 semantics).
+- v1.21.x provider + size metrics: `provider` (text, `''` default) on
+  `turns` AND `tasks`; `tool_calls`, `response_chars`, `prompt_chars`
+  (int, 0 default) on `turns` — distinguishes same-named models across
+  providers and feeds verbosity / tool-use dimensions.
 
 A second table, `tasks`, holds per-task metrics (one row per completed
 task — a user prompt's full agent run, enter → settle; recorded by

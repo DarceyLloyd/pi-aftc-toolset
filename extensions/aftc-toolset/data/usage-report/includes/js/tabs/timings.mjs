@@ -1,6 +1,6 @@
 // tabs/timings.mjs — Timings tab: cards, charts, splits, longest-tasks table.
 
-import { fmtInt, fmtMs, esc, thinkingPill, statCard, makeTable,
+import { fmtInt, fmtMs, esc, thinkingPill, statCard, makeTable, rememberPeriod, savePeriod,
   HINT_TASK_TIME } from "../lib/format.mjs";
 import { tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
 
@@ -13,7 +13,7 @@ function fmtWhen(ts){
 
 export class TimingsTab {
   data = null;
-  period = "all";
+  period = rememberPeriod("timings-period", "usageTimingsPeriod", "all");
   longestTable = null;
   taskModelChart = null;
   taskModelRows = [];
@@ -46,6 +46,7 @@ export class TimingsTab {
     this.longestTable.render();
     document.getElementById("timings-period").addEventListener("change", function(e){
       self.period = e.target.value;
+      savePeriod("usageTimingsPeriod", e.target.value);
       document.getElementById("task-model-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase();
       self.renderTimingsAll();
     });

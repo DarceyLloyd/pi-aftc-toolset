@@ -5,12 +5,12 @@
 // shames by model × error type with a fair error rate (errors ÷ completed
 // tasks) so models used a lot are compared honestly.
 
-import { fmtInt, fmtWhen, errorPill, ratePill, statCard, makeTable, dash } from "../lib/format.mjs";
+import { fmtInt, fmtWhen, errorPill, ratePill, statCard, makeTable, dash, rememberPeriod, savePeriod } from "../lib/format.mjs";
 import { PALETTE, tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
 
 export class ErrorsTab {
   data = null;
-  period = "all";
+  period = rememberPeriod("err-period", "usageErrorsPeriod", "all");
   table = null;
   modelChart = null;
   typeChart = null;
@@ -48,6 +48,7 @@ export class ErrorsTab {
     this.table.render();
     document.getElementById("err-period").addEventListener("change", function (e) {
       self.period = e.target.value;
+      savePeriod("usageErrorsPeriod", e.target.value);
       var txt = e.target.options[e.target.selectedIndex].text.toLowerCase();
       document.getElementById("err-model-sub").textContent = txt;
       document.getElementById("err-type-sub").textContent = txt;

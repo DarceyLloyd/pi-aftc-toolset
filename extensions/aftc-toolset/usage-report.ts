@@ -15,8 +15,8 @@
  * organised into seven tabs:
  *
  *   Overview      — headline stat cards (total cost, cost per completed
- *                   task, prompts, 5h/7d token burn, cache hit, active
- *                   days), a daily-spend bar chart (last 30 days), a
+ *                   task, prompts, user/AI ratio, worst token burner,
+ *                   cache hit), a daily-spend bar chart (last 30 days), a
  *                   cost-share doughnut with a window selector (24h
  *                   rolling / 1 Day ... 1 Year / All Time), and three
  *                   period summary cards (24h / 7d / 28d). The per-model
@@ -43,7 +43,7 @@
  *                   $/completed task, tasks/day and projected 7/30/90/365
  *                   day spend built from YOUR pace (tasks per active day
  *                   × cost per task). Period selector. $0 models excluded.
- *   Context & allowance — context-window pressure per model × thinking
+ *   Context & Allowance — context-window pressure per model × thinking
  *                   (avg context at task start / end, % of window, growth
  *                   per task, tasks until the window fills, 5h token burn
  *                   in window equivalents, 1M-window feasibility flags)
@@ -107,6 +107,9 @@ type TablePeriod = "daily" | "weekly" | "monthly" | "all";
 
 type ModelRow = {
     modelName: string;
+    /** Provider id (deepseek, qwencloud, kimi-coding, ...) — distinguishes
+     *  same-named models across providers; '' when unknown/legacy. */
+    provider: string;
     cost: number;
     turns: number;
     userPrompts: number;
@@ -207,6 +210,12 @@ type ContextRow = {
     /** Estimated completed tasks until the context window fills
      *  ((window - avgEnd) / avgGrowth; null when not computable). */
     tasksUntilFull: number | null;
+    /** True when this model ACTUALLY reported a 5h / weekly allowance
+     *  window in the period (subscription plans only — Codex, Claude,
+     *  MiniMax, Z.ai GLM, Kimi). The allowance-window metrics below
+     *  (5h / window, 1M flag) only apply when true; API providers
+     *  (DeepSeek etc.) have no such windows and are never flagged. */
+    allowanceReported: boolean;
     /** Tokens burned (input + output + cache-read) in the last 5 hours. */
     fiveHourBurn: number;
     /** Tokens burned in the last 7 days. */
@@ -214,7 +223,8 @@ type ContextRow = {
     /** Context-window equivalents burned per 5 hours (null = window unknown). */
     fiveHourWindows: number | null;
     /** True when the 5-hour burn already exceeds 1,000,000 tokens — a 1M
-     *  context window cannot be sustained at this burn rate. */
+     *  context window cannot be sustained at this burn rate. Only
+     *  meaningful for models that report an allowance window. */
     millionFlag: boolean;
 };
 
@@ -332,8 +342,8 @@ type ReportTotals = {
     /** Tokens burned (input + output + cache-read) in the last 5 hours / 7 days. */
     fiveHourBurn: number;
     sevenDayBurn: number;
-    /** The single model that burned the most tokens in the last 5 hours
-     *  (empty string when there is no usage) — the Overview "worst 5h
+    /** The single model that burned the most tokens EVER (all time;
+     *  empty string when there is no usage) — the Overview "worst token
      *  burner" card. Tie broken alphabetically for determinism. */
     worstBurnModel: string;
     worstBurnTokens: number;
@@ -445,6 +455,7 @@ class UsageModule {
                     ${USER_PROMPT_SQL} AS user_count,
                     ${PAID_USER_PROMPT_SQL} AS paid_user_count,
                     COALESCE(SUM(cost_usd), 0) AS cost,
+                    COALESCE(MAX(provider), '') AS provider,
                     ${CACHE_RATE_SQL} AS avg_cache_rate,
                     AVG(thinking_ms) AS avg_thinking,
                     AVG(response_ms) AS avg_response
@@ -457,6 +468,7 @@ class UsageModule {
         const cost = num(row.cost);
         return {
             modelName,
+            provider: String(row.provider || ""),
             cost,
             turns,
             userPrompts,
@@ -512,6 +524,7 @@ class UsageModule {
                     ${USER_PROMPT_SQL} AS user_count,
                     ${PAID_USER_PROMPT_SQL} AS paid_user_count,
                     COALESCE(SUM(cost_usd), 0) AS cost,
+                    COALESCE(MAX(provider), '') AS provider,
                     ${CACHE_RATE_SQL} AS avg_cache_rate,
                     AVG(thinking_ms) AS avg_thinking,
                     AVG(response_ms) AS avg_response
@@ -533,6 +546,7 @@ class UsageModule {
             const tc = taskCost.get(r.model_name);
             return {
                 modelName: r.model_name,
+                provider: String(r.provider || ""),
                 thinkingLevel: level,
                 cost,
                 turns,
@@ -921,7 +935,7 @@ class UsageModule {
             `SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', 'localtime')) AS n FROM turns`,
         ).get().n);
         const calendarDays = firstTurn > 0 ? Math.max(1, Math.ceil((now - firstTurn) / DAY_MS)) : 0;
-        // Completed-task unit economics + recent token burn (v1.21.x).
+        // Completed-task unit economics + token burn (v1.21.x).
         const taskRow = db.prepare(
             `SELECT COUNT(*) AS completed, COALESCE(SUM(tu.cost), 0) AS task_cost
              FROM tasks t
@@ -939,9 +953,9 @@ class UsageModule {
         ).get(since).burn);
         const worstBurn = db.prepare(
             `SELECT model_name AS model, COALESCE(SUM(input_tokens + output_tokens + cache_read), 0) AS burn
-             FROM turns WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             FROM turns WHERE model_name IS NOT NULL AND model_name != ''
              GROUP BY model_name ORDER BY burn DESC, model_name ASC LIMIT 1`,
-        ).get(now - FIVE_HOUR_MS) as any;
+        ).get() as any;
         return {
             totalCost,
             turnCount: turns,
@@ -1123,6 +1137,15 @@ class UsageModule {
              GROUP BY t.model_name, t.thinking_level`,
         ).all(since, since) as any[];
         const fb = new Map(fbRows.map(r => [`${r.model}|${r.lvl || "(none)"}`, r]));
+        // Which models actually reported a 5h / weekly allowance window in
+        // this period (subscription plans). New rows carry the explicit
+        // allowance_reported flag; legacy rows fall back to allow_provider.
+        const allowRows = db.prepare(
+            `SELECT model_name AS model, MAX(CASE WHEN allowance_reported = 1 OR allow_provider != '' THEN 1 ELSE 0 END) AS reported
+             FROM tasks WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name`,
+        ).all(since) as any[];
+        const allowReported = new Map(allowRows.map(r => [String(r.model), num(r.reported) === 1]));
         const burn5h = this.tokenBurnByModel(db, now - FIVE_HOUR_MS);
         const burn7d = this.tokenBurnByModel(db, now - WEEK_MS);
         return taskRows.map(r => {
@@ -1137,6 +1160,7 @@ class UsageModule {
                 ? Math.max(0, (win - avgEnd) / avgGrowth)
                 : null;
             const fiveHourBurn = burn5h.get(String(r.model)) || 0;
+            const reported = allowReported.get(String(r.model)) === true;
             return {
                 modelName: String(r.model),
                 thinkingLevel: String(r.lvl || "(none)"),
@@ -1147,10 +1171,11 @@ class UsageModule {
                 avgEndPct,
                 avgGrowth: avgGrowth != null ? Math.round(avgGrowth) : null,
                 tasksUntilFull,
+                allowanceReported: reported,
                 fiveHourBurn,
                 weeklyBurn: burn7d.get(String(r.model)) || 0,
                 fiveHourWindows: win > 0 ? fiveHourBurn / win : null,
-                millionFlag: fiveHourBurn >= MILLION,
+                millionFlag: reported && fiveHourBurn >= MILLION,
             };
         });
     }

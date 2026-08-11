@@ -23,12 +23,13 @@
     <button class="tab" data-tab="thinking" role="tab" aria-selected="false">Thinking levels</button>
     <button class="tab" data-tab="timings" role="tab" aria-selected="false">Timings</button>
     <button class="tab" data-tab="projections" role="tab" aria-selected="false">Projections</button>
-    <button class="tab" data-tab="context" role="tab" aria-selected="false">Context &amp; allowance</button>
+    <button class="tab" data-tab="context" role="tab" aria-selected="false">Context &amp; Allowance</button>
     <button class="tab" data-tab="errors" role="tab" aria-selected="false">Errors</button>
   </nav>
 
   <!-- ======================= OVERVIEW ======================= -->
   <section class="tab-panel" id="panel-overview" role="tabpanel">
+    <h2>All-time usage summary</h2>
     <div class="stat-grid" id="stat-grid"></div>
     <p class="note" style="margin:6px 2px 0">Cost averages are based on paid turns only — free / $0 (subscription)
     models still count toward prompt, cache and timing figures.</p>
@@ -45,7 +46,7 @@
             <select id="share-period">
               <option value="24h">Last 24 Hours (rolling window)</option>
               <option value="1d">1 Day</option>
-              <option value="3d" selected>3 Days</option>
+              <option value="1m" selected>1 Month</option>
               <option value="5d">5 Days</option>
               <option value="1w">1 Week</option>
               <option value="1m">1 Month</option>

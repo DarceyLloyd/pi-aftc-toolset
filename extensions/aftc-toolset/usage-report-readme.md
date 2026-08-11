@@ -83,11 +83,15 @@ directly (tests point `AFTC_TOOLSET_DATA_ROOT` at a scratch dir).
   completed task, user prompts (tasks + follow-ups), **User / AI
   Prompts** (user prompt count / AI self-prompted turns, with the
   sub-line "On average there are N AI prompts to 1 user prompt"),
-  **Worst 5h token burn** (the model that used the most tokens in the
-  last 5 hours, with the token count in the sub-line and an info-icon
-  tooltip), avg cache hit. Prompt terminology mirrors the footer
+  **Worst token burner** (the model that used the most tokens EVER —
+  prompts, replies and cached context — all-time count in the sub-line,
+  info-icon tooltip), avg cache hit. Prompt terminology mirrors the footer
   widget: **User** = typed prompts, **AI** = self-prompted turns
-  (tool-call continuations).
+  (tool-call continuations). Note: the 5h/7d token-burn windows and the
+  provider-reported 5h / weekly allowance live on the Context & Allowance
+  tab — only subscription providers (Codex, Claude, MiniMax, Z.ai GLM,
+  Kimi) report an allowance; API providers (DeepSeek etc.) have no 5h
+  window, so the Overview cards are all-time figures.
 - **Daily spend** bar chart (last 30 local days, zero-filled; today is
   highlighted orange; tooltips show cost / calls / prompts).
 - **Cost share by model** doughnut (top 7 + Other, total in the
@@ -129,7 +133,9 @@ default All time) and an **avg cost per turn by model** horizontal
 bar chart (top 8) that follows the selected period. Costs are the
 model's average cost per turn (cost ÷ turns) — the price, independent
 of how much you used it — so usage volume never skews the comparison.
-Columns: model, **Turn Cost**, **Avg Task $** (avg cost per completed
+Columns: model (+ **Provider** — which provider the model runs
+through, so same-named models from different providers are told
+apart), **Turn Cost**, **Avg Task $** (avg cost per completed
 task, with the task count as a small annotation), **User / AI**
 (prompts you typed / AI self-prompted turns — one merged column with
 an info-icon tooltip), Avg $/Pup (avg cost per user prompt), context (avg % of the model's context window at task end —
@@ -206,7 +212,7 @@ scopes the rate the math is derived from.
   the Overview cards (all spend ÷ calendar days). Flagged as an
   estimate below 14 calendar days of history.
 
-### Tab 6 - Context & allowance
+### Tab 6 - Context & Allowance
 Context-window pressure and provider allowance consumption, per
 period selector (default All time):
 - Five cards: 5h token burn (input + output + cache-read), 7d token
@@ -222,7 +228,11 @@ period selector (default All time):
   full** (how many tasks of the current growth would fill the
   window — red ≤ 3, amber ≤ 10), 5h burn, 5h / window equivalents,
   and the **1M flag** (red pill when the model burns ≥ 1,000,000
-  tokens per 5h).
+  tokens per 5h). The 5h / window and 1M-flag columns only apply to
+  models that ACTUALLY report an allowance window (subscription plans
+  — Codex, Claude, MiniMax, Z.ai GLM, Kimi); API providers (DeepSeek
+  etc.) show — for them, since they have no 5h usage window. Recorded
+  per task as allowance_reported (footer line-5 availability).
 - **Allowance consumed per task** table (per provider): tasks with
   snapshots, avg 5h %/task, avg weekly %/task, 5h used, weekly
   used, 5h resets (tasks where the window reset mid-task), and
@@ -321,7 +331,7 @@ every `/usage-report`; fetched by `app.mjs`:
                           turnCount, taskMs } ] },   // top 10, desc
     weekly: {...}, monthly: {...}, all: {...} },
   taskDailySeries: [ { day, label, avgTaskMs, tasks } ], // 30 days
-  contextStats: {                    // Context & allowance tab
+  contextStats: {                    // Context & Allowance tab
     daily: [ { modelName, thinkingLevel, tasks, contextWindow,
                avgStartTokens, avgEndTokens, avgEndPct, avgGrowth,
                tasksUntilFull, fiveHourBurn, weeklyBurn,

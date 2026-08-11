@@ -126,6 +126,27 @@ export function bindHints(scope){
   });
 }
 
+// ---------- period-selector localStorage memory (all tab period selects) ----------
+// Restore the last-chosen period from localStorage (validated against the
+// select's options); falls back to the default when nothing is stored.
+// Returns the active key. Call in the tab class field initializer.
+export function rememberPeriod(selectId, storageKey, defaultValue){
+  var sel = document.getElementById(selectId);
+  if (!sel) return defaultValue;
+  var saved = null;
+  try { saved = localStorage.getItem(storageKey); } catch (e) { /* storage unavailable */ }
+  var valid = false;
+  Array.prototype.forEach.call(sel.options, function(o){ if (o.value === saved) valid = true; });
+  if (valid) sel.value = saved;
+  else sel.value = defaultValue;
+  return sel.value;
+}
+
+/** Persist a period selector's choice (no-op when storage is unavailable). */
+export function savePeriod(storageKey, value){
+  try { localStorage.setItem(storageKey, value); } catch (e) { /* storage unavailable */ }
+}
+
 // ---------- sortable table factory ----------
 export function makeTable(opts){
   var state = { key: opts.defaultKey, dir: opts.defaultDir || "desc" };

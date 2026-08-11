@@ -4,11 +4,11 @@
 // (nothing to project). A period selector scopes the rate the math is
 // derived from.
 
-import { fmtMoney, fmtInt, dash, statCard, makeTable } from "../lib/format.mjs";
+import { fmtMoney, fmtInt, dash, statCard, makeTable, rememberPeriod, savePeriod } from "../lib/format.mjs";
 
 export class ProjectionsTab {
   data = null;
-  period = "all";
+  period = rememberPeriod("proj-period", "usageProjectionsPeriod", "all");
   table = null;
 
   constructor(data) {
@@ -43,6 +43,7 @@ export class ProjectionsTab {
     this.table.render();
     document.getElementById("proj-period").addEventListener("change", function (e) {
       self.period = e.target.value;
+      savePeriod("usageProjectionsPeriod", e.target.value);
       self.renderProjCards();
       self.table.render();
     });

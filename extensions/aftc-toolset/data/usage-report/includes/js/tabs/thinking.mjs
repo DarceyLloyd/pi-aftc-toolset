@@ -1,11 +1,11 @@
 // tabs/thinking.mjs — Thinking levels tab: period selector + sortable table.
 
-import { fmtMoney, fmtInt, fmtMs, cachePill, thinkingPill, dash, makeTable,
+import { fmtMoney, fmtInt, fmtMs, cachePill, thinkingPill, dash, makeTable, rememberPeriod, savePeriod,
   HINT_AVG_PUP, HINT_AVG_CACHE, HINT_USER_AI, HINT_TASK_TIME } from "../lib/format.mjs";
 
 export class ThinkingTab {
   data = null;
-  period = "all";
+  period = rememberPeriod("thinking-period", "usageThinkingPeriod", "all");
   table = null;
 
   constructor(data) {
@@ -21,6 +21,7 @@ export class ThinkingTab {
       getRows: function(){ return (self.data.modelThinkingByPeriod || {})[self.period] || []; },
       cols: [
         { key:"modelName", label:"Model" },
+        { key:"provider", label:"Provider", hint:"Which provider this model runs through — same-named models from different providers are told apart here.", render:function(r){ return r.provider ? esc(r.provider) : dash(""); } },
         { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
         { key:"cost", label:"Cost", num:true, render:function(r){ return fmtMoney(r.cost); } },
         { key:"costPerTask", label:"Avg Task $", num:true, center:true, render:function(r){ return r.costPerTask > 0 ? fmtMoney(r.costPerTask) : dash(null); } },
@@ -35,6 +36,7 @@ export class ThinkingTab {
     this.table.render();
     document.getElementById("thinking-period").addEventListener("change", function(e){
       self.period = e.target.value;
+      savePeriod("usageThinkingPeriod", e.target.value);
       self.table.render();
     });
   }

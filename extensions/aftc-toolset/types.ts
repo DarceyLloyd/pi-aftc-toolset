@@ -49,6 +49,18 @@ export interface TurnRecord {
      *  getContextUsage().contextWindow, fallback to the model def's
      *  contextWindow). 0 when unknown. */
     contextWindow: number;
+    /** Provider id of the turn (deepseek, qwencloud, kimi-coding, zai,
+     *  minimax, openai, anthropic, openrouter, ...) — from the assistant
+     *  message / model event. Lets the report distinguish same-named
+     *  models across providers. '' when unknown. */
+    provider: string;
+    /** Tool calls made in this turn (assistant content parts). */
+    toolCalls: number;
+    /** Response text length in chars (assistant text parts). */
+    responseChars: number;
+    /** User prompt text length in chars (the user message this turn
+     *  answered). */
+    promptChars: number;
     /** True when this is the first assistant turn after a user message
      * (not an automated tool-call continuation). */
     isUserPrompt: boolean;
@@ -118,6 +130,16 @@ export interface TaskRecord {
      *  null when the provider exposes no weekly window). */
     allowWeeklyStart: number | null;
     allowWeeklyEnd: number | null;
+    /** True when the active provider ACTUALLY reported a 5h / weekly
+     *  allowance window for this task (subscription plans only — Codex,
+     *  Claude, MiniMax, Z.ai GLM, Kimi). Mirrors the footer line-5
+     *  show/hide: API providers (DeepSeek etc.) never report windows and
+     *  are recorded false, so the report can gate allowance-window
+     *  metrics (5h / window, 1M flag) on this. */
+    allowanceReported: boolean;
+    /** Provider id that ran the task (deepseek, qwencloud, kimi-coding,
+     *  ...) — '' when unknown. */
+    provider: string;
 }
 
 /**

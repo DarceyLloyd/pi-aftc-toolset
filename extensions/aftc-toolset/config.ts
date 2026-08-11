@@ -126,16 +126,6 @@ export interface Preferences {
     notifySoundContext75?: string;
     /** Saved replay prompt text (previously in replay.json). Empty = none saved. */
     replayPrompt?: string;
-    /** Whether recorded usage rows are pushed in REAL TIME to the online
-     *  usage mirror (index.php). OFF by default. On any error from the
-     *  endpoint the push is dropped and logged — never retried, never
-     *  queued. */
-    usagePushEnabled?: boolean;
-    /** Usage mirror endpoint URL (https://.../usage/index.php). Empty = off. */
-    usagePushEndpoint?: string;
-    /** Shared API key sent as the X-API-Key header (matches the server's
-     *  config.php USAGE_API_KEY). Stored in the local config.json. */
-    usagePushApiKey?: string;
     /** WarGames intro: full-screen typewriter animation on session start. */
     warGamesEnabled?: boolean;
     /** aftc-codex: feature on/off. Off = the feature does nothing. Off by default. */
@@ -223,9 +213,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
     notifySoundContext50: "",
     notifySoundContext75: "",
     replayPrompt: "",
-    usagePushEnabled: false,
-    usagePushEndpoint: "",
-    usagePushApiKey: "",
     warGamesEnabled: false,
     aftcCodexEnabled: false,
     aftcCodexInjectGuidance: true,
@@ -263,6 +250,13 @@ const RETIRED_KEYS: readonly string[] = [
     // Context Guard removed (2026-08): codex loads are never throttled.
     "codexContextGuardEnabled",
     "codexContextGuardThreshold",
+    // Usage push moved to code constants in usage-recording.ts (v1.21.x):
+    // the enabled flag, endpoint and shared key all live in the TS file,
+    // NOT config.json (users wander the data dir). Retiring the keys here
+    // strips them from existing configs.
+    "usagePushEnabled",
+    "usagePushEndpoint",
+    "usagePushApiKey",
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 // Preferences (config.json) - ensure, read, write (NO cache)

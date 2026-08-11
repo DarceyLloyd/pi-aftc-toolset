@@ -1,15 +1,15 @@
-// tabs/context.mjs — Context & allowance tab.
+// tabs/context.mjs — Context & Allowance tab.
 // Context-window pressure per model × thinking level (start/end context, %
 // of window, growth per task, tasks until the window fills, 5h burn in
 // window equivalents, 1M-window feasibility) plus provider-reported
 // 5h / weekly allowance consumption per task.
 
-import { fmtInt, fmtTok, fmtPct, thinkingPill, ctxBar, flag1m, dash, statCard, makeTable } from "../lib/format.mjs";
+import { fmtInt, fmtTok, fmtPct, thinkingPill, ctxBar, flag1m, dash, statCard, makeTable, rememberPeriod, savePeriod } from "../lib/format.mjs";
 import { PALETTE, tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
 
 export class ContextTab {
   data = null;
-  period = "all";
+  period = rememberPeriod("ctx-period", "usageContextPeriod", "all");
   ctxTable = null;
   allowTable = null;
   burnChart = null;
@@ -45,8 +45,8 @@ export class ContextTab {
             return '<span class="pill ' + cls + '">' + (n === 0 ? "full now" : n + " task" + (n === 1 ? "" : "s")) + "</span>";
         } },
         { key: "fiveHourBurn", label: "5h burn", num: true, render: function (r) { return fmtTok(r.fiveHourBurn); } },
-        { key: "fiveHourWindows", label: "5h / window", num: true, hint: HINT_5H_WINDOWS, render: function (r) { return r.fiveHourWindows != null ? r.fiveHourWindows.toFixed(1) + "x" : dash(null); } },
-        { key: "millionFlag", label: "1M flag", render: function (r) { return flag1m(r.millionFlag); } },
+        { key: "fiveHourWindows", label: "5h / window", num: true, hint: HINT_5H_WINDOWS, render: function (r) { return r.allowanceReported && r.fiveHourWindows != null ? r.fiveHourWindows.toFixed(1) + "x" : dash(null); } },
+        { key: "millionFlag", label: "1M flag", render: function (r) { return r.allowanceReported ? flag1m(r.millionFlag) : dash(null); } },
       ],
     });
     this.ctxTable.render();
@@ -81,6 +81,7 @@ export class ContextTab {
     this.allowTable.render();
     document.getElementById("ctx-period").addEventListener("change", function (e) {
       self.period = e.target.value;
+      savePeriod("usageContextPeriod", e.target.value);
       document.getElementById("ctx-burn-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase() + " · context-window equivalents per 5h";
       self.renderCards();
       self.ctxTable.render();

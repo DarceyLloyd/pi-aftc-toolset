@@ -373,30 +373,70 @@ if pi runs). Every assistant turn is recorded as metrics only -
 **never prompt or response text**. `/usage-clear` wipes the database
 behind a confirmation.
 
-![Usage report overview](images/ur-overview.png)
+### Overview
 
-Seven tabs:
+![Overview tab](images/ur-overview.png)
 
-| Tab | Contents |
-| --- | --- |
-| **Overview** | 6 headline cards (2×3), 30-day spend chart, cost-share doughnut, and a 2×3 period summary (24h / last 3 days / last week / this week / this month / last month), each pane with Best & Worst model verdicts |
-| **Costs Per Model** | Per-model sortable table + period selector: average cost per turn, average task cost, User/AI prompts, cache, context, errors, task time - plus verdict badges and "why" tooltips |
-| **Thinking levels** | Per-model × thinking-level table + period selector |
-| **Timings** | Task Time analysis: avg/longest task, turns per task, error/abort counts, think/respond split, user vs AI turns, top-10 longest tasks |
-| **Projections** | Usage-rate projections: $/turn, $/task, tasks/day - projected 7/30/90/365-day spend, period selector |
-| **Context & allowance** | Context window used before/after tasks, % of window, 5h token burn, 1M-window flag, provider 5h/weekly allowance used per task |
-| **Errors** | Failed calls per model × error type with a fair error rate - your own aborts are a stat on Timings, not errors |
+Six headline cards (all-time totals and averages): total cost, cost per
+completed task, user prompts, the User/AI prompt ratio, the worst token
+burner and average cache hit — followed by a 30-day spend chart, a
+cost-share doughnut with a window selector, and a six-pane period summary
+(last 24 hours / last 3 days / last week / this week / this month / last
+month), each pane naming the best and worst models for cost, task time,
+prompting efficiency and cache.
 
-![Models tab](images/ur-models.png)
+### Costs Per Model
 
+![Costs Per Model tab](images/ur-costs-per-model.png)
+
+The hero/shame ranking: a per-model sortable table with a period selector
+showing average cost per turn, average task cost, User/AI prompts, cache,
+context use, errors and task time — with verdict badges that call out the
+best and worst model per metric ("why" tooltips on hover).
+
+### Thinking levels
 
 ![Thinking levels tab](images/ur-thinking-levels.png)
 
+The same per-model table broken down by thinking level (one row per
+model × thinking-level combination): cost, task cost, User/AI prompts,
+cache, think and response times, and task time — sortable, with a period
+selector.
+
+### Timings
 
 ![Timings tab](images/ur-timings.png)
 
+Task Time analysis: average and longest task, turns per task, error and
+abort counts, task time by model, a daily average chart, where the time
+goes (thinking vs responding), user- vs AI-turn timings, and the top-10
+longest completed tasks.
+
+### Projections
 
 ![Projections tab](images/ur-projections.png)
+
+Usage-rate cost projections: average $/turn and $/task, tasks per active
+day, and projected 7/30/90/365-day spend built from your own pace — per
+model and overall, with a period selector. Zero-cost models are excluded.
+
+### Context & Allowance
+
+![Context & Allowance tab](images/ur-context-allowance.png)
+
+Context-window pressure: 5h/7d token burn, the 1M-window rate, context
+used before and after each task, % of window, tasks until the window
+fills — plus the provider-reported 5h / weekly allowance consumed per
+task (Codex, Claude, MiniMax, Z.ai GLM and Kimi only; other providers
+show N/A).
+
+### Errors
+
+![Errors tab](images/ur-errors.png)
+
+Failed calls per model × error type (rate limit, overloaded, not found,
+auth, timeout, network) with a fair error rate over completed tasks — your
+own aborts are a stat on Timings, not errors.
 
 
 ---

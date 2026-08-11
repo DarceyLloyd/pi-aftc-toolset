@@ -451,6 +451,9 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     const newSessionId = () => Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
     let _sessionId = newSessionId();
     let _pendingUserTurn = false;
+    // User prompt text length (chars) captured at message_start, recorded on
+    // the next assistant turn's recordTurn.
+    let _pendingPromptChars = 0;
     let _pendingBasePrompt = false;
     let _pendingSubPrompt = false;
     let _pendingSteeringPrompt = false;
@@ -514,6 +517,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         _pendingFollowupPrompt = false;
         _pendingContinuationPrompt = false;
         _pendingPromptKind = "auto";
+        _pendingPromptChars = 0;
         _pendingStreamingBehavior = undefined;
         _currentPromptIndex = 0;
         _activePromptIndex = 0;
@@ -707,6 +711,10 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     const shape = new ShapeTracker();
     let lastSysPrompt = "";
     const model: ModelInfo = { name: "", reasoning: false, contextWindow: 0, thinkingLevel: "" };
+    // Provider id of the active model (deepseek, qwencloud, kimi-coding, ...)
+    // — captured from model events, refreshed per turn from the assistant
+    // message. Lets the report distinguish same-named models across providers.
+    let modelProvider = "";
 
     // ---- Skill usage tracking (best-effort, per-session) ----
     // `availableSkills` is the Skill[] loaded into the system prompt
@@ -769,6 +777,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             model.reasoning = m.reasoning === true;
             model.contextWindow = m.contextWindow || 0;
         }
+        modelProvider = String((m as any).provider || modelProvider || "");
         // thinkingLevel is NOT on the Model object - it's separate agent
         // state. Seed it from pi.getThinkingLevel() so the level is known
         // from the first render, not only after the user changes it.
@@ -784,6 +793,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             model.reasoning = m.reasoning === true;
             model.contextWindow = m.contextWindow || 0;
         }
+        modelProvider = String((m as any).provider || modelProvider || "");
         // Re-read on model change: a new model may clamp the level
         // (non-reasoning models always use "off"). See session_start note.
         model.thinkingLevel = pi.getThinkingLevel();
@@ -896,6 +906,11 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             allow5hEnd: allowEnd?.five ?? null,
             allowWeeklyStart: taskAllowStart?.weekly ?? null,
             allowWeeklyEnd: allowEnd?.weekly ?? null,
+            // True when the provider actually reported an allowance window at
+            // task start or end (footer line-5 semantics — subscription
+            // plans only; API providers record false).
+            allowanceReported: !!(taskAllowStart || allowEnd),
+            provider: modelProvider || "",
         });
         taskStartMs = 0;
         taskTurnCount = 0;
@@ -961,6 +976,9 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             // Every user message marks the start of a user-prompted
             // turn — the next assistant response is the direct reply.
             _pendingUserTurn = true;
+            _pendingPromptChars = Array.isArray(msg.content)
+                ? msg.content.filter((p: any) => p && p.type === "text" && p.text).reduce((s: number, p: any) => s + String(p.text).length, 0)
+                : 0;
             const isFirstPromptInGroup = _currentPromptIndex === 0;
             _currentPromptIndex++;
             _activePromptIndex = _currentPromptIndex;
@@ -1046,6 +1064,15 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             model.reasoning = model.reasoning || m.reasoning === true;
             model.contextWindow = model.contextWindow || m.contextWindow || 0;
         }
+        // Provider + per-turn size metrics (v1.21.x). provider comes from the
+        // assistant message (pi exposes it per turn); tool calls and response
+        // length come from the message content parts.
+        const prov = String((msg as any).provider || modelProvider || "");
+        if (prov) modelProvider = prov;
+        const parts: any[] = Array.isArray(msg.content) ? msg.content : [];
+        const toolCalls = parts.filter(p => p && p.type === "toolCall").length;
+        const responseChars = parts.filter(p => p && p.type === "text" && p.text).reduce((s, p) => s + String(p.text).length, 0);
+
         // Failed LLM call — record it (a user abort is NOT an error; it is
         // counted as a stat from the tasks table). Classified into
         // shameable categories for the report's Errors tab.
@@ -1145,6 +1172,10 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             timestamp: Date.now(),
             modelName: model.name || "",
             thinkingLevel: model.thinkingLevel || "",
+            provider: prov,
+            toolCalls,
+            responseChars,
+            promptChars: _pendingPromptChars,
             thinkingMs: lastThinkingMs,
             responseMs: lastResponseMs,
             costUsd: usage.cost.total,

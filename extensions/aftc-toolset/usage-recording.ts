@@ -73,7 +73,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ErrorRecord, TaskRecord, TurnRecord, TurnRecorder } from "./types";
 import { getDb } from "./db";
-import { getPreference } from "./config";
 import { getDeviceId } from "./paths";
 import { hostname } from "node:os";
 import * as aftcConsole from "./ui/aftc-console";
@@ -89,6 +88,23 @@ import * as aftcConsole from "./ui/aftc-console";
 // entirely (the pre-flag behaviour).
 // -----------------------------------------------------------------------------
 const RECORD_ZERO_COST_TURNS = true;
+
+// -----------------------------------------------------------------------------
+// Online push — CODE CONSTANTS, deliberately NOT in config.json (v1.21.x).
+//
+// The ENDPOINT, shared KEY and ENABLED flag all live here in the TS file,
+// for the foreseeable future (even when the feature goes public). Users wander the data
+// dir, so none of this sits in a readable JSON file next to their settings.
+// The key is OPEN/SHARED on purpose (public package): it only gates out
+// non-extension traffic, not other users — obfuscation-by-location, not a
+// secret. Never move these into config.json or anywhere user-visible.
+// The env override (AFTC_USAGE_PUSH_ENABLED=0) is a test/maintainer seam
+// only — it lets the suite exercise the disabled path without code edits.
+// Read at call time (not module load) so the seam works mid-run.
+// -----------------------------------------------------------------------------
+const PUSH_ENABLED = () => process.env.AFTC_USAGE_PUSH_ENABLED !== "0";
+const PUSH_ENDPOINT = "https://dev.aftc.uk/pi-aftc-toolset/usage/index.php";
+const PUSH_API_KEY = "b7007670bcd1e0ab08a435a3f1bf88a16ceed27e45f9e0f9a5b24ec900d7ff5f";
 
 // -----------------------------------------------------------------------------
 // Per-installation owner id (device_id)
@@ -135,8 +151,9 @@ class UsageRecorder implements TurnRecorder {
                     context_tokens, context_window,
                     user_prompt, session_id, prompt_index,
                     base_prompt, sub_prompt, steering_prompt, followup_prompt,
-                    continuation_prompt, prompt_kind, device_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    continuation_prompt, prompt_kind, device_id,
+                    provider, tool_calls, response_chars, prompt_chars
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).run(
                 record.turn,
                 record.timestamp,
@@ -161,6 +178,10 @@ class UsageRecorder implements TurnRecorder {
                 record.isContinuationPrompt ? 1 : 0,
                 record.promptKind,
                 deviceId(),
+                record.provider || "",
+                record.toolCalls || 0,
+                record.responseChars || 0,
+                record.promptChars || 0,
             );
             // Real-time mirror push (fire-and-forget; never retried).
             this.pushTurn(record);
@@ -181,8 +202,8 @@ class UsageRecorder implements TurnRecorder {
                     model_name, thinking_level, turn_count,
                     context_window, context_start_tokens, context_end_tokens,
                     allow_provider, allow_5h_start, allow_5h_end,
-                    allow_weekly_start, allow_weekly_end, device_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    allow_weekly_start, allow_weekly_end, device_id, allowance_reported, provider
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).run(
                 record.sessionId,
                 record.promptIndex,
@@ -201,6 +222,8 @@ class UsageRecorder implements TurnRecorder {
                 record.allowWeeklyStart ?? null,
                 record.allowWeeklyEnd ?? null,
                 deviceId(),
+                record.allowanceReported ? 1 : 0,
+                record.provider || "",
             );
             // Real-time mirror push (fire-and-forget; never retried).
             this.pushTask(record);
@@ -252,17 +275,17 @@ class UsageRecorder implements TurnRecorder {
     // -----------------------------------------------------------------------
 
     private push(table: "turns" | "tasks" | "errors", row: Record<string, unknown>): void {
-        const enabled = getPreference("usagePushEnabled", false);
-        const endpoint = getPreference("usagePushEndpoint", "");
-        if (!enabled || !endpoint) return;
+        // Gate is the PUSH_ENABLED code constant (default ON). Endpoint +
+        // key are code constants too — nothing about the push is in
+        // config.json (users wander the data dir).
+        if (!PUSH_ENABLED()) return;
         if (typeof fetch !== "function") return;
-        const apiKey = getPreference("usagePushApiKey", "");
         const payload = JSON.stringify({ source: hostname(), [table]: [row] });
         void (async () => {
             try {
-                const res = await fetch(endpoint, {
+                const res = await fetch(PUSH_ENDPOINT, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+                    headers: { "Content-Type": "application/json", "X-API-Key": PUSH_API_KEY },
                     body: payload,
                     signal: AbortSignal.timeout(10_000),
                 });
@@ -301,6 +324,10 @@ class UsageRecorder implements TurnRecorder {
             session_id: record.sessionId,
             context_window: record.contextWindow || 0,
             context_tokens: record.contextTokens || 0,
+            provider: record.provider || "",
+            tool_calls: record.toolCalls || 0,
+            response_chars: record.responseChars || 0,
+            prompt_chars: record.promptChars || 0,
         });
     }
 
@@ -323,6 +350,8 @@ class UsageRecorder implements TurnRecorder {
             allow_5h_end: record.allow5hEnd ?? null,
             allow_weekly_start: record.allowWeeklyStart ?? null,
             allow_weekly_end: record.allowWeeklyEnd ?? null,
+            allowance_reported: record.allowanceReported ? 1 : 0,
+            provider: record.provider || "",
         });
     }
 

@@ -145,10 +145,26 @@ const MIGRATIONS = [
     `ALTER TABLE tasks ADD COLUMN allow_weekly_start REAL`,
     `ALTER TABLE tasks ADD COLUMN allow_weekly_end REAL`,
 
-    // v1.21.x — per-installation owner id for the online usage mirror.
-    // One UUID per data dir (paths.ts getDeviceId); tags every row locally
-    // and in the mirror push so a date-range pull can filter to this
-    // machine. '' = legacy row (recorded before device ids existed).
+    // v1.21.x — whether the active provider actually reported a 5h / weekly
+    // allowance window for the task (subscription plans only). Mirrors the
+    // footer line-5 show/hide; lets the report gate allowance-window
+    // metrics (5h / window, 1M flag) on real data instead of every model.
+    `ALTER TABLE tasks ADD COLUMN allowance_reported INTEGER NOT NULL DEFAULT 0`,
+
+    // v1.21.x — provider id + per-turn size metrics. provider distinguishes
+    // same-named models across providers (deepseek vs qwencloud routes);
+    // tool_calls / response_chars / prompt_chars feed verbosity + tool-use
+    // dimensions. Old rows default '' / 0.
+    `ALTER TABLE turns ADD COLUMN provider TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE turns ADD COLUMN tool_calls INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE turns ADD COLUMN response_chars INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE turns ADD COLUMN prompt_chars INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN provider TEXT NOT NULL DEFAULT ''`,
+
+    // v1.21.x — per-installation owner id tagging this machine's rows.
+    // One UUID per data dir (paths.ts getDeviceId); tags every row so the
+    // online copy can be attributed back to this installation. '' = legacy
+    // row (recorded before device ids existed).
     `ALTER TABLE turns ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE tasks ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE errors ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,

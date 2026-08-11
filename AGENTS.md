@@ -52,6 +52,29 @@ last-reviewed stamp.
 productivity tools to the pi coding agent. Look at each file in
 `extensions/aftc-toolset/` to understand what features exist.
 
+## Usage report screenshots (README upkeep)
+
+When the user asks to capture screenshots of the usage report ("update the
+usage report images", "screenshot the report", etc.), do this automatically:
+
+1. Make sure the report server is running (127.0.0.1:8713+ — /usage-report,
+or `node regenerate-usage-report.mjs` + the running server).
+2. Run `node scripts/usage-report-screenshots.mjs` — captures a full-page
+   PNG of EVERY tab into `images/ur-<tab-name>.png` (zero-dependency CDP
+   driver using the system Edge/Chrome; `EDGE_PATH`/`CHROME_PATH` override;
+   one tab only: `node scripts/usage-report-screenshots.mjs <tab>`).
+3. Update the README "Usage report" section: one subsection per tab, in tab
+   order — `### <Tab name>`, the image, then a short user-facing description
+   of what THAT tab shows (no jargon). Do not dump one big block + a wall of
+   images.
+4. The tab set can change (tabs added/removed/renamed): re-run the script,
+   delete orphaned `images/ur-*.png`, and add/remove/rename the README
+   subsections + image names to match. The filename derives from the tab
+   display name (lowercase, spaces -> dashes, symbols dropped).
+5. The images are shipped (README references them) — regenerate + README
+   updates belong in the SAME change. The screenshot script itself is
+   maintainer-only (git/npm/docker-ignored), like the other dev helpers.
+
 ## Understanding pi
 
 Before writing or modifying ANY extension code, read these:

@@ -42,6 +42,17 @@ export class Overview {
   }
 
   render() {
+    // Restore the last-chosen Cost share window (localStorage), default 1 Month.
+    var sel = document.getElementById("share-period");
+    if (sel) {
+      var saved = null;
+      try { saved = localStorage.getItem("usageSharePeriod"); } catch (e) { /* storage unavailable */ }
+      var valid = false;
+      if (saved) {
+        (this.data.shareWindows || []).forEach(function (w) { if (w.key === saved) valid = true; });
+      }
+      sel.value = valid ? saved : "1m";
+    }
     this.renderOverview();
     this.renderDailyChart();
     this.renderShareChart();
@@ -58,9 +69,9 @@ export class Overview {
     html += statCard("User prompts", fmtInt(t.userPromptCount), fmtInt(t.basePromptCount)+" tasks · "+fmtInt(t.subPromptCount)+" follow-ups");
     html += statCard("User / AI Prompts", fmtInt(uCount)+" / "+fmtInt(aCount),
       uCount > 0 ? "On average there are "+ratio.toFixed(1)+" AI prompts to 1 user prompt." : "No user prompts recorded yet.");
-    html += statCard("Worst 5h token burn", t.worstBurnModel ? esc(t.worstBurnModel) : "N/A",
-      t.worstBurnModel ? fmtTok(t.worstBurnTokens)+" tokens in the last 5 hours" : "no usage in the last 5 hours", false,
-      "The model that used the most tokens (prompts, replies and cached context) in the last 5 hours. A fast burner fills its context window quickly.");
+    html += statCard("Worst token burner", t.worstBurnModel ? esc(t.worstBurnModel) : "N/A",
+      t.worstBurnModel ? fmtTok(t.worstBurnTokens)+" tokens (all time)" : "no usage recorded", false,
+      "The model that used the most tokens (prompts, replies and cached context) since the start of the database. A fast burner fills its context window quickly.");
     html += statCard("Avg cache hit", fmtPct(t.avgCacheRate), fmtTok(t.totalCacheRead)+" cache-read tokens");
     document.getElementById("stat-grid").innerHTML = html;
     bindHints(document.getElementById("stat-grid"));
@@ -146,7 +157,7 @@ export class Overview {
 
   shareWindowPairs() {
     var sel = document.getElementById("share-period");
-    var key = sel ? sel.value : "3d";
+    var key = sel ? sel.value : "1m";
     var win = null;
     (this.data.shareWindows || []).forEach(function(w){ if (w.key === key) win = w; });
     var rows;
@@ -246,6 +257,9 @@ export class Overview {
       plugins: [centerTotal],
     });
     var shareSel = document.getElementById("share-period");
-    if (shareSel) shareSel.addEventListener("change", function(){ self.renderShareChart(); });
+    if (shareSel) shareSel.addEventListener("change", function(){
+      try { localStorage.setItem("usageSharePeriod", shareSel.value); } catch (e) { /* storage unavailable */ }
+      self.renderShareChart();
+    });
   }
 }

@@ -152,10 +152,10 @@ export function getSshJson(): string {
 }
 
 /**
- * Path to the per-installation device id file (usage mirror owner tag).
+ * Path to the per-installation device id file (online owner tag).
  * One UUID per data dir — shared by every pi window / sub-agent on the
- * machine. Also read by the maintainer pull tooling (kept in .dev/);
- * keep the name in sync if it ever changes.
+ * machine. Also read by the maintainer pull tooling; keep the name in
+ * sync if it ever changes.
  */
 export function getDeviceIdFile(): string {
     return path.join(getDataDir(), "device-id");

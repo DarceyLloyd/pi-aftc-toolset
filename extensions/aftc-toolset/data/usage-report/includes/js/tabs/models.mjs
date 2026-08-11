@@ -5,7 +5,7 @@
 // so they can still be judged on task time, ratio and context — only the
 // COST verdicts are restricted to models that actually cost something.
 
-import { fmtMoney, fmtInt, fmtMs, verdict, dash, makeTable,
+import { fmtMoney, fmtInt, fmtMs, verdict, dash, makeTable, rememberPeriod, savePeriod,
   HINT_AVG_PUP, HINT_USER_AI, HINT_TASK_TIME } from "../lib/format.mjs";
 import { tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
 
@@ -54,7 +54,7 @@ function computeVerdicts(rows) {
 
 export class ModelsTab {
   data = null;
-  period = "all";
+  period = rememberPeriod("models-period", "usageModelsPeriod", "all");
   table = null;
   chart = null;
 
@@ -73,6 +73,7 @@ export class ModelsTab {
       },
       cols: [
         { key: "modelName", label: "Model" },
+        { key: "provider", label: "Provider", hint: "Which provider this model runs through (deepseek, qwencloud, kimi-coding, ...) — same-named models from different providers are told apart here.", render: function (r) { return r.provider ? esc(r.provider) : dash(""); } },
         { key: "costPerTurn", label: "Turn Cost", num: true, center: true, hint: HINT_COST_TURN, render: function (r) { return fmtMoney(r.costPerTurn); } },
         { key: "costPerTask", label: "Avg Task $", num: true, hint: HINT_COST_TASK, render: function (r) {
             return r.costPerTask > 0 ? fmtMoney(r.costPerTask) + '<span class="sub-num">' + fmtInt(r.completedTasks) + ' task' + (r.completedTasks === 1 ? "" : "s") + '</span>' : "\u2014";
@@ -88,6 +89,7 @@ export class ModelsTab {
     this.table.render();
     document.getElementById("models-period").addEventListener("change", function (e) {
       self.period = e.target.value;
+      savePeriod("usageModelsPeriod", e.target.value);
       document.getElementById("models-chart-sub").textContent = e.target.options[e.target.selectedIndex].text.toLowerCase();
       self.table.render();
       self.ensureCharts();

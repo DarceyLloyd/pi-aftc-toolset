@@ -41,6 +41,10 @@ assistant responded over time*, query this DB.
 | `turn` | int | Session-scoped turn counter |
 | `timestamp` | int | ms since epoch at `message_end` |
 | `model_name` | text | e.g. `MiniMax-M3` |
+| `provider` | text | Provider id (e.g. `minimax`, `deepseek`, `qwencloud`, `kimi-coding`) — distinguishes same-named models across providers; `''` when unknown/legacy |
+| `tool_calls` | int | Tool calls made in this turn (assistant content parts) |
+| `response_chars` | int | Response text length in chars |
+| `prompt_chars` | int | User prompt text length in chars |
 | `thinking_level` | text | e.g. `high`, `low`, `off` |
 | `thinking_ms` | int | Time to first non-thinking output |
 | `response_ms` | int | Total turn duration (request-sent → message end) |
@@ -51,7 +55,7 @@ assistant responded over time*, query this DB.
 | `cache_write` | int | Tokens written to cache this turn |
 | `context_window` | int | Model's declared context window in tokens at this turn (`getContextUsage().contextWindow`); 0 when unknown (old rows) |
 | `context_tokens` | int | pi's context-usage estimate at `message_end` (`getContextUsage().tokens`, input side); 0 when unavailable |
-| `device_id` | text | Per-installation owner id (one UUID per data dir, `paths.ts getDeviceId`) — tags every row so the online mirror can tell this machine's rows from other users'; `''` = legacy row recorded before device ids existed |
+| `device_id` | text | Per-installation owner id (one UUID per data dir, `paths.ts getDeviceId`) — tags every row so the online copy can be attributed back to this machine; `''` = legacy row recorded before device ids existed |
 | `session_id` | text | Stable per-runtime-session id |
 | `prompt_index` | int | 1-based user-prompt number; all automated continuations share the same index as the user prompt that caused them |
 
@@ -121,6 +125,8 @@ in the footer and counted, but never mixed into the Task Time metric.
 | `allow_5h_end` | real · null | ditto |
 | `allow_weekly_start` | real · null | Provider weekly allowance used % at task start / end (NULL = no snapshot) |
 | `allow_weekly_end` | real · null | ditto |
+| `allowance_reported` | int | 1 = the active provider actually reported a 5h / weekly allowance window for this task (subscription plans only — Codex, Claude, MiniMax, Z.ai GLM, Kimi); 0 for API providers (DeepSeek etc.). Mirrors footer line-5 availability; the report gates the 5h/window + 1M-flag metrics on it |
+| `provider` | text | Provider id that ran the task (e.g. `kimi-coding`) — `''` when unknown |
 | `device_id` | text | Per-installation owner id (one UUID per data dir) — `''` for legacy rows |
 
 Allowance snapshots are taken by `core.ts` at `agent_start` (once per
@@ -160,25 +166,6 @@ problem). The Errors tab groups by model × type.
   tools with.
 - Reasoning or thinking-block content (only `thinking_ms` is
   recorded as a duration).
-## Optional real-time push (v1.21.7)
-
-After a row is recorded locally it may ALSO be pushed in real time to a
-user-configured HTTPS endpoint — one record per request, at the moment it
-is recorded (same events: `recordTurn` / `recordTask` / `recordError`).
-Configured via config.json preferences, read FRESH from disk on every push
-(never cached):
-
-- `usagePushEnabled` (bool, default false)
-- `usagePushEndpoint` (string — the HTTPS endpoint URL)
-- `usagePushApiKey` (string — the shared key sent as the `X-API-Key` header)
-
-The payload is `{ "source": <hostname>, "<table>": [ one row ] }` with the
-schema's snake_case column names and 0/1 flags, plus the per-installation
-`device_id` (one UUID per data dir) so rows in the shared mirror can be
-attributed back to this installation. ERROR POLICY: on ANY error
-from the endpoint (non-200 or network failure) the push is DROPPED and
-logged — never retried, never queued. The push is fire-and-forget and never
-blocks the recording path.
 
 ## Public factory
 
