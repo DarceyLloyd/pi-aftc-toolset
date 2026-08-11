@@ -1,6 +1,6 @@
 # Dependency Map
 
-<!-- last-verified: 2026-08-07 21:35 -->
+<!-- last-verified: 2026-08-11 -->
 
 The cross-ID view no deep doc owns. Table-heavy, keyed by map ID, no
 prose. Package/library deps are NOT listed here (see `package.json` and
@@ -72,7 +72,7 @@ Host path base: `<dataDir>` = `%APPDATA%\pi-aftc-toolset\data` (override
 | --- | --- | --- | --- |
 | Footer dashboard | 1.4.2 | 1.4.1 commands, `/aftc-footer` | 1.2 (config prefs), 1.4.4 (turns.db read via 1.4.1) |
 | Subscription allowance | 1.4.2 line 5 | — (event-driven) | 1.4.3 in-memory snapshot |
-| Usage report | 1.4.5 tabs | `/usage-report`, `/usage-clear` | 1.4.4 turns/tasks, `usage-report/` app + `data.json` |
+| Usage report | 1.4.5 tabs | `/usage-report`, `/usage-clear` | 1.4.4 turns/tasks/errors, `usage-report/` app + `data.json` |
 | SSH | 1.6.5–1.6.9 | 1.6.1 (16 cmds + 20 tools) | 1.6.3 ssh.json |
 | aftc-codex | 1.7.3 menus | 1.7.3 commands, 1.7.4 tools | 1.7.1 live copy + seed (2.1), config prefs |
 | docx generator | 1.8.1 modals | `/docx`, `/docx-update` | target project docx/ (not this package) |

@@ -19,10 +19,12 @@
 
   <nav class="tabs" role="tablist" aria-label="Report sections">
     <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
-    <button class="tab" data-tab="models" role="tab" aria-selected="false">Models</button>
+    <button class="tab" data-tab="models" role="tab" aria-selected="false">Costs Per Model</button>
     <button class="tab" data-tab="thinking" role="tab" aria-selected="false">Thinking levels</button>
     <button class="tab" data-tab="timings" role="tab" aria-selected="false">Timings</button>
     <button class="tab" data-tab="projections" role="tab" aria-selected="false">Projections</button>
+    <button class="tab" data-tab="context" role="tab" aria-selected="false">Context &amp; allowance</button>
+    <button class="tab" data-tab="errors" role="tab" aria-selected="false">Errors</button>
   </nav>
 
   <!-- ======================= OVERVIEW ======================= -->
@@ -65,7 +67,7 @@
   <!-- ======================= MODELS ======================= -->
   <section class="tab-panel hidden" id="panel-models" role="tabpanel">
     <div class="toolbar">
-      <div class="panel-title" style="margin:0">Per-model cost report</div>
+      <div class="panel-title" style="margin:0">Costs Per Model</div>
       <label class="period-label">Period
         <select id="models-period">
           <option value="daily">Last 24 hours</option>
@@ -76,9 +78,11 @@
       </label>
     </div>
     <div class="panel" style="margin-bottom:10px">
-      <div class="panel-title">Cost by model <span class="panel-sub" id="models-chart-sub">all time</span></div>
+      <div class="panel-title">Avg cost per turn by model <span class="panel-sub" id="models-chart-sub">all time</span></div>
       <div class="chart-box sm"><canvas id="chart-models"></canvas></div>
     </div>
+    <div class="panel-title" style="margin:0 0 8px">Model verdicts</div>
+    <div class="panel-sub" style="display:block; margin:0 0 10px; margin-left:0">Note: verdicts need usage data, so a model you have not used in this period gets no verdict - it will appear once you use the model.</div>
     <div class="panel table-panel">
       <div class="table-wrap">
         <table id="models-table"></table>
@@ -162,6 +166,17 @@
 
   <!-- ======================= PROJECTIONS ======================= -->
   <section class="tab-panel hidden" id="panel-projections" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Cost projections from your usage</div>
+      <label class="period-label">Based on period
+        <select id="proj-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
     <div class="stat-grid" id="proj-cards"></div>
     <p class="note" id="proj-note"></p>
     <div class="panel table-panel">
@@ -170,10 +185,97 @@
       </div>
       <div id="proj-empty" class="empty" hidden>No data recorded yet.</div>
     </div>
-    <p class="note">Per-model figures assume each future day looks like your average <b>active day</b>
-    with that model (spend ÷ active days). The overall burn rate divides all-time spend by every
-    calendar day since recording began, including idle days. Rows marked <span class="est">~</span>
-    are estimates from fewer than 7 active days. Models with zero total cost are excluded.</p>
+    <p class="note">Projections are built from <b>your</b> usage rate: completed tasks per active day × the average cost of a completed task
+    (and turns per day × average cost per turn). Per-model rows assume each future day looks like your average <b>active day</b> with that model.
+    Rows marked <span class="est">~</span> are estimates from fewer than 7 active days. Models with zero total cost are excluded — a $0
+    model has nothing to project. The overall burn rate (all spend ÷ calendar days) is kept on the cards as the reference that includes idle days.</p>
+  </section>
+
+  <!-- ======================= CONTEXT & ALLOWANCE ======================= -->
+  <section class="tab-panel hidden" id="panel-context" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Context window &amp; allowance pressure</div>
+      <label class="period-label">Period
+        <select id="ctx-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="stat-grid" id="ctx-cards"></div>
+    <p class="note" id="ctx-note"></p>
+
+    <div class="panel" style="margin-bottom:10px">
+      <div class="panel-title">5-hour token burn by model <span class="panel-sub" id="ctx-burn-sub">all time · context-window equivalents per 5h</span></div>
+      <div class="chart-box sm"><canvas id="chart-ctx-burn"></canvas></div>
+    </div>
+
+    <h2>Context use by model <span class="section-meta">avg context at task start / end, % of window, growth per task</span></h2>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="ctx-table"></table>
+      </div>
+      <div id="ctx-empty" class="empty" hidden>No context data for this period.</div>
+    </div>
+
+    <h2>Allowance consumed per task <span class="section-meta">provider-reported 5-hour / weekly windows</span></h2>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="allow-table"></table>
+      </div>
+      <div id="allow-empty" class="empty" hidden>No allowance data for this period — only Codex, Claude, MiniMax, Z.ai GLM and Kimi subscriptions report an allowance.</div>
+    </div>
+    <p class="note">Context figures come from pi's own context estimate at task start (message sent) and task end (after the final answer),
+    divided by the model's declared context window. <b>Tasks until full</b> = how many tasks of the current average growth would fill the window.
+    <b>1M-window flag</b> fires when a model already burns more than 1,000,000 tokens per 5 hours — at that rate a 1M context window cannot be
+    sustained. The 5h / weekly allowance is provider-reported (a snapshot before and after each task); providers without an allowance endpoint
+    show N/A. Token burn rates are computed for every model.</p>
+  </section>
+
+  <!-- ======================= ERRORS ======================= -->
+  <section class="tab-panel hidden" id="panel-errors" role="tabpanel">
+    <div class="toolbar">
+      <div class="panel-title" style="margin:0">Failed calls — the unreliable models</div>
+      <label class="period-label">Period
+        <select id="err-period">
+          <option value="daily">Last 24 hours</option>
+          <option value="weekly">Last 7 days</option>
+          <option value="monthly">Last 28 days</option>
+          <option value="all" selected>All time</option>
+        </select>
+      </label>
+    </div>
+    <div class="stat-grid" id="err-cards"></div>
+    <p class="note" id="err-note"></p>
+
+    <div class="chart-grid">
+      <div class="panel">
+        <div class="panel-title">Failed calls by model <span class="panel-sub" id="err-model-sub">all time</span></div>
+        <div class="chart-box sm"><canvas id="chart-err-model"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Failed calls by type <span class="panel-sub" id="err-type-sub">all time</span></div>
+        <div class="chart-box sm"><canvas id="chart-err-type"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Failed calls per day <span class="panel-sub">last 30 days</span></div>
+      <div class="chart-box sm"><canvas id="chart-err-daily"></canvas></div>
+    </div>
+
+    <h2>Failure breakdown <span class="section-meta">per model × error type — sort to shame</span></h2>
+    <div class="panel table-panel">
+      <div class="table-wrap">
+        <table id="err-table"></table>
+      </div>
+      <div id="err-empty" class="empty" hidden>No failed calls in this period — every model behaved.</div>
+    </div>
+    <p class="note">A failed call is an assistant turn that ended with an error: rate limited (429), overloaded (5xx), model/endpoint not found (404),
+    auth failures, timeouts or network problems. Your own aborts (Escape) are <b>not</b> errors — they are counted as a stat on the Timings tab.
+    The error rate divides a model's failed calls by its completed tasks, so models used a lot are compared fairly.</p>
   </section>
 
   <footer>Generated by pi-aftc-toolset &middot; /usage-report &middot; All For The Code<br>Author Darcey.Lloyd@gmail.com</footer>

@@ -82,6 +82,19 @@ getSshJson(): string
 `<data-dir>/ssh.json`. Local SSH connection store.
 
 ```typescript
+getDeviceIdFile(): string
+getDeviceId(): string
+```
+
+`<data-dir>/device-id`. Per-installation owner id (one v4 UUID per data
+dir) tagging every recorded usage row locally and in the online mirror
+push, so rows in the shared mirror can be attributed back to this
+installation. `getDeviceId` creates the file atomically
+(exclusive-create; on `EEXIST` it re-reads the winner's value, so
+multiple pi windows/sub-agents on one machine agree) and never throws —
+a failure falls back to `''` so recording never breaks.
+
+```typescript
 migrateLegacyData(legacyDir?, newDir?): void
 ```
 

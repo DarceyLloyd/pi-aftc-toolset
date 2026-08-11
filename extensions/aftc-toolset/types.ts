@@ -41,6 +41,14 @@ export interface TurnRecord {
     cacheRead: number;
     /** Cache-write tokens for this turn. */
     cacheWrite: number;
+    /** Context used at message_end (pi's getContextUsage().tokens — the
+     *  input-side context estimate: system prompt + history). 0 when pi
+     *  had no estimate (e.g. aborted / empty turns). */
+    contextTokens: number;
+    /** Model's declared context window in tokens (pi's
+     *  getContextUsage().contextWindow, fallback to the model def's
+     *  contextWindow). 0 when unknown. */
+    contextWindow: number;
     /** True when this is the first assistant turn after a user message
      * (not an automated tool-call continuation). */
     isUserPrompt: boolean;
@@ -90,6 +98,53 @@ export interface TaskRecord {
     thinkingLevel: string;
     /** Number of assistant turns the task took. */
     turnCount: number;
+    /** Model's declared context window in tokens at task time (0 = unknown). */
+    contextWindow: number;
+    /** pi's context-usage estimate at task START (message_start of the user
+     *  prompt): the context that will be sent, before this task grows it. */
+    contextStartTokens: number;
+    /** pi's context-usage estimate at task END (last message_end): the
+     *  context after the final answer, input-side. */
+    contextEndTokens: number;
+    /** Provider label of the allowance snapshot (eg "ChatGPT Plus", "Z.ai
+     *  GLM") — provider-level, only when the active provider reports an
+     *  allowance. Empty when no snapshot was available. */
+    allowProvider: string;
+    /** 5-hour allowance used % at task start / end (provider-reported;
+     *  null when the provider exposes no 5h window). */
+    allow5hStart: number | null;
+    allow5hEnd: number | null;
+    /** Weekly allowance used % at task start / end (provider-reported;
+     *  null when the provider exposes no weekly window). */
+    allowWeeklyStart: number | null;
+    allowWeeklyEnd: number | null;
+}
+
+/**
+ * One failed LLM call (assistant turn that ended with stopReason "error" —
+ * network failure, rate limit, overloaded, 404, auth, timeout). Recorded by
+ * core.ts on the failing message_end via TurnRecorder.recordError. User
+ * aborts (stopReason "aborted") are NOT errors — they are counted as a stat
+ * from the tasks table. Error text is stored locally for the report's Errors
+ * tab; it never leaves the machine.
+ */
+export interface ErrorRecord {
+    /** Stable per-runtime-session id (matches TurnRecord.sessionId). */
+    sessionId: string;
+    /** 1-based user-prompt number the failed call belonged to. */
+    promptIndex: number;
+    /** ms since epoch at the failing message_end. */
+    timestamp: number;
+    /** Model that failed (eg "MiniMax-M3"). */
+    modelName: string;
+    /** Thinking level (eg "high", "low", "off"). */
+    thinkingLevel: string;
+    /** Classified category: "rate-limit" | "overloaded" | "not-found" |
+     *  "auth" | "timeout" | "network" | "other". */
+    errorType: string;
+    /** The raw error message from pi (provider text, may mention HTTP
+     *  status / retry-after). */
+    errorMessage: string;
 }
 /**
  * Surface that core.ts relies on from the thinking module.
@@ -102,6 +157,8 @@ export interface TurnRecorder {
     recordTurn(record: TurnRecord): void;
     /** Record one settled task (user prompt → settle, any outcome). See TaskRecord. */
     recordTask(record: TaskRecord): void;
+    /** Record one failed LLM call (stopReason "error"). See ErrorRecord. */
+    recordError(record: ErrorRecord): void;
 }
 
 // ──────────────────────────────────────────────────────────────────────

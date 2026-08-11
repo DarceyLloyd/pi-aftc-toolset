@@ -12,19 +12,25 @@
  * in its own terminal window — the server opens the browser, prints its
  * info, and self-terminates when the window closes or after 30 minutes
  * idle. No internet is needed: Chart.js ships locally. The report is
- * organised into five tabs:
+ * organised into seven tabs:
  *
- *   Overview      — headline stat cards (total cost, prompts, calls,
- *                   cache hit, active days), a daily-spend bar chart
- *                   (last 30 days), a cost-share doughnut with a window
- *                   selector (24h rolling / 1 Day ... 1 Year / All Time),
- *                   and three period summary cards (24h / 7d / 28d). The
- *                   per-model scoreboard only lists models that cost
- *                   something in the window ($0 models never appear) and
- *                   carries Avg / Longest / Shortest Task Time rows (from
- *                   the tasks table, by model × thinking level).
- *   Models        — per-model sortable table with a period selector,
- *                   a cost-by-model bar chart and a Task Time column.
+ *   Overview      — headline stat cards (total cost, cost per completed
+ *                   task, prompts, 5h/7d token burn, cache hit, active
+ *                   days), a daily-spend bar chart (last 30 days), a
+ *                   cost-share doughnut with a window selector (24h
+ *                   rolling / 1 Day ... 1 Year / All Time), and three
+ *                   period summary cards (24h / 7d / 28d). The per-model
+ *                   scoreboard always shows every row — cost rows only
+ *                   list models that cost something ($0 models never
+ *                   appear), usage / cache / timing rows include them —
+ *                   and carries Avg / Longest / Shortest Task Time rows,
+ *                   $ per completed task, the AI-per-user-prompt ratio
+ *                   and context-window use.
+ *   Models        — the hero / shame ranking: per-model sortable table
+ *                   with a period selector (cost, $/turn, $/task,
+ *                   prompts, AI/user ratio, cache, context use, errors,
+ *                   task time) and verdict badges calling out the best
+ *                   and worst of each metric.
  *   Thinking      — per-model × thinking-level sortable table with a
  *                   period selector and a Task Time column.
  *   Timings       — Task Time analysis from the tasks table: headline
@@ -33,20 +39,47 @@
  *                   task-time charts, a think / respond / tools-and-
  *                   overhead split, user- vs AI-turn timings, and the
  *                   top-10 longest completed tasks.
- *   Projections   — overall burn rate (avg $/day, projected month and
- *                   year from calendar days) plus per-model × thinking
- *                   $/day, $/week, $/month, $/year derived from
- *                   spend ÷ ACTIVE days (not active hours — the old
- *                   hourly scaling produced absurd figures). Zero-cost
- *                   model rows are excluded.
+ *   Projections   — usage-rate cost projections: per-model $/turn,
+ *                   $/completed task, tasks/day and projected 7/30/90/365
+ *                   day spend built from YOUR pace (tasks per active day
+ *                   × cost per task). Period selector. $0 models excluded.
+ *   Context & allowance — context-window pressure per model × thinking
+ *                   (avg context at task start / end, % of window, growth
+ *                   per task, tasks until the window fills, 5h token burn
+ *                   in window equivalents, 1M-window feasibility flags)
+ *                   plus provider-reported 5h / weekly allowance consumed
+ *                   per task and tasks-until-full projections.
+ *   Errors        — failed calls per model × error type (rate limit,
+ *                   overloaded, not found, auth, timeout, network) with a
+ *                   fair error rate (errors ÷ completed tasks). User
+ *                   aborts are NOT errors — they are a stat on Timings.
  *
  * Projection math:
- *   per model×thinking: costPerDay = totalCost / activeDays, where
- *   activeDays = distinct calendar days with at least one turn. Week =
- *   ×7, month = ×30.44, year = ×365. Rows with fewer than 7 active
- *   days are flagged as estimates.
- *   overall: avgDailySpend = totalCost / calendarDays since the first
- *   recorded turn. Flagged as an estimate below 14 calendar days.
+ *   per model: costPerTurn = cost ÷ turns, costPerTask = completed-task
+ *   cost ÷ completed tasks, tasksPerDay = completed tasks ÷ active days.
+ *   Projections = tasksPerDay × costPerTask × N days. Rows with fewer
+ *   than 7 active days are flagged as estimates.
+ *   overall: the same math over all paid-cost models; spendPerDay (all
+ *   spend ÷ calendar days) is kept as the reference burn rate that
+ *   includes idle days. Flagged as an estimate below 14 calendar days.
+ *
+ * Context / allowance math:
+ *   contextStart/End = pi's getContextUsage() tokens at task start
+ *   (message_start of the user prompt) and task end (last message_end),
+ *   recorded into the tasks table by core.ts. Old rows (0) fall back to
+ *   turn-derived values (first turn's cache_read + input, last turn's +
+ *   output). % window = end ÷ the model's declared contextWindow.
+ *   tasksUntilFull = (window − avgEnd) ÷ avgGrowth. The 1M flag fires
+ *   when a model's 5-hour token burn ≥ 1,000,000.
+ *   Allowance: core.ts snapshots the provider-reported 5h / weekly
+ *   used-% before and after each task; avg % per task and tasks-until-
+ *   100% are derived here. Providers without an allowance endpoint
+ *   (most) leave the columns NULL and the tab shows N/A.
+ *
+ * Recording (v1.21.x): turns gain context_window/context_tokens; tasks
+ * gain context start/end + allowance snapshots; a new errors table holds
+ * one row per failed LLM call (stopReason "error", classified). Old DBs
+ * migrate in place via db.ts MIGRATIONS.
  *
  * Per AGENTS.md, this is a self-contained feature module: it owns
  * no shared state with other feature modules and is wired into pi by
@@ -81,17 +114,31 @@ type ModelRow = {
     aiPrompts: number;
     /** AI (self-prompted) turns per user prompt. */
     aiPerUserPrompt: number;
+    /** Total cost ÷ total turns (0 for $0 subscription models). */
+    costPerTurn: number;
     avgCostPerUserPrompt: number;
     avgCacheRate: number;
     avgThinkingMs: number;
     avgResponseMs: number;
     /** Avg completed-task time (tasks table) for this model in the window. */
     avgTaskMs: number;
+    /** Avg cost per COMPLETED task (task cost from the turns join ÷ completed
+     *  task count). 0 when the model has no completed tasks in the window. */
+    costPerTask: number;
+    /** Completed-task count in the window. */
+    completedTasks: number;
+    /** Failed LLM calls for this model in the window (errors table). */
+    errorCount: number;
+    /** Errors ÷ completed tasks (null when the model has no completed tasks). */
+    errorRate: number | null;
+    /** Avg context used at task end ÷ the model's context window (0..1;
+     *  null when no context data was recorded for this model). */
+    contextEndPct: number | null;
 };
 
 type ModelThinkingRow = ModelRow & { thinkingLevel: string };
 
-type ScoreboardEntry = { label: string; model: string; value: string; /** When set, the row renders N/A with this tooltip reason. */ na?: string };
+type ScoreboardEntry = { label: string; model: string; value: string; /** When set, the row renders N/A with this tooltip reason. */ na?: string; /** When set, an info-icon tooltip explains the metric (hover). */ hint?: string };
 
 type PeriodSummary = {
     label: string;
@@ -99,10 +146,18 @@ type PeriodSummary = {
     calls: number;
     prompts: number;
     aiPrompts: number;
-    scoreboard: ScoreboardEntry[];
+    /** Best-per-metric rows (the "Best AI Models" pane section). */
+    best: ScoreboardEntry[];
+    /** Worst-per-metric rows (the "Worst AI Models" pane section). */
+    worst: ScoreboardEntry[];
 };
 
-type DayPoint = { day: string; label: string; cost: number; calls: number; prompts: number };
+type DayPoint = { day: string; label: string; cost: number; calls: number; prompts: number;
+    /** Tooltip extras: most costly / cheapest model of the day (paid usage only) and the
+     *  longest COMPLETED task of the day (empty string / 0 when not applicable). */
+    mostCostlyModel: string; mostCostlyCost: number;
+    cheapestModel: string; cheapestCost: number;
+    longestTaskModel: string; longestTaskMs: number; };
 
 type TaskModelPoint = { modelName: string; avgTaskMs: number; tasks: number };
 
@@ -134,19 +189,120 @@ type TimingsWindow = {
 
 type TaskDayPoint = { day: string; label: string; avgTaskMs: number; tasks: number };
 
-type ProjectionRow = {
+type ContextRow = {
     modelName: string;
     thinkingLevel: string;
+    /** Tasks with context data in the window. */
+    tasks: number;
+    /** Model's declared context window (tokens; 0 = unknown). */
+    contextWindow: number;
+    /** Avg context at task start (tokens; null = no data). */
+    avgStartTokens: number | null;
+    /** Avg context at task end (tokens; null = no data). */
+    avgEndTokens: number | null;
+    /** Avg end ÷ window (0..1; null when window or end unknown). */
+    avgEndPct: number | null;
+    /** Avg context growth per task (max(0, end - start); null = no data). */
+    avgGrowth: number | null;
+    /** Estimated completed tasks until the context window fills
+     *  ((window - avgEnd) / avgGrowth; null when not computable). */
+    tasksUntilFull: number | null;
+    /** Tokens burned (input + output + cache-read) in the last 5 hours. */
+    fiveHourBurn: number;
+    /** Tokens burned in the last 7 days. */
+    weeklyBurn: number;
+    /** Context-window equivalents burned per 5 hours (null = window unknown). */
+    fiveHourWindows: number | null;
+    /** True when the 5-hour burn already exceeds 1,000,000 tokens — a 1M
+     *  context window cannot be sustained at this burn rate. */
+    millionFlag: boolean;
+};
+
+type AllowanceRow = {
+    /** Provider label of the allowance snapshot (eg "ChatGPT Plus"). */
+    provider: string;
+    /** Tasks that carried an allowance snapshot. */
+    tasks: number;
+    /** Avg 5-hour allowance % consumed per task (null = no snapshot pairs). */
+    avg5hPerTask: number | null;
+    /** Avg weekly allowance % consumed per task (null = no snapshot pairs). */
+    avgWeeklyPerTask: number | null;
+    /** Avg 5-hour used % at task end across the window. */
+    avg5hEnd: number | null;
+    /** Avg weekly used % at task end across the window. */
+    avgWeeklyEnd: number | null;
+    /** Tasks where the 5h window reset mid-task (end < start). */
+    fiveHourResets: number;
+    /** Tasks until the 5h window reaches 100% at the current rate. */
+    tasksUntil5hFull: number | null;
+    /** Tasks until the weekly window reaches 100% at the current rate. */
+    tasksUntilWeeklyFull: number | null;
+};
+
+type AllowanceLatest = {
+    provider: string;
+    fiveHourUsed: number | null;
+    weeklyUsed: number | null;
+    at: number;
+};
+
+type ErrorTypeCount = { type: string; count: number };
+
+type ErrorModelRow = { modelName: string; errorType: string; count: number; lastTs: number };
+
+type ErrorModelRate = { modelName: string; errors: number; completedTasks: number; rate: number | null };
+
+type ErrorStats = {
+    total: number;
+    byType: ErrorTypeCount[];
+    byModel: ErrorModelRow[];
+    modelRates: ErrorModelRate[];
+};
+
+type ErrorDayPoint = { day: string; label: string; count: number };
+
+type ProjectionRow = {
+    modelName: string;
     activeDays: number;
     turns: number;
     userPrompts: number;
-    aiPrompts: number;
+    /** Completed tasks in the window. */
+    completedTasks: number;
     cost: number;
-    costPerDay: number;
-    costPerWeek: number;
-    costPerMonth: number;
-    costPerYear: number;
+    costPerTurn: number;
+    /** Avg cost per completed task (null = no completed tasks). */
+    costPerTask: number | null;
+    /** Cost ÷ active days. */
+    spendPerDay: number;
+    /** Completed tasks ÷ active days. */
+    tasksPerDay: number;
+    /** Turns ÷ active days. */
+    turnsPerDay: number;
+    /** Usage-rate projections: tasksPerDay × costPerTask × N days. */
+    projected7d: number | null;
+    projected30d: number | null;
+    projected90d: number | null;
+    projected365d: number | null;
+    /** True when fewer than ESTIMATE_MIN_ACTIVE_DAYS active days. */
     estimated: boolean;
+};
+
+type ProjectionSummary = {
+    rows: ProjectionRow[];
+    totalCost: number;
+    avgCostPerTurn: number;
+    avgCostPerTask: number | null;
+    completedTasks: number;
+    activeDays: number;
+    calendarDays: number;
+    tasksPerDay: number;
+    spendPerDay: number;
+    projected7d: number | null;
+    projected30d: number | null;
+    projected90d: number | null;
+    projected365d: number | null;
+    estimated: boolean;
+    note: string;
 };
 
 type ReportTotals = {
@@ -169,6 +325,18 @@ type ReportTotals = {
     calendarDays: number;
     avgDailySpend: number;
     firstTurnMs: number;
+    /** Completed tasks (stop_reason='complete') across all time. */
+    completedTasks: number;
+    /** Total completed-task cost (turns join) ÷ completed tasks. */
+    avgCostPerTask: number | null;
+    /** Tokens burned (input + output + cache-read) in the last 5 hours / 7 days. */
+    fiveHourBurn: number;
+    sevenDayBurn: number;
+    /** The single model that burned the most tokens in the last 5 hours
+     *  (empty string when there is no usage) — the Overview "worst 5h
+     *  burner" card. Tie broken alphabetically for determinism. */
+    worstBurnModel: string;
+    worstBurnTokens: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -176,10 +344,15 @@ type ReportTotals = {
 // ---------------------------------------------------------------------------
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
+const WEEK_MS = 7 * DAY_MS;
 const SERIES_DAYS = 30;
 const DAYS_PER_MONTH = 30.44;
 const ESTIMATE_MIN_ACTIVE_DAYS = 7;
 const ESTIMATE_MIN_CALENDAR_DAYS = 14;
+/** A 1M-token context window cannot be sustained when a model burns more
+ *  than this many tokens per 5-hour window. */
+const MILLION = 1_000_000;
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Scoreboard N/A tooltip reasons (a row stays visible as N/A whenever its
@@ -187,10 +360,9 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 const NA_COST = "Not available - no model in this period has a recorded cost. Subscription providers often don't give a per-turn price, so cost averages can't be calculated.";
 const NA_NO_TURNS = "Not available - no turns were recorded in this period.";
 const NA_NO_PROMPTS = "Not available - no user-prompt turns were recorded in this period.";
-const NA_ONE_MODEL = "Not available - only one model had user-prompt turns in this period.";
 const NA_NO_TASKS = "Not available - no completed tasks were recorded in this period.";
-const NA_NO_RESPONSE = "Not available - no response-time data was recorded in this period.";
-const NA_NO_THINK = "Not available - no thinking-time data in this period (non-reasoning models record no think time).";
+const NA_COST_TASK = "Not available - no completed-task cost in this period (only models with a real cost per completed task qualify).";
+const NA_NO_CONTEXT = "Not available - no context-window data in this period (recorded from pi's context estimate; rows recorded before this feature lack it).";
 
 function num(v: unknown): number { return Number(v) || 0; }
 function safeDiv(a: number, b: number): number { return b > 0 ? a / b : 0; }
@@ -243,6 +415,16 @@ const CACHE_RATE_SQL = `AVG(CAST(cache_read AS REAL) / NULLIF(cache_read + input
 const PAID_TURNS_SQL = `COALESCE(SUM(CASE WHEN cost_usd > 0 THEN 1 ELSE 0 END), 0)`;
 const PAID_USER_PROMPT_SQL = `COALESCE(SUM(CASE WHEN cost_usd > 0 THEN user_prompt ELSE 0 END), 0)`;
 
+/** WHERE fragment + params for a bounded time window (calendar periods
+ *  like "Last Week (Mon-Sun)" need an upper bound; `col` lets callers
+ *  alias the timestamp column, eg "t.timestamp"). */
+function windowWhere(since: number, until?: number, col = "timestamp"): { where: string; params: number[] } {
+    const params = [since];
+    let where = `${col} >= ?`;
+    if (until && until > since) { where += ` AND ${col} < ?`; params.push(until); }
+    return { where, params };
+}
+
 // ---------------------------------------------------------------------------
 // UsageModule
 // ---------------------------------------------------------------------------
@@ -256,7 +438,8 @@ class UsageModule {
     // Collectors
     // -------------------------------------------------------------------
 
-    private windowStatsForModel(db: any, modelName: string, since: number): ModelRow {
+    private windowStatsForModel(db: any, modelName: string, since: number, until?: number): ModelRow {
+        const w = windowWhere(since, until);
         const row = db.prepare(
             `SELECT COUNT(*) AS turns,
                     ${USER_PROMPT_SQL} AS user_count,
@@ -266,8 +449,8 @@ class UsageModule {
                     AVG(thinking_ms) AS avg_thinking,
                     AVG(response_ms) AS avg_response
              FROM turns
-             WHERE model_name = ? AND timestamp >= ?`,
-        ).get(modelName, since) as any;
+             WHERE model_name = ? AND ${w.where}`,
+        ).get(modelName, ...w.params) as any;
         const turns = num(row.turns);
         const userPrompts = num(row.user_count);
         const paidUserPrompts = num(row.paid_user_count);
@@ -280,23 +463,44 @@ class UsageModule {
             aiPrompts: Math.max(0, turns - userPrompts),
             aiPerUserPrompt: safeDiv(turns - userPrompts, userPrompts),
             avgCostPerUserPrompt: safeDiv(cost, paidUserPrompts),
+            costPerTurn: safeDiv(cost, turns),
             avgCacheRate: num(row.avg_cache_rate),
             avgThinkingMs: num(row.avg_thinking),
             avgResponseMs: num(row.avg_response),
             avgTaskMs: 0,
+            costPerTask: 0,
+            completedTasks: 0,
+            errorCount: 0,
+            errorRate: null,
+            contextEndPct: null,
         };
     }
 
     /** Per-model rows for a time window. Models with no turns in the window are omitted. */
-    private collectWindowedModels(db: any, since: number): ModelRow[] {
+    private collectWindowedModels(db: any, since: number, until?: number): ModelRow[] {
         const models = (db.prepare(
             `SELECT DISTINCT model_name FROM turns WHERE model_name IS NOT NULL AND model_name != '' ORDER BY model_name`,
         ).all() as Array<{ model_name: string }>).map(r => r.model_name);
-        const taskTimes = this.taskTimeByModel(db, since);
+        const taskTimes = this.taskTimeByModel(db, since, until);
+        const taskCost = this.taskCostByModel(db, since, until);
+        const ctxEnd = this.contextEndPctByModel(db, since, until);
+        const errStats = this.errorStatsByModel(db, since, until);
         return models
-            .map(m => this.windowStatsForModel(db, m, since))
+            .map(m => this.windowStatsForModel(db, m, since, until))
             .filter(r => r.turns > 0)
-            .map(r => ({ ...r, avgTaskMs: taskTimes.get(r.modelName) || 0 }));
+            .map(r => {
+                const tc = taskCost.get(r.modelName);
+                const es = errStats.get(r.modelName);
+                return {
+                    ...r,
+                    avgTaskMs: taskTimes.get(r.modelName) || 0,
+                    costPerTask: tc && tc.tasks > 0 ? tc.cost / tc.tasks : 0,
+                    completedTasks: tc?.tasks || 0,
+                    errorCount: es?.errors || 0,
+                    errorRate: es?.rate ?? null,
+                    contextEndPct: ctxEnd.get(r.modelName) ?? null,
+                };
+            });
     }
 
     /** Per-model × thinking-level rows for a time window. */
@@ -318,12 +522,15 @@ class UsageModule {
              ORDER BY cost DESC`,
         ).all(...(since > 0 ? [since] : [])) as any[];
         const taskTimes = this.taskTimeByModelThinking(db, since);
+        const taskCost = this.taskCostByModel(db, since);
+        const ctxEnd = this.contextEndPctByModel(db, since);
         return rows.map(r => {
             const turns = num(r.turns);
             const userPrompts = num(r.user_count);
             const paidUserPrompts = num(r.paid_user_count);
             const cost = num(r.cost);
             const level = r.thinking_level || "(none)";
+            const tc = taskCost.get(r.model_name);
             return {
                 modelName: r.model_name,
                 thinkingLevel: level,
@@ -333,10 +540,16 @@ class UsageModule {
                 aiPrompts: Math.max(0, turns - userPrompts),
                 aiPerUserPrompt: safeDiv(turns - userPrompts, userPrompts),
                 avgCostPerUserPrompt: safeDiv(cost, paidUserPrompts),
+                costPerTurn: safeDiv(cost, turns),
                 avgCacheRate: num(r.avg_cache_rate),
                 avgThinkingMs: num(r.avg_thinking),
                 avgResponseMs: num(r.avg_response),
                 avgTaskMs: taskTimes.get(`${r.model_name}|${level}`) || 0,
+                costPerTask: tc && tc.tasks > 0 ? tc.cost / tc.tasks : 0,
+                completedTasks: tc?.tasks || 0,
+                errorCount: 0,
+                errorRate: null,
+                contextEndPct: ctxEnd.get(r.model_name) ?? null,
             };
         });
     }
@@ -356,6 +569,33 @@ class UsageModule {
              GROUP BY day`,
         ).all(start.getTime()) as any[];
         const byDay = new Map<string, any>(rows.map(r => [String(r.day), r]));
+        // Per-day per-model cost — powers the daily-chart tooltip's "most
+        // costly / cheapest" lines (paid usage only).
+        const modelCosts = db.prepare(
+            `SELECT date(timestamp / 1000, 'unixepoch', 'localtime') AS day, model_name AS model,
+                    COALESCE(SUM(cost_usd), 0) AS cost
+             FROM turns
+             WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY day, model_name`,
+        ).all(start.getTime()) as any[];
+        const dayModels = new Map<string, Array<{ model: string; cost: number }>>();
+        for (const r of modelCosts) {
+            const day = String(r.day);
+            if (!dayModels.has(day)) dayModels.set(day, []);
+            dayModels.get(day)!.push({ model: String(r.model), cost: num(r.cost) });
+        }
+        // Per-day longest COMPLETED task — the tooltip's "longest task" line.
+        const longestTasks = db.prepare(
+            `SELECT date(timestamp / 1000, 'unixepoch', 'localtime') AS day, model_name AS model, MAX(task_ms) AS max_task
+             FROM tasks
+             WHERE timestamp >= ? AND stop_reason = 'complete'
+                   AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY day`,
+        ).all(start.getTime()) as any[];
+        const dayLongest = new Map<string, { model: string; taskMs: number }>();
+        for (const r of longestTasks) {
+            dayLongest.set(String(r.day), { model: String(r.model), taskMs: num(r.max_task) });
+        }
         const out: DayPoint[] = [];
         for (let i = SERIES_DAYS - 1; i >= 0; i--) {
             const d = new Date(now);
@@ -363,126 +603,111 @@ class UsageModule {
             d.setDate(d.getDate() - i);
             const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
             const row = byDay.get(key);
+            const models = dayModels.get(key) || [];
+            const paid = models.filter(m => m.cost > 0);
+            let mostCostlyModel = "", mostCostlyCost = 0, cheapestModel = "", cheapestCost = 0;
+            if (paid.length > 0) {
+                paid.sort((a, b) => b.cost - a.cost);
+                mostCostlyModel = paid[0].model;
+                mostCostlyCost = paid[0].cost;
+                const cheapest = models.slice().sort((a, b) => a.cost - b.cost)[0];
+                cheapestModel = cheapest.model;
+                cheapestCost = cheapest.cost;
+            }
+            const lt = dayLongest.get(key);
             out.push({
                 day: key,
                 label: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`,
                 cost: num(row?.cost),
                 calls: num(row?.calls),
                 prompts: num(row?.prompts),
+                mostCostlyModel,
+                mostCostlyCost,
+                cheapestModel,
+                cheapestCost,
+                longestTaskModel: lt?.model || "",
+                longestTaskMs: lt?.taskMs || 0,
             });
         }
         return out;
     }
 
-    private summarizePeriod(rows: ModelRow[], label: string, taskStats: { avgMs: number; count: number }, taskTimes: Map<string, number>): PeriodSummary {
+    /** One Period summary pane: totals + a Best / Worst split of the key
+     *  metrics. Cost rows (cheapest / most costly, $ per task) only consider
+     *  models that cost something; usage / cache / timing / ratio rows
+     *  consider ALL models. Every row is always shown; an uncomputable
+     *  metric renders N/A with a reason tooltip. */
+    private summarizePeriod(rows: ModelRow[], label: string): PeriodSummary {
         const cost = rows.reduce((s, r) => s + r.cost, 0);
         const calls = rows.reduce((s, r) => s + r.turns, 0);
         const prompts = rows.reduce((s, r) => s + r.userPrompts, 0);
 
-        // Cost rows (cheapest / most costly) only consider models that
-        // COST something — a cost average over $0 (subscription) models is
-        // meaningless. Usage / cache / timing rows consider ALL models:
-        // those metrics exist for subscription models too. EVERY row is
-        // always shown; an uncomputable metric renders N/A + a tooltip
-        // giving the reason (it never silently disappears).
-        const paid = rows.filter(r => r.cost > 0);
-
-        const scoreboard: ScoreboardEntry[] = [];
-        const naRow = (rowLabel: string, reason: string): void => {
-            scoreboard.push({ label: rowLabel, model: "", value: "", na: reason });
+        const best: ScoreboardEntry[] = [];
+        const worst: ScoreboardEntry[] = [];
+        const naRow = (list: ScoreboardEntry[], rowLabel: string, reason: string): void => {
+            list.push({ label: rowLabel, model: "", value: "", na: reason });
         };
 
-        // Cheapest / most costly — paid models only, N/A when none.
+        // Cost per turn — paid models only, N/A when none.
+        const paid = rows.filter(r => r.cost > 0);
         if (paid.length > 0) {
             const byCpt = paid.slice().sort((a, b) => safeDiv(a.cost, a.turns) - safeDiv(b.cost, b.turns));
-            scoreboard.push({ label: "Cheapest model", model: byCpt[0].modelName, value: fmtMoneyServer(safeDiv(byCpt[0].cost, byCpt[0].turns)) });
-            scoreboard.push({ label: "Most costly model", model: byCpt[byCpt.length - 1].modelName, value: fmtMoneyServer(safeDiv(byCpt[byCpt.length - 1].cost, byCpt[byCpt.length - 1].turns)) });
+            best.push({ label: "Cheapest model", model: byCpt[0].modelName, value: fmtMoneyServer(safeDiv(byCpt[0].cost, byCpt[0].turns)) });
+            worst.push({ label: "Most costly model", model: byCpt[byCpt.length - 1].modelName, value: fmtMoneyServer(safeDiv(byCpt[byCpt.length - 1].cost, byCpt[byCpt.length - 1].turns)) });
         } else {
-            naRow("Cheapest model", NA_COST);
-            naRow("Most costly model", NA_COST);
+            naRow(best, "Cheapest model", NA_COST);
+            naRow(worst, "Most costly model", NA_COST);
         }
 
-        // Most / least used by user-prompt count — all models.
+        // Cost per completed task — paid task-cost rows only (a $0
+        // subscription model has no task cost to compare).
+        const withTaskCost = rows.filter(r => r.costPerTask > 0 && r.completedTasks > 0);
+        if (withTaskCost.length > 0) {
+            const byTc = withTaskCost.slice().sort((a, b) => a.costPerTask - b.costPerTask);
+            best.push({ label: "Best value per task", model: byTc[0].modelName, value: fmtMoneyServer(byTc[0].costPerTask) });
+            worst.push({ label: "Most costly per task", model: byTc[byTc.length - 1].modelName, value: fmtMoneyServer(byTc[byTc.length - 1].costPerTask) });
+        } else {
+            naRow(best, "Best value per task", NA_COST_TASK);
+            naRow(worst, "Most costly per task", NA_COST_TASK);
+        }
+
+        // Task time — fastest / longest avg completed-task time. All models
+        // (a slow $0 model is still slow).
+        const withT = rows.filter(r => r.avgTaskMs > 0);
+        if (withT.length > 0) {
+            const byT = withT.slice().sort((a, b) => a.avgTaskMs - b.avgTaskMs);
+            best.push({ label: "Fastest tasks", model: byT[0].modelName, value: fmtMsServer(byT[0].avgTaskMs) });
+            worst.push({ label: "Longest task time", model: byT[byT.length - 1].modelName, value: fmtMsServer(byT[byT.length - 1].avgTaskMs) });
+        } else {
+            naRow(best, "Fastest tasks", NA_NO_TASKS);
+            naRow(worst, "Longest task time", NA_NO_TASKS);
+        }
+
+        // AI (self-prompted) turns per user prompt — efficiency. Lower is
+        // better: fewer tool-call loops per prompt you type. All models.
         const withUp = rows.filter(r => r.userPrompts > 0);
         if (withUp.length > 0) {
-            const byUp = withUp.slice().sort((a, b) => b.userPrompts - a.userPrompts);
-            scoreboard.push({ label: "Most used model", model: byUp[0].modelName, value: byUp[0].userPrompts.toLocaleString("en-US") });
-            if (byUp.length > 1)
-                scoreboard.push({ label: "Least used model", model: byUp[byUp.length - 1].modelName, value: byUp[byUp.length - 1].userPrompts.toLocaleString("en-US") });
-            else
-                naRow("Least used model", NA_ONE_MODEL);
-        } else {
-            naRow("Most used model", NA_NO_PROMPTS);
-            naRow("Least used model", NA_NO_PROMPTS);
-        }
-
-        // Task Time — avg wall-clock time from user prompt to the agent
-        // settling, over the window's completed tasks (tasks table). Sits
-        // under the used-model rows; independent of model cost.
-        if (taskStats.count > 0) {
-            scoreboard.push({
-                label: "Avg Task Time",
-                model: fmtMsServer(taskStats.avgMs),
-                value: `${taskStats.count} task${taskStats.count === 1 ? "" : "s"}`,
+            const byRatio = withUp.slice().sort((a, b) => a.aiPerUserPrompt - b.aiPerUserPrompt);
+            best.push({ label: "Most efficient prompting", model: byRatio[0].modelName, value: byRatio[0].aiPerUserPrompt.toFixed(1) });
+            worst.push({
+                label: "Auto-prompt hog",
+                model: byRatio[byRatio.length - 1].modelName,
+                value: byRatio[byRatio.length - 1].aiPerUserPrompt.toFixed(1),
+                hint: "How many AI (self-prompted) turns each of your prompts triggers. A high number means the model keeps looping through tool calls on its own before it finishes - more time and tokens per prompt.",
             });
         } else {
-            naRow("Avg Task Time", NA_NO_TASKS);
+            naRow(best, "Most efficient prompting", NA_NO_PROMPTS);
+            naRow(worst, "Auto-prompt hog", NA_NO_PROMPTS);
         }
 
-        // Longest / shortest avg task time by model x thinking level
-        // (tasks table, completed tasks only). Row keys are
-        // "model|thinking" (taskTimeByModelThinking format).
-        const taskEntries = Array.from(taskTimes.entries())
-            .filter(([, avgMs]) => avgMs > 0)
-            .sort((a, b) => b[1] - a[1]);
-        if (taskEntries.length > 0) {
-            const pushTaskRow = (rowLabel: string, entry: [string, number]): void => {
-                const sep = entry[0].indexOf("|");
-                const modelName = entry[0].slice(0, sep);
-                const thinkingLevel = entry[0].slice(sep + 1);
-                scoreboard.push({
-                    label: rowLabel,
-                    model: modelName,
-                    value: `${thinkingLevel} · ${fmtMsServer(entry[1])}`,
-                });
-            };
-            pushTaskRow("Longest Avg Task Time", taskEntries[0]);
-            pushTaskRow("Shortest Avg Task Time", taskEntries[taskEntries.length - 1]);
-        } else {
-            naRow("Longest Avg Task Time", NA_NO_TASKS);
-            naRow("Shortest Avg Task Time", NA_NO_TASKS);
-        }
-
-        // Cache hit rate — all models; best = highest %, worst = lowest %.
+        // Cache hit — best = highest %, worst = lowest %. All models.
         if (rows.length > 0) {
             const byCache = rows.slice().sort((a, b) => b.avgCacheRate - a.avgCacheRate);
-            scoreboard.push({ label: "Best cache hit", model: byCache[0].modelName, value: fmtPctServer(byCache[0].avgCacheRate) });
-            scoreboard.push({ label: "Worst cache hit", model: byCache[byCache.length - 1].modelName, value: fmtPctServer(byCache[byCache.length - 1].avgCacheRate) });
+            best.push({ label: "Best cache hit", model: byCache[0].modelName, value: fmtPctServer(byCache[0].avgCacheRate) });
+            worst.push({ label: "Worst cache hit", model: byCache[byCache.length - 1].modelName, value: fmtPctServer(byCache[byCache.length - 1].avgCacheRate) });
         } else {
-            naRow("Best cache hit", NA_NO_TURNS);
-            naRow("Worst cache hit", NA_NO_TURNS);
-        }
-
-        // Response time — all models; best = lowest avg (0 = no data).
-        const withRt = rows.filter(r => r.avgResponseMs > 0);
-        if (withRt.length > 0) {
-            const byRt = withRt.slice().sort((a, b) => a.avgResponseMs - b.avgResponseMs);
-            scoreboard.push({ label: "Best response time", model: byRt[0].modelName, value: fmtMsServer(byRt[0].avgResponseMs) });
-            scoreboard.push({ label: "Worst response time", model: byRt[byRt.length - 1].modelName, value: fmtMsServer(byRt[byRt.length - 1].avgResponseMs) });
-        } else {
-            naRow("Best response time", NA_NO_RESPONSE);
-            naRow("Worst response time", NA_NO_RESPONSE);
-        }
-
-        // Think time — all models; best = lowest avg (0 = non-reasoning).
-        const withTt = rows.filter(r => r.avgThinkingMs > 0);
-        if (withTt.length > 0) {
-            const byTt = withTt.slice().sort((a, b) => a.avgThinkingMs - b.avgThinkingMs);
-            scoreboard.push({ label: "Best think time", model: byTt[0].modelName, value: fmtMsServer(byTt[0].avgThinkingMs) });
-            scoreboard.push({ label: "Worst think time", model: byTt[byTt.length - 1].modelName, value: fmtMsServer(byTt[byTt.length - 1].avgThinkingMs) });
-        } else {
-            naRow("Best think time", NA_NO_THINK);
-            naRow("Worst think time", NA_NO_THINK);
+            naRow(best, "Best cache hit", NA_NO_TURNS);
+            naRow(worst, "Worst cache hit", NA_NO_TURNS);
         }
 
         return {
@@ -491,23 +716,24 @@ class UsageModule {
             calls,
             prompts,
             aiPrompts: Math.max(0, calls - prompts),
-            scoreboard,
+            best,
+            worst,
         };
     }
 
-    // -------------------------------------------------------------------
     // Task-time collectors (tasks table)
     // -------------------------------------------------------------------
 
     /** Avg completed-task time per model in a window (tasks table). */
-    private taskTimeByModel(db: any, since: number): Map<string, number> {
+    private taskTimeByModel(db: any, since: number, until?: number): Map<string, number> {
+        const w = windowWhere(since, until);
         const rows = db.prepare(
             `SELECT model_name, AVG(task_ms) AS avg_task
              FROM tasks
-             WHERE timestamp >= ? AND stop_reason = 'complete'
+             WHERE ${w.where} AND stop_reason = 'complete'
                    AND model_name IS NOT NULL AND model_name != ''
              GROUP BY model_name`,
-        ).all(since) as any[];
+        ).all(...w.params) as any[];
         return new Map(rows.map(r => [String(r.model_name), num(r.avg_task)]));
     }
 
@@ -521,15 +747,6 @@ class UsageModule {
              GROUP BY model_name, thinking_level`,
         ).all(since) as any[];
         return new Map(rows.map(r => [`${r.model_name}|${r.thinking_level || "(none)"}`, num(r.avg_task)]));
-    }
-
-    /** Completed-task stats for a window (feeds the period summaries). */
-    private windowTaskStats(db: any, since: number): { avgMs: number; count: number } {
-        const row = db.prepare(
-            `SELECT COUNT(*) AS n, COALESCE(AVG(task_ms), 0) AS avg_ms
-             FROM tasks WHERE timestamp >= ? AND stop_reason = 'complete'`,
-        ).get(since) as any;
-        return { avgMs: num(row.avg_ms), count: num(row.n) };
     }
 
     /** Cost-by-model slices for the Overview cost-share chart, one entry
@@ -704,6 +921,27 @@ class UsageModule {
             `SELECT COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', 'localtime')) AS n FROM turns`,
         ).get().n);
         const calendarDays = firstTurn > 0 ? Math.max(1, Math.ceil((now - firstTurn) / DAY_MS)) : 0;
+        // Completed-task unit economics + recent token burn (v1.21.x).
+        const taskRow = db.prepare(
+            `SELECT COUNT(*) AS completed, COALESCE(SUM(tu.cost), 0) AS task_cost
+             FROM tasks t
+             LEFT JOIN (
+                 SELECT session_id, prompt_index, SUM(cost_usd) AS cost
+                 FROM turns GROUP BY session_id, prompt_index
+             ) tu ON tu.session_id = t.session_id AND tu.prompt_index = t.prompt_index
+             WHERE t.stop_reason = 'complete'`,
+        ).get() as any;
+        const completedTasks = num(taskRow.completed);
+        const taskCost = num(taskRow.task_cost);
+        const burn = (since: number): number => num(db.prepare(
+            `SELECT COALESCE(SUM(input_tokens + output_tokens + cache_read), 0) AS burn
+             FROM turns WHERE timestamp >= ?`,
+        ).get(since).burn);
+        const worstBurn = db.prepare(
+            `SELECT model_name AS model, COALESCE(SUM(input_tokens + output_tokens + cache_read), 0) AS burn
+             FROM turns WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name ORDER BY burn DESC, model_name ASC LIMIT 1`,
+        ).get(now - FIVE_HOUR_MS) as any;
         return {
             totalCost,
             turnCount: turns,
@@ -724,75 +962,345 @@ class UsageModule {
             calendarDays,
             avgDailySpend: calendarDays > 0 ? totalCost / calendarDays : 0,
             firstTurnMs: firstTurn,
+            completedTasks,
+            avgCostPerTask: completedTasks > 0 ? taskCost / completedTasks : null,
+            fiveHourBurn: burn(now - FIVE_HOUR_MS),
+            sevenDayBurn: burn(now - WEEK_MS),
+            worstBurnModel: String(worstBurn?.model || ""),
+            worstBurnTokens: num(worstBurn?.burn),
+        };
+    }
+
+    // -------------------------------------------------------------------
+    // Task-cost / context / allowance / error collectors (v1.21.x)
+    // -------------------------------------------------------------------
+
+    /** Completed-task cost per model: task cost (turns join) ÷ completed
+     *  task count, for the window. Failed tasks never contribute. */
+    private taskCostByModel(db: any, since: number, until?: number): Map<string, { tasks: number; cost: number }> {
+        const w = windowWhere(since, until, "t.timestamp");
+        const rows = db.prepare(
+            `SELECT t.model_name AS model,
+                    COUNT(*) AS tasks,
+                    COALESCE(SUM(tu.cost), 0) AS cost
+             FROM tasks t
+             LEFT JOIN (
+                 SELECT session_id, prompt_index, SUM(cost_usd) AS cost
+                 FROM turns GROUP BY session_id, prompt_index
+             ) tu ON tu.session_id = t.session_id AND tu.prompt_index = t.prompt_index
+             WHERE ${w.where} AND t.stop_reason = 'complete'
+                   AND t.model_name IS NOT NULL AND t.model_name != ''
+             GROUP BY t.model_name`,
+        ).all(...w.params) as any[];
+        return new Map(rows.map(r => [String(r.model), { tasks: num(r.tasks), cost: num(r.cost) }]));
+    }
+
+    /** Avg context-at-task-end ÷ window per model (0..1) for the model rows. */
+    private contextEndPctByModel(db: any, since: number, until?: number): Map<string, number | null> {
+        const w = windowWhere(since, until);
+        const rows = db.prepare(
+            `SELECT model_name AS model, context_window AS win, AVG(context_end_tokens) AS avg_end
+             FROM tasks WHERE ${w.where} AND model_name IS NOT NULL AND model_name != ''
+                   AND context_window > 0 AND context_end_tokens > 0
+             GROUP BY model_name`,
+        ).all(...w.params) as any[];
+        const m = new Map<string, number | null>();
+        for (const r of rows) {
+            const win = num(r.win);
+            const end = num(r.avg_end);
+            m.set(String(r.model), win > 0 && end > 0 ? Math.min(1, end / win) : null);
+        }
+        return m;
+    }
+
+    /** Error count + rate (errors ÷ completed tasks) per model for the window. */
+    private errorStatsByModel(db: any, since: number, until?: number): Map<string, { errors: number; rate: number | null }> {
+        const w = windowWhere(since, until, "e.timestamp");
+        const wT = windowWhere(since, until, "t.timestamp");
+        const rows = db.prepare(
+            `SELECT e.model_name AS model, COUNT(*) AS errors,
+                    (SELECT COUNT(*) FROM tasks t
+                     WHERE t.model_name = e.model_name AND t.stop_reason = 'complete' AND ${wT.where}) AS completed
+             FROM errors e WHERE ${w.where} AND e.model_name IS NOT NULL AND e.model_name != ''
+             GROUP BY e.model_name`,
+        ).all(...wT.params, ...w.params) as any[];
+        const m = new Map<string, { errors: number; rate: number | null }>();
+        for (const r of rows) {
+            const completed = num(r.completed);
+            const errors = num(r.errors);
+            m.set(String(r.model), { errors, rate: completed > 0 ? errors / completed : null });
+        }
+        return m;
+    }
+
+    /** Everything the Errors tab needs for one period window. */
+    private collectErrorStats(db: any, since: number): ErrorStats {
+        const total = num(db.prepare(`SELECT COUNT(*) AS n FROM errors WHERE timestamp >= ?`).get(since).n);
+        const byType = (db.prepare(
+            `SELECT error_type AS type, COUNT(*) AS count FROM errors WHERE timestamp >= ? GROUP BY error_type ORDER BY count DESC`,
+        ).all(since) as any[]).map(r => ({ type: String(r.type), count: num(r.count) }));
+        const byModel = (db.prepare(
+            `SELECT model_name AS model, error_type AS type, COUNT(*) AS count, MAX(timestamp) AS last_ts
+             FROM errors WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name, error_type ORDER BY count DESC`,
+        ).all(since) as any[]).map(r => ({
+            modelName: String(r.model),
+            errorType: String(r.type),
+            count: num(r.count),
+            lastTs: num(r.last_ts),
+        }));
+        const modelRates = (db.prepare(
+            `SELECT e.model_name AS model, COUNT(*) AS errors,
+                    (SELECT COUNT(*) FROM tasks t
+                     WHERE t.model_name = e.model_name AND t.stop_reason = 'complete' AND t.timestamp >= ?) AS completed
+             FROM errors e WHERE e.timestamp >= ? AND e.model_name IS NOT NULL AND e.model_name != ''
+             GROUP BY e.model_name`,
+        ).all(since, since) as any[]).map(r => {
+            const completed = num(r.completed);
+            const errors = num(r.errors);
+            return { modelName: String(r.model), errors, completedTasks: completed, rate: completed > 0 ? errors / completed : null };
+        });
+        return { total, byType, byModel, modelRates };
+    }
+
+    /** Zero-filled per-day error counts for the last SERIES_DAYS local days. */
+    private collectErrorDailySeries(db: any, now: number): ErrorDayPoint[] {
+        const start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        start.setDate(start.getDate() - (SERIES_DAYS - 1));
+        const rows = db.prepare(
+            `SELECT date(timestamp / 1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS count
+             FROM errors WHERE timestamp >= ? GROUP BY day`,
+        ).all(start.getTime()) as any[];
+        const byDay = new Map<string, any>(rows.map(r => [String(r.day), r]));
+        const out: ErrorDayPoint[] = [];
+        for (let i = SERIES_DAYS - 1; i >= 0; i--) {
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() - i);
+            const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+            const row = byDay.get(key);
+            out.push({ day: key, label: `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`, count: num(row?.count) });
+        }
+        return out;
+    }
+
+    /** Tokens burned (input + output + cache-read) per model since a time. */
+    private tokenBurnByModel(db: any, since: number): Map<string, number> {
+        const rows = db.prepare(
+            `SELECT model_name AS model, COALESCE(SUM(input_tokens + output_tokens + cache_read), 0) AS burn
+             FROM turns WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name`,
+        ).all(since) as any[];
+        return new Map(rows.map(r => [String(r.model), num(r.burn)]));
+    }
+
+    /** Per model × thinking level context-pressure rows for one period.
+     *  Uses the task context columns when present, falls back to
+     *  turn-derived values for rows recorded before this feature. */
+    private collectContextStats(db: any, since: number, now: number): ContextRow[] {
+        const taskRows = db.prepare(
+            `SELECT model_name AS model, thinking_level AS lvl,
+                    COUNT(*) AS tasks, MAX(context_window) AS win,
+                    AVG(CASE WHEN context_start_tokens > 0 THEN context_start_tokens END) AS avg_start,
+                    AVG(CASE WHEN context_end_tokens > 0 THEN context_end_tokens END) AS avg_end
+             FROM tasks
+             WHERE timestamp >= ? AND model_name IS NOT NULL AND model_name != ''
+             GROUP BY model_name, thinking_level`,
+        ).all(since) as any[];
+        const fbRows = db.prepare(
+            `SELECT t.model_name AS model, t.thinking_level AS lvl,
+                    AVG(f.start_ctx) AS avg_start, AVG(f.end_ctx) AS avg_end
+             FROM tasks t
+             LEFT JOIN (
+                 SELECT session_id, prompt_index,
+                        MIN(cache_read + input_tokens) AS start_ctx,
+                        MAX(cache_read + input_tokens + output_tokens) AS end_ctx
+                 FROM turns WHERE timestamp >= ?
+                 GROUP BY session_id, prompt_index
+             ) f ON f.session_id = t.session_id AND f.prompt_index = t.prompt_index
+             WHERE t.timestamp >= ? AND t.model_name IS NOT NULL AND t.model_name != ''
+             GROUP BY t.model_name, t.thinking_level`,
+        ).all(since, since) as any[];
+        const fb = new Map(fbRows.map(r => [`${r.model}|${r.lvl || "(none)"}`, r]));
+        const burn5h = this.tokenBurnByModel(db, now - FIVE_HOUR_MS);
+        const burn7d = this.tokenBurnByModel(db, now - WEEK_MS);
+        return taskRows.map(r => {
+            const key = `${r.model}|${r.lvl || "(none)"}`;
+            const f = fb.get(key);
+            const win = num(r.win);
+            const avgStart = r.avg_start != null ? num(r.avg_start) : (f ? num(f.avg_start) : null);
+            const avgEnd = r.avg_end != null ? num(r.avg_end) : (f ? num(f.avg_end) : null);
+            const avgEndPct = win > 0 && avgEnd != null ? avgEnd / win : null;
+            const avgGrowth = avgStart != null && avgEnd != null ? Math.max(0, avgEnd - avgStart) : null;
+            const tasksUntilFull = (win > 0 && avgGrowth != null && avgGrowth > 0 && avgEnd != null)
+                ? Math.max(0, (win - avgEnd) / avgGrowth)
+                : null;
+            const fiveHourBurn = burn5h.get(String(r.model)) || 0;
+            return {
+                modelName: String(r.model),
+                thinkingLevel: String(r.lvl || "(none)"),
+                tasks: num(r.tasks),
+                contextWindow: win,
+                avgStartTokens: avgStart != null ? Math.round(avgStart) : null,
+                avgEndTokens: avgEnd != null ? Math.round(avgEnd) : null,
+                avgEndPct,
+                avgGrowth: avgGrowth != null ? Math.round(avgGrowth) : null,
+                tasksUntilFull,
+                fiveHourBurn,
+                weeklyBurn: burn7d.get(String(r.model)) || 0,
+                fiveHourWindows: win > 0 ? fiveHourBurn / win : null,
+                millionFlag: fiveHourBurn >= MILLION,
+            };
+        });
+    }
+
+    /** Per-provider allowance consumption rows for one period window. */
+    private collectAllowanceStats(db: any, since: number): AllowanceRow[] {
+        const rows = db.prepare(
+            `SELECT allow_provider AS provider, COUNT(*) AS tasks,
+                    AVG(CASE WHEN allow_5h_start IS NOT NULL AND allow_5h_end IS NOT NULL
+                             AND allow_5h_end >= allow_5h_start THEN allow_5h_end - allow_5h_start END) AS avg5h,
+                    AVG(CASE WHEN allow_weekly_start IS NOT NULL AND allow_weekly_end IS NOT NULL
+                             AND allow_weekly_end >= allow_weekly_start THEN allow_weekly_end - allow_weekly_start END) AS avg_weekly,
+                    AVG(allow_5h_end) AS avg5h_end,
+                    AVG(allow_weekly_end) AS avg_weekly_end,
+                    COALESCE(SUM(CASE WHEN allow_5h_end IS NOT NULL AND allow_5h_start IS NOT NULL
+                                 AND allow_5h_end < allow_5h_start THEN 1 ELSE 0 END), 0) AS five_resets
+             FROM tasks
+             WHERE timestamp >= ? AND allow_provider != ''
+             GROUP BY allow_provider`,
+        ).all(since) as any[];
+        return rows.map(r => {
+            const avg5h = r.avg5h != null ? num(r.avg5h) : null;
+            const avgWeekly = r.avg_weekly != null ? num(r.avg_weekly) : null;
+            const avg5hEnd = r.avg5h_end != null ? num(r.avg5h_end) : null;
+            const avgWeeklyEnd = r.avg_weekly_end != null ? num(r.avg_weekly_end) : null;
+            return {
+                provider: String(r.provider),
+                tasks: num(r.tasks),
+                avg5hPerTask: avg5h,
+                avgWeeklyPerTask: avgWeekly,
+                avg5hEnd,
+                avgWeeklyEnd,
+                fiveHourResets: num(r.five_resets),
+                tasksUntil5hFull: avg5h != null && avg5h > 0 && avg5hEnd != null ? Math.max(0, (100 - avg5hEnd) / avg5h) : null,
+                tasksUntilWeeklyFull: avgWeekly != null && avgWeekly > 0 && avgWeeklyEnd != null ? Math.max(0, (100 - avgWeeklyEnd) / avgWeekly) : null,
+            };
+        });
+    }
+
+    /** Latest allowance snapshot across all tasks (for the context cards). */
+    private latestAllowance(db: any): AllowanceLatest | null {
+        const r = db.prepare(
+            `SELECT allow_provider AS provider, allow_5h_end AS five, allow_weekly_end AS weekly, timestamp AS at
+             FROM tasks WHERE allow_5h_end IS NOT NULL OR allow_weekly_end IS NOT NULL
+             ORDER BY timestamp DESC LIMIT 1`,
+        ).get() as any;
+        if (!r) return null;
+        return {
+            provider: String(r.provider || ""),
+            fiveHourUsed: r.five != null ? num(r.five) : null,
+            weeklyUsed: r.weekly != null ? num(r.weekly) : null,
+            at: num(r.at),
         };
     }
 
     /**
-     * Cost projections.
+     * Cost projections — based on YOUR usage rate and average unit costs.
      *
-     * Per model × thinking level: costPerDay = totalCost / activeDays
-     * (distinct local calendar days with at least one turn), scaled to
-     * week (×7), month (×30.44) and year (×365). Rows with fewer than
-     * ESTIMATE_MIN_ACTIVE_DAYS active days are flagged as estimates.
-     * Model × thinking rows with zero total cost are excluded — a $0
-     * model has nothing to project.
+     * Per model: costPerTurn = cost ÷ turns, costPerTask = completed-task
+     * cost ÷ completed tasks, tasksPerDay = completed tasks ÷ active days.
+     * Projections = tasksPerDay × costPerTask × N days (the unit economics
+     * of what one task actually costs, scaled by how many tasks you run per
+     * day). Rows with fewer than ESTIMATE_MIN_ACTIVE_DAYS active days are
+     * flagged as estimates. Zero-cost models are excluded — a $0 model has
+     * nothing to project.
      *
-     * Overall: avgDailySpend = totalCost / calendarDays since the first
-     * recorded turn — the true burn rate, including idle days. Flagged
-     * as an estimate below ESTIMATE_MIN_CALENDAR_DAYS calendar days.
+     * Overall: the same math over all paid-cost models; spendPerDay (all
+     * spend ÷ calendar days) is kept as the reference burn rate that
+     * includes idle days. Flagged as an estimate below
+     * ESTIMATE_MIN_CALENDAR_DAYS calendar days.
      */
-    private computeProjections(db: any, totals: ReportTotals): any {
-        const rows = db.prepare(
-            `SELECT model_name,
-                    thinking_level,
+    private computeProjections(db: any, totals: ReportTotals, since: number): ProjectionSummary {
+        const turnsRows = db.prepare(
+            `SELECT model_name AS model,
                     COUNT(*) AS turns,
                     ${USER_PROMPT_SQL} AS user_count,
                     COALESCE(SUM(cost_usd), 0) AS cost,
                     COUNT(DISTINCT date(timestamp / 1000, 'unixepoch', 'localtime')) AS active_days
              FROM turns
              WHERE model_name IS NOT NULL AND model_name != ''
-             GROUP BY model_name, thinking_level
+             ${since > 0 ? "AND timestamp >= ?" : ""}
+             GROUP BY model_name
              ORDER BY cost DESC`,
-        ).all() as any[];
+        ).all(...(since > 0 ? [since] : [])) as any[];
+        const taskCost = this.taskCostByModel(db, since);
 
-        const projRows: ProjectionRow[] = rows.map(r => {
+        const projRows: ProjectionRow[] = turnsRows.map(r => {
             const cost = num(r.cost);
             const turns = num(r.turns);
             const userPrompts = num(r.user_count);
             const activeDays = Math.max(1, num(r.active_days));
-            const perDay = safeDiv(cost, activeDays);
+            const tc = taskCost.get(String(r.model));
+            const completedTasks = tc?.tasks || 0;
+            const costPerTask = tc && tc.tasks > 0 ? tc.cost / tc.tasks : null;
+            const costPerTurn = turns > 0 ? cost / turns : 0;
+            const tasksPerDay = completedTasks / activeDays;
+            const turnsPerDay = turns / activeDays;
+            const spendPerDay = cost / activeDays;
+            const proj = (d: number): number | null => (costPerTask != null ? tasksPerDay * costPerTask * d : null);
             return {
-                modelName: r.model_name,
-                thinkingLevel: r.thinking_level || "(none)",
+                modelName: String(r.model),
                 activeDays,
                 turns,
                 userPrompts,
-                aiPrompts: Math.max(0, turns - userPrompts),
+                completedTasks,
                 cost,
-                costPerDay: perDay,
-                costPerWeek: perDay * 7,
-                costPerMonth: perDay * DAYS_PER_MONTH,
-                costPerYear: perDay * 365,
+                costPerTurn,
+                costPerTask,
+                spendPerDay,
+                tasksPerDay,
+                turnsPerDay,
+                projected7d: proj(7),
+                projected30d: proj(30),
+                projected90d: proj(90),
+                projected365d: proj(365),
                 estimated: activeDays < ESTIMATE_MIN_ACTIVE_DAYS,
             };
         }).filter(r => r.cost > 0);
 
+        const totalCost = projRows.reduce((s, r) => s + r.cost, 0);
+        const completedTasks = projRows.reduce((s, r) => s + r.completedTasks, 0);
+        const totalTurns = projRows.reduce((s, r) => s + r.turns, 0);
+        const avgCostPerTurn = totalTurns > 0 ? totalCost / totalTurns : 0;
+        const avgCostPerTask = completedTasks > 0 ? totalCost / completedTasks : null;
+        const activeDays = totals.activeDays > 0 ? totals.activeDays : 1;
+        const tasksPerDay = completedTasks / activeDays;
         const days = Math.max(1, totals.calendarDays);
-        const avgDaily = safeDiv(totals.totalCost, days);
+        const spendPerDay = totalCost / days;
+        const proj = (d: number): number | null => (avgCostPerTask != null ? tasksPerDay * avgCostPerTask * d : null);
         const noData = totals.turnCount === 0;
         const enough = totals.calendarDays >= ESTIMATE_MIN_CALENDAR_DAYS;
         return {
             rows: projRows,
-            avgDailySpend: avgDaily,
-            projectedWeek: avgDaily * 7,
-            projectedMonth: avgDaily * DAYS_PER_MONTH,
-            projectedYear: avgDaily * 365,
+            totalCost,
+            avgCostPerTurn,
+            avgCostPerTask,
+            completedTasks,
+            activeDays: totals.activeDays,
             calendarDays: totals.calendarDays,
+            tasksPerDay,
+            spendPerDay,
+            projected7d: proj(7),
+            projected30d: proj(30),
+            projected90d: proj(90),
+            projected365d: proj(365),
             estimated: !noData && !enough,
             note: noData
                 ? "No usage recorded yet — projections will appear after some activity."
                 : enough
-                    ? `Overall burn rate: all-time spend ÷ ${days} calendar days since recording began.`
+                    ? `Based on your pace: ${completedTasks} completed tasks across ${activeDays} active days (${tasksPerDay.toFixed(1)} tasks/day) at an average $${avgCostPerTask != null ? avgCostPerTask.toFixed(4) : "n/a"} per completed task. Idle days are not counted in the pace.`
                     : `Only ${days} day${days === 1 ? "" : "s"} of history so far — projections become more accurate over time.`,
         };
     }
@@ -817,18 +1325,45 @@ class UsageModule {
 
         const totals = this.collectTotals(db, now);
 
-        const dailyTaskStats = this.windowTaskStats(db, dailySince);
-        const weeklyTaskStats = this.windowTaskStats(db, weeklySince);
-        const monthlyTaskStats = this.windowTaskStats(db, monthlySince);
+        // Overview "Period summary": 6 panes in a 2x3 grid — one rolling
+        // (24h) and five calendar periods. Calendar periods anchor to local
+        // midnight / Monday / 1st of month (footer timeframe semantics);
+        // lastWeek/lastMonth are bounded so this week/this month never
+        // leaks into them.
+        const d = new Date(now);
+        const startOfDayLocal = (daysBack: number): number =>
+            new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysBack).getTime();
+        const startOfWeekLocal = (weeksBack: number): number => {
+            const daysSinceMonday = (d.getDay() + 6) % 7;   // Mon=0
+            const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - daysSinceMonday);
+            return new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() - weeksBack * 7).getTime();
+        };
+        const startOfMonthLocal = (monthsBack: number): number =>
+            new Date(d.getFullYear(), d.getMonth() - monthsBack, 1).getTime();
+        const periodDefs: Array<{ key: string; label: string; since: number; until?: number }> = [
+            { key: "24h", label: "Last 24 hours (rolling window)", since: now - DAY_MS },
+            { key: "3d", label: "Last 3 days", since: startOfDayLocal(2) },
+            { key: "lastWeek", label: "Last Week (Mon to Sun)", since: startOfWeekLocal(1), until: startOfWeekLocal(0) },
+            { key: "thisWeek", label: "This Week (Mon to Sun)", since: startOfWeekLocal(0) },
+            { key: "thisMonth", label: "This Month", since: startOfMonthLocal(0) },
+            { key: "lastMonth", label: "Last Month", since: startOfMonthLocal(1), until: startOfMonthLocal(0) },
+        ];
+        const periods: Record<string, PeriodSummary> = {};
+        for (const p of periodDefs) {
+            periods[p.key] = this.summarizePeriod(this.collectWindowedModels(db, p.since, p.until), p.label);
+        }
+
+        // v1.21.x: context / allowance / error / projection stats are
+        // collected per period so every tab shares the same period selectors.
+        const ctxBy = (since: number) => this.collectContextStats(db, since, now);
+        const allowBy = (since: number) => this.collectAllowanceStats(db, since);
+        const errBy = (since: number) => this.collectErrorStats(db, since);
+        const projBy = (since: number) => this.computeProjections(db, totals, since);
 
         return {
             generatedAt: now,
             totals,
-            periods: {
-                daily: this.summarizePeriod(dailyModels, "Last 24 hours", dailyTaskStats, this.taskTimeByModelThinking(db, dailySince)),
-                weekly: this.summarizePeriod(weeklyModels, "Last 7 days", weeklyTaskStats, this.taskTimeByModelThinking(db, weeklySince)),
-                monthly: this.summarizePeriod(monthlyModels, "Last 28 days", monthlyTaskStats, this.taskTimeByModelThinking(db, monthlySince)),
-            },
+            periods,
             dailySeries: this.collectDailySeries(db, now),
             shareWindows: this.collectShareWindows(db, now),
             modelsByPeriod: {
@@ -850,7 +1385,32 @@ class UsageModule {
                 all: this.collectTimingsWindow(db, 0),
             },
             taskDailySeries: this.collectTaskDailySeries(db, now),
-            projections: this.computeProjections(db, totals),
+            contextStats: {
+                daily: ctxBy(dailySince),
+                weekly: ctxBy(weeklySince),
+                monthly: ctxBy(monthlySince),
+                all: ctxBy(0),
+            },
+            allowanceStats: {
+                daily: allowBy(dailySince),
+                weekly: allowBy(weeklySince),
+                monthly: allowBy(monthlySince),
+                all: allowBy(0),
+            },
+            allowanceLatest: this.latestAllowance(db),
+            errorStats: {
+                daily: errBy(dailySince),
+                weekly: errBy(weeklySince),
+                monthly: errBy(monthlySince),
+                all: errBy(0),
+            },
+            errorDailySeries: this.collectErrorDailySeries(db, now),
+            projections: {
+                daily: projBy(dailySince),
+                weekly: projBy(weeklySince),
+                monthly: projBy(monthlySince),
+                all: projBy(0),
+            },
         };
     }
 
@@ -865,16 +1425,18 @@ class UsageModule {
         return row.n;
     }
 
-    /** Deletes BOTH tables (turns + tasks) in one transaction. */
-    private clearUsage(): { turns: number; tasks: number } {
+    /** Deletes ALL tables (turns + tasks + errors) in one transaction. */
+    private clearUsage(): { turns: number; tasks: number; errors: number } {
         const db = getDb();
-        if (!db) return { turns: 0, tasks: 0 };
+        if (!db) return { turns: 0, tasks: 0, errors: 0 };
         const tx = db.transaction(() => {
             const turns = db.prepare(`DELETE FROM turns`).run().changes;
             db.prepare(`DELETE FROM sqlite_sequence WHERE name = 'turns'`).run();
             const tasks = db.prepare(`DELETE FROM tasks`).run().changes;
             db.prepare(`DELETE FROM sqlite_sequence WHERE name = 'tasks'`).run();
-            return { turns, tasks };
+            const errors = db.prepare(`DELETE FROM errors`).run().changes;
+            db.prepare(`DELETE FROM sqlite_sequence WHERE name = 'errors'`).run();
+            return { turns, tasks, errors };
         });
         return tx();
     }
@@ -887,17 +1449,18 @@ class UsageModule {
         }
         const turns = this.countRows("turns");
         const tasks = this.countRows("tasks");
-        if (turns === 0 && tasks === 0) {
+        const errors = this.countRows("errors");
+        if (turns === 0 && tasks === 0 && errors === 0) {
             aftcConsole.emphasis(ctx, "Usage database is already empty — nothing to clear.");
             return;
         }
         if (ctx.hasUI) {
-            const ok = await showConfirm(ctx, { title: "Clear usage database", body: `Permanently delete all ${turns} recorded turn${turns === 1 ? "" : "s"} and ${tasks} task record${tasks === 1 ? "" : "s"} from the SQLite database?\n\nThis cannot be undone.` });
+            const ok = await showConfirm(ctx, { title: "Clear usage database", body: `Permanently delete all ${turns} recorded turn${turns === 1 ? "" : "s"}, ${tasks} task record${tasks === 1 ? "" : "s"} and ${errors} error record${errors === 1 ? "" : "s"} from the SQLite database?\n\nThis cannot be undone.` });
             if (!ok) return;
         }
         try {
             const deleted = this.clearUsage();
-            aftcConsole.emphasis(ctx, `Cleared usage database — deleted ${deleted.turns} turn${deleted.turns === 1 ? "" : "s"} and ${deleted.tasks} task record${deleted.tasks === 1 ? "" : "s"}.`);
+            aftcConsole.emphasis(ctx, `Cleared usage database — deleted ${deleted.turns} turn${deleted.turns === 1 ? "" : "s"}, ${deleted.tasks} task record${deleted.tasks === 1 ? "" : "s"} and ${deleted.errors} error record${deleted.errors === 1 ? "" : "s"}.`);
         } catch (err) {
             aftcConsole.error(ctx, `Failed to clear usage database: ${(err as Error).message}`);
         }

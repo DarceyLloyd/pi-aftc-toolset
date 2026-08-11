@@ -26,9 +26,10 @@ responded over time*, query this DB.
 
 ## Schema
 
-20 columns per row. The initial schema covers the metrics; the
-flag columns are added via migrations when the recorder is first
-updated to populate them.
+The base `turns` schema covers the metrics; the prompt-flag, context
+and allowance columns are added via migrations when the recorder is
+first updated to populate them (idempotent - each runs in a
+try/catch, errors swallowed because the column already exists):
 
 ```sql
 CREATE TABLE IF NOT EXISTS turns (
@@ -47,14 +48,20 @@ CREATE TABLE IF NOT EXISTS turns (
 );
 ```
 
-Migrations for the prompt-flag columns added after the initial
-schema (idempotent - each runs in a try/catch, errors swallowed
-because the column already exists):
+Migrated columns (added via `MIGRATIONS`, each idempotent):
 
-- `user_prompt`, `prompt_index`, `sub_prompt`, `session_id`
-- `base_prompt`, `steering_prompt`, `followup_prompt`,
-  `continuation_prompt`
-- `prompt_kind`
+- Prompt flags: `user_prompt`, `prompt_index`, `sub_prompt`,
+  `session_id`, `base_prompt`, `steering_prompt`, `followup_prompt`,
+  `continuation_prompt`, `prompt_kind`
+- v1.21.x context tracking: `context_window` (int), `context_tokens`
+  (int) on `turns`; `context_window`, `context_start_tokens`,
+  `context_end_tokens` (int) and `allow_provider` (text),
+  `allow_5h_start`/`allow_5h_end`/`allow_weekly_start`/
+  `allow_weekly_end` (nullable REAL) on `tasks`.
+- v1.21.x device owner tag: `device_id` (text, `''` default) on
+  `turns`, `tasks` AND `errors` — one UUID per data dir
+  (`paths.ts getDeviceId`) tagging this machine's rows for the online
+  usage mirror.
 
 A second table, `tasks`, holds per-task metrics (one row per completed
 task — a user prompt's full agent run, enter → settle; recorded by
@@ -74,8 +81,28 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 ```
 
-For the full column reference and what each `prompt_kind` value
-means, see `usage-recording-readme.md`.
+A third table, `errors`, holds one row per FAILED LLM call (assistant
+turn that ended with `stopReason === "error"`; user aborts are NOT
+errors). Recorded by core.ts on the failing `message_end` via
+`recordError`:
+
+```sql
+CREATE TABLE IF NOT EXISTS errors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id      TEXT NOT NULL DEFAULT '',
+    prompt_index    INTEGER NOT NULL DEFAULT 0,
+    timestamp       INTEGER NOT NULL,
+    model_name      TEXT,
+    thinking_level  TEXT,
+    error_type      TEXT NOT NULL DEFAULT 'other',
+    error_message   TEXT NOT NULL DEFAULT ''
+);
+```
+
+Migrations run on every `getDb()` open, so an existing user's old DB
+is upgraded in place the first time it is opened after an update — no
+manual step needed. Old rows keep their defaults (context columns 0,
+allowance columns NULL) and the report falls back / shows N/A.
 
 ## API
 

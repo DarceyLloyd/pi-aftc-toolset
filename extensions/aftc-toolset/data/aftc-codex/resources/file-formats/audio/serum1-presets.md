@@ -14,4 +14,6 @@
 
 - [56hKL2] A wavetable record's padding check must span from the path to the NEXT non-NUL byte (the next record's flag) - checking a fixed 512 run from the string start is off by the flag byte and rejects valid slots; a clear must zero from the flag byte up to (not including) the next non-NUL byte.
 
+- [nqtlwT] Invisible/zero-width Unicode characters (U+200B zero-width space, U+200C/200D, U+FEFF, soft hyphen) sneak into file/folder names via copy-paste; they are invisible but non-ASCII, so they break ASCII-only binary path slots with a mid-batch UnicodeEncodeError - strip them when building target names and resolved paths.
+
 ## Issues & Solutions

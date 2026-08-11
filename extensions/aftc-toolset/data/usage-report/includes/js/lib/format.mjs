@@ -30,8 +30,59 @@ export function thinkingPill(level){
   return '<span class="lvl'+cls+'">'+esc(level)+'</span>';
 }
 
-export function statCard(label, valueHtml, sub, money){
-  return '<div class="panel stat"><div class="stat-label">'+esc(label)+'</div>'
+export function fmtWhen(ts){
+  var d = new Date(Number(ts)||0);
+  function p(n){ return String(n).padStart(2,"0"); }
+  return d.getDate()+" "+["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]+", "+p(d.getHours())+":"+p(d.getMinutes());
+}
+
+// Verdict badges for the Models tab (hero / shame markers).
+// `hint` renders a "why" info tooltip on hover (same tooltip as the
+// column info icons). Text is non-selectable via CSS (.verdict).
+export function verdict(label, kind, hint){
+  var cls = kind === "good" ? "verdict good" : kind === "bad" ? "verdict bad" : "verdict info";
+  return '<span class="'+cls+'"' + (hint ? ' data-tip="'+esc(hint)+'"' : '') + '>'+esc(label)+'</span>';
+}
+
+export var ERROR_TYPES = {
+  "rate-limit":"Rate limited", "overloaded":"Overloaded", "not-found":"Not found",
+  "auth":"Auth", "timeout":"Timeout", "network":"Network", "other":"Other",
+};
+
+export function errorPill(type){
+  var t = String(type||"other");
+  var label = ERROR_TYPES[t] || t;
+  var cls = t === "network" || t === "overloaded" || t === "rate-limit" ? "bad"
+    : t === "not-found" || t === "auth" || t === "timeout" ? "warn" : "info";
+  return '<span class="pill '+cls+'">'+esc(label)+'</span>';
+}
+
+// Rate pill for error rate (errors per completed task).
+export function ratePill(rate){
+  var r = Number(rate)||0;
+  var cls = r === 0 ? "good" : r < 0.1 ? "warn" : "bad";
+  return '<span class="pill '+cls+'">'+(r === 0 ? "0%" : (r*100).toFixed(0)+"%")+'</span>';
+}
+
+// Context-window fill bar (pct 0..1).
+export function ctxBar(pct){
+  var p = Math.max(0, Math.min(100, (Number(pct)||0)*100));
+  var cls = p >= 80 ? "bad" : p >= 50 ? "warn" : "good";
+  return '<div class="ctx-cell"><div class="ctx-fill '+cls+'" style="width:'+p.toFixed(1)+'%"></div></div><span>'+p.toFixed(0)+'%</span>';
+}
+
+// 1M-context-window flag (burn rate too fast to sustain a 1M window).
+export function flag1m(flag){
+  return flag ? '<span class="pill bad" title="Burns more than 1,000,000 tokens per 5 hours — a 1M context window cannot be sustained at this burn rate">1M window impossible</span>' : "";
+}
+
+// Null-safe table cell.
+export function dash(v){ return (v === null || v === undefined || v === "") ? "\u2014" : String(v); }
+
+export function statCard(label, valueHtml, sub, money, hint){
+  return '<div class="panel stat"><div class="stat-label">'+esc(label)
+    + (hint ? '<span class="col-hint" data-tip="'+esc(hint)+'">'+INFO_SVG+'</span>' : '')
+    + '</div>'
     + '<div class="stat-value'+(money ? " money" : "")+'">'+valueHtml+'</div>'
     + (sub ? '<div class="stat-sub">'+esc(sub)+'</div>' : '') + '</div>';
 }
@@ -45,6 +96,7 @@ export var INFO_SVG = '<svg class="info-i" viewBox="0 0 16 16" width="11" height
 export var HINT_AI_PER_USER = "Average number of AI (self-prompted) turns per user prompt - how many tool-call loops the model runs for each prompt you type. Lower is more efficient.";
 export var HINT_AVG_PUP = "Average cost per user prompt: total cost ÷ user prompts on paid turns. Free / $0 (subscription) turns are excluded so they don't drag the average down.";
 export var HINT_AVG_CACHE = "Average cache hit rate per turn: cached tokens ÷ (cached + new input tokens). Higher means cheaper, faster repeat context.";
+export var HINT_USER_AI = "Prompts you typed / AI turns the model ran on its own (tool-call loops) for this model in the period. A high AI number means the model does a lot of its own work per prompt.";
 export var HINT_TASK_TIME = "Task Time: This is how long the AI took to fully handle a prompt and return control.";
 // (N/A tooltip reasons come from the data — each na row carries its own.)
 
@@ -65,7 +117,9 @@ function showColTip(anchor, text){
 function hideColTip(){ if (colTip) colTip.classList.remove("show"); }
 
 export function bindHints(scope){
-  scope.querySelectorAll(".col-hint").forEach(function(el){
+  // .col-hint = the info icons; .verdict[data-tip] = verdict badges with a
+  // "why" explanation. Both show the same hover tooltip.
+  scope.querySelectorAll(".col-hint, .verdict[data-tip]").forEach(function(el){
     el.addEventListener("mouseenter", function(){ showColTip(el, el.dataset.tip || ""); });
     el.addEventListener("mouseleave", hideColTip);
     el.addEventListener("click", function(e){ e.stopPropagation(); showColTip(el, el.dataset.tip || ""); });
@@ -82,6 +136,7 @@ export function makeTable(opts){
   opts.cols.forEach(function(c){
     var th = document.createElement("th");
     if (c.num) th.className = "num";
+    if (c.center) th.className = (th.className ? th.className + " " : "") + "center";
     th.dataset.key = c.key;
     th.innerHTML = esc(c.label)
       + (c.hint ? '<span class="col-hint" data-tip="'+esc(c.hint)+'">'+INFO_SVG+'</span>' : '')
@@ -117,11 +172,14 @@ export function makeTable(opts){
     rows.forEach(function(r){
       html += "<tr>";
       opts.cols.forEach(function(c){
-        html += '<td class="'+(c.num ? "num" : "")+'">'+(c.render ? c.render(r) : esc(r[c.key]))+"</td>";
+        html += '<td class="'+(c.num ? "num" : "")+(c.center ? " center" : "")+'">'+(c.render ? c.render(r) : esc(r[c.key]))+"</td>";
       });
       html += "</tr>";
     });
     tbody.innerHTML = html;
+    // Re-bind hover tooltips after every render — body cells (eg verdict
+    // badges) are fresh DOM each time, so they need listeners per render.
+    bindHints(tbody);
     updateHead();
   }
   table.querySelectorAll("thead th").forEach(function(th){

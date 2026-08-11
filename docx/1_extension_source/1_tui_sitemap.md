@@ -1,6 +1,6 @@
 # 1 - Extension source — TUI sitemap
 
-<!-- last-reviewed: 2026-08-10 16:30 -->
+<!-- last-reviewed: 2026-08-11 -->
 
 ## References
 
@@ -169,8 +169,7 @@ result viewer; session-start warning line when deps are missing.
 
 ### Usage report — see [1.4.5](./1.4_footer_usage/1.4.5_usage_report.md)
 Report web app in `<dataDir>/usage-report/`, served by a bundled local
-server and opened in the browser; 5 tabs (Overview, Models,
-Thinking levels, Timings, Projections); `/usage-clear` confirm overlay.
+server and opened in the browser; 7 tabs (Overview, Models, Thinking levels, Timings, Projections, Context & allowance, Errors); `/usage-clear` confirm overlay.
 
 ### Inline transcript entries
 `/dir` `/ls` listing card and `/cwd` card (customMessageBg Box); replay

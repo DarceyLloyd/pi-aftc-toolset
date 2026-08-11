@@ -27,3 +27,9 @@ aftc-resume-*.md
 # Maintainer-only local release scripts (never copy into images)
 ship-it.bat
 shipit.ps1
+# Maintainer-only usage mirror pull tooling (never release)
+scripts/usage-merge-from-mysql.mjs
+dev.aftc.uk/httpdocs/pi-aftc-toolset/usage/az8120aoec-3.php
+# AI comms file contains the API key - keep out of any release
+dev.aftc.uk/httpdocs/pi-aftc-toolset/usage/AI communications.txt
+regenerate-usage-report.mjs

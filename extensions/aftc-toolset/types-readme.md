@@ -21,6 +21,8 @@ interface TurnRecord {
     outputTokens: number;
     cacheRead: number;
     cacheWrite: number;
+    contextTokens: number;    // pi's getContextUsage().tokens at message_end
+    contextWindow: number;    // model's declared context window (tokens)
     isUserPrompt: boolean;    // vs automated tool-call continuation
     sessionId: string;        // stable-ish per runtime session
     promptIndex: number;      // 1-based user-prompt number
@@ -32,8 +34,39 @@ interface TurnRecord {
     promptKind: string;       // "base" | "steer" | "followup" | "continuation" | "auto"
 }
 
+interface TaskRecord {
+    sessionId: string;        // matches TurnRecord.sessionId
+    promptIndex: number;      // 1-based user-prompt number
+    timestamp: number;        // task START (first agent_start)
+    taskMs: number;           // wall-clock enter → settle
+    stopReason: string;       // "complete" | "error" | "aborted" | "toolUse"
+    modelName: string;
+    thinkingLevel: string;
+    turnCount: number;
+    contextWindow: number;    // model's declared context window at task time
+    contextStartTokens: number; // pi context estimate at task start
+    contextEndTokens: number;   // pi context estimate after final turn
+    allowProvider: string;      // provider label of the allowance snapshot
+    allow5hStart: number | null;    // 5h allowance used % at task start/end
+    allow5hEnd: number | null;      // (null = provider reports no window)
+    allowWeeklyStart: number | null;
+    allowWeeklyEnd: number | null;
+}
+
+interface ErrorRecord {
+    sessionId: string;
+    promptIndex: number;
+    timestamp: number;        // failing message_end
+    modelName: string;
+    thinkingLevel: string;
+    errorType: string;        // rate-limit|overloaded|not-found|auth|timeout|network|other
+    errorMessage: string;     // raw provider error text
+}
+
 interface TurnRecorder {
     recordTurn(record: TurnRecord): void;
+    recordTask(record: TaskRecord): void;
+    recordError(record: ErrorRecord): void;
 }
 ```
 

@@ -1,6 +1,6 @@
 # **pi-aftc-toolset**
 
-<!-- last-reviewed: 2026-08-10 15:58 -->
+<!-- last-reviewed: 2026-08-11 -->
 
 [![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white)](https://www.paypal.com/donate/?business=darcey.lloyd@gmail.com) or at least give me a star...
 
@@ -49,10 +49,9 @@ This is an extension for pi (pi.dev) which helps me in my everyday work. If ther
   
   **Click here for more information** → [AFTC Resume section](#aftc-resume-aftc-resume-save-aftc-resume)
 
-
 - **Usage Report (/usage-report)**
   
-  Records metrics for every assistant turn (never your prompts) into a local SQLite database, then generates and serves a web report - cost, cache hit rates, timings, task times and projections. All your data stays on your machine.
+  Records metrics for every assistant turn (never your prompts) into a local SQLite database, then generates and serves a web report - cost, cache hit rates, task times, context pressure and error rates, with best/worst model verdicts across selectable periods. All your data stays on your machine.
   
   **Click here for more information** → [Usage report section](#usage-report)
 
@@ -376,15 +375,17 @@ behind a confirmation.
 
 ![Usage report overview](images/ur-overview.png)
 
-Five tabs:
+Seven tabs:
 
 | Tab | Contents |
 | --- | --- |
-| **Overview** | Headline cards (total cost, prompts, calls, cache hit, active days), 30-day spend chart, cost-share doughnut, 24h/7d/28d summaries with per-model scoreboards |
-| **Models** | Per-model sortable table + period selector + cost-by-model chart, Task Time column |
+| **Overview** | 6 headline cards (2×3), 30-day spend chart, cost-share doughnut, and a 2×3 period summary (24h / last 3 days / last week / this week / this month / last month), each pane with Best & Worst model verdicts |
+| **Costs Per Model** | Per-model sortable table + period selector: average cost per turn, average task cost, User/AI prompts, cache, context, errors, task time - plus verdict badges and "why" tooltips |
 | **Thinking levels** | Per-model × thinking-level table + period selector |
-| **Timings** | Task Time analysis: avg/longest task, turns per task, error/abort counts, think/respond/overhead split, user vs AI turns, top-10 longest tasks |
-| **Projections** | Burn rate ($/day, projected month/year) + per-model × thinking projections from spend ÷ active days |
+| **Timings** | Task Time analysis: avg/longest task, turns per task, error/abort counts, think/respond split, user vs AI turns, top-10 longest tasks |
+| **Projections** | Usage-rate projections: $/turn, $/task, tasks/day - projected 7/30/90/365-day spend, period selector |
+| **Context & allowance** | Context window used before/after tasks, % of window, 5h token burn, 1M-window flag, provider 5h/weekly allowance used per task |
+| **Errors** | Failed calls per model × error type with a fair error rate - your own aborts are a stat on Timings, not errors |
 
 ![Models tab](images/ur-models.png)
 

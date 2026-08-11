@@ -71,8 +71,11 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { TaskRecord, TurnRecord, TurnRecorder } from "./types";
+import type { ErrorRecord, TaskRecord, TurnRecord, TurnRecorder } from "./types";
 import { getDb } from "./db";
+import { getPreference } from "./config";
+import { getDeviceId } from "./paths";
+import { hostname } from "node:os";
 import * as aftcConsole from "./ui/aftc-console";
 
 // -----------------------------------------------------------------------------
@@ -86,6 +89,20 @@ import * as aftcConsole from "./ui/aftc-console";
 // entirely (the pre-flag behaviour).
 // -----------------------------------------------------------------------------
 const RECORD_ZERO_COST_TURNS = true;
+
+// -----------------------------------------------------------------------------
+// Per-installation owner id (device_id)
+//
+// One UUID per data dir (created atomically by paths.ts getDeviceId). Tagged
+// onto every recorded row locally and in the mirror push so the online pull
+// can filter to THIS machine's rows. Cached here (the file is created once
+// and never changes mid-installation); read lazily on the first record.
+// -----------------------------------------------------------------------------
+let _deviceId: string | null = null;
+function deviceId(): string {
+    if (_deviceId === null) _deviceId = getDeviceId();
+    return _deviceId;
+}
 
 // -----------------------------------------------------------------------------
 // UsageRecorder
@@ -115,10 +132,11 @@ class UsageRecorder implements TurnRecorder {
                     turn, timestamp, model_name, thinking_level,
                     thinking_ms, response_ms, cost_usd,
                     input_tokens, output_tokens, cache_read, cache_write,
+                    context_tokens, context_window,
                     user_prompt, session_id, prompt_index,
                     base_prompt, sub_prompt, steering_prompt, followup_prompt,
-                    continuation_prompt, prompt_kind
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    continuation_prompt, prompt_kind, device_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).run(
                 record.turn,
                 record.timestamp,
@@ -131,6 +149,8 @@ class UsageRecorder implements TurnRecorder {
                 record.outputTokens,
                 record.cacheRead,
                 record.cacheWrite,
+                record.contextTokens || 0,
+                record.contextWindow || 0,
                 record.isUserPrompt ? 1 : 0,
                 record.sessionId,
                 record.promptIndex,
@@ -140,7 +160,10 @@ class UsageRecorder implements TurnRecorder {
                 record.isFollowupPrompt ? 1 : 0,
                 record.isContinuationPrompt ? 1 : 0,
                 record.promptKind,
+                deviceId(),
             );
+            // Real-time mirror push (fire-and-forget; never retried).
+            this.pushTurn(record);
         } catch (err) {
             aftcConsole.logError(`[aftc-toolset] SQLite insert error: ${(err as Error).message}`);
         }
@@ -155,8 +178,11 @@ class UsageRecorder implements TurnRecorder {
             db.prepare(
                 `INSERT INTO tasks (
                     session_id, prompt_index, timestamp, task_ms, stop_reason,
-                    model_name, thinking_level, turn_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    model_name, thinking_level, turn_count,
+                    context_window, context_start_tokens, context_end_tokens,
+                    allow_provider, allow_5h_start, allow_5h_end,
+                    allow_weekly_start, allow_weekly_end, device_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             ).run(
                 record.sessionId,
                 record.promptIndex,
@@ -166,10 +192,151 @@ class UsageRecorder implements TurnRecorder {
                 record.modelName,
                 record.thinkingLevel,
                 record.turnCount,
+                record.contextWindow || 0,
+                record.contextStartTokens || 0,
+                record.contextEndTokens || 0,
+                record.allowProvider || "",
+                record.allow5hStart ?? null,
+                record.allow5hEnd ?? null,
+                record.allowWeeklyStart ?? null,
+                record.allowWeeklyEnd ?? null,
+                deviceId(),
             );
+            // Real-time mirror push (fire-and-forget; never retried).
+            this.pushTask(record);
         } catch (err) {
             aftcConsole.logError(`[aftc-toolset] SQLite tasks insert error: ${(err as Error).message}`);
         }
+    }
+
+    recordError(record: ErrorRecord): void {
+        const db = getDb();
+        if (!db) return;
+        try {
+            db.prepare(
+                `INSERT INTO errors (
+                    session_id, prompt_index, timestamp,
+                    model_name, thinking_level, error_type, error_message, device_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            ).run(
+                record.sessionId,
+                record.promptIndex,
+                record.timestamp,
+                record.modelName,
+                record.thinkingLevel,
+                record.errorType,
+                record.errorMessage,
+                deviceId(),
+            );
+            // Real-time mirror push (fire-and-forget; never retried).
+            this.pushError(record);
+        } catch (err) {
+            aftcConsole.logError(`[aftc-toolset] SQLite errors insert error: ${(err as Error).message}`);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Real-time mirror push (v1.21.7)
+    //
+    // After a row is recorded locally it is ALSO pushed to the online usage
+    // mirror endpoint (index.php), one record per request, in real time.
+    // Configured via config.json preferences (usagePushEnabled /
+    // usagePushEndpoint / usagePushApiKey — read FRESH from disk every time;
+    // never cached).
+    //
+    // ERROR POLICY: on ANY error from the endpoint (non-200 response or a
+    // network failure) the push is DROPPED and logged — it is never retried
+    // and never queued. The local database is the source of truth; a missed
+    // online push is accepted. The push is fire-and-forget and never blocks
+    // the recording path.
+    // -----------------------------------------------------------------------
+
+    private push(table: "turns" | "tasks" | "errors", row: Record<string, unknown>): void {
+        const enabled = getPreference("usagePushEnabled", false);
+        const endpoint = getPreference("usagePushEndpoint", "");
+        if (!enabled || !endpoint) return;
+        if (typeof fetch !== "function") return;
+        const apiKey = getPreference("usagePushApiKey", "");
+        const payload = JSON.stringify({ source: hostname(), [table]: [row] });
+        void (async () => {
+            try {
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+                    body: payload,
+                    signal: AbortSignal.timeout(10_000),
+                });
+                if (!res.ok) {
+                    aftcConsole.logError(`[aftc-toolset] usage push ${table} rejected (HTTP ${res.status}) — dropped, never retried`);
+                }
+                await res.text().catch(() => undefined); // drain (empty body expected)
+            } catch (err) {
+                aftcConsole.logError(`[aftc-toolset] usage push ${table} failed: ${(err as Error).message} — dropped, never retried`);
+            }
+        })();
+    }
+
+    private pushTurn(record: TurnRecord): void {
+        this.push("turns", {
+            turn: record.turn,
+            timestamp: record.timestamp,
+            device_id: deviceId(),
+            model_name: record.modelName,
+            thinking_level: record.thinkingLevel,
+            thinking_ms: record.thinkingMs,
+            response_ms: record.responseMs,
+            cost_usd: record.costUsd,
+            input_tokens: record.inputTokens,
+            output_tokens: record.outputTokens,
+            cache_read: record.cacheRead,
+            cache_write: record.cacheWrite,
+            user_prompt: record.isUserPrompt ? 1 : 0,
+            base_prompt: record.isBasePrompt ? 1 : 0,
+            sub_prompt: record.isSubPrompt ? 1 : 0,
+            steering_prompt: record.isSteeringPrompt ? 1 : 0,
+            followup_prompt: record.isFollowupPrompt ? 1 : 0,
+            continuation_prompt: record.isContinuationPrompt ? 1 : 0,
+            prompt_kind: record.promptKind,
+            prompt_index: record.promptIndex,
+            session_id: record.sessionId,
+            context_window: record.contextWindow || 0,
+            context_tokens: record.contextTokens || 0,
+        });
+    }
+
+    private pushTask(record: TaskRecord): void {
+        this.push("tasks", {
+            session_id: record.sessionId,
+            prompt_index: record.promptIndex,
+            timestamp: record.timestamp,
+            device_id: deviceId(),
+            task_ms: record.taskMs,
+            stop_reason: record.stopReason,
+            model_name: record.modelName,
+            thinking_level: record.thinkingLevel,
+            turn_count: record.turnCount,
+            context_window: record.contextWindow || 0,
+            context_start_tokens: record.contextStartTokens || 0,
+            context_end_tokens: record.contextEndTokens || 0,
+            allow_provider: record.allowProvider || "",
+            allow_5h_start: record.allow5hStart ?? null,
+            allow_5h_end: record.allow5hEnd ?? null,
+            allow_weekly_start: record.allowWeeklyStart ?? null,
+            allow_weekly_end: record.allowWeeklyEnd ?? null,
+        });
+    }
+
+    private pushError(record: ErrorRecord): void {
+        this.push("errors", {
+            session_id: record.sessionId,
+            prompt_index: record.promptIndex,
+            timestamp: record.timestamp,
+            device_id: deviceId(),
+            model_name: record.modelName,
+            thinking_level: record.thinkingLevel,
+            error_type: record.errorType,
+            error_message: record.errorMessage,
+        });
     }
 }
 

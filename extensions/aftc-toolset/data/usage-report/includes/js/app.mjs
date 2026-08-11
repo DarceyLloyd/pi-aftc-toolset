@@ -6,6 +6,8 @@ import { ModelsTab } from "./tabs/models.mjs";
 import { ThinkingTab } from "./tabs/thinking.mjs";
 import { TimingsTab } from "./tabs/timings.mjs";
 import { ProjectionsTab } from "./tabs/projections.mjs";
+import { ContextTab } from "./tabs/context.mjs";
+import { ErrorsTab } from "./tabs/errors.mjs";
 
 async function main() {
   var data;
@@ -36,15 +38,19 @@ async function main() {
   var thinkingTab = new ThinkingTab(data);
   var timingsTab = new TimingsTab(data);
   var projectionsTab = new ProjectionsTab(data);
+  var contextTab = new ContextTab(data);
+  var errorsTab = new ErrorsTab(data);
 
   overview.render();
   modelsTab.render();
   thinkingTab.render();
   timingsTab.render();
   projectionsTab.render();
+  contextTab.render();
+  errorsTab.render();
 
   // ---------- tabs ----------
-  var TAB_IDS = ["overview","models","thinking","timings","projections"];
+  var TAB_IDS = ["overview","models","thinking","timings","projections","context","errors"];
   function activateTab(id){
     document.querySelectorAll(".tab").forEach(function(b){
       var on = b.dataset.tab === id;
@@ -57,6 +63,8 @@ async function main() {
     if (history.replaceState) history.replaceState(null, "", "#"+id);
     if (id === "models") modelsTab.ensureCharts();
     if (id === "timings") timingsTab.ensureCharts();
+    if (id === "context") contextTab.ensureCharts();
+    if (id === "errors") errorsTab.ensureCharts();
   }
   document.querySelectorAll(".tab").forEach(function(b){
     b.addEventListener("click", function(){ activateTab(b.dataset.tab); });

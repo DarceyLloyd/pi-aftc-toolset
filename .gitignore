@@ -110,3 +110,10 @@ shipit.ps1
 ship-it.bat
 # aftc docx backup artifacts
 docx/backups/
+
+# Maintainer-only usage mirror pull tooling (never release)
+scripts/usage-merge-from-mysql.mjs
+dev.aftc.uk/httpdocs/pi-aftc-toolset/usage/az8120aoec-3.php
+# AI comms file contains the API key - keep out of any release
+dev.aftc.uk/httpdocs/pi-aftc-toolset/usage/AI communications.txt
+regenerate-usage-report.mjs

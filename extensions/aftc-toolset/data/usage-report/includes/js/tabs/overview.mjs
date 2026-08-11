@@ -1,7 +1,37 @@
 // tabs/overview.mjs — Overview tab: stat cards, period cards, daily + share charts.
 
-import { fmtMoney, fmtInt, fmtTok, fmtPct, esc, INFO_SVG, bindHints, statCard } from "../lib/format.mjs";
+import { fmtMoney, fmtInt, fmtTok, fmtPct, fmtMs, esc, INFO_SVG, bindHints, statCard } from "../lib/format.mjs";
 import { PALETTE, tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
+
+// HTML tooltip for the daily-spend chart (canvas tooltips can't colour
+// parts of a line). Rendered into a .chart-tip div: white labels, orange
+// model values, clamped to the viewport. Styled to match the theme.
+var dailyTipEl = null;
+function dailyTip(context) {
+  var tip = context.tooltip;
+  if (!dailyTipEl) {
+    dailyTipEl = document.createElement("div");
+    dailyTipEl.className = "chart-tip";
+    document.body.appendChild(dailyTipEl);
+  }
+  if (!tip || tip.opacity === 0) { dailyTipEl.style.opacity = "0"; return; }
+  var html = "";
+  if (tip.title && tip.title.length) html += '<div class="chart-tip-title">' + esc(tip.title[0]) + "</div>";
+  (tip.body || []).forEach(function (b) {
+    (b.lines || []).forEach(function (line) { html += '<div class="chart-tip-line">' + line + "</div>"; });
+  });
+  dailyTipEl.innerHTML = html;
+  dailyTipEl.style.opacity = "1";
+  var rect = context.chart.canvas.getBoundingClientRect();
+  var tw = dailyTipEl.offsetWidth, th = dailyTipEl.offsetHeight;
+  var x = rect.left + tip.caretX + 14;
+  var y = rect.top + tip.caretY - th / 2;
+  if (x + tw > window.innerWidth - 8) x = rect.left + tip.caretX - tw - 14;
+  if (y + th > window.innerHeight - 8) y = window.innerHeight - th - 8;
+  if (y < 8) y = 8;
+  dailyTipEl.style.left = x + "px";
+  dailyTipEl.style.top = y + "px";
+}
 
 export class Overview {
   data = null;
@@ -19,39 +49,49 @@ export class Overview {
 
   renderOverview() {
     var t = this.data.totals || {};
-    var since = t.firstTurnMs
-      ? new Date(t.firstTurnMs).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" })
-      : "";
     var html = "";
+    var uCount = Number(t.userPromptCount) || 0;
+    var aCount = Number(t.automatedTurnCount) || 0;
+    var ratio = uCount > 0 ? aCount / uCount : 0;
     html += statCard("Total cost", fmtMoney(t.totalCost), "avg "+fmtMoney(t.avgDailySpend)+" / day", true);
+    html += statCard("Cost / completed task", t.avgCostPerTask != null ? fmtMoney(t.avgCostPerTask) : "N/A", fmtInt(t.completedTasks)+" tasks done", true);
     html += statCard("User prompts", fmtInt(t.userPromptCount), fmtInt(t.basePromptCount)+" tasks · "+fmtInt(t.subPromptCount)+" follow-ups");
-    html += statCard("AI prompts", fmtInt(t.automatedTurnCount), "self-prompting · "+((Number(t.automatedTurnCount)||0)/Math.max(1, Number(t.userPromptCount)||0)).toFixed(1)+" per user prompt");
-    html += statCard("Avg cost / user prompt", fmtMoney(t.avgCostPerUserPrompt), fmtMoney(t.avgCostPerTurn)+" per turn (user + AI)");
+    html += statCard("User / AI Prompts", fmtInt(uCount)+" / "+fmtInt(aCount),
+      uCount > 0 ? "On average there are "+ratio.toFixed(1)+" AI prompts to 1 user prompt." : "No user prompts recorded yet.");
+    html += statCard("Worst 5h token burn", t.worstBurnModel ? esc(t.worstBurnModel) : "N/A",
+      t.worstBurnModel ? fmtTok(t.worstBurnTokens)+" tokens in the last 5 hours" : "no usage in the last 5 hours", false,
+      "The model that used the most tokens (prompts, replies and cached context) in the last 5 hours. A fast burner fills its context window quickly.");
     html += statCard("Avg cache hit", fmtPct(t.avgCacheRate), fmtTok(t.totalCacheRead)+" cache-read tokens");
-    html += statCard("Active days", fmtInt(t.activeDays), since ? "recording since "+since : "");
     document.getElementById("stat-grid").innerHTML = html;
+    bindHints(document.getElementById("stat-grid"));
 
     var ph = "";
     var self = this;
-    ["daily","weekly","monthly"].forEach(function(key){
+    function scoreGroup(entries) {
+      if (!entries || !entries.length) return "";
+      var h = '<div class="period-score">';
+      entries.forEach(function (e) {
+        var valHtml = e.na
+          ? '<span class="na-mark">N/A</span><span class="col-hint" data-tip="' + esc(e.na) + '">' + INFO_SVG + '</span>'
+          : esc(e.model) + (e.value ? '<span class="metric">' + esc(e.value) + '</span>' : '');
+        h += '<div class="period-score-row">'
+          + '<span class="period-score-label">' + esc(e.label)
+          + (e.hint ? '<span class="col-hint" data-tip="' + esc(e.hint) + '">' + INFO_SVG + '</span>' : '')
+          + '</span>'
+          + '<span class="period-score-val">' + valHtml + '</span></div>';
+      });
+      return h + '</div>';
+    }
+    ["24h","3d","lastWeek","thisWeek","thisMonth","lastMonth"].forEach(function (key) {
       var p = (self.data.periods || {})[key] || {};
-      var scoreHtml = "";
-      if (p.scoreboard && p.scoreboard.length) {
-        scoreHtml = '<div class="period-score">';
-        p.scoreboard.forEach(function(e){
-          var valHtml = e.na
-            ? '<span class="na-mark">N/A</span><span class="col-hint" data-tip="' + esc(e.na) + '">' + INFO_SVG + '</span>'
-            : esc(e.model) + (e.value ? '<span class="metric">' + esc(e.value) + '</span>' : '');
-          scoreHtml += '<div class="period-score-row">'
-            + '<span class="period-score-label">' + esc(e.label) + '</span>'
-            + '<span class="period-score-val">' + valHtml + '</span></div>';
-        });
-        scoreHtml += '</div>';
-      }
-      ph += '<div class="panel period-card"><div class="stat-label">'+esc(p.label || key)+'</div>'
-        + '<div class="period-cost">'+fmtMoney(p.cost)+'</div>'
-        + '<div class="stat-sub">Prompts: User '+fmtInt(p.prompts)+' / AI '+fmtInt(p.aiPrompts)+'</div>'
-        + scoreHtml + '</div>';
+      ph += '<div class="panel period-card"><div class="stat-label">' + esc(p.label || key) + '</div>'
+        + '<div class="period-cost">' + fmtMoney(p.cost) + '</div>'
+        + '<div class="stat-sub">Prompts: User ' + fmtInt(p.prompts) + ' / AI ' + fmtInt(p.aiPrompts) + '</div>'
+        + '<hr class="period-hr">'
+        + '<div class="period-sub best">Best AI Models</div>' + scoreGroup(p.best)
+        + '<hr class="period-hr">'
+        + '<div class="period-sub worst">Worst AI Models</div>' + scoreGroup(p.worst)
+        + '</div>';
     });
     document.getElementById("period-grid").innerHTML = ph;
     bindHints(document.getElementById("period-grid"));
@@ -79,10 +119,19 @@ export class Overview {
         plugins: {
           legend: { display: false },
           tooltip: Object.assign({}, tooltipBase, {
+            enabled: false,   // canvas tooltip off — the external HTML tooltip renders instead
+            external: dailyTip,   // HTML tooltip: white labels + orange model values
             callbacks: {
               label: function(item){
                 var p = series[item.dataIndex] || {};
-                return ["Cost: "+fmtMoney(p.cost), "User prompts: "+fmtInt(p.prompts), "AI prompts: "+fmtInt(Math.max(0,(p.calls||0)-(p.prompts||0)))];
+                var lines = ["Cost: "+fmtMoney(p.cost), "User prompts: "+fmtInt(p.prompts), "AI prompts: "+fmtInt(Math.max(0,(p.calls||0)-(p.prompts||0)))];
+                if (p.mostCostlyModel) {
+                  lines.push('<span class="chart-tip-key">Most costly:</span> <span class="chart-tip-val">'+esc(p.mostCostlyModel)+" ("+fmtMoney(p.mostCostlyCost)+")</span>");
+                  if (p.cheapestModel && p.cheapestModel !== p.mostCostlyModel && p.cheapestCost > 0)
+                    lines.push('<span class="chart-tip-key">Cheapest:</span> <span class="chart-tip-val">'+esc(p.cheapestModel)+" ("+fmtMoney(p.cheapestCost)+")</span>");
+                }
+                if (p.longestTaskModel) lines.push('<span class="chart-tip-key">Longest task:</span> <span class="chart-tip-val">'+esc(p.longestTaskModel)+" "+fmtMs(p.longestTaskMs)+"</span>");
+                return lines;
               },
             },
           }),

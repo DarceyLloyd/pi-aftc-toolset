@@ -67,7 +67,6 @@ export class TimingsTab {
     var el = document.getElementById("time-split");
     var totalTask = Number(w.totalTaskMs)||0, think = Number(w.totalThinkMs)||0, resp = Number(w.totalRespMs)||0;
     if (totalTask <= 0){ el.innerHTML = '<div class="empty">No completed tasks in this period.</div>'; return; }
-    var overhead = Math.max(0, totalTask - think - resp);
     function seg(ms, color, label){
       var pct = ms / totalTask * 100;
       return {
@@ -78,9 +77,11 @@ export class TimingsTab {
     }
     var s1 = seg(think, "#b388ff", "Thinking");
     var s2 = seg(resp, "#4d8df6", "Responding");
-    var s3 = seg(overhead, "#fca02f", "Tools & overhead");
-    el.innerHTML = '<div class="split-bar">' + s1.bar + s2.bar + s3.bar + '</div>'
-      + '<div class="split-legend">' + s1.legend + s2.legend + s3.legend + '</div>';
+    // Tools & overhead was dropped: task_ms minus per-turn think/respond
+    // almost always measures 0, so the segment was noise. The empty tail of
+    // the bar is any unaccounted remainder (tool waits, retries, compaction).
+    el.innerHTML = '<div class="split-bar">' + s1.bar + s2.bar + '</div>'
+      + '<div class="split-legend">' + s1.legend + s2.legend + '</div>';
   }
 
   renderTurnSplit() {

@@ -154,3 +154,11 @@ contains no SSH connection data.
 All paths go through Node's `path.join`, all file ops use `fs.*Sync`.
 Atomic rename works on both POSIX and Windows NTFS. No shell, no
 native deps.
+
+### Optional real-time push (v1.21.7)
+
+- `usagePushEnabled` (bool, default false) — pushes every recorded row in
+  real time to a user-configured HTTPS endpoint (fire-and-forget; any
+  endpoint error is logged and dropped, never retried).
+- `usagePushEndpoint` (string) — the HTTPS endpoint URL.
+- `usagePushApiKey` (string) — the shared key sent as the `X-API-Key` header.

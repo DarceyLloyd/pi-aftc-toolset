@@ -28,6 +28,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 
 const PACKAGE_NAME = "pi-aftc-toolset";
 
@@ -148,6 +149,55 @@ export function getConfigJson(): string {
 /** Path to local SSH connection credentials. Never add this file to git or npm. */
 export function getSshJson(): string {
     return path.join(getDataDir(), "ssh.json");
+}
+
+/**
+ * Path to the per-installation device id file (usage mirror owner tag).
+ * One UUID per data dir — shared by every pi window / sub-agent on the
+ * machine. Also read by the maintainer pull tooling (kept in .dev/);
+ * keep the name in sync if it ever changes.
+ */
+export function getDeviceIdFile(): string {
+    return path.join(getDataDir(), "device-id");
+}
+
+/**
+ * The per-installation device id (a v4 UUID), created once and read back.
+ *
+ * Used to tag every recorded usage row locally and in the online mirror
+ * push, so a date-range pull can tell THIS machine's rows from other
+ * users' (session_id collides across machines and is not an owner key).
+ *
+ * Atomic multi-process creation: written with the exclusive-create flag
+ * ("wx"); on EEXIST (another pi window / sub-agent won the race) the
+ * winner's value is re-read. Never throws — a failure (eg read-only data
+ * dir) falls back to "" so recording never breaks; the row then has no
+ * owner tag (treated as a legacy row on the mirror).
+ */
+export function getDeviceId(): string {
+    const file = getDeviceIdFile();
+    try {
+        if (fs.existsSync(file)) {
+            const v = fs.readFileSync(file, "utf-8").trim();
+            if (v) return v;
+        }
+        fs.mkdirSync(getDataDir(), { recursive: true });
+        // node:crypto randomUUID (v4) is available in Node 16+.
+        const id = randomUUID();
+        try {
+            fs.writeFileSync(file, id, { encoding: "utf-8", flag: "wx" });
+        } catch (err) {
+            if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+                const v = fs.readFileSync(file, "utf-8").trim();
+                if (v) return v;
+            }
+            throw err;
+        }
+        return id;
+    } catch (err) {
+        console.log(`[aftc-toolset] device id error: ${(err as Error).message}`);
+        return "";
+    }
 }
 
 /**

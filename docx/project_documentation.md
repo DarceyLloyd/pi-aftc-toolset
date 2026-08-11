@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-10 19:30 -->
+<!-- last-reviewed: 2026-08-11 -->
 
 > Master document. Do not follow the per-ID links below until your work
 > touches that area — each section ends with an *Only read* instruction;
@@ -19,7 +19,9 @@ extension loader (jiti — TypeScript at runtime, no build step), and it adds:
   ZAI/GLM and Kimi subscriptions.
 - A **persistent usage database** (SQLite) with a **usage report** served
   by a local server (Overview / Models / Thinking levels / Timings /
-  Projections tabs).
+  Projections / Context & allowance / Errors tabs — best/worst model
+  rankings, usage-rate cost projections, context-window pressure and
+  failed-call shame list).
 - **Isolated SSH**: saved connections, a packaged Python (Paramiko) carrier
   over local stdio, 20 model tools (commands, PTY shells, SFTP, remote file
   ops) and a full-screen interactive terminal — credentials never reach the
@@ -168,7 +170,7 @@ per-turn SQLite recording (`usage-recording.ts`) and the HTML usage report
 #### 1.4.2 Footer widget — the 6-line bar surface + `/aftc-footer` menu + timeframe picker. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.2_footer_widget.md`.
 #### 1.4.3 Subscription allowance — ChatGPT/Codex, Anthropic headers, MiniMax, ZAI/GLM, Kimi fetchers for line 5. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.3_allowance.md`.
 #### 1.4.4 Usage recording — TurnRecorder writing metrics-only rows to turns/tasks. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.4_usage_recording.md`.
-#### 1.4.5 Usage report — `/usage-report` + `/usage-clear`, the usage-report app + local server with its 5 tabs. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md`.
+#### 1.4.5 Usage report — `/usage-report` + `/usage-clear`, the usage-report app + local server with its 7 tabs. Only read `./docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md`.
 
 ### 1.5 - Feature modules
 

@@ -49,6 +49,9 @@ assistant responded over time*, query this DB.
 | `output_tokens` | int | Output tokens |
 | `cache_read` | int | Cached prefix tokens served |
 | `cache_write` | int | Tokens written to cache this turn |
+| `context_window` | int | Model's declared context window in tokens at this turn (`getContextUsage().contextWindow`); 0 when unknown (old rows) |
+| `context_tokens` | int | pi's context-usage estimate at `message_end` (`getContextUsage().tokens`, input side); 0 when unavailable |
+| `device_id` | text | Per-installation owner id (one UUID per data dir, `paths.ts getDeviceId`) — tags every row so the online mirror can tell this machine's rows from other users'; `''` = legacy row recorded before device ids existed |
 | `session_id` | text | Stable per-runtime-session id |
 | `prompt_index` | int | 1-based user-prompt number; all automated continuations share the same index as the user prompt that caused them |
 
@@ -110,6 +113,44 @@ in the footer and counted, but never mixed into the Task Time metric.
 | `model_name` | text | Model that ran the task |
 | `thinking_level` | text | Thinking level (`high` / `low` / `off`) |
 | `turn_count` | int | Number of assistant turns the task took |
+| `context_window` | int | Model's declared context window in tokens at task time; 0 when unknown |
+| `context_start_tokens` | int | pi's context-usage estimate at task START (captured on `message_start` of the user prompt) |
+| `context_end_tokens` | int | pi's context-usage estimate at task END (captured on the last `message_end`) |
+| `allow_provider` | text | Provider label of the allowance snapshot (eg `ChatGPT Plus`) — empty when the provider reports no allowance |
+| `allow_5h_start` | real · null | Provider 5-hour allowance used % at task start / end (NULL = no snapshot) |
+| `allow_5h_end` | real · null | ditto |
+| `allow_weekly_start` | real · null | Provider weekly allowance used % at task start / end (NULL = no snapshot) |
+| `allow_weekly_end` | real · null | ditto |
+| `device_id` | text | Per-installation owner id (one UUID per data dir) — `''` for legacy rows |
+
+Allowance snapshots are taken by `core.ts` at `agent_start` (once per
+task) and `agent_settled` from the allowance provider (see
+`allowance-readme.md`) — provider-level, only for providers that
+report a 5h / weekly window (Codex, Claude, MiniMax, Z.ai GLM, Kimi).
+Other providers leave the columns NULL and the report shows N/A.
+
+### `errors` table (one row per failed LLM call)
+
+Inserted by `core.ts` on the failing `message_end` (`stopReason ===
+"error"`) via `recordError`. A failed call is a turn that ended in an
+error — network failure, rate limit, overloaded, 404, auth or
+timeout. User aborts (`stopReason === "aborted"`) are NOT errors.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | int PK | Auto-increment row id |
+| `session_id` | text | Stable per-runtime-session id |
+| `prompt_index` | int | 1-based user-prompt number the failed call belonged to |
+| `timestamp` | int | ms since epoch at the failing `message_end` |
+| `model_name` | text | Model that failed |
+| `thinking_level` | text | Thinking level at the time |
+| `error_type` | text | Classified category: `rate-limit` / `overloaded` / `not-found` / `auth` / `timeout` / `network` / `other` |
+| `error_message` | text | Raw error text from pi (HTTP status / provider message) |
+| `device_id` | text | Per-installation owner id (one UUID per data dir) — `''` for legacy rows |
+
+Classification happens in `core.ts`'s `classifyError()` — order
+matters: 5xx beats timeout/network (a 503 gateway timeout is a server
+problem). The Errors tab groups by model × type.
 
 ### What is NOT recorded
 
@@ -119,6 +160,26 @@ in the footer and counted, but never mixed into the Task Time metric.
   tools with.
 - Reasoning or thinking-block content (only `thinking_ms` is
   recorded as a duration).
+## Optional real-time push (v1.21.7)
+
+After a row is recorded locally it may ALSO be pushed in real time to a
+user-configured HTTPS endpoint — one record per request, at the moment it
+is recorded (same events: `recordTurn` / `recordTask` / `recordError`).
+Configured via config.json preferences, read FRESH from disk on every push
+(never cached):
+
+- `usagePushEnabled` (bool, default false)
+- `usagePushEndpoint` (string — the HTTPS endpoint URL)
+- `usagePushApiKey` (string — the shared key sent as the `X-API-Key` header)
+
+The payload is `{ "source": <hostname>, "<table>": [ one row ] }` with the
+schema's snake_case column names and 0/1 flags, plus the per-installation
+`device_id` (one UUID per data dir) so rows in the shared mirror can be
+attributed back to this installation. ERROR POLICY: on ANY error
+from the endpoint (non-200 or network failure) the push is DROPPED and
+logged — never retried, never queued. The push is fire-and-forget and never
+blocks the recording path.
+
 ## Public factory
 
 ```typescript

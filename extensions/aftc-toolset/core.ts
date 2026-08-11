@@ -412,6 +412,22 @@ class ShapeTracker {
     }
 }
 
+/** Classify a provider error message into a shameable category for the
+ *  usage report's Errors tab. User aborts never reach this (stopReason
+ *  "aborted" is a separate stat, not an error). Order matters: 5xx beats
+ *  timeout/network (a 503 gateway timeout is a server problem, not a
+ *  client one). Unknown messages fall back to "other". */
+function classifyError(message: string): string {
+    const m = message || "";
+    if (/(^|\D)429(\D|$)/.test(m) || /rate\s*limit/i.test(m)) return "rate-limit";
+    if (/(^|\D)5\d\d(\D|$)/.test(m) || /overload|service unavailable|temporarily/i.test(m)) return "overloaded";
+    if (/(^|\D)404(\D|$)/.test(m) || /not\s*found/i.test(m)) return "not-found";
+    if (/(^|\D)(401|403)(\D|$)/.test(m) || /unauthori[sz]ed|forbidden|invalid\s*api\s*key|authentication/i.test(m)) return "auth";
+    if (/(^|\D)408(\D|$)/.test(m) || /timeout|timed?\s*out|deadline/i.test(m)) return "timeout";
+    if (/fetch\s*failed|network|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|EPIPE|socket|connection|disconnect|offline|tunnel/i.test(m)) return "network";
+    return "other";
+}
+
 // ---------------------------------------------------------------------------
 // createCore — the cache-diagnostics data module
 //
@@ -468,6 +484,16 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     let lastTaskMs = 0;             // last completed task duration
     let lastTaskStopReason = "";    // "" | "complete" | "error" | "aborted"
     let lastAssistantStopReason: string | undefined;  // last assistant message stopReason
+
+    // Task context + allowance snapshots (v1.21.x). Captured at task start
+    // (message_start / agent_start) and task end (message_end / agent_settled)
+    // so the usage report can show context-window pressure and how much of a
+    // 5h / weekly allowance each completed task consumed.
+    let taskContextStartTokens = 0;   // pi context estimate at task start
+    let taskContextEndTokens = 0;     // pi context estimate after the final turn
+    let taskContextWindow = 0;        // model context window at task time
+    let taskAllowCaptured = false;    // allowance-start snapshotted once per task
+    let taskAllowStart: { provider: string; five: number | null; weekly: number | null } | null = null;
 
     // Pi's own context-usage snapshot. Captured on every message_end
     // (after the new turn is added) and on every 1Hz ticker pulse so
@@ -801,6 +827,21 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     // Retries, compaction and steering don't settle the agent (pi's run loop drains
     // them before the single agent_settled), so the timer spans them automatically.
 
+    // Allowance start snapshot: captured at the task's first agent_start
+    // (once per task; steers / retries / compaction runs fire agent_start
+    // too, but taskAllowCaptured guards against overwriting the true start).
+    // The allowance view is provider-level and only exists when the active
+    // provider reports a 5h / weekly window (Codex, Claude, MiniMax, ZAI,
+    // Kimi) — otherwise it stays null and the report shows N/A.
+    pi.on("agent_start", async () => {
+        if (taskStartMs === 0 || taskAllowCaptured) return;
+        taskAllowCaptured = true;
+        const v = allowance?.getAllowance?.();
+        taskAllowStart = v
+            ? { provider: v.providerLabel || "", five: v.fiveHour?.usedPercent ?? null, weekly: v.weekly?.usedPercent ?? null }
+            : null;
+    });
+
     // Task timer: stop + record on agent_settled — the ONLY "truly returned to
     // user" hook. Covers complete / error / abort (via the last assistant
     // stopReason). Questions do NOT settle the agent (ask_user_question blocks
@@ -808,6 +849,11 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
     pi.on("agent_settled", async () => {
         if (taskStartMs === 0) return;
         const taskMs = Math.max(0, Date.now() - taskStartMs);
+        // Allowance end snapshot for this task (fresh read at settle).
+        const v = allowance?.getAllowance?.();
+        const allowEnd = v
+            ? { provider: v.providerLabel || "", five: v.fiveHour?.usedPercent ?? null, weekly: v.weekly?.usedPercent ?? null }
+            : null;
         const raw = lastAssistantStopReason;
         // Only finish the task when the last assistant turn ended with a
         // known final stopReason. per AGENTS.md: pi stopReason values are
@@ -842,9 +888,22 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             modelName: model.name || "",
             thinkingLevel: model.thinkingLevel || "",
             turnCount: taskTurnCount,
+            contextWindow: taskContextWindow || model.contextWindow || 0,
+            contextStartTokens: taskContextStartTokens,
+            contextEndTokens: taskContextEndTokens,
+            allowProvider: taskAllowStart?.provider || allowEnd?.provider || "",
+            allow5hStart: taskAllowStart?.five ?? null,
+            allow5hEnd: allowEnd?.five ?? null,
+            allowWeeklyStart: taskAllowStart?.weekly ?? null,
+            allowWeeklyEnd: allowEnd?.weekly ?? null,
         });
         taskStartMs = 0;
         taskTurnCount = 0;
+        taskContextStartTokens = 0;
+        taskContextEndTokens = 0;
+        taskContextWindow = 0;
+        taskAllowCaptured = false;
+        taskAllowStart = null;
     });
 
     pi.on("input", async (event, _ctx) => {
@@ -923,6 +982,13 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                 taskStartMs = Date.now();
                 taskTurnCount = 0;
                 lastAssistantStopReason = undefined;
+                // Context + allowance start of the new task.
+                taskAllowCaptured = false;
+                taskAllowStart = null;
+                const cu = (_ctx as any)?.getContextUsage?.();
+                taskContextStartTokens = cu?.tokens || 0;
+                taskContextEndTokens = 0;
+                taskContextWindow = cu?.contextWindow || 0;
             }
             if (!sessionStarted) {
                 // First user message of this context window. _sessionStartTime
@@ -962,6 +1028,41 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         // complete/error/abort classification) and count this turn into the task.
         lastAssistantStopReason = (msg as any).stopReason;
         if (taskStartMs !== 0) taskTurnCount++;
+
+        // Capture pi's context-usage snapshot for the footer AND the task's
+        // context-end estimate. Done BEFORE the usage guard so aborted /
+        // empty / error turns still contribute.
+        const cu = (_ctx as any)?.getContextUsage?.();
+        if (cu) contextUsage = { tokens: cu.tokens, contextWindow: cu.contextWindow, percent: cu.percent };
+        if (taskStartMs !== 0) {
+            taskContextEndTokens = cu?.tokens || 0;
+            taskContextWindow = taskContextWindow || cu?.contextWindow || 0;
+        }
+        // Model fallback (before the guard — error turns skip the guarded
+        // section and must still learn the model + its context window).
+        const m = (event as any).model;
+        if (m) {
+            model.name = model.name || m.name || m.id || "";
+            model.reasoning = model.reasoning || m.reasoning === true;
+            model.contextWindow = model.contextWindow || m.contextWindow || 0;
+        }
+        // Failed LLM call — record it (a user abort is NOT an error; it is
+        // counted as a stat from the tasks table). Classified into
+        // shameable categories for the report's Errors tab.
+        if ((msg as any).stopReason === "error") {
+            const errMsg = String((msg as any).errorMessage || "");
+            // Defensive ?. — older mocks / minimal recorders may not implement
+            // recordError yet; the conforming TurnRecorder does.
+            turnRecorder.recordError?.({
+                sessionId: _sessionId,
+                promptIndex: _activePromptIndex || _currentPromptIndex || 0,
+                timestamp: Date.now(),
+                modelName: model.name || "",
+                thinkingLevel: model.thinkingLevel || "",
+                errorType: classifyError(errMsg),
+                errorMessage: errMsg,
+            });
+        }
 
         // Per-turn timing — thinking (to first output) and response (total).
         // Done BEFORE the usage guard so aborted / empty / error turns still
@@ -1051,6 +1152,8 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             outputTokens: usage.output,
             cacheRead: usage.cacheRead,
             cacheWrite: usage.cacheWrite,
+            contextTokens: contextUsage?.tokens || 0,
+            contextWindow: contextUsage?.contextWindow || model.contextWindow || 0,
             isUserPrompt,
             sessionId: _sessionId,
             promptIndex,
@@ -1062,14 +1165,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             promptKind,
         });
 
-        // Model fallback
-        const m = (event as any).model;
-        if (m) {
-            model.name = model.name || m.name || m.id || "";
-            model.reasoning = model.reasoning || m.reasoning === true;
-            model.contextWindow = model.contextWindow || m.contextWindow || 0;
-        }
-
         // Prefix shape churn detection (uses cached tool cost signature indirectly)
         const tools = pi.getAllTools();
         if (tools.length > 0) {
@@ -1079,12 +1174,6 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                 aftcConsole.warn(_ctx, `Cache prefix changed: ${cmp.reasons.join("+")}`);
             }
         }
-
-        // Capture pi's own context-usage snapshot (same number shown in
-        // the native status bar). The widget reads this via
-        // data.getContextUsage() on the next render frame.
-        const u = _ctx?.getContextUsage?.();
-        if (u) contextUsage = { tokens: u.tokens, contextWindow: u.contextWindow, percent: u.percent };
     });
 
     pi.on("session_compact", async () => {

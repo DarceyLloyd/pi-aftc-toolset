@@ -7,7 +7,7 @@ documented node, at every level. Convention: deep doc
 the owning node's ID. The on-disk `docx/` tree mirrors this map — a node's
 folder path IS its ID ancestry.
 
-<!-- structure-map - last-verified: 2026-08-10 14:57 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
+<!-- structure-map - last-verified: 2026-08-11 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
 
 > Do not follow these links until your work touches that area — load only the
 > doc for the area you are about to work on (discovery via the master's
@@ -29,7 +29,7 @@ pi-aftc-toolset (pi extension package v1.20.2)
 |  |  |- 1.4.2 Footer widget (widget surface + /aftc-footer menus)
 |  |  |- 1.4.3 Subscription allowance (allowance.ts, footer line 5)
 |  |  |- 1.4.4 Usage recording (usage-recording.ts, turns.db writer)
-|  |  \- 1.4.5 Usage report (usage-report app + server, 5 tabs)
+|  |  \- 1.4.5 Usage report (usage-report app + server, 7 tabs)
 |  |- 1.5 Feature modules                                          module
 |  |  |- 1.5.1 Keyboard shortcuts (keys.ts)
 |  |  |- 1.5.2 Help & discovery (help.ts)

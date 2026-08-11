@@ -1,6 +1,10 @@
 # Usage Report
 
-I've changed to this format as its a nightmare editing a huge single consoldated file of html, css and js, it's worse than HTML email building.
+Seven tabs: **Overview · Models · Thinking levels · Timings · Projections ·
+Context & allowance · Errors** — a dark-themed, responsive report of your
+AI usage. Models can be sorted on every column and carry info icons with
+mouse-over explanations; verdict badges call out the best and worst models
+per metric. Money is formatted by `fmtMoney` everywhere.
 
 ## Usage
 So, you're using pi, which means you should have node installed?, if not install it..

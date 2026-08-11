@@ -97,6 +97,22 @@ const SCHEMA = `
         turn_count      INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_timestamp ON tasks(timestamp);
+
+    -- One row per FAILED LLM call (assistant turn with stopReason "error" —
+    -- network, rate limit, overloaded, 404, auth, timeout). Recorded by
+    -- core.ts on the failing message_end via usage-recording.recordError.
+    -- User aborts are NOT errors (they are counted from the tasks table).
+    CREATE TABLE IF NOT EXISTS errors (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id      TEXT NOT NULL DEFAULT '',
+        prompt_index    INTEGER NOT NULL DEFAULT 0,
+        timestamp       INTEGER NOT NULL,
+        model_name      TEXT,
+        thinking_level  TEXT,
+        error_type      TEXT NOT NULL DEFAULT 'other',
+        error_message   TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors(timestamp);
 `;
 
 const MIGRATIONS = [
@@ -109,6 +125,33 @@ const MIGRATIONS = [
     `ALTER TABLE turns ADD COLUMN followup_prompt INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE turns ADD COLUMN continuation_prompt INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE turns ADD COLUMN prompt_kind TEXT NOT NULL DEFAULT ''`,
+
+    // v1.21.x — context-window tracking. context_window = model's declared
+    // window (tokens); context_tokens = pi's getContextUsage() estimate at
+    // message_end. Old rows stay 0 (report falls back to token-derived
+    // context when 0).
+    `ALTER TABLE turns ADD COLUMN context_window INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE turns ADD COLUMN context_tokens INTEGER NOT NULL DEFAULT 0`,
+
+    // v1.21.x — task-level context + provider allowance snapshots. Allowance
+    // fields are REAL (nullable) because only some providers report an
+    // allowance; NULL = no data for that window.
+    `ALTER TABLE tasks ADD COLUMN context_window INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN context_start_tokens INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN context_end_tokens INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE tasks ADD COLUMN allow_provider TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE tasks ADD COLUMN allow_5h_start REAL`,
+    `ALTER TABLE tasks ADD COLUMN allow_5h_end REAL`,
+    `ALTER TABLE tasks ADD COLUMN allow_weekly_start REAL`,
+    `ALTER TABLE tasks ADD COLUMN allow_weekly_end REAL`,
+
+    // v1.21.x — per-installation owner id for the online usage mirror.
+    // One UUID per data dir (paths.ts getDeviceId); tags every row locally
+    // and in the mirror push so a date-range pull can filter to this
+    // machine. '' = legacy row (recorded before device ids existed).
+    `ALTER TABLE turns ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE tasks ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
+    `ALTER TABLE errors ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
 ];
 
 let _db: any = null;
