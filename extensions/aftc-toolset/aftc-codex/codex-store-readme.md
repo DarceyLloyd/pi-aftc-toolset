@@ -53,7 +53,7 @@ live codex root, and only when the live file does not already exist (copy-only).
 - `listCategories()` — all category folders under `resources/` (known order
   first, extras sorted; only folders that exist). The known order
   (`CODEX_CATEGORIES`): languages, libraries, frameworks, engines, runtimes,
-  tools, servers-and-containers, database, os, ui-ux. Used by the codex entry
+  tools, servers-and-containers, database, os, file-formats, ui-ux. Used by the codex entry
   tools for new-topic guidance and by `listTopics()`/`getCounts()` internally.
 - `getCounts()` — resource counts by category + totals (recursive: nested
   topics count towards their top-level category; loose root-level topics count

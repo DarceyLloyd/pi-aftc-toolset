@@ -69,3 +69,9 @@
 - [a0rIfg] ImportError at startup: numba needs NumPy X or less, got newer NumPy
   Cause: numba pins numpy below the installed numpy series, and the plugin importing numba fails entirely.
   Fix: upgrade numba to a release supporting the current numpy series; pip may auto-downgrade numpy to satisfy the pin - afterwards verify torch/C-extension consumers still work with the downgraded numpy. (2026-08)
+
+- [r8dlHn] A local variable that shadows a same-named module function makes `x = x(...)` raise UnboundLocalError (the name is local throughout the function) - rename the variable or the function.
+
+- [JJIV3J] argparse defaults that read module globals conflict with a `global` declaration in main() - SyntaxError 'name X is used prior to global declaration'; use None defaults and assign the globals after parse_args().
+
+- [2pI8vf] lst[i:-1]` silently drops the LAST element - building target paths from split path parts with parts[:-1] loses the filename and collapses destinations; use lst[i:] to mean 'everything from i'.

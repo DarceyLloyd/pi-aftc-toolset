@@ -57,6 +57,9 @@ this file now (no separate rules file). The codex is a shared knowledge base of 
 fixes, gotchyas and rules: one markdown file per technology/topic under `resources/`, organised
 into `languages/`, `libraries/`, `frameworks/`, `engines/`, `tools/`, `runtimes/`,
 `servers-and-containers/` (server + container topics: apache, nginx, vsftpd, docker),
+`file-formats/` (binary file formats + data processing: one file per format family -
+`file-formats/audio/` for VST2 presets, Serum, etc. - plus `file-formats-common.md` for
+lessons that hold for ANY binary format work),
 `ui-ux/` (visual/UX design: one file per domain nested by platform - `ui-ux/web/`,
 `ui-ux/desktop/`, `ui-ux/mobile/`, `ui-ux/plugin/` - + `ui-ux-common.md` for lessons
 that fit EVERY domain), `database/` (engine-agnostic database lessons +
@@ -192,7 +195,8 @@ Ask: **"would this issue exist without the tool / framework?"**
   (content/marketing pages), `ui-ux/web/web-backend.md` (admin/back-office UIs - visual only,
   never API), `ui-ux/desktop/desktop-web-app.md` (web tech in a desktop shell, eg Electron),
   `ui-ux/desktop/desktop-app.md` (native desktop), `ui-ux/mobile/mobile-app.md` (touch-first),
-  `ui-ux/plugin/vst-plugin.md` (DAW-hosted audio plugins). Pick by the DOMAIN the UI lives in,
+  `ui-ux/plugin/vst-plugin.md` (DAW-hosted audio plugins; NOTE: this is the VISUAL design
+  side - the .fxp/.fxb plugin preset binary format lives in file-formats/audio/fxp-fxb.md). Pick by the DOMAIN the UI lives in,
   never by the technology, and never mix web and desktop conventions in one file. A lesson that
   holds on EVERY platform (colour, contrast, typography, spacing, sizing, usability universals)
   goes to `ui-ux/ui-ux-common.md` instead - and never duplicate an entry in both ui-ux-common and a
@@ -202,6 +206,15 @@ Ask: **"would this issue exist without the tool / framework?"**
 - **How we work (planning / documentation)** - the lesson is about WORK METHODOLOGY (how to
   plan, verify a plan against reality, generate or audit documentation) and holds for ANY
   project → the root-level `documentation-and-planning.md` (no category folder).
+- **File format / binary data** - the lesson is about PARSING, DECODING or REWRITING a
+  binary FILE FORMAT (magic bytes / 4CC, chunked containers, endianness, fixed-size
+  NUL-padded records, decompression, embedded paths) and would not exist without that
+  format → `file-formats/<family>/<format>.md` (eg file-formats/audio/fxp-fxb.md,
+  file-formats/audio/serum1-presets.md; create the family folder when needed). A lesson
+  that holds for ANY binary format work (byte-diff verification, zero-to-empty-state
+  clearing, endianness traps) → `file-formats/file-formats-common.md`. Do NOT file these
+  under `ui-ux/` just because the format belongs to a UI-adjacent product - an audio
+  plugin preset is a binary format, not a design choice.
 - **Database** - engine-specific (a MySQL error, an engine's syntax/behavior quirk) → that
   engine's topic file (`database/mysql.md`, ...). Holds for ANY database (storage conventions, migration
   discipline, NULL semantics) → `database/database-common.md`.

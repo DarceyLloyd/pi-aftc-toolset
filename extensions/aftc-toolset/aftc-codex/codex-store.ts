@@ -46,7 +46,7 @@ import * as aftcConsole from "../ui/aftc-console";
  *  documentation-and-planning.md) sit directly in resources/. */
 export const CODEX_CATEGORIES = [
     "languages", "libraries", "frameworks", "engines", "runtimes",
-    "tools", "servers-and-containers", "database", "os", "ui-ux",
+    "tools", "servers-and-containers", "database", "os", "file-formats", "ui-ux",
 ] as const;
 export type CodexCategory = (typeof CODEX_CATEGORIES)[number];
 
@@ -93,6 +93,7 @@ export interface CodexCounts {
     "servers-and-containers": number;
     database: number;
     os: number;
+    "file-formats": number;
     "ui-ux": number;
     topLevel: number;
     total: number;
@@ -459,7 +460,8 @@ export function createCodexStore(): CodexStore {
     function getCounts(): CodexCounts {
         const counts: CodexCounts = {
             languages: 0, libraries: 0, frameworks: 0, engines: 0, runtimes: 0,
-            tools: 0, "servers-and-containers": 0, database: 0, os: 0, "ui-ux": 0,
+            tools: 0, "servers-and-containers": 0, database: 0, os: 0,
+            "file-formats": 0, "ui-ux": 0,
             topLevel: 0, total: 0,
         };
         // Top-level guidance files at the codex root.

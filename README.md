@@ -45,7 +45,7 @@ This is an extension for pi (pi.dev) which helps me in my everyday work. If ther
 
 - **AFTC Resume (/aftc-resume-save /aftc-resume)**
   
-  Hand work off between context windows: `/aftc-resume-save` saves the current work state to `aftc-resume.md` (an existing handoff is kept as a timestamped snapshot), then `/new` + `/aftc-resume` continue the work in a fresh window - the model re-loads its codex resources, reads its key files plus both docx docs (project_documentation.md + project_map.md if available) and AGENTS.md, and picks up where it left off. Save your context window, just because you may have 1M context window, it doesn't mean you should use it all. **If you use 30%+ on Kimi K3 kiss goodbye to your 5 hour and weekly allowance fast (K3 is good but I don't recommend it for this reason), /aftc-resume was created to help with this issue.**
+  Hand work off between context windows: `/aftc-resume-save` saves the current knowledge and work state to `aftc-resume.md` (an existing handoff is kept as a timestamped snapshot), then `/new` + `/aftc-resume` restore that knowledge in a fresh window - the model re-loads its codex resources, reads its key files plus both docx docs (project_documentation.md + project_map.md if available) and AGENTS.md, confirms it is up to speed, and waits for your direction (it does not continue the saved task on its own - tell it to pick the work back up if you want that). Save your context window, just because you may have 1M context window, it doesn't mean you should use it all. **If you use 30%+ on Kimi K3 kiss goodbye to your 5 hour and weekly allowance fast (K3 is good but I don't recommend it for this reason), /aftc-resume was created to help with this issue.**
   
   **Click here for more information** → [AFTC Resume section](#aftc-resume-aftc-resume-save-aftc-resume)
 
@@ -100,12 +100,14 @@ work and has the model write `aftc-resume.md` - goal, current state, decisions
 made, knowledge learned, key files, tasks & progress (referencing tasks.md if
 you follow one), next steps and open questions. An existing handoff is first
 renamed to a timestamped snapshot (`aftc-resume-<last-modified>.md`), so
-nothing is ever overwritten. Then `/new` + `/aftc-resume` continue in a fresh
-window: the model reads the handoff, re-loads the codex resources it lists
-(codex on), reads the project's docx docs and AGENTS.md, and picks up where
-it left off. Codex resources are tracked automatically; the flow works with
-codex on or off. The `/new` is always yours - the toolset never starts a
-session on its own.
+nothing is ever overwritten. Then `/new` + `/aftc-resume` restore that
+knowledge in a fresh window: the model reads the handoff, re-loads the codex
+resources it lists (codex on), reads the project's docx docs and AGENTS.md,
+confirms it is up to speed, and waits for your direction (it does not continue
+the saved task on its own - tell it to pick the work back up if you want
+that). Codex resources are tracked automatically; the flow works with codex
+on or off. The `/new` is always yours - the toolset never starts a session on
+its own.
 
 ### **DocX gets "/docx-update" to maintain generated DocX project documentation (BETA 1)**
 
@@ -353,7 +355,7 @@ js; specials: rules, guidance, list, markdown).
   even when disabled; cleared by `/new`).
 
 Your live copy lives in your data dir (`aftc-codex/`); the shipped seed is
-versioned (`codexVersion` 17) and merges forward automatically on startup
+versioned (`codexVersion` 20) and merges forward automatically on startup
 when Auto Sync is on.
 
 ---
@@ -517,7 +519,8 @@ handoff point - or before the context window gets unwieldy - run
 3. The toolset merges a `## Resume metadata` block (project, saved time,
    codex resources loaded, status) and verifies the save.
 
-Then `/new`, and run `/aftc-resume` to continue in the fresh window:
+Then `/new`, and run `/aftc-resume` to restore your knowledge in the fresh
+window:
 
 - The model reads `aftc-resume.md` first.
 - Codex resources listed in the handoff are re-loaded via `codex_load`
@@ -525,7 +528,10 @@ Then `/new`, and run `/aftc-resume` to continue in the fresh window:
   are always the fallback).
 - It reads BOTH docx docs (`docx/project_documentation.md` and
   `docx/project_map.md` - each only when present) and re-reads AGENTS.md.
-- It restates the plan from the handoff and continues where it left off.
+- It confirms it is up to speed in a few short lines and then waits for
+  your direction — it does NOT continue the saved task on its own. The
+  handoff's Next Steps are reference; say something like "continue the
+  saved work" when you want it to pick the task back up.
 
 Notes:
 
@@ -629,7 +635,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/docx [--yes] [--type <key>]` | Regenerate the project's full documentation set into `./docx/`; old docs zipped into `docx/backups/` (`--yes` skips the confirmations, `--type` picks the prompt pack) |
 | `/docx-update [--yes] [--type <key>]` | Reconcile an existing `./docx/` set with the source: mint/retire docs, fix drift, fact-check the README without rewriting it |
 | `/aftc-resume-save` | Stop current work and write `./aftc-resume.md` (handoff file: goal, current state, knowledge learned, key files, next steps). An existing handoff is kept as a timestamped snapshot - nothing is overwritten. Then `/new` + `/aftc-resume` to continue in a fresh window |
-| `/aftc-resume` | Resume the saved work: the model reads `./aftc-resume.md`, re-loads its codex resources (codex on) and key files, reads the project's docx docs and AGENTS.md, and continues |
+| `/aftc-resume` | Restore the saved knowledge: the model reads `./aftc-resume.md`, re-loads its codex resources (codex on) and key files, reads the project's docx docs and AGENTS.md, confirms it is up to speed, then waits for your direction |
 
 ### Interrupt
 

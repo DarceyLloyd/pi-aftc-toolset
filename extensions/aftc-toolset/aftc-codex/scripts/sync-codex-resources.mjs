@@ -53,7 +53,7 @@ const TOP_LEVEL_EXCLUDE = new Set([LIST_FILENAME, "codex-rules.md"]);
 // their TOP-LEVEL category header (no sub-group headers — spec D16).
 const KNOWN_CATEGORY_ORDER = [
     "languages", "libraries", "frameworks", "engines", "runtimes",
-    "tools", "servers-and-containers", "database", "os", "ui-ux",
+    "tools", "servers-and-containers", "database", "os", "file-formats", "ui-ux",
 ];
 
 /** All category folders: known order first, then any extra dirs (sorted). */

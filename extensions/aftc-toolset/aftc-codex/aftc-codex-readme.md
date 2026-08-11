@@ -56,6 +56,7 @@ no override. The copy is strictly one-way: seed -> live.
     ├── languages/                    # languages-common.md + flat topics
     ├── libraries/  frameworks/  engines/  runtimes/
     ├── tools/  servers-and-containers/  database/  os/
+    ├── file-formats/                 # file-formats-common.md + family folders (audio/ …)
     ├── ui-ux/                        # ui-ux-common.md + web/ desktop/ mobile/ plugin/
     └── (ANY extra folder is discovered dynamically - known order first)
 ```

@@ -82,6 +82,9 @@ round trips.
 - servers-and-containers - apache, docker, nginx, vsftpd
 - database - database-common, mysql
 - os - linux, osx, windows
+- file-formats - file-formats-common plus formats nested by family: audio/
+  (fxp-fxb, serum1-presets); binary FILE FORMAT lessons (parsing,
+  decoding, byte surgery, decompression) go here, never ui-ux
 - ui-ux - ui-ux-common plus domains nested by platform: web/ (web-app,
   web-page, web-backend), desktop/ (desktop-app, desktop-web-app),
   mobile/ (mobile-app), plugin/ (vst-plugin)

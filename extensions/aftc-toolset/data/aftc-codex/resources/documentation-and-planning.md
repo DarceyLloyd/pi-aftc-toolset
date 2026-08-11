@@ -32,6 +32,12 @@
 
 - [OOB1lb] README quick-scan structure: Description/What's New sections carry short 'what it is + the slash command' bullets, each ending with a 'Click here for more information' anchor to its main section; all real detail lives ONLY in the main sections, and never keep a separate quick-links block that duplicates the bullets (it drifts and its anchors rot).
 
+- [jNtrS8] After generating a file-move/rename plan, audit the destinations mechanically before trusting it: every destination must keep its source extension, no two sources may share one destination, and per-folder counts must reconcile - silently collapsed destinations (a slice bug dropping filenames) survive a human read of the plan and only show up in a mechanical check.
+
+- [gAmSsN] For file-organising tools, run a final low-confidence pass over leftovers: re-match them by name keywords (plurals and pack shorthands included) into the target vocabulary instead of leaving them in the misc drawer forever; keep the vocabulary editable and dry-run first.
+
+- [DcXvue] When a dedup pass keeps one copy of duplicate content that other files reference by path, refs must be rewritten to the kept copy and the kept copy must land where the ref points - resolve dedup and refs together, then verify no ref points at a dropped copy.
+
 ## Gotchyas
 
 - [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.
@@ -43,6 +49,8 @@
 - [E1FfVB] Exact-count assertions on tracked side-effects (read/log/record counts) go stale when a feature adds an implicit extra side-effect (an auto-cascade load) - update the expected count to include the implicit record rather than assuming the tracking broke.
 
 - [165sMY] Hand-written GitHub heading anchors go dead - the auto-generated slug strips punctuation: '## **My Tool (v2 - stable release)**' anchors to #my-tool-v2---stable-release (parens removed, spaces to hyphens, ' - ' to '---'); derive the anchor from the ACTUAL heading text and verify it, or the link goes nowhere.
+
+- [InqH1r] A tree renderer that appends only child rows never prints the top-level nodes - their children render detached one level up and leaf top-level nodes vanish entirely; every node must print its own row before recursing.
 
 ## Issues & Solutions
 

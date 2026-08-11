@@ -16,4 +16,6 @@
 
 - [dx18VQ] An idempotent mover that skips when the destination exists silently loses a second source mapping to the same destination - distinguish "already moved" (source gone) from a genuine collision (source still present) and rename the latter Windows-style ("name (1)") instead of skipping; never merge or overwrite folders.
 
+- [1yGIeB] Word-boundary keyword matching misses plurals and compounds - 'drum' does not match 'drums' and 'dron' does not match 'droner'; match plural forms explicitly and use a leading-only boundary for patterns >= 3 chars so prefixes still hit, keeping full boundaries for 2-char shorthands.
+
 ## Issues & Solutions

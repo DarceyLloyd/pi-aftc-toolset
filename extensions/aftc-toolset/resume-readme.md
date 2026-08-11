@@ -19,7 +19,11 @@ session cwd):
   load the codex resources it lists (only when codex is enabled), read its
   key files plus BOTH docx docs (`docx/project_documentation.md` and
   `docx/project_map.md` — each existence-checked, and every listed file
-  MUST be read) and AGENTS.md, then continue.
+  MUST be read) and AGENTS.md, then confirm it is up to speed and WAIT for
+  the user's direction. Resume restores KNOWLEDGE, not work: the model does
+  NOT auto-continue the saved task — the handoff's Next Steps are reference
+  for the user's decision, and the model only follows them when the user
+  explicitly asks it to continue the saved work.
 
 The `/new` itself is the USER's job — the toolset never starts a session on
 its own.
@@ -80,7 +84,8 @@ takes over.
 the metadata merge, the prompt builders, and the no-file / minimal-file
 paths (pure functions, no pi needed). The end-to-end command flow needs a
 live pi session (manual): run `/aftc-resume-save`, `/new`, then
-`/aftc-resume` and confirm the model reads the file and continues.
+`/aftc-resume` and confirm the model loads the saved knowledge, confirms
+readiness, and waits for your direction instead of continuing on its own.
 
 ## Notes
 

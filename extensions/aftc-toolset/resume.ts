@@ -14,7 +14,8 @@
  *   - `/aftc-resume` — after `/new`, tells the model to read the handoff
  *     file, load the codex resources it lists (only when codex is enabled),
  *     read its key files plus the project's docx docs and AGENTS.md, then
- *     continue the work where it left off.
+ *     confirm it is up to speed and WAIT for the user's direction — it does
+ *     NOT auto-continue the saved task (resume restores knowledge, not work).
  *
  * Division of labour (single-writer rule):
  *   - The MODEL writes the handoff body (its work state) using its own
@@ -228,10 +229,12 @@ export function buildSavePrompt(cwd: string, codexEnabled: boolean, resources: s
           ".\n"
         : "";
     return (
-        `Stop your current work and save a handoff file so the work can continue in a fresh session. ` +
+        `Stop your current work and save a handoff file so a fresh session can pick up your knowledge and state. ` +
         `The previous handoff (if any) was already renamed to a timestamped snapshot by the toolset. ` +
         `Do not write a "## Resume metadata" section — the toolset adds it after you finish. ` +
-        `Keep the file under ~15 KB: be specific enough that a fresh session can continue without re-deriving anything.\n\n` +
+        `Keep the file under ~15 KB. Frame it as a KNOWLEDGE POINT: a fresh session must become fully up to speed ` +
+        `on this project and this work without re-deriving anything — it will NOT continue automatically, ` +
+        `so the state, decisions and lessons must stand on their own.\n\n` +
         `Write ./aftc-resume.md in this project (cwd: ${cwd}) with exactly these sections:\n\n` +
         `## Goal\nWhat the overall goal is.\n\n` +
         `## Current State\nWhat has been done, what exists now, where things stand.\n\n` +
@@ -239,7 +242,7 @@ export function buildSavePrompt(cwd: string, codexEnabled: boolean, resources: s
         `## Knowledge Learned\nGotchas, discoveries, working patterns — anything worked out that should not be worked out again.\n\n` +
         `## Key Files\nThe files most relevant to the work — a fresh session should read these first.\n\n` +
         `## Tasks & Progress\nRemaining tasks. If you are following a tasks.md (or plan.md), summarise progress against it and reference it.\n\n` +
-        `## Next Steps\nExactly what to do first on resume, in order.\n\n` +
+        `## Next Steps\nWhat was planned next, in order (reference for the user's decision — a resumed session waits for direction before acting on them).\n\n` +
         `## Open Questions\nAnything unresolved.\n` +
         codexSection +
         `\nAfter writing the file, reply with ONE short line confirming it (eg "State saved to aftc-resume.md"), then STOP. Do not continue the work.`
@@ -273,16 +276,21 @@ export function buildResumePrompt(cwd: string, codexEnabled: boolean): string {
         : "";
 
     return (
-        `A previous work session saved its state in ./aftc-resume.md (this project).\n\n` +
+        `A previous work session saved its knowledge and state in ./aftc-resume.md (this project).\n\n` +
         `1. Read ./aftc-resume.md first.\n` +
-        `2. Before starting work, do ALL of the following:\n` +
+        `2. Load that knowledge into this session — do ALL of the following:\n` +
         `   - Read the files listed under "Key Files".` +
         codexLine +
         docxLine +
-        `\n   - Re-read and acknowledge the AGENTS.md project rules (and CLAUDE.md if present) before starting.` +
-        `\n3. Restate the goal and the next steps from the file, then continue the work where it left off.` +
-        `\n4. If the work in the file is already complete, or you are starting a different task, tell the user and skip the resume.` +
-        `\n5. When the work described in the file is fully complete, update the file's "status" line under "## Resume metadata" to "completed".`
+        `\n   - Re-read and acknowledge the AGENTS.md project rules (and CLAUDE.md if present).` +
+        `\n3. Confirm with a few short lines that you are up to speed: which codex resources you loaded, ` +
+        `and one line on where the previous session left off.` +
+        `\n4. STOP there. Do NOT continue the previous task, do NOT start new work, and do NOT act on the ` +
+        `file's "Next Steps" or "Tasks & Progress" on your own — those are reference for the user's ` +
+        `decision. Wait for the user to tell you what to work on. If they ask you to continue the saved ` +
+        `work, follow the file's next steps then.` +
+        `\n5. When the user confirms the saved work is complete (or asks you to finish it and it completes), ` +
+        `update the file's "status" line under "## Resume metadata" to "completed".`
     );
 }
 
@@ -397,7 +405,8 @@ async function handleSave(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promi
 /**
  * `/aftc-resume` — kick the model off on the handoff: read the file,
  * load codex resources (codex on), read key files + docx docs + AGENTS.md,
- * then continue. Fire-and-forget — the model takes over from here.
+ * then confirm it is up to speed and wait for the user's direction.
+ * Fire-and-forget — the model takes over from here.
  */
 async function handleResume(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
     const cwd = ctx.cwd;
@@ -431,7 +440,7 @@ async function handleResume(pi: ExtensionAPI, ctx: ExtensionCommandContext): Pro
     }
 
     if (ctx.hasUI) {
-        aftcConsole.emphasis(ctx, `Resume instruction sent — the model will read ${RESUME_FILE} and continue.`);
+        aftcConsole.emphasis(ctx, `Resume instruction sent — the model will read ${RESUME_FILE} and load the saved knowledge.`);
     } else {
         console.log(`[aftc-toolset] /aftc-resume: resume instruction sent`);
     }
@@ -468,7 +477,7 @@ export function createResume(pi: ExtensionAPI): void {
     registerHelpEntry({
         command: "aftc-resume-save",
         description:
-            "Save the current work state to aftc-resume.md (an existing file is kept as a timestamped snapshot) so a fresh session can continue the work",
+            "Save the current knowledge and work state to aftc-resume.md (an existing file is kept as a timestamped snapshot) so a fresh session can pick up where you left off",
         category: "General",
     });
 
@@ -491,13 +500,13 @@ export function createResume(pi: ExtensionAPI): void {
     registerHelpEntry({
         command: "aftc-resume",
         description:
-            "Resume work from the saved aftc-resume.md handoff: read the file, load its codex resources and key files, then continue",
+            "Resume from the saved aftc-resume.md handoff: read the file, load its codex resources and key files, then be ready for your next instruction",
         category: "General",
     });
 
     pi.registerCommand("aftc-resume", {
         description:
-            "Tell the model to read ./aftc-resume.md and continue the saved work (run after /new).",
+            "Tell the model to read ./aftc-resume.md and load the saved knowledge (run after /new) - it confirms it is up to speed and waits for your direction.",
         handler: async (_args: string, ctx: ExtensionCommandContext) => {
             try {
                 await handleResume(pi, ctx);

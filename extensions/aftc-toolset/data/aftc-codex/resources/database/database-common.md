@@ -12,6 +12,8 @@ engine file; cross-reference instead.*
 
 - [nyp0eW] bulk DB seeders: compute ONE password hash and reuse it for every row (per-row hashing is the bottleneck); keep the regeneration recipe next to the embedded hash
 
+- [WQkDe3] For repeated scans of large file trees, cache each file's size + mtime in a metadata table and only re-hash (e.g. crc) files whose fingerprint changed - re-scans of tens of thousands of files skip unchanged entries instead of re-reading everything.
+
 ## Gotchyas
 
 - [dB3nQ8] `WHERE col = :param` with a NULL bind matches NOTHING - NULL never equals NULL in any SQL engine, so a filter that must match both a value and NULL silently returns only the non-NULL rows; use the engine's null-safe comparison (MySQL: `<=>`, standard SQL: `IS NULL` / `IS NOT DISTINCT FROM`) or handle NULL explicitly.
