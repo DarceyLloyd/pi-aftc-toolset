@@ -82,6 +82,20 @@ This is an extension for pi (pi.dev) which helps me in my everyday work. If ther
 
 ## **WHATS NEW**
 
+### **USAGE REPORT UPDATED**
+
+The usage report has been refreshed. The Overview now opens with an
+all-time usage summary — six headline cards (total cost, cost per task,
+user prompts, your User/AI prompt ratio, the worst token burner and
+average cache hit) — above the spend charts and a six-window period
+summary. Costs Per Model adds a Provider column so models with the same
+name from different providers are told apart, plus verdict badges calling
+out the best and worst per metric. New Context & allowance and Errors tabs
+show context-window pressure, subscription allowance usage and failed
+calls. Every tab's period selector remembers your last choice. Extra
+details are now recorded per turn (provider, tool use, prompt and
+response size) to power these views.
+
 ### **AFTC CODEX (PI Skills on steroids): /codex-list + /codex-load**
 
 Two new ways to browse and load codex resources. `/codex-list` opens a
@@ -113,12 +127,6 @@ its own.
 Stop the drift! You know AI models even when instructed wont do it right, so /docx-update
 is here to help keep your documentation up to date. It will backup the previous version of docx,
 just in case.
-
-
-
-### **PI UPDATE COMPATIBILITY CHECK**
-
-Testing, and a few minor adjustments.
 
 --- 
 <br>
