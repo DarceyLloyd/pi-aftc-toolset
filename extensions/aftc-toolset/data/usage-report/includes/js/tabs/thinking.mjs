@@ -1,6 +1,6 @@
 // tabs/thinking.mjs — Thinking levels tab: period selector + sortable table.
 
-import { fmtMoney, fmtInt, fmtMs, cachePill, thinkingPill, dash, makeTable, rememberPeriod, savePeriod,
+import { fmtMoney, fmtInt, fmtMs, esc, cachePill, thinkingPill, dash, makeTable, rememberPeriod, savePeriod,
   HINT_AVG_PUP, HINT_AVG_CACHE, HINT_USER_AI, HINT_TASK_TIME } from "../lib/format.mjs";
 
 export class ThinkingTab {

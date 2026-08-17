@@ -5,49 +5,53 @@
 // so they can still be judged on task time, ratio and context — only the
 // COST verdicts are restricted to models that actually cost something.
 
-import { fmtMoney, fmtInt, fmtMs, verdict, dash, makeTable, rememberPeriod, savePeriod,
+import { fmtMoney, fmtInt, fmtMs, verdict, dash, makeTable, rememberPeriod, savePeriod, modelCell, modelLabel,
   HINT_AVG_PUP, HINT_USER_AI, HINT_TASK_TIME } from "../lib/format.mjs";
 import { tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
+import { tipFor, hoveredRow } from "../lib/tooltips.mjs";
+
+function mkKey(r) { return r.modelName + "|" + (r.provider || "") + "|" + (r.thinkingLevel || "(none)"); }
 
 function computeVerdicts(rows) {
   var map = {};
-  function add(name, label, kind, hint) {
-    if (!name) return;
-    if (!map[name]) map[name] = [];
-    map[name].push({ label: label, kind: kind, hint: hint || "" });
+  function add(row, label, kind, hint) {
+    if (!row || !row.modelName) return;
+    var k = mkKey(row);
+    if (!map[k]) map[k] = [];
+    map[k].push({ label: label, kind: kind, hint: hint || "" });
   }
   // Cost verdicts need at least TWO paid models to compare — a single paid
   // model is neither "best value" nor "most expensive" on its own.
   var paid = rows.filter(function (r) { return r.cost > 0 && r.costPerTask > 0 && r.completedTasks > 0; });
   if (paid.length > 1) {
     var byCost = paid.slice().sort(function (a, b) { return a.costPerTask - b.costPerTask; });
-    add(byCost[0].modelName, "Best value", "good", "Why: the lowest average cost per completed task of all paid models in this period.");
-    add(byCost[byCost.length - 1].modelName, "Most expensive", "bad", "Why: the highest average cost per completed task of all paid models in this period.");
+    add(byCost[0], "Best value", "good", "Why: the lowest average cost per completed task of all paid models in this period.");
+    add(byCost[byCost.length - 1], "Most expensive", "bad", "Why: the highest average cost per completed task of all paid models in this period.");
   }
   var withT = rows.filter(function (r) { return r.avgTaskMs > 0; });
   if (withT.length > 1) {
     var byT = withT.slice().sort(function (a, b) { return a.avgTaskMs - b.avgTaskMs; });
-    add(byT[0].modelName, "Fastest", "good", "Why: the shortest average task time - it finishes its jobs quicker than the other models in this period.");
-    add(byT[byT.length - 1].modelName, "Slowest", "bad", "Why: the longest average task time - it takes longer to finish its jobs than the other models in this period.");
+    add(byT[0], "Fastest", "good", "Why: the shortest average task time - it finishes its jobs quicker than the other models in this period.");
+    add(byT[byT.length - 1], "Slowest", "bad", "Why: the longest average task time - it takes longer to finish its jobs than the other models in this period.");
   }
   var withUp = rows.filter(function (r) { return r.userPrompts > 0; });
   if (withUp.length > 1) {
     var byUp = withUp.slice().sort(function (a, b) { return a.aiPerUserPrompt - b.aiPerUserPrompt; });
-    add(byUp[0].modelName, "Most efficient", "good", "Why: the fewest AI (self-prompted) turns per prompt you type - it does the least extra work on its own.");
-    add(byUp[byUp.length - 1].modelName, "Auto-prompt hog", "bad", "Why: the most AI (self-prompted) turns per prompt you type - it keeps looping through tool calls on its own before finishing.");
+    add(byUp[0], "Most efficient", "good", "Why: the fewest AI (self-prompted) turns per prompt you type - it does the least extra work on its own.");
+    add(byUp[byUp.length - 1], "Auto-prompt hog", "bad", "Why: the most AI (self-prompted) turns per prompt you type - it keeps looping through tool calls on its own before finishing.");
   }
   var withErr = rows.filter(function (r) { return r.errorCount > 0; });
   if (withErr.length) {
     var byErr = withErr.slice().sort(function (a, b) { return b.errorCount - a.errorCount; });
-    add(byErr[0].modelName, "Error-prone", "bad", "Why: the most failed calls in this period - the least reliable model you have used.");
+    add(byErr[0], "Error-prone", "bad", "Why: the most failed calls in this period - the least reliable model you have used.");
   }
   // Context verdicts need at least TWO models with context data — with one
   // model the same model would be both the "hog" and the "low context" one.
   var withCtx = rows.filter(function (r) { return r.contextEndPct != null; });
   if (withCtx.length > 1) {
     var byCtx = withCtx.slice().sort(function (a, b) { return (a.contextEndPct || 0) - (b.contextEndPct || 0); });
-    add(byCtx[byCtx.length - 1].modelName, "Context hog", "bad", "Why: it uses the highest share of its context window by the end of a task - it fills up the fastest.");
-    add(byCtx[0].modelName, "Low context", "info", "Why: it uses the lowest share of its context window by the end of a task - it has the most room to spare.");
+    add(byCtx[byCtx.length - 1], "Context hog", "bad", "Why: it uses the highest share of its context window by the end of a task - it fills up the fastest.");
+    add(byCtx[0], "Low context", "info", "Why: it uses the lowest share of its context window by the end of a task - it has the most room to spare.");
   }
   return map;
 }
@@ -72,8 +76,7 @@ export class ModelsTab {
         return (self.data.modelsByPeriod || {})[self.period] || [];
       },
       cols: [
-        { key: "modelName", label: "Model" },
-        { key: "provider", label: "Provider", hint: "Which provider this model runs through (deepseek, qwencloud, kimi-coding, ...) — same-named models from different providers are told apart here.", render: function (r) { return r.provider ? esc(r.provider) : dash(""); } },
+        { key: "modelName", label: "Model", top: true, render: function (r) { return modelCell(r.modelName, r.provider, r.thinkingLevel); } },
         { key: "costPerTurn", label: "Turn Cost", num: true, center: true, hint: HINT_COST_TURN, render: function (r) { return fmtMoney(r.costPerTurn); } },
         { key: "costPerTask", label: "Avg Task $", num: true, hint: HINT_COST_TASK, render: function (r) {
             return r.costPerTask > 0 ? fmtMoney(r.costPerTask) + '<span class="sub-num">' + fmtInt(r.completedTasks) + ' task' + (r.completedTasks === 1 ? "" : "s") + '</span>' : "\u2014";
@@ -97,7 +100,7 @@ export class ModelsTab {
   }
 
   renderVerdicts(r) {
-    var vs = (this.verdictMap || {})[r.modelName] || [];
+    var vs = (this.verdictMap || {})[mkKey(r)] || [];
     return vs.length ? vs.map(function (v) { return verdict(v.label, v.kind, v.hint); }).join(" ") : "—";
   }
 
@@ -110,7 +113,8 @@ export class ModelsTab {
     if (!chartsOk) { chartFallback("chart-models"); return; }
     var rows = ((this.data.modelsByPeriod || {})[this.period] || []).slice()
       .sort(function (a, b) { return b.costPerTurn - a.costPerTurn; }).slice(0, 8);
-    var labels = rows.map(function (r) { return r.modelName; });
+    this.chartRows = rows;
+    var labels = rows.map(function (r) { return modelLabel(r.modelName, r.provider, r.thinkingLevel); });
     var costs = rows.map(function (r) { return r.costPerTurn; });
     if (!this.chart) {
       this.chart = new window.Chart(canvas, {
@@ -121,7 +125,21 @@ export class ModelsTab {
           plugins: {
             legend: { display: false },
             tooltip: Object.assign({}, tooltipBase, {
-              callbacks: { label: function (item) { return " " + fmtMoney(item.parsed.x); } },
+              enabled: false,   // shared HTML table tooltip (lib/tooltips.mjs)
+              external: function (context) {
+                tipFor(context, function () {
+                  var r = hoveredRow(context, self.chartRows || []);
+                  if (!r) return null;
+                  return {
+                    title: modelCell(r.modelName, r.provider, r.thinkingLevel),
+                    rows: [
+                      ["Avg cost / turn", fmtMoney(r.costPerTurn)],
+                      ["Turns", fmtInt(r.turns)],
+                      ["Avg task $", r.costPerTask > 0 ? fmtMoney(r.costPerTask) + " · " + fmtInt(r.completedTasks) + " task" + (r.completedTasks === 1 ? "" : "s") : "\u2014"],
+                    ],
+                  };
+                });
+              },
             }),
           },
           scales: {

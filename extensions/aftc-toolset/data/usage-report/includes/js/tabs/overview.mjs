@@ -1,36 +1,48 @@
 // tabs/overview.mjs — Overview tab: stat cards, period cards, daily + share charts.
 
-import { fmtMoney, fmtInt, fmtTok, fmtPct, fmtMs, esc, INFO_SVG, bindHints, statCard } from "../lib/format.mjs";
+import { fmtMoney, fmtInt, fmtTok, fmtPct, fmtMs, esc, INFO_SVG, bindHints, statCard, modelCell, modelLabel } from "../lib/format.mjs";
 import { PALETTE, tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
+import { tipFor, hoveredRow } from "../lib/tooltips.mjs";
 
-// HTML tooltip for the daily-spend chart (canvas tooltips can't colour
-// parts of a line). Rendered into a .chart-tip div: white labels, orange
-// model values, clamped to the viewport. Styled to match the theme.
-var dailyTipEl = null;
+// Tooltip data caches for the two Overview charts (the shared HTML table
+// tooltip reads the hovered row from these — see lib/tooltips.mjs).
+var dailySeriesCache = [];   // day points for the active daily chart
+var sharePairsCache = [];    // pie slices for the active share chart
+
 function dailyTip(context) {
-  var tip = context.tooltip;
-  if (!dailyTipEl) {
-    dailyTipEl = document.createElement("div");
-    dailyTipEl.className = "chart-tip";
-    document.body.appendChild(dailyTipEl);
-  }
-  if (!tip || tip.opacity === 0) { dailyTipEl.style.opacity = "0"; return; }
-  var html = "";
-  if (tip.title && tip.title.length) html += '<div class="chart-tip-title">' + esc(tip.title[0]) + "</div>";
-  (tip.body || []).forEach(function (b) {
-    (b.lines || []).forEach(function (line) { html += '<div class="chart-tip-line">' + line + "</div>"; });
+  tipFor(context, function () {
+    var p = hoveredRow(context, dailySeriesCache);
+    if (!p) return null;
+    var rows = [
+      ["Cost:", fmtMoney(p.cost)],
+      ["User prompts:", fmtInt(p.prompts)],
+      ["AI prompts:", fmtInt(Math.max(0, (p.calls || 0) - (p.prompts || 0)))],
+    ];
+    if (p.mostCostlyModel) {
+      rows.push(["Most costly:", modelCell(p.mostCostlyModel, p.mostCostlyProvider, p.mostCostlyLevel, fmtMoney(p.mostCostlyCost))]);
+      if (p.cheapestModel && p.cheapestModel !== p.mostCostlyModel && p.cheapestCost > 0)
+        rows.push(["Cheapest:", modelCell(p.cheapestModel, p.cheapestProvider, p.cheapestLevel, fmtMoney(p.cheapestCost))]);
+    }
+    if (p.longestTaskModel) rows.push(["Longest task:", modelCell(p.longestTaskModel, p.longestTaskProvider, p.longestTaskLevel, fmtMs(p.longestTaskMs))]);
+    var title = context.tooltip.title && context.tooltip.title.length ? context.tooltip.title[0] : "";
+    return { title: esc(title), rows: rows };
   });
-  dailyTipEl.innerHTML = html;
-  dailyTipEl.style.opacity = "1";
-  var rect = context.chart.canvas.getBoundingClientRect();
-  var tw = dailyTipEl.offsetWidth, th = dailyTipEl.offsetHeight;
-  var x = rect.left + tip.caretX + 14;
-  var y = rect.top + tip.caretY - th / 2;
-  if (x + tw > window.innerWidth - 8) x = rect.left + tip.caretX - tw - 14;
-  if (y + th > window.innerHeight - 8) y = window.innerHeight - th - 8;
-  if (y < 8) y = 8;
-  dailyTipEl.style.left = x + "px";
-  dailyTipEl.style.top = y + "px";
+}
+
+function shareTip(context) {
+  tipFor(context, function () {
+    var p = hoveredRow(context, sharePairsCache);
+    if (!p) return null;
+    var total = sharePairsCache.reduce(function (s, x) { return s + (Number(x.cost) || 0); }, 0);
+    var pct = total > 0 ? (Number(p.cost) / total * 100).toFixed(1) : "0.0";
+    return {
+      title: p.label === "Other" ? esc(p.label) : modelCell(p.label, p.provider, p.level),
+      rows: [
+        ["Cost:", fmtMoney(p.cost)],
+        ["Share:", pct + "%"],
+      ],
+    };
+  });
 }
 
 export class Overview {
@@ -69,7 +81,7 @@ export class Overview {
     html += statCard("User prompts", fmtInt(t.userPromptCount), fmtInt(t.basePromptCount)+" tasks · "+fmtInt(t.subPromptCount)+" follow-ups");
     html += statCard("User / AI Prompts", fmtInt(uCount)+" / "+fmtInt(aCount),
       uCount > 0 ? "On average there are "+ratio.toFixed(1)+" AI prompts to 1 user prompt." : "No user prompts recorded yet.");
-    html += statCard("Worst token burner", t.worstBurnModel ? esc(t.worstBurnModel) : "N/A",
+    html += statCard("Worst token burner", t.worstBurnModel ? modelCell(t.worstBurnModel, t.worstBurnProvider, t.worstBurnLevel) : "N/A",
       t.worstBurnModel ? fmtTok(t.worstBurnTokens)+" tokens (all time)" : "no usage recorded", false,
       "The model that used the most tokens (prompts, replies and cached context) since the start of the database. A fast burner fills its context window quickly.");
     html += statCard("Avg cache hit", fmtPct(t.avgCacheRate), fmtTok(t.totalCacheRead)+" cache-read tokens");
@@ -84,7 +96,7 @@ export class Overview {
       entries.forEach(function (e) {
         var valHtml = e.na
           ? '<span class="na-mark">N/A</span><span class="col-hint" data-tip="' + esc(e.na) + '">' + INFO_SVG + '</span>'
-          : esc(e.model) + (e.value ? '<span class="metric">' + esc(e.value) + '</span>' : '');
+          : modelCell(e.model, e.provider, e.level, e.value);
         h += '<div class="period-score-row">'
           + '<span class="period-score-label">' + esc(e.label)
           + (e.hint ? '<span class="col-hint" data-tip="' + esc(e.hint) + '">' + INFO_SVG + '</span>' : '')
@@ -93,7 +105,7 @@ export class Overview {
       });
       return h + '</div>';
     }
-    ["24h","3d","lastWeek","thisWeek","thisMonth","lastMonth"].forEach(function (key) {
+    ["24h","3d","lastWeek","thisWeek","lastMonth","thisMonth"].forEach(function (key) {
       var p = (self.data.periods || {})[key] || {};
       ph += '<div class="panel period-card"><div class="stat-label">' + esc(p.label || key) + '</div>'
         + '<div class="period-cost">' + fmtMoney(p.cost) + '</div>'
@@ -114,6 +126,7 @@ export class Overview {
     var canvas = document.getElementById("chart-daily");
     if (!canvas) return;
     var lastIdx = series.length - 1;
+    dailySeriesCache = series;
     new window.Chart(canvas, {
       type: "bar",
       data: {
@@ -130,20 +143,10 @@ export class Overview {
         plugins: {
           legend: { display: false },
           tooltip: Object.assign({}, tooltipBase, {
-            enabled: false,   // canvas tooltip off — the external HTML tooltip renders instead
-            external: dailyTip,   // HTML tooltip: white labels + orange model values
+            enabled: false,   // canvas tooltip off — the external HTML table tooltip renders instead
+            external: dailyTip,
             callbacks: {
-              label: function(item){
-                var p = series[item.dataIndex] || {};
-                var lines = ["Cost: "+fmtMoney(p.cost), "User prompts: "+fmtInt(p.prompts), "AI prompts: "+fmtInt(Math.max(0,(p.calls||0)-(p.prompts||0)))];
-                if (p.mostCostlyModel) {
-                  lines.push('<span class="chart-tip-key">Most costly:</span> <span class="chart-tip-val">'+esc(p.mostCostlyModel)+" ("+fmtMoney(p.mostCostlyCost)+")</span>");
-                  if (p.cheapestModel && p.cheapestModel !== p.mostCostlyModel && p.cheapestCost > 0)
-                    lines.push('<span class="chart-tip-key">Cheapest:</span> <span class="chart-tip-val">'+esc(p.cheapestModel)+" ("+fmtMoney(p.cheapestCost)+")</span>");
-                }
-                if (p.longestTaskModel) lines.push('<span class="chart-tip-key">Longest task:</span> <span class="chart-tip-val">'+esc(p.longestTaskModel)+" "+fmtMs(p.longestTaskMs)+"</span>");
-                return lines;
-              },
+              title: function (items) { var it = items && items[0]; return it ? String(it.label) : ""; },
             },
           }),
         },
@@ -161,12 +164,12 @@ export class Overview {
     var win = null;
     (this.data.shareWindows || []).forEach(function(w){ if (w.key === key) win = w; });
     var rows;
-    if (win) rows = (win.models || []).map(function(m){ return { modelName: m.name, cost: Number(m.cost) || 0 }; });
+    if (win) rows = (win.models || []).map(function(m){ return { modelName: m.name, provider: m.provider || "", level: m.level || "", cost: Number(m.cost) || 0 }; });
     else rows = ((this.data.modelsByPeriod || {}).all || []).slice();
     rows = rows.slice().sort(function(a,b){ return b.cost - a.cost; });
     var top = rows.slice(0, 7);
     var rest = rows.slice(7);
-    var pairs = top.map(function(r){ return { label: r.modelName, cost: Number(r.cost) || 0 }; });
+    var pairs = top.map(function(r){ return { label: r.modelName, provider: r.provider || "", level: r.thinkingLevel || r.level || "", cost: Number(r.cost) || 0 }; });
     if (rest.length){
       pairs.push({ label: "Other", cost: rest.reduce(function(s,r){ return s + (Number(r.cost) || 0); }, 0) });
     }
@@ -186,6 +189,7 @@ export class Overview {
     var canvas = document.getElementById("chart-share");
     if (!canvas) return;
     var pairs = this.shareWindowPairs();
+    sharePairsCache = pairs;
     if (!pairs.length){
       if (!this.shareChart){ chartFallback("chart-share", "No cost data recorded for this window."); }
       else {
@@ -195,7 +199,7 @@ export class Overview {
       }
       return;
     }
-    var labels = pairs.map(function(p){ return p.label; });
+    var labels = pairs.map(function(p){ return p.label === "Other" ? "Other" : modelLabel(p.label, p.provider, p.level); });
     var costs = pairs.map(function(p){ return p.cost; });
     if (this.shareChart){
       this.shareChart.data.labels = labels;
@@ -236,21 +240,22 @@ export class Overview {
                 return chart.data.labels.map(function(lbl, i){
                   var v = Number(ds.data[i])||0;
                   var pct = total>0 ? (v/total*100).toFixed(1) : "0.0";
+                  // Multi-line label ([name, provider]) renders as two legend
+                  // lines; the pct lands on the second line.
+                  var text = Array.isArray(lbl)
+                    ? [lbl[0], lbl[1]+" ("+pct+"%)"]
+                    : lbl+" ("+pct+"%)";
                   // fontColor is read off the item with NO global fallback —
                   // omit it and the legend text renders black (canvas default).
-                  return { text: lbl+" ("+pct+"%)", fillStyle: ds.backgroundColor[i],
+                  return { text: text, fillStyle: ds.backgroundColor[i],
                     strokeStyle: ds.backgroundColor[i], pointStyle: "circle",
                     fontColor: "#e6e9ef", color: "#e6e9ef",
                     hidden: !chart.getDataVisibility(i), index: i };
                 });
               } } },
           tooltip: Object.assign({}, tooltipBase, {
-            displayColors: true,
-            callbacks: { label: function(item){
-              var v = Number(item.parsed)||0;
-              var total = self.chartTotal(item.chart);
-              return " "+fmtMoney(v)+" ("+(total>0 ? (v/total*100).toFixed(1) : "0")+"%)";
-            } },
+            enabled: false,   // canvas tooltip off — the external HTML table tooltip renders instead
+            external: shareTip,
           }),
         },
       },

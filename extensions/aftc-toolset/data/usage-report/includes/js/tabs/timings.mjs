@@ -1,8 +1,9 @@
 // tabs/timings.mjs — Timings tab: cards, charts, splits, longest-tasks table.
 
-import { fmtInt, fmtMs, esc, thinkingPill, statCard, makeTable, rememberPeriod, savePeriod,
+import { fmtInt, fmtMs, esc, thinkingPill, statCard, makeTable, rememberPeriod, savePeriod, modelCell, modelLabel,
   HINT_TASK_TIME } from "../lib/format.mjs";
 import { tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
+import { tipFor, hoveredRow } from "../lib/tooltips.mjs";
 
 var MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function fmtWhen(ts){
@@ -34,7 +35,7 @@ export class TimingsTab {
       getRows: function(){ return self.timingsWin().longest || []; },
       cols: [
         { key:"timestamp", label:"When", render:function(r){ return fmtWhen(r.timestamp); } },
-        { key:"modelName", label:"Model" },
+        { key:"modelName", label:"Model", top:true, render:function(r){ return modelCell(r.modelName, r.provider); } },
         { key:"thinkingLevel", label:"Thinking", render:function(r){ return thinkingPill(r.thinkingLevel); } },
         { key:"turnCount", label:"Turns", num:true, render:function(r){ return fmtInt(r.turnCount); } },
         { key:"taskMs", label:"Task time", num:true, hint:HINT_TASK_TIME, render:function(r){ return fmtMs(r.taskMs); } },
@@ -56,7 +57,9 @@ export class TimingsTab {
     var w = this.timingsWin();
     var html = "";
     html += statCard("Avg Task Time", fmtMs(w.avgTaskMs), "over " + fmtInt(w.completed) + " completed tasks");
-    html += statCard("Longest task", fmtMs(w.maxTaskMs), w.maxTaskModel || "no completed tasks");
+    var maxId = [w.maxTaskProvider, w.maxTaskLevel !== "(none)" ? w.maxTaskLevel : ""].filter(Boolean).join(" · ");
+    html += statCard("Longest task", fmtMs(w.maxTaskMs),
+      w.maxTaskModel ? w.maxTaskModel + (maxId ? " (" + maxId + ")" : "") : "no completed tasks");
     html += statCard("Avg turns / task", (Number(w.avgTurnsPerTask)||0).toFixed(1), "per completed task");
     html += statCard("Errors & aborts", fmtInt((Number(w.errors)||0) + (Number(w.aborted)||0)),
       fmtInt(w.errors) + " errors · " + fmtInt(w.aborted) + " aborts - counted, never averaged");
@@ -108,7 +111,7 @@ export class TimingsTab {
         var self = this;
         this.taskModelRows = (this.timingsWin().taskByModel || []).slice()
           .sort(function(a,b){ return b.avgTaskMs - a.avgTaskMs; }).slice(0, 8);
-        var labels = this.taskModelRows.map(function(r){ return r.modelName; });
+        var labels = this.taskModelRows.map(function(r){ return modelLabel(r.modelName, r.provider, r.thinkingLevel); });
         var vals = this.taskModelRows.map(function(r){ return r.avgTaskMs; });
         if (!this.taskModelChart){
           this.taskModelChart = new window.Chart(canvas, {
@@ -119,10 +122,20 @@ export class TimingsTab {
               plugins: {
                 legend: { display: false },
                 tooltip: Object.assign({}, tooltipBase, {
-                  callbacks: { label: function(item){
-                    var r = self.taskModelRows[item.dataIndex] || {};
-                    return " " + fmtMs(item.parsed.x) + " avg · " + fmtInt(r.tasks) + " task" + ((Number(r.tasks)||0) === 1 ? "" : "s");
-                  } },
+                  enabled: false,   // shared HTML table tooltip (lib/tooltips.mjs)
+                  external: function (context) {
+                    tipFor(context, function () {
+                      var r = hoveredRow(context, self.taskModelRows || []);
+                      if (!r) return null;
+                      return {
+                        title: modelCell(r.modelName, r.provider, r.thinkingLevel),
+                        rows: [
+                          ["Avg task time", fmtMs(r.avgTaskMs)],
+                          ["Tasks", fmtInt(r.tasks)],
+                        ],
+                      };
+                    });
+                  },
                 }),
               },
               scales: {

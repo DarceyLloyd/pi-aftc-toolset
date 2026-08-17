@@ -1,6 +1,6 @@
 # 1 - Extension source — TUI sitemap
 
-<!-- last-reviewed: 2026-08-11 -->
+<!-- last-reviewed: 2026-08-15 -->
 
 ## References
 
@@ -18,7 +18,8 @@ Every reachable user-facing surface of the toolset, from source
 ```
 Persistent widgets (setWidget, belowEditor)
 |- Footer dashboard (6 lines, line 6 = sub-agents) → 1.4.2 footer widget doc
-\- AFTC text intro (typewriter wordmark)         → 1.5.13 intros doc
+|- AFTC text intro (typewriter wordmark)         → 1.5.13 intros doc
+\- Background terminals count (above editor)      → 1.5.17
 
 Full-screen overlays (AFTC UI takeovers, ctx.ui.custom overlay:true)
 |- SSH connection manager (/ssh-cm)              → 1.6.5
@@ -55,6 +56,7 @@ Full-screen overlays (AFTC UI takeovers, ctx.ui.custom overlay:true)
 |  |- /007-kill multi-select
 |  |- /007-guide + /007-doctor viewers
 |  \- Disable finish-or-kill confirm
+|- Background terminals list + stop (/bt)         → 1.5.17
 |- /aftc-install confirm + result viewer         → 1.5.3
 |- Usage-clear confirm (/usage-clear)            → 1.4.5
 
@@ -170,6 +172,16 @@ result viewer; session-start warning line when deps are missing.
 ### Usage report — see [1.4.5](./1.4_footer_usage/1.4.5_usage_report.md)
 Report web app in `<dataDir>/usage-report/`, served by a bundled local
 server and opened in the browser; 7 tabs (Overview, Models, Thinking levels, Timings, Projections, Context & allowance, Errors); `/usage-clear` confirm overlay.
+
+### Background terminals (/bt) — see [1.5.17](./1.5_feature_modules/1.5.17_background_terminals.md)
+Scrollable list screen (showMenu) of the running terminals (status, title,
+pid, elapsed) with a "TERMINATE ALL (n)" row at the top; Enter on a row
+asks a yes/no showConfirm, stops the selection and re-renders a refreshed
+list; Esc closes. The TERMINATE ALL confirm notes that a kill only reaches
+the terminal's own process tree, so it can never stop this pi session or
+another shell. Headless prints a plain list. A one-line
+setWidget (above the editor) shows "N background terminals running — /bt to
+view or stop" while ≥1 runs; completion posts a collapsed custom-message entry.
 
 ### Inline transcript entries
 `/dir` `/ls` listing card and `/cwd` card (customMessageBg Box); replay

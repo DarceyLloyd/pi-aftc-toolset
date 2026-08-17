@@ -14,6 +14,8 @@
 
 - [njYQdH] HTML pages opened directly from disk (the file: scheme) cannot load `<script type="module" src>` or use fetch() — the browser treats each local file as an opaque origin, so module scripts and fetches are CORS-blocked even with relative ./ paths, while classic `<script src>` and `<link rel="stylesheet">` still load; for local HTML apps either inline the module code/data or serve the folder over a tiny local HTTP server.
 
+- [IDwvGM] Math.floor((1 + Math.random()) * 0x10000).toString(16) can return 5 hex chars - the product ranges up to 0x1FFFF so toString(16) yields a 5-char '1xxxx'; use `.substring(1)` to drop the leading 1 (or `crypto.randomUUID()`) when generating 4-char hex groups like UUID segments.
+
 ## Issues & Solutions
 
 
@@ -44,3 +46,7 @@
 - [wP2nB8] `preventDefault()` on `pointerdown` suppresses the compatibility mouse events, so `dblclick` never fires; and with `setPointerCapture`, puppeteer's `click(x,y,{clickCount:2})` doesn't produce a dblclick either
   Cause: canceling pointerdown kills the mousedown/mouseup compat stream that dblclick detection uses; pointer capture retargets events so the browser's double-click target matching breaks.
   Fix: don't rely on native dblclick for editor gestures - detect double-click in the gesture state machine (two pointer-ups on the same target within ~400ms). Deterministic and immune to capture/preventDefault quirks. (2026-07)
+
+- [96nMZL] Hover/click handlers (tooltips, menus) silently stop working on rows/cells re-created by an `innerHTML` re-render, while elements built once (e.g. table headers) keep working
+  Cause: the listeners were attached to the OLD elements, which the re-render replaced with fresh DOM that has no listeners
+  Fix: after every render that swaps the body's innerHTML, re-run the binding pass on the new fragment (or delegate to a stable container). (2026-08)

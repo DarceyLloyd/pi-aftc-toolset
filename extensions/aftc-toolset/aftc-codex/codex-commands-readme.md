@@ -22,7 +22,7 @@ The `/aftc-codex-*` slash commands + the config menu.
 
 (`/codex-*` are aliases of the matching `/aftc-codex-*` commands, except `/codex-inject-rules` and `/codex-live-to-seed`, which have no `/aftc-` variant.)
 
-The reverse-direction script for maintainers is `live-to-seed-sync.mjs` (live -> seed, dev-gated; same-ID differences auto-resolved, live text wins + AI review prompt); the user-facing update is `seed-to-live-sync.mjs` (seed -> live, non-destructive, behind `/codex-sync`; untouched entries follow shipped improvements via the sync manifest, user-edited entries are never overwritten).
+The reverse-direction script for maintainers is `live-to-seed-sync.mjs` (live -> seed, dev-gated; same-ID differences auto-resolved, live text wins + AI review prompt; same-ID section MOVES in live are ported too - the seed entry is relocated to the live entry's section, and a section heading the seed file lacks is appended as a new section); the user-facing update is `seed-to-live-sync.mjs` (seed -> live, non-destructive, behind `/codex-sync`; untouched entries follow shipped improvements via the sync manifest, user-edited entries are never overwritten).
 
 ## List-regeneration wrapper
 

@@ -20,6 +20,12 @@
 
 - [geE9P3] Upgrading a containerized install by overlaying the new package with cp -r MERGES - files the new version removed survive in the install dir, and a later sync/merge step can copy those stale files back into user data; wipe + replace the install dir (or delete the removed paths) in upgrade-test overlays to emulate real package-manager update semantics.
 
+- [Kje4MY] docker compose config` expands env_file values in plaintext into its output - running it in CI, logs, or sharing the dump leaks every secret from gitignored .env files; validate with `config --quiet` and never pipe the expanded config where secrets would be exposed.
+
+- [3TBu4M] docker compose silently IGNORES deploy.resources.* (Swarm-only) - a compose file setting deploy.resources.limits.memory/cpus runs with no limits at all; use the service-level `cpus:` and `mem_limit:` keys for compose-run stacks.
+
+- [PIMiay] After deleting a host directory that a container's bind/volume mount referenced, `docker compose stop` then `docker compose up` can fail with a stale 'network ... not found' error - `stop` leaves the network and container definitions in place, so the recreate references a gone network. Countermeasure: for a teardown that deletes data dirs and recreates the stack, use `docker compose down` (removes containers AND the network) before `up` again.
+
 ## Issues & Solutions
 
 

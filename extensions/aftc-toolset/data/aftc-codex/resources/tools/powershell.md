@@ -4,6 +4,8 @@
 
 ## Gotchyas
 
+- [uA548H] StartsWith path prefix check - `$path.StartsWith($root)` false-matches when the folder was renamed by TRIMMING its tail (old path 'X (fixed)\...' still prefix-matches new root 'X'), so a stale-path self-heal never triggers; always compare against `$root + '\'`.
+
 ## Issues & Solutions
 
 

@@ -55,21 +55,27 @@
  * The fetch is asynchronous and best-effort:
  *   • session_start — capture provider, do an initial fetch so line 5
  *     appears before the first prompt.
- *   • model_select — re-fetch if the provider changed.
+ *   • model_select — re-fetch if the provider changed; switching to a
+ *     provider with no allowance source clears the snapshot at once, so
+ *     line 5 hides immediately (no waiting for a failed fetch).
  *   • agent_end    — refresh after each completed prompt (throttled to
  *     at most once per REFRESH_MS to avoid hammering on rapid prompts).
- *   • periodic     — a PERIODIC_REFRESH_MS (3 min) interval keeps line 5
- *     fresh while a response is in flight, which can be hours. The timer
- *     ONLY runs while a prompt is active: started by before_agent_start
- *     / agent_start (idempotent — never more than one, and only for
- *     fetch providers), and stopped on agent_settled (pi's "truly idle"
- *     event — every run ends there, including aborts and errors) after
- *     one final forced query so line 5 shows the latest numbers. Unref'd
- *     so it never holds the process open. As a desync guard the tick
- *     asks pi itself (ctx.isIdle captured from the last event ctx): if
- *     the agent is no longer active it does one final query and shuts
- *     itself down. Model changes need no timer restart — the tick
- *     refreshes whatever provider is current.
+ *   • poll timer   — a POLL_MS (60 s) interval runs for the WHOLE session
+ *     (started at session_start, stopped at session_shutdown; unref'd so
+ *     it never holds the process open), so line 5 stays fresh even while
+ *     idle — the user can check remaining allowance BEFORE starting a big
+ *     task. The tick is deliberately conservative so the provider API is
+ *     never hammered: it only fires for fetch providers (header providers
+ *     like anthropic and unsupported providers are skipped), it respects
+ *     the REFRESH_MS throttle (an event-driven refresh just done wins),
+ *     overlapping fetches collapse into one, and after ANY failure
+ *     (network, auth, parse, non-200, missing credential) the timer backs
+ *     off to FAILURE_RETRY_MS (5 min) retries until the next success — a
+ *     dead or authless endpoint gets at most 12 requests/hour instead of
+ *     60. Event-driven refreshes (prompts) are NOT back-off-gated, so a
+ *     credential added mid-session is picked up on the next prompt.
+ *     Model changes need no timer restart — the tick refreshes whatever
+ *     provider is current.
  *
  * Failures (network, auth, parse, non-200) are swallowed, and the
  * snapshot is CLEARED — line 5 is hidden while the endpoint is not
@@ -455,11 +461,15 @@ export const allowanceTestUtils = { parseCodex, parseMinimax, parseZai, parseKim
 /** Minimum gap between usage fetches. The footer already updates on every
  *  prompt via agent_end; throttling prevents hammering on rapid steers. */
 const REFRESH_MS = 30_000;
-/** Periodic refresh cadence for long-running turns: agent_end only fires
- *  when a prompt completes, which can be hours. Keeps line 5 fresh while
- *  a response is in flight. The timer only runs while a prompt is active
- *  (see the before_agent_start / agent_start / agent_settled handlers). */
-const PERIODIC_REFRESH_MS = 180_000;
+/** Session-wide poll cadence: keeps line 5 fresh even while idle, so the
+ *  user can check remaining allowance BEFORE starting a task. The tick is
+ *  throttle- and backoff-gated (see onPollTick) so this never hammers the
+ *  provider API. */
+const POLL_MS = 60_000;
+/** After a failed fetch (network/auth/parse/non-200/missing credential)
+ *  the poll timer retries only every FAILURE_RETRY_MS until the next
+ *  success — a dead or authless endpoint must not be hit every minute. */
+const FAILURE_RETRY_MS = 300_000;
 /** Abort the usage fetch if it takes longer than this (it's tiny JSON). */
 const FETCH_TIMEOUT_MS = 12_000;
 
@@ -468,17 +478,16 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
     let view: AllowanceView | null = null;
     let lastFetchAt = 0;
     let inFlight: Promise<void> | null = null;
-    // The periodic tick has no event ctx, so the registry that resolves
+    // The poll tick has no event ctx, so the registry that resolves
     // credentials is captured from the last event that carried one.
     let lastRegistry: ExtensionContext["modelRegistry"] | undefined;
-    // Same for ctx.isIdle(): the tick asks pi (via the last captured
-    // context) whether the agent is really still active.
-    let lastIsIdle: (() => boolean) | undefined;
-    // periodicTimer non-null means a timer is running; it is set/cleared
-    // in exactly one place each so there is never more than one timer.
-    // promptActive tracks whether a prompt is currently in flight.
-    let periodicTimer: ReturnType<typeof setInterval> | null = null;
-    let promptActive = false;
+    // pollTimer non-null means a timer is running; it is set/cleared in
+    // exactly one place each so there is never more than one timer.
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    // Set when a fetch fails; the poll timer then backs off until
+    // FAILURE_RETRY_MS has passed. 0 = healthy. Reset by successes,
+    // provider changes and event-driven refreshes are NOT gated by it.
+    let lastFailureAt = 0;
 
     /** Refresh from the active provider's usage endpoint. Best-effort:
      *  swallows all errors and keeps the last good snapshot. The caller
@@ -495,7 +504,6 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
         }
         const now = Date.now();
         if (ctx?.modelRegistry) lastRegistry = ctx.modelRegistry;
-        if (typeof ctx?.isIdle === "function") lastIsIdle = () => ctx.isIdle();
         if (!force && now - lastFetchAt < REFRESH_MS) return;
         lastFetchAt = now;
 
@@ -506,7 +514,7 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
                 // ModelRegistry is Pi's public credential-resolution API. It
                 // refreshes OAuth credentials before returning the Bearer token.
                 const key = await lastRegistry?.getApiKeyForProvider(provider);
-                if (!key) { view = null; return; }
+                if (!key) { view = null; lastFailureAt = Date.now(); return; }
                 const headers: Record<string, string> = {
                     Authorization: `Bearer ${key}`,
                     "Content-Type": "application/json",
@@ -527,6 +535,7 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
                     // back.
                     aftcConsole.log(`allowance ${provider} HTTP ${res.status}`);
                     view = null;
+                    lastFailureAt = Date.now();
                     return;
                 }
                 const body = await res.json();
@@ -535,12 +544,14 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
                 // 5h entry) does not make that segment flicker off — the
                 // last good window is kept until its reset time passes.
                 view = mergeWindows(view, cfg.parse(body));
+                lastFailureAt = 0; // healthy again — poll at full cadence
             } catch (err) {
                 // Network / abort / parse failure (including a response
                 // shape change): never render data we did not get — clear
                 // the view so line 5 hides until the next success.
                 aftcConsole.logError(`[aftc-toolset] allowance ${provider} error: ${(err as Error).message}`);
                 view = null;
+                lastFailureAt = Date.now();
             } finally {
                 inFlight = null;
             }
@@ -556,67 +567,50 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
             provider = next;
             view = null; // don't leak the previous provider's snapshot
             lastFetchAt = 0;
+            lastFailureAt = 0; // new provider = fresh backoff budget
         }
     }
 
-    /** True when no prompt is in flight. Asks pi directly (via the
-     *  isIdle() captured from the last event ctx) in addition to the
-     *  event-driven flag, so a missed completion event can never leave
-     *  the timer running while pi is idle. */
-    function isIdleNow(): boolean {
-        if (!promptActive) return true;
-        try {
-            return lastIsIdle?.() === true;
-        } catch {
-            return false; // can't query pi — trust the event-driven flag
-        }
-    }
-
-    /** Timer tick. Refreshes (throttled) while a prompt is in flight.
-     *  When pi is idle (the prompt finished, or a completion event was
-     *  missed), does one final forced query so line 5 shows the latest
-     *  numbers, then shuts the timer down. */
-    function onTimerTick(): void {
-        if (isIdleNow()) {
-            promptActive = false;
-            void refresh(undefined, true).finally(() => stopPeriodicTimer());
-            return;
-        }
+    /** Poll-timer tick. Conservative by design (see the refresh-strategy
+     *  header): fetch providers only, failure backoff, REFRESH_MS throttle
+     *  inside refresh(), overlapping fetches collapse into one. */
+    function onPollTick(): void {
+        if (!PROVIDERS[provider]) return; // header/unsupported: nothing to poll
+        if (lastFailureAt > 0 && Date.now() - lastFailureAt < FAILURE_RETRY_MS) return;
         void refresh();
     }
 
-    /** Start the periodic refresh timer. Idempotent — no-op when a timer
-     *  is already running, so multiple start signals never stack timers.
-     *  Also a no-op for providers with nothing to poll (header providers
-     *  like anthropic, and unsupported providers). Unref'd so it never
-     *  holds the process open. */
-    function startPeriodicTimer(): void {
-        if (periodicTimer) return;
-        if (!PROVIDERS[provider]) return;
-        periodicTimer = setInterval(() => {
+    /** Start the session-wide poll timer. Idempotent — no-op when it is
+     *  already running, so repeated session_start events never stack
+     *  timers. Unref'd so it never holds the process open. */
+    function startPollTimer(): void {
+        if (pollTimer) return;
+        pollTimer = setInterval(() => {
             try {
-                onTimerTick();
+                onPollTick();
             } catch (err) {
                 aftcConsole.logError(`[aftc-toolset] allowance timer error: ${(err as Error).message}`);
             }
-        }, PERIODIC_REFRESH_MS);
-        periodicTimer.unref?.();
+        }, POLL_MS);
+        pollTimer.unref?.();
     }
 
-    function stopPeriodicTimer(): void {
-        if (!periodicTimer) return;
-        clearInterval(periodicTimer);
-        periodicTimer = null;
+    function stopPollTimer(): void {
+        if (!pollTimer) return;
+        clearInterval(pollTimer);
+        pollTimer = null;
     }
 
     pi.on("session_start", async (_event, ctx) => {
         captureProvider((ctx as any).model);
         await refresh(ctx);
+        // Session-wide poll: keeps line 5 fresh even while idle (throttle-
+        // and backoff-gated — see onPollTick). Idempotent across resumes.
+        startPollTimer();
     });
 
     pi.on("session_shutdown", async () => {
-        promptActive = false;
-        stopPeriodicTimer();
+        stopPollTimer();
     });
 
     pi.on("model_select", async (event, ctx) => {
@@ -636,17 +630,6 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
         const before = provider;
         captureProvider((ctx as any).model);
         await refresh(ctx, provider !== before);
-        // A prompt is now in flight — start the periodic refresh timer.
-        promptActive = true;
-        startPeriodicTimer();
-    });
-
-    // Low-level run begin. Covers auto-retry / compaction runs that do not
-    // fire before_agent_start; startPeriodicTimer() is idempotent, so this
-    // never stacks a second timer on top of the before_agent_start one.
-    pi.on("agent_start", async () => {
-        promptActive = true;
-        startPeriodicTimer();
     });
 
     pi.on("agent_end", async (_event, ctx) => {
@@ -662,15 +645,10 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider {
 
     // True idle: no auto-retry, compaction, or queued follow-up left, and
     // every run ends here — normal completion, Escape aborts, and errors.
-    // One final forced query so line 5 shows the latest numbers, then the
-    // timer is stopped: it must only run while a prompt is in flight.
+    // One final forced query so line 5 shows the latest numbers; the poll
+    // timer keeps running (it is session-wide, not prompt-scoped).
     pi.on("agent_settled", async (_event, ctx) => {
-        promptActive = false;
-        try {
-            await refresh(ctx, true);
-        } finally {
-            stopPeriodicTimer();
-        }
+        await refresh(ctx, true);
     });
 
     // Anthropic subscription allowance arrives as RESPONSE HEADERS on

@@ -710,6 +710,9 @@ export interface AftcFormField {
     /** Numeric range for int/float fields. */
     min?: number;
     max?: number;
+    /** Hard length cap for string/password fields: extra typed characters
+     *  never enter the input; pasted text is trimmed to the cap. */
+    maxLength?: number;
     /** Custom per-field validation; return the error message or null. */
     validate?: (value: string) => string | null;
 }
@@ -855,6 +858,16 @@ export class AftcForm implements Focusable {
         // Numeric keyup filter: disallowed characters never enter the input.
         if ((type === "int" || type === "float") && data.length === 1 && data >= " ") {
             if (!numericCharAllowed(type, data, state.input?.getValue() ?? "")) return;
+        }
+        // maxLength: a printable character beyond the cap never enters the
+        // input; pasted text is trimmed to the cap after the fact.
+        const maxLen = state.def.maxLength;
+        if (maxLen && state.input) {
+            if (data.length === 1 && data >= " " && data < "\x7f" && state.input.getValue().length >= maxLen) return;
+            state.input.handleInput(data);
+            const v = state.input.getValue();
+            if (v.length > maxLen) state.input.setValue(v.slice(0, maxLen));
+            return;
         }
         state.input?.handleInput(data);
     }
@@ -1026,6 +1039,8 @@ export interface AftcInputOptions {
     required?: boolean;
     /** Mask the value with bullets (secrets). */
     password?: boolean;
+    /** Hard length cap: extra characters never enter the input. */
+    maxLength?: number;
     /** Custom validation; return the error message or null. */
     validate?: (value: string) => string | null;
 }
@@ -1045,6 +1060,7 @@ export async function showInput(ctx: ExtensionCommandContext, options: AftcInput
             type: options.password ? "password" : "string",
             ...(options.required ? { required: true } : {}),
             ...(options.initial !== undefined ? { initial: options.initial } : {}),
+            ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}),
             ...(options.validate ? { validate: options.validate } : {}),
         }],
     });

@@ -40,7 +40,9 @@ can read them without importing this file.
 
 - `session_start` - reset accumulators + timing, load user
   preferences (footer timeframe), capture model + thinking level,
-  refresh tool cache. Always starts fresh — there is no per-session
+  refresh tool cache, and backfill legacy error classifications
+  (re-classifies error rows that fell through to "other" under an
+  older classifier). Always starts fresh — there is no per-session
   resumption state anymore.
 - `model_select` - capture new model (don't reset accumulators).
 - `thinking_level_select` - capture new level.
@@ -51,9 +53,12 @@ can read them without importing this file.
 - `input` - track streaming behavior (steer / followUp); also detect
   `/skill:name` user commands (input fires before skill expansion, so
   the raw text is visible) and mark those skills as used this session.
-- `tool_result` - for `read` tools that did not error, if the resolved
-  path is a skill's `filePath` or under its `baseDir`, mark that skill
-  as used (its body was loaded into context).
+- `tool_result` - two uses: (1) for `read` tools that did not error, if the
+  resolved path is a skill's `filePath` or under its `baseDir`, mark that
+  skill as used (its body was loaded into context); (2) the tool-error
+  hook — a result with `isError` is classified by `classifyToolError()`
+  and recorded via `recordToolError` into the `tool_errors` table (see
+  usage-recording-readme.md).
 - `message_start` - track user prompt classification (base /
   continuation / steering / followup); on first user message set
   the in-memory `_sessionStartTime`.

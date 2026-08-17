@@ -101,20 +101,35 @@ goes through the codex entry tools - never hand-edit resource files and never
 run a sync script (the tools handle [ID] generation, format validation, section
 placement, topic/category creation, and the resource list internally):
 
-**HARD LIMITS - every entry must be GLOBAL and SAFE (check BEFORE writing):**
+**HARD LIMITS - every entry must be GLOBAL, USEFUL and SAFE (check BEFORE writing):**
 
 1. GENERALITY: the entry must make sense to a session working on ANY project.
    No project names, no real paths/URLs, no terms only one project's docs or
-   workflow use. Project facts are NEVER saved. Reword generically or drop.
+   workflow use, and no tools/commands that only exist in one project's own
+   toolchain. Widely-used tools and public APIs are fine. Project facts and
+   project-private tooling are NEVER saved. Reword generically or drop.
    - BAD: "Add a References block and last-reviewed stamp to every deep doc;
      keep map IDs stable" (one project's documentation vocabulary).
    - GOOD: "When generating docs from source, verify every claimed
      file/endpoint exists in code before documenting it as live - a reference
      to a missing file means the feature is removed."
-2. SECRETS: NEVER save passwords, API keys, tokens, private keys, connection
+2. USEFULNESS (general does NOT mean vague): a cold reader - a competent
+   developer or weak AI who was never in this session, reading it a year from
+   now - must know exactly WHEN the entry applies, WHAT to do, and WHY (the
+   payoff, or the failure it avoids), without guessing. If any of
+   when/what/why is missing or only implied, rewrite it.
+   - VAGUE: "Sibling per-module readmes are high-quality recon input - trust
+     them one level below source, but verify load-bearing claims." (no
+     situation, no why, unexplained jargon)
+   - USEFUL: "When documenting or reviewing an unfamiliar project that keeps
+     one readme per module next to the code: read those readmes first as your
+     map of the module set (they are updated in the same commit as the code),
+     but grep-verify command names, config keys and file paths against the
+     source before repeating them in your own documentation."
+3. SECRETS: NEVER save passwords, API keys, tokens, private keys, connection
    strings or any credential - not even as examples. Describe the SHAPE only
    ("the API key env var"), never a value.
-3. The write tools mechanically reject real absolute paths, URLs,
+4. The write tools mechanically reject real absolute paths, URLs,
    credential-looking values and the current project's name. A refusal means
    reword generically - never try to force the entry through.
 
@@ -124,9 +139,12 @@ When in doubt: reword generically or drop - never save as-is.
 2. Consult the resource list (in the system prompt, or codex_load("list")).
    Update the correct existing doc; create a new topic ("category/name", new
    categories allowed) only when nothing covers it.
-3. codex_load each target topic and check the lesson is not already there. This
-   is enforced: the write tools refuse a topic not loaded this session and
-   reject exact duplicates.
+3. Duplicate-check before writing. When several topics are involved, do it in
+   ONE pass: read the candidate resource files together (one bulk read, then
+   process) instead of loading them one by one. Then codex_load ONLY each
+   existing topic you will actually write to - the write tools refuse a topic
+   not codex_load-ed this session (a plain read does not count) and reject
+   exact duplicates.
 4. Apply the HARD LIMITS above to each entry (generality + no secrets), then
    classify each lesson (first match wins): observed failure with a diagnosis
    -> kind "issue" (text = symptom lead, plus cause and fix - the tool appends

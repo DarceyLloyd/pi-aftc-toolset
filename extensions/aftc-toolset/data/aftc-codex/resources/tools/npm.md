@@ -14,6 +14,8 @@
 
 - [2DacVD] npm publish failing with E404 'Not found - PUT ...' during LOCAL token-based publish is an auth problem, not a missing package - an expired granular access token or one without read+write access to that package produces 404; regenerate the token (with package-scoped write access) and retry instead of changing the package name.
 
+- [RNcs9T] npm only allows unpublishing a version within 72 hours of publish - after that a published version can never be removed from the registry; treat every publish as permanent and unpublish mistakes inside the window.
+
 ## Issues & Solutions
 
 - [P72ROm] npm publish via trusted publishing (OIDC) fails E404 'Not Found - PUT' or ENEEDAUTH despite a correct trusted-publisher entry and id-token: write

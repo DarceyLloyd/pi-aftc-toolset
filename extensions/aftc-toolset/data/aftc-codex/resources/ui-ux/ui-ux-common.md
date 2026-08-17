@@ -19,6 +19,12 @@ both this file and a domain file.*
 
 - [ExMlDW] Every user-facing string (menu option, toggle, confirm, warning) must be self-explanatory to a first-time user with zero internal knowledge: state the current value, add a one-line plain description of what changing it does, phrase actions as outcomes for the user, and never use bare internal jargon (seed, live copy, frontmatter, built-in) — if a newcomer could read it and ask "what does this do?", it is not finished.
 
+- [LNoa7N] Never pack a menu's title/header straight onto its option list - keep them visually separated with a blank line between the header and the items, align the option labels and their descriptions into columns (pad the labels to a shared width), and end with a help/footer line naming the keys (eg "enter select, esc cancel").
+
+- [mEDzsA] Always centre icons inside their box/container on both axes (eg display:grid + place-items:center), and centre the icon BOX itself against the content it accompanies - an icon box top-aligned beside a taller text block reads as broken/misaligned; vertical centring is the standard default for icon-in-a-container rows.
+
+- [HO4oT3] All main titles/headings across a site must use ONE shared title colour token (eg --title) - per-page heading colour drift breaks basic UI/UX consistency; exempt only a feature that explicitly requests it or a deliberately artistic site (a shop/standard web page is never exempt).
+
 ## Gotchyas
 
 ## Issues & Solutions

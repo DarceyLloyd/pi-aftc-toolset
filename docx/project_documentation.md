@@ -1,6 +1,6 @@
 # pi-aftc-toolset — Project Documentation
 
-<!-- last-reviewed: 2026-08-11 -->
+<!-- last-reviewed: 2026-08-15 -->
 
 > Master document. Do not follow the per-ID links below until your work
 > touches that area — each section ends with an *Only read* instruction;
@@ -48,7 +48,7 @@ and it never exposes SSH credentials to the model.
 | Host | `@earendil-works/pi-coding-agent` (peer) | any; developed against 0.83.0 |
 | Host peers | `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, `typebox` | any (peer `*`) |
 | Extension runtime | TypeScript via pi's jiti loader (no build step) | TS 5.x syntax |
-| Package version | pi-aftc-toolset | 1.20.2 (npm: 1.20.2 published) |
+| Package version | pi-aftc-toolset | 1.21.13 (npm: 1.21.12 published) |
 | Persistence | `better-sqlite3` | 12.11.1 (pinned) |
 | Zip (docx backup) | `adm-zip` | ^0.6.0 |
 | SSH carrier | Python + `paramiko` (uv-locked sidecar) | Python >=3.10; paramiko >=3.4.0,<4.0.0; aftc-ssh-sidecar 0.1.0 |
@@ -199,6 +199,9 @@ and the (disabled) provider integrations. Each is one file, self-registering.
 #### 1.5.13 Startup intros — AFTC wordmark widget (WarGames dormant). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.13_intros.md`.
 #### 1.5.14 Providers — DISABLED QwenCloud module kept on disk. Only read `./docx/1_extension_source/1.5_feature_modules/1.5.14_providers.md`.
 #### 1.5.15 aftc-resume — `/aftc-resume-save` + `/aftc-resume`: hand work off between context windows via `./aftc-resume.md` (no config surface; reads the codex `aftcCodexEnabled` preference only). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.15_aftc_resume.md`.
+#### 1.5.17 Background terminals — `bg_start`/`bg_status`/`bg_list`/`bg_kill` tools + `/bt` `/bt-on` `/bt-off`: start long-running shell commands, stop them from a scrollable /bt list (no stdin, session-scoped, off by default). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.17_background_terminals.md`.
+#### 1.5.18 Copy all — `/copy-all`: copy every user/assistant message in the thread to the clipboard (thinking excluded, bounded to 2 MB). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.18_copy_all.md`.
+#### 1.5.19 File search — `fd` + `rg` model tools: fast gitignore-aware file discovery and content search over the Rust fd/ripgrep binaries (lean: system PATH + install hint). Only read `./docx/1_extension_source/1.5_feature_modules/1.5.19_file_search.md`.
 
 ### 1.6 - SSH feature (ssh/)
 
@@ -395,6 +398,10 @@ ONLY that doc; do not follow these links for areas you are not working on.
   - [1_extension_source/1.5_feature_modules/1.5.13_intros.md](1_extension_source/1.5_feature_modules/1.5.13_intros.md) - ID 1.5.13
   - [1_extension_source/1.5_feature_modules/1.5.14_providers.md](1_extension_source/1.5_feature_modules/1.5.14_providers.md) - ID 1.5.14
   - [1_extension_source/1.5_feature_modules/1.5.15_aftc_resume.md](1_extension_source/1.5_feature_modules/1.5.15_aftc_resume.md) - ID 1.5.15
+  - [1_extension_source/1.5_feature_modules/1.5.16_chat.md](1_extension_source/1.5_feature_modules/1.5.16_chat.md) - ID 1.5.16
+  - [1_extension_source/1.5_feature_modules/1.5.17_background_terminals.md](1_extension_source/1.5_feature_modules/1.5.17_background_terminals.md) - ID 1.5.17
+  - [1_extension_source/1.5_feature_modules/1.5.18_copy_all.md](1_extension_source/1.5_feature_modules/1.5.18_copy_all.md) - ID 1.5.18
+  - [1_extension_source/1.5_feature_modules/1.5.19_file_search.md](1_extension_source/1.5_feature_modules/1.5.19_file_search.md) - ID 1.5.19
   - [1_extension_source/1.6_ssh/1.6_ssh_documentation.md](1_extension_source/1.6_ssh/1.6_ssh_documentation.md) - ID 1.6
   - [1_extension_source/1.6_ssh/1.6_ssh_map.md](1_extension_source/1.6_ssh/1.6_ssh_map.md) - ID 1.6 sub-map
   - [1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md](1_extension_source/1.6_ssh/1.6.1_command_tool_surface.md) - ID 1.6.1

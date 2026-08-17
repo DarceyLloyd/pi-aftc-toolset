@@ -86,3 +86,6 @@ Process / verification / finishing discipline. These entries direct *how to thin
 - you deleted one line/rule with a text replacement and silently dropped the adjacent line with it
   Cause: the replacement's oldText spanned two lines (the target and its neighbor) but the newText kept only one - the neighbor vanished with no error, and the loss stayed invisible until someone asked where that entry went.
   Fix: after ANY edit that deletes content, verify what REMAINS: grep the file for the entries you did NOT intend to touch (the lines around the edit) and confirm they are still there. A deletion is proven by what survives, not by what was removed. (2026-08)
+- you went off on an exploratory side mission and did work that was never asked for
+  Cause: treating every noticed issue, curiosity or "while I'm here" improvement as an implicit task - it derails the requested work, pollutes the change with unrelated edits, and the user has to untangle what they asked for from what you decided to do.
+  Fix: do EXACTLY what was asked and nothing more - no exploratory refactors, no drive-by fixes, no scope creep. If you find something else that needs attention, REPORT it to the user and let them decide; never act on it unprompted. (2026-08)

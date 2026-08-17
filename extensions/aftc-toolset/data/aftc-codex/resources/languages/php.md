@@ -2,12 +2,24 @@
 
 ## Rules
 
+- [Hgs98r] Compare API keys/tokens with hash_equals($expected, $provided) - a plain === or == on the auth gate is a timing-attack vector.
+
+- [wbmPUC] For a fail-silent HTTP endpoint return ONLY a status code with an empty body - log every failure via error_log, force display_errors off at the top of the script, and never echo error text.
+
+- [YlS7If] A request counter or telemetry write in an endpoint script must run as the FIRST statement — before auth and validation — and be best-effort (errors suppressed, never alters the response contract), so failed requests are still counted and the counter can never break the handler.
+
 ## Gotchyas
 
 - [nR5vK8] missing `use` import passes `php -l` but dies at call time - an unqualified `Foo::bar()` in namespace `X` silently resolves to `X\Foo` with NO error at lint/parse; the "Class not found" only throws when that line actually executes, so a single untested code path (eg a refresh/status endpoint) can be broken in production while everything else works; after adding a new class reference, verify with a runtime smoke of the exact endpoint, not just `php -l`.
 - [tY9wQ3] exit/die inside try - finally blocks STILL run when `exit`/`die` is called inside a try block (PHP runs them before terminating); safe to rely on a dispatch-wrapper finally for cleanup (db close, temp files) even on early-exit paths like binary-stream-then-exit actions.
 
 - [zh5DaS] Reloading a page that was reached by POST resubmits the form (duplicate submissions/dupes); countermeasure: Post/Redirect/Get - after successful processing, redirect to a separate confirmation page and render nothing but the redirect from the handler.
+
+- [0uVkov] INSERT IGNORE rowCount() is 0 for a skipped duplicate - a 0 count means 'already present' (dedup working), never a write failure.
+
+- [iHYmad] json_encode renders an empty PHP array as [] but an empty-object contract needs {} — PHP has no array/object distinction, so force `new stdClass()` before encoding whenever an empty JSON {} (not []) is required.
+
+- [iEYV5c] dirname(__DIR__, N) root math - it is coupled to the script's folder depth, so moving the script one level deeper silently re-points every path it builds (env files, includes) and it fails at the first file read; after moving any script, grep it for __DIR__/__FILE__-relative anchors, re-derive N, then run it once to prove the root resolves.
 
 ## Issues & Solutions
 
@@ -42,3 +54,11 @@
 - [fR3wQ9] `foreach (($vo->data ?? []) as &$row)` - writes inside the loop are silently LOST (enriched rows never reach the response)
   Cause: foreach over an EXPRESSION iterates a copy of the array; by-ref writes land on the temporary, not on `$vo->data`. `foreach ($vo->data as &$row)` works, but `($vo->data ?? [])` does not.
   Fix: copy to a variable, iterate that, write back: `$rows = $vo->data ?? []; foreach ($rows as &$row) { ... } unset($row); $vo->data = $rows;`. (2026-07)
+
+- [kztMG5] PHP 'Undefined variable $x' inside a helper function that then 500s (TypeError: array_key_exists(): Argument #2 must be of type array, null given)
+  Cause: PHP functions do NOT see variables from the enclosing file scope - a top-level $defaults referenced inside insertTable() is null at runtime (warning + null), so the missing-column fallback crashes under strict types. Full-row payloads never hit the fallback, so the bug stays hidden until a row omits an optional field.
+  Fix: Pass the variable into the function as a parameter from the caller (or declare global / use $GLOBALS); test with a payload that omits an optional column, not just full rows. (2026-08)
+
+- [HsXHJS] 500 TypeError at runtime on a lint-clean endpoint (eg "must be of type string, int given")
+  Cause: declare(strict_types=1) makes scalar type mismatches fatal at RUNTIME; php -l only parses syntax, so a helper returning int (eg a numeric code generator) passed into a string-typed parameter passes every lint and static check and only explodes when the endpoint is hit.
+  Fix: Cast at the call site (or fix the helper's return type), and after touching models/controllers smoke-test the actual endpoints - a few curl calls through a request lifecycle catch what php -l never can. (2026-08)

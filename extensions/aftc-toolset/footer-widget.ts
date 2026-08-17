@@ -249,7 +249,7 @@ function buildModelLine(data: FooterDataProvider, c: FooterColors): string {
     return ["│ " + modelSeg, c.c3("│"), ctxSeg, c.c3("│"), cacheSeg, c.c3("│"), splitSeg].join(" ");
 }
 
-/** Line 2 — Prompts User/AI | Turn cost │ Session Time │ Session Time Cost │ $/hr │ $/min */
+/** Line 2 — Prompts User/AI | Turn cost │ Session Time │ Session Time Cost */
 function buildCostLine(data: FooterDataProvider, c: FooterColors): string {
     const a = data.getAccumulator();
     const cached = data.getCachedSession();
@@ -261,12 +261,8 @@ function buildCostLine(data: FooterDataProvider, c: FooterColors): string {
     const turnCost = `$${formatCost(a.lastTurnCost, 4)}`;
     const ctxTotalCost = `$${formatCost(a.cost, 2)}`;
     let ctxTime = "0s";
-    let perHour = "$0";
-    let perMin = "$0";
     if (cached) {
         ctxTime = cached.sessionStr;
-        perHour = `$${formatCost(cached.costPerHour, 2)}`;
-        perMin = `$${formatCost(cached.costPerMinute, 2)}`;
     }
 
     // ── Fragments ───────────────────────────────────────────────────
@@ -276,10 +272,8 @@ function buildCostLine(data: FooterDataProvider, c: FooterColors): string {
     const taskTimeSeg = `${c.c2("Task Time")} ${c.c1(taskTimeStr)}`;
     const timeSeg = `${c.c2("Session Time")} ${c.c1(ctxTime)}`;
     const timeCostSeg = `${c.c2("Session Time Cost")} ${c.c1(ctxTotalCost)}`;
-    const hourSeg = `${c.c1(perHour)}${c.c2("/hr")}`;
-    const minSeg = `${c.c1(perMin)}${c.c2("/min")}`;
 
-    return ["│ " + promptsSeg, c.c3("|"), turnCostSeg, c.c3("│"), taskTimeSeg, c.c3("│"), timeSeg, c.c3("│"), timeCostSeg, c.c3("│"), hourSeg, c.c3("│"), minSeg].join(" ");
+    return ["│ " + promptsSeg, c.c3("|"), turnCostSeg, c.c3("│"), taskTimeSeg, c.c3("│"), timeSeg, c.c3("│"), timeCostSeg].join(" ");
 }
 
 /** Line 3 — Turn Time │ Turn Response Time │ Tools ~tokens (│ Skills used u/a) */

@@ -4,7 +4,7 @@ Sub-map of the `extensions/aftc-toolset` branch. Duplicates the branch from
 the root map (drift check: if they disagree, re-verify against source and fix
 both). Leaf annotations live here; the root map annotates branches only.
 
-<!-- structure-map - last-verified: 2026-08-05 22:05 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
+<!-- structure-map - last-verified: 2026-08-15 - regenerate: run /docx (pi-aftc-toolset documentation generator) -->
 
 ## Full Tree
 
@@ -36,7 +36,12 @@ both). Leaf annotations live here; the root map annotates branches only.
 |  |- 1.5.11 Think-tag parser (think-parser.ts)
 |  |- 1.5.12 run_script tool (run-script.ts)
 |  |- 1.5.13 Startup intros (intros/)
-|  \- 1.5.14 Providers (providers/ — DISABLED)
+|  |- 1.5.14 Providers (providers/ — DISABLED)
+|  |- 1.5.15 aftc-resume (resume.ts)
+|  |- 1.5.16 Peer chat (chat.ts)
+|  |- 1.5.17 Background terminals (background-terminals/)
+|  |- 1.5.18 Copy all (copy-all.ts)
+|  \- 1.5.19 File search (file-search/)
 |- 1.6 SSH feature (ssh/)
 |  |- 1.6.1 Command & tool surface (ssh/index.ts)
 |  |- 1.6.2 Sessions & lifecycle (session.ts)
@@ -93,6 +98,11 @@ both). Leaf annotations live here; the root map annotates branches only.
 | 1.5.12 | run_script tool | | [1.5_feature_modules/1.5.12_run_script.md](./1.5_feature_modules/1.5.12_run_script.md) | done |
 | 1.5.13 | Startup intros | surface | [1.5_feature_modules/1.5.13_intros.md](./1.5_feature_modules/1.5.13_intros.md) | done |
 | 1.5.14 | Providers (DISABLED) | | [1.5_feature_modules/1.5.14_providers.md](./1.5_feature_modules/1.5.14_providers.md) | done |
+| 1.5.15 | aftc-resume | | [1.5_feature_modules/1.5.15_aftc_resume.md](./1.5_feature_modules/1.5.15_aftc_resume.md) | done |
+| 1.5.16 | Peer chat (/chat family) | surface | [1.5_feature_modules/1.5.16_chat.md](./1.5_feature_modules/1.5.16_chat.md) | done |
+| 1.5.17 | Background terminals | surface | [1.5_feature_modules/1.5.17_background_terminals.md](./1.5_feature_modules/1.5.17_background_terminals.md) | done |
+| 1.5.18 | Copy all (/copy-all) | | [1.5_feature_modules/1.5.18_copy_all.md](./1.5_feature_modules/1.5.18_copy_all.md) | done |
+| 1.5.19 | File search (fd + rg) | | [1.5_feature_modules/1.5.19_file_search.md](./1.5_feature_modules/1.5.19_file_search.md) | done |
 | 1.6.1 | SSH command & tool surface | | [1.6_ssh/1.6.1_command_tool_surface.md](./1.6_ssh/1.6.1_command_tool_surface.md) | done |
 | 1.6.2 | Sessions & lifecycle | | [1.6_ssh/1.6.2_sessions.md](./1.6_ssh/1.6.2_sessions.md) | done |
 | 1.6.3 | Connection store | | [1.6_ssh/1.6.3_connection_store.md](./1.6_ssh/1.6.3_connection_store.md) | done |

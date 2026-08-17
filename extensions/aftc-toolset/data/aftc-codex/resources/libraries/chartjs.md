@@ -21,3 +21,7 @@ Gotchas for Chart.js (the charting lib, typically loaded from its CDN). Entries 
 - [BARcw5] Legend `position` set once at chart creation does not re-evaluate on resize
   Cause: `position: window.innerWidth >= 860 ? "right" : "bottom"` is read only when the chart is built, so a resize across the breakpoint keeps the old side until the chart is rebuilt.
   Fix: acceptable for a static report, but for a live app rebuild/`chart.update()` on a resize handler. (2026-07)
+
+- [dTK9mu] Two tooltips appear on a chart that uses an `external` (HTML) tooltip - the canvas one renders the raw label strings (HTML spans show as literal text)
+  Cause: the tooltip is drawn on the canvas whenever `enabled` is true; `external` alone does not suppress the canvas render in v4.x, it only adds the HTML callback
+  Fix: set `enabled: false` alongside `external` - pointer tracking still updates because the plugin reacts on `enabled || external`. (2026-08)

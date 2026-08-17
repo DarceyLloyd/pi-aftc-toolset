@@ -105,6 +105,29 @@ CREATE TABLE IF NOT EXISTS errors (
 );
 ```
 
+A fourth table, `tool_errors`, holds one row per tool call whose result
+carried `isError` (model misuse — wrong args, stale edit anchors, bad
+regex, missing files/binaries, timeouts). Recorded by core.ts on the
+`tool_result` hook via `recordToolError`. Distinct from `errors` (provider
+failures):
+
+```sql
+CREATE TABLE IF NOT EXISTS tool_errors (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id      TEXT NOT NULL DEFAULT '',
+    prompt_index    INTEGER NOT NULL DEFAULT 0,
+    timestamp       INTEGER NOT NULL,
+    model_name      TEXT,
+    thinking_level  TEXT,
+    provider        TEXT NOT NULL DEFAULT '',
+    tool_name       TEXT NOT NULL DEFAULT '',
+    error_kind      TEXT NOT NULL DEFAULT 'other',
+    error_message   TEXT NOT NULL DEFAULT '',
+    error_signature TEXT NOT NULL DEFAULT '',
+    device_id       TEXT NOT NULL DEFAULT ''
+);
+```
+
 Migrations run on every `getDb()` open, so an existing user's old DB
 is upgraded in place the first time it is opened after an update — no
 manual step needed. Old rows keep their defaults (context columns 0,

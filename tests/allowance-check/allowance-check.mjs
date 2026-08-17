@@ -148,15 +148,17 @@ assert(kimiThrew, "Kimi parser should throw when both windows are missing.");
 console.log("Kimi parser checks passed.");
 
 // ──────────────────────────────────────────────────────────────────────
-// Kimi fetch flow + periodic timer lifecycle
+// Kimi fetch flow + session-wide poll timer lifecycle
 //
-// The 3-minute timer must ONLY run while a prompt is in flight:
-//   session_start      -> initial fetch, NO timer
-//   before_agent_start -> timer starts (idempotent, 180000ms)
-//   tick               -> throttled refresh while active
-//   agent_end          -> throttled refresh, timer KEEPS running
-//   agent_settled      -> final FORCED fetch, timer stopped
-//   unsupported provider -> no timer at all
+// The 60s poll timer runs for the WHOLE session (fresh allowance numbers
+// even while idle), gated so the provider API is never hammered:
+//   session_start      -> initial fetch + timer starts (60000ms, idempotent)
+//   tick < 30s         -> throttled, no fetch
+//   tick > 30s         -> refresh
+//   agent_end/settled  -> throttled/forced refresh, timer KEEPS running
+//   unsupported prov.  -> view cleared; ticks never fetch
+//   failure            -> view cleared; ticks back off 5 min (events not gated)
+//   session_shutdown   -> timer stopped
 // ──────────────────────────────────────────────────────────────────────
 const kimiHandlers = new Map();
 const kimiAllowance = createAllowance({
@@ -189,6 +191,7 @@ globalThis.fetch = async (url) => {
     if (String(url) !== "https://api.kimi.com/coding/v1/usages") {
         throw new Error(`Unexpected allowance URL: ${url}`);
     }
+    kimiFetchCalls++;
     if (fetchMode === "404") {
         return new Response("not found", { status: 404 });
     }
@@ -200,7 +203,6 @@ globalThis.fetch = async (url) => {
     if (fetchMode === "no-5h") {
         // Kimi's limits[] intermittently drops the 300-minute (5h) entry:
         // weekly window only, no limits array at all.
-        kimiFetchCalls++;
         return new Response(JSON.stringify({
             usage: {
                 limit: "100", used: "66", remaining: "34",
@@ -209,7 +211,6 @@ globalThis.fetch = async (url) => {
             limits: [],
         }), { status: 200, headers: { "content-type": "application/json" } });
     }
-    kimiFetchCalls++;
     return new Response(JSON.stringify({
         user: { membership: { level: "LEVEL_INTERMEDIATE" } },
         usage: {
@@ -231,14 +232,16 @@ globalThis.fetch = async (url) => {
 const kimiCtx = {
     model: { provider: "kimi-coding" },
     modelRegistry: { getApiKeyForProvider: async () => "kimi-test-token" },
-    isIdle: () => false,
+
 };
 
 try {
-    // 1) session_start: initial fetch, but NO timer while pi is idle.
+    // 1) session_start: initial fetch AND the session-wide poll timer.
     await kimiHandlers.get("session_start")({}, kimiCtx);
     assert(kimiFetchCalls === 1, "Kimi session_start should fetch once.");
-    assert(timers.length === 0, "No timer may run before the first prompt.");
+    assert(timers.length === 1, "session_start should start the poll timer.");
+    assert(timers[0].ms === 60_000, "Poll timer should use a 60000ms cadence.");
+    assert(!timers[0].cleared, "The poll timer should be running.");
     let kv = kimiAllowance.getAllowance();
     assert(kv && kv.providerLabel === "Kimi", "Kimi view mismatch after session_start.");
     assert(kv.fiveHour?.usedPercent === 22 && kv.weekly?.usedPercent === 66, "Kimi view percentages mismatch.");
@@ -247,72 +250,75 @@ try {
         "Kimi 5h reset countdown was not derived from resetTime.",
     );
 
-    // 2) before_agent_start: a prompt is in flight -> timer starts.
-    await kimiHandlers.get("before_agent_start")({}, kimiCtx);
-    assert(timers.length === 1, "before_agent_start should start the periodic timer.");
-    assert(timers[0].ms === 180_000, "Periodic timer should use a 180000ms cadence.");
-    assert(!timers[0].cleared, "The new timer should be running.");
-    assert(kimiFetchCalls === 1, "before_agent_start refresh should be throttled right after session_start.");
-
-    // 3) Tick inside the 30s throttle window -> no fetch.
+    // 2) Tick inside the 30s throttle window -> no fetch.
     timers[0].cb();
     await sleep(50);
     assert(kimiFetchCalls === 1, "Timer tick should respect the 30s fetch throttle.");
 
-    // 4) Tick after the throttle window -> fetch #2 (no ctx needed: the
+    // 3) Tick after the throttle window -> fetch #2 (no ctx needed: the
     //    tick reuses the registry captured from session_start).
     dateOffset += 31_000;
     timers[0].cb();
     await waitFor(() => kimiFetchCalls === 2, "timer tick refresh");
-    assert(!timers[0].cleared, "Timer must keep running while the prompt is active.");
+    assert(!timers[0].cleared, "Poll timer must keep running.");
 
-    // 5) agent_end: throttled refresh (skipped, just fetched), timer stays.
+    // 4) agent_end: throttled refresh (skipped, just fetched), timer stays.
     await kimiHandlers.get("agent_end")({}, kimiCtx);
     assert(kimiFetchCalls === 2, "agent_end refresh should be throttled right after a tick fetch.");
-    assert(!timers[0].cleared, "Timer must keep running at agent_end (pi may auto-continue).");
+    assert(!timers[0].cleared, "Poll timer must keep running at agent_end.");
 
-    // 6) agent_settled: one final FORCED fetch, then the timer stops.
+    // 5) agent_settled: FORCED fetch; the timer KEEPS running (it is
+    //    session-wide, not prompt-scoped).
     await kimiHandlers.get("agent_settled")({}, kimiCtx);
-    assert(kimiFetchCalls === 3, "agent_settled should do a final forced fetch.");
-    assert(timers[0].cleared, "Timer must be stopped at agent_settled.");
+    assert(kimiFetchCalls === 3, "agent_settled should do a forced fetch.");
+    assert(!timers[0].cleared, "Poll timer must keep running after agent_settled.");
 
-    // 7) Next prompt cycle restarts the timer; duplicate start signals
-    //    (before_agent_start + repeated agent_start) never stack timers.
-    await kimiHandlers.get("before_agent_start")({}, kimiCtx);
-    await kimiHandlers.get("agent_start")({}, kimiCtx);
-    await kimiHandlers.get("agent_start")({}, kimiCtx);
-    assert(timers.length === 2, "A new prompt should start exactly one new timer.");
-    assert(!timers[1].cleared, "The second-cycle timer should be running.");
+    // 6) A repeated session_start (resume) never stacks a second timer and
+    //    its refresh is throttled right after the settled fetch.
+    await kimiHandlers.get("session_start")({}, kimiCtx);
+    assert(timers.length === 1, "session_start must be idempotent — one timer only.");
+    assert(kimiFetchCalls === 3, "Resume refresh should be throttled right after a forced fetch.");
 
-    // 8) agent_settled again: final fetch + timer stopped.
-    await kimiHandlers.get("agent_settled")({}, kimiCtx);
-    assert(kimiFetchCalls === 4, "agent_settled should force a fetch in the second cycle.");
-    assert(timers[1].cleared, "Second-cycle timer must be stopped at agent_settled.");
-
-    // 9) Unsupported provider: view cleared, NO timer is started.
+    // 7) Unsupported provider: view cleared immediately, and ticks never
+    //    fetch for it (nothing to poll).
     await kimiHandlers.get("before_agent_start")({}, {
         model: { provider: "deepseek" },
         modelRegistry: { getApiKeyForProvider: async () => "deepseek-test-token" },
     });
     assert(kimiAllowance.getAllowance() === null, "Allowance view should clear for an unsupported provider.");
-    assert(timers.length === 2, "No timer may start for an unsupported provider.");
-    assert(kimiFetchCalls === 4, "Unsupported provider must not fetch.");
+    assert(kimiFetchCalls === 3, "Unsupported provider must not fetch.");
+    dateOffset += 31_000;
+    timers[0].cb();
+    await sleep(50);
+    assert(kimiFetchCalls === 3, "Poll ticks must skip unsupported providers.");
+    assert(timers.length === 1 && !timers[0].cleared, "The one session timer keeps running (it is provider-agnostic).");
 
-    // 10) Switching back to Kimi force-refreshes immediately.
+    // 8) Switching back to Kimi force-refreshes immediately.
     await kimiHandlers.get("model_select")({ model: { provider: "kimi-coding" } }, kimiCtx);
-    assert(kimiFetchCalls === 5, "Switching back to Kimi should force a refresh.");
+    assert(kimiFetchCalls === 4, "Switching back to Kimi should force a refresh.");
     kv = kimiAllowance.getAllowance();
     assert(kv && kv.providerLabel === "Kimi", "Kimi view should return after switching back.");
 
-    // 11) Endpoint failures hide line 5 until the next success: never
-    //     render stale numbers or data we did not get.
+    // 9) Endpoint failures hide line 5 until the next success: never
+    //     render stale numbers or data we did not get. Event-driven
+    //     refreshes are NOT back-off-gated.
     fetchMode = "404";
     await kimiHandlers.get("agent_settled")({}, kimiCtx);
+    assert(kimiFetchCalls === 5, "agent_settled forced fetch must not be back-off-gated.");
     assert(kimiAllowance.getAllowance() === null, "Allowance view must clear on an HTTP error.");
 
+    // 10) Failure backoff: after a failure the POLL TICK waits 5 minutes,
+    //     so a dead endpoint is not hit every minute...
+    dateOffset += 31_000; // past the throttle, inside the backoff
+    timers[0].cb();
+    await sleep(50);
+    assert(kimiFetchCalls === 5, "Poll ticks must back off after a failure.");
+    //     ...and after the backoff window the tick retries and recovers.
     fetchMode = "ok";
-    await kimiHandlers.get("agent_settled")({}, kimiCtx);
-    assert(kimiAllowance.getAllowance() !== null, "Allowance view should recover after the endpoint recovers.");
+    dateOffset += 300_000;
+    timers[0].cb();
+    await waitFor(() => kimiFetchCalls === 6, "backed-off tick retry");
+    assert(kimiAllowance.getAllowance() !== null, "Allowance view should recover when the endpoint recovers.");
 
     fetchMode = "garbage";
     await kimiHandlers.get("agent_settled")({}, kimiCtx);
@@ -322,28 +328,16 @@ try {
     await kimiHandlers.get("agent_settled")({}, kimiCtx);
     assert(kimiAllowance.getAllowance() !== null, "Allowance view should recover after the shape is restored.");
 
-    // 12) A fresh session whose first fetch fails never shows line 5.
+    // 11) A fresh session whose first fetch fails never shows line 5.
     const failHandlers = new Map();
     const failAllowance = createAllowance({ on(name, handler) { failHandlers.set(name, handler); } });
     fetchMode = "404";
     await failHandlers.get("session_start")({}, kimiCtx);
     assert(failAllowance.getAllowance() === null, "Line 5 must stay hidden when the first fetch fails.");
+    await failHandlers.get("session_shutdown")();
     fetchMode = "ok";
 
-    // 13) Desync guard: while the timer is running the tick asks pi
-    //     whether the agent is still active (ctx.isIdle). When pi reports
-    //     idle — e.g. a completion event was missed — the tick does one
-    //     final forced query and shuts the timer down.
-    kimiCtx.isIdle = () => true;
-    await kimiHandlers.get("before_agent_start")({}, kimiCtx);
-    assert(timers.length === 3, "A new prompt should start a third timer.");
-    assert(!timers[2].cleared, "The third timer should be running.");
-    timers[2].cb();
-    await waitFor(() => timers[2].cleared, "desync timer shutdown");
-    assert(kimiFetchCalls === 8, "The desync tick should do one final forced fetch.");
-    kimiCtx.isIdle = () => false;
-
-    // 14) Partial-response retention: a response that OMITS the 5h window
+    // 12) Partial-response retention: a response that OMITS the 5h window
     //     keeps the last good 5h window (no segment flicker) — but only
     //     until its reset time passes, then it drops for real.
     fetchMode = "no-5h";
@@ -365,7 +359,7 @@ try {
     dateOffset = 0;
     fetchMode = "ok";
 
-    // 15) session_shutdown with no timer running: clean no-op.
+    // 13) session_shutdown stops the session-wide poll timer.
     await kimiHandlers.get("session_shutdown")();
     assert(timers.every((t) => t.cleared), "All timers should be cleared at the end of the flow.");
 } finally {
@@ -375,4 +369,4 @@ try {
     Date.now = realDateNow;
 }
 
-console.log("Kimi fetch flow and periodic timer lifecycle checks passed.");
+console.log("Kimi fetch flow and poll timer lifecycle checks passed.");

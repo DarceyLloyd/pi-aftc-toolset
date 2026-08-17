@@ -113,6 +113,29 @@ const SCHEMA = `
         error_message   TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_errors_timestamp ON errors(timestamp);
+
+    -- One row per tool call whose result carried isError (model misuse:
+    -- wrong args, stale anchors, bad regex, missing binary, timeout ...).
+    -- Distinct from the errors table (provider failures). Recorded by
+    -- core.ts on the tool_result hook via usage-recording.recordToolError.
+    -- error_signature is a normalised copy of the message (lowercase,
+    -- digits/paths collapsed) so the report can count repeated identical
+    -- mistakes. See 1.4.4 / 1.4.5.
+    CREATE TABLE IF NOT EXISTS tool_errors (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id      TEXT NOT NULL DEFAULT '',
+        prompt_index    INTEGER NOT NULL DEFAULT 0,
+        timestamp       INTEGER NOT NULL,
+        model_name      TEXT,
+        thinking_level  TEXT,
+        provider        TEXT NOT NULL DEFAULT '',
+        tool_name       TEXT NOT NULL DEFAULT '',
+        error_kind      TEXT NOT NULL DEFAULT 'other',
+        error_message   TEXT NOT NULL DEFAULT '',
+        error_signature TEXT NOT NULL DEFAULT '',
+        device_id       TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_tool_errors_timestamp ON tool_errors(timestamp);
 `;
 
 const MIGRATIONS = [
@@ -168,6 +191,15 @@ const MIGRATIONS = [
     `ALTER TABLE turns ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE tasks ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
     `ALTER TABLE errors ADD COLUMN device_id TEXT NOT NULL DEFAULT ''`,
+
+    // v1.21.x — provider id on error rows: distinguishes same-named models
+    // across providers (deepseek vs qwencloud routes). Old rows default ''.
+    `ALTER TABLE errors ADD COLUMN provider TEXT NOT NULL DEFAULT ''`,
+
+    // v1.21.x — HTTP status code on error rows when the provider message
+    // carries one (429, 5xx, 404, 401/403 ...). NULL = no code in the
+    // message. error_type (classification) is derived from the same text.
+    `ALTER TABLE errors ADD COLUMN error_code INTEGER`,
 ];
 
 let _db: any = null;

@@ -28,7 +28,7 @@ Renders a 4-line bar showing:
   of all turn costs in this context), **user-prompted turns vs
   AI-initiated turns** (a single user prompt with no tool calls shows
   `User 1 / AI 0`; the AI counter only increments on tool-call
-  continuations), context-window time, $/hr and $/min burn rates.
+  continuations), context-window time and Session Time Cost.
 - **Line 3**: active tool count + token estimate, skills
   `used/available` (skills pulled into context this session via a
   `/skill:name` command or a successful `read` of a skill file, vs

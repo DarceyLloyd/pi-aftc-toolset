@@ -51,7 +51,7 @@ clean data contract (`data.json`).
 - `includes/js/libs/chart.umd.min.js` - Chart.js bundled LOCALLY. No
   CDN, no internet needed; every chart, table and card works offline.
 - `includes/js/app.mjs` - entry module: fetches `./data.json`, boots
-  the five tab classes, wires tab switching and deep links (the active
+  the seven tab classes, wires tab switching and deep links (the active
   tab is kept in `location.hash`, and a hash in the URL opens that
   tab). If Chart.js is missing for any reason, each chart slot renders
   a text fallback and everything else still works.
@@ -106,7 +106,7 @@ directly (tests point `AFTC_TOOLSET_DATA_ROOT` at a scratch dir).
   carries no window text; the legend carries the share %.
 - **Period summary** - six compact panes in a 2x3 grid, each for its own
   time window: **Last 24 hours (rolling window) · Last 3 days · Last
-  Week (Mon to Sun) · This Week (Mon to Sun) · This Month · Last
+  Week (Mon to Sun) · This Week (Mon to Sun) · Last Month · This
   Month**. Calendar periods anchor to local midnight / Monday / 1st of
   month; lastWeek / lastMonth are bounded so this week/this month never
   leak in. Each pane shows the window's cost, `Prompts: User N / AI M`,
@@ -133,9 +133,13 @@ default All time) and an **avg cost per turn by model** horizontal
 bar chart (top 8) that follows the selected period. Costs are the
 model's average cost per turn (cost ÷ turns) — the price, independent
 of how much you used it — so usage volume never skews the comparison.
-Columns: model (+ **Provider** — which provider the model runs
-through, so same-named models from different providers are told
-apart), **Turn Cost**, **Avg Task $** (avg cost per completed
+Rows are keyed by (model, provider, thinking level) — the same model name
+from two providers, or the same model at two thinking levels, is two rows
+with per-provider / per-level prices (a model costs different money on
+deepseek vs qwencloud vs openrouter, and at different thinking levels).
+Columns: model (name with the thinking level at the end and the provider
+underneath — "(unknown)" when not recorded),
+**Turn Cost**, **Avg Task $** (avg cost per completed
 task, with the task count as a small annotation), **User / AI**
 (prompts you typed / AI self-prompted turns — one merged column with
 an info-icon tooltip), Avg $/Pup (avg cost per user prompt), context (avg % of the model's context window at task end —
@@ -235,7 +239,10 @@ period selector (default All time):
   per task as allowance_reported (footer line-5 availability).
 - **Allowance consumed per task** table (per provider): tasks with
   snapshots, avg 5h %/task, avg weekly %/task, 5h used, weekly
-  used, 5h resets (tasks where the window reset mid-task), and
+  used, 5h resets (tasks where the window reset mid-task), **5h used
+  up / Weekly used up** (tasks that ended with the window at ~100% —
+  the quota was consumed and the provider refused further requests
+  until reset; red pill when > 0), and
   **Tasks to 5h full** / **Tasks to weekly full** (tasks until the
   window hits 100% at the current rate). Only Codex, Claude, MiniMax,
   Z.ai GLM and Kimi subscriptions report an allowance; other
@@ -247,22 +254,48 @@ per task by `core.ts`; old rows (0) fall back to turn-derived values.
 ### Tab 7 - Errors
 Failed calls — the unreliable models. Period selector (default All
 time):
-- Four cards: failed calls, error rate (failed ÷ completed tasks,
-  per 100), failing models, most common error type.
-- **Failed calls by model** horizontal bar and **by type** doughnut
-  (rate limit, overloaded, not found, auth, timeout, network, other),
-  plus a **failed calls per day** bar (last 30 days).
-- Sortable table per model × error type: failed calls, % of all,
-  last seen, and a fair **error rate** (failed ÷ completed tasks for
-  that model — models used a lot are compared honestly).
+- Five cards: failed calls, error rate (failed ÷ completed tasks,
+  per 100), failing providers, context-window failures, most common
+  error type.
+- **Failed calls by provider** horizontal bar, **by type** doughnut
+  (rate limit, allowance, context window, overloaded, not found, auth,
+  timeout, aborted, network, other), **failed calls by model**
+  horizontal bar (counts only — keyed by model × provider with the
+  thinking levels MERGED; a failed call is a provider issue, so the
+  level does not matter here), and a **failed calls per day** bar
+  (last 30 days).
+- Sortable table per provider × error type: provider, error type,
+  HTTP status **codes**, failed calls, % of all, affected models,
+  and a fair **error rate** (errors ÷ that PROVIDER's
+  completed tasks — outages, rate limits and network faults hit every
+  model on a provider, so reliability is judged per provider, never
+  per model).
 - Basis note: a failed call is an assistant turn that ended with an
   error; user aborts (Escape) are NOT errors — they are counted as a
   stat on the Timings tab.
+- **Tool errors** section (below the provider breakdown, same period
+  selector): cards (tool errors, distinct tools, most-misused tool, top
+  repeated mistake), a "tool errors by tool" bar chart (stacked above
+  its table with the same 10px gap the other sections use), and a table
+  per tool × error kind with count, a repeat count (repeated identical
+  mistakes highlighted), affected models and an example message. Every
+  column is top-aligned (cell padding kept); the example column
+  word-wraps. PRIVACY: examples are sanitized server-side before they
+  reach `data.json` (`sanitizeToolErrorExample()`): first line only,
+  URLs → `[url]`, file paths → `[path]` (Windows drive + UNC + Unix +
+  space-containing paths merged), whitespace collapsed, capped at 100
+  chars — user project code, paths and URLs never appear in the report.
 
 Errors are recorded by `core.ts` on the failing `message_end`
-(`stopReason === "error"`) into the `errors` table, classified by
-`classifyError()` (429/rate limit, 5xx/overloaded, 404/not found,
-401-403/auth, 408/timeout, network keywords, else other).
+(`stopReason === "error"`) into the `errors` table: the raw
+`error_message`, the extracted HTTP `error_code` (when the message
+carries one) and the classified `error_type` (`classifyError()`:
+explicit rate-limit text, allowance/quota keywords,
+context-window/token-limit text, 429/rate limit, 5xx/overloaded,
+404/not found, 401-403/auth, 408/timeout, transport-abort text,
+network keywords, else other — "allowance" = the 5h/weekly usage
+window was used up, not a provider outage; "context" = the request was
+too big for the model's declared context window).
 
 ## Reading the SQLite DB
 
@@ -280,9 +313,9 @@ and the report cannot be generated.
   report server starting — your browser will open." plus the live
   dir and stop/idle behaviour. Close the server window (or Ctrl+C)
   to stop it; it also self-exits after 30 minutes idle.
-- `/usage-clear` - permanently deletes all rows from ALL THREE
-  tables (`turns`, `tasks`, `errors`) in one transaction after user
-  confirmation. Useful for resetting the dataset.
+- `/usage-clear` - permanently deletes all rows from all four tables
+  (`turns`, `tasks`, `errors`, `tool_errors`) in one transaction after
+  user confirmation. Useful for resetting the dataset.
 
 ## Data shape (data.json)
 
@@ -299,7 +332,8 @@ every `/usage-report`; fetched by `app.mjs`:
             avgCostPerTurn, avgCostPerUserPrompt, turnsPerUserPrompt,
             activeDays, calendarDays, avgDailySpend, firstTurnMs,
             completedTasks, avgCostPerTask, fiveHourBurn,
-            sevenDayBurn },
+            sevenDayBurn, worstBurnModel, worstBurnProvider, worstBurnLevel,
+            worstBurnTokens },
   periods: {                       // 6 Overview period panes (2x3 grid)
     "24h":      { label, cost, calls, prompts, aiPrompts,
                   best: [ { label, model, value, na? } ],   // 5 rows
@@ -310,51 +344,66 @@ every `/usage-report`; fetched by `app.mjs`:
     "thisMonth":{ ... },          // current calendar month
     "lastMonth":{ ... },          // prev calendar month (bounded)
   },
-  shareWindows: [ { key, label, models: [ { name, cost } ] } ],
+  shareWindows: [ { key, label, models: [ { name, provider, level, cost } ] } ],
       // 10 entries, cost-by-model per Overview doughnut window,
       // paid turns only (collectShareWindows)
-  dailySeries: [ { day, label, cost, calls, prompts } ],  // 30 days, zero-filled
+  dailySeries: [ { day, label, cost, calls, prompts,
+      mostCostlyModel, mostCostlyProvider, mostCostlyLevel, mostCostlyCost,
+      cheapestModel, cheapestProvider, cheapestLevel, cheapestCost,
+      longestTaskModel, longestTaskProvider, longestTaskLevel, longestTaskMs } ],  // 30 days, zero-filled
   modelsByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
-      // ModelRow: modelName, cost, turns, userPrompts, aiPrompts,
+      // ModelRow: modelName, provider, thinkingLevel, cost, turns, userPrompts, aiPrompts,
       // aiPerUserPrompt, costPerTurn, avgCostPerUserPrompt,
       // avgCacheRate, avgThinkingMs, avgResponseMs, avgTaskMs,
       // costPerTask, completedTasks, errorCount, errorRate,
-      // contextEndPct
+      // contextEndPct — keyed by (modelName, provider, thinkingLevel): the
+      // same model at a different provider or thinking level is a separate
+      // row (each costs and behaves differently)
   modelThinkingByPeriod: { daily: [], weekly: [], monthly: [], all: [] },
   timings: {                        // Timings tab, per period window
     daily: { taskCount, completed, errors, aborted, avgTaskMs,
-             maxTaskMs, maxTaskModel, avgTurnsPerTask, totalTaskMs,
+             maxTaskMs, maxTaskModel, maxTaskProvider, maxTaskLevel, avgTurnsPerTask, totalTaskMs,
              userTurns, userAvgThinkMs, userAvgRespMs, aiTurns,
              aiAvgThinkMs, aiAvgRespMs, totalThinkMs, totalRespMs,
-             taskByModel: [ { modelName, avgTaskMs, tasks } ],
-             longest: [ { timestamp, modelName, thinkingLevel,
+             taskByModel: [ { modelName, provider, thinkingLevel, avgTaskMs, tasks } ],
+             longest: [ { timestamp, modelName, provider, thinkingLevel,
                           turnCount, taskMs } ] },   // top 10, desc
     weekly: {...}, monthly: {...}, all: {...} },
   taskDailySeries: [ { day, label, avgTaskMs, tasks } ], // 30 days
   contextStats: {                    // Context & Allowance tab
-    daily: [ { modelName, thinkingLevel, tasks, contextWindow,
+    daily: [ { modelName, provider, thinkingLevel, tasks, contextWindow,
                avgStartTokens, avgEndTokens, avgEndPct, avgGrowth,
                tasksUntilFull, fiveHourBurn, weeklyBurn,
                fiveHourWindows, millionFlag } ],
     weekly: [...], monthly: [...], all: [...] },
   allowanceStats: { daily: [ { provider, tasks, avg5hPerTask,
                avgWeeklyPerTask, avg5hEnd, avgWeeklyEnd,
-               fiveHourResets, tasksUntil5hFull,
+               fiveHourResets, fiveHourExhausted, weeklyExhausted,
+               tasksUntil5hFull,
                tasksUntilWeeklyFull } ], weekly: [...],
                monthly: [...], all: [...] },
   allowanceLatest: { provider, fiveHourUsed, weeklyUsed, at } | null,
   errorStats: { daily: [ { total, byType: [ { type, count } ],
-               byModel: [ { modelName, errorType, count, lastTs } ],
-               modelRates: [ { modelName, errors, completedTasks,
+               byProvider: [ { provider, errorType, count, lastTs, codes, models } ],
+               byModel: [ { model, provider, thinkingLevel, count, lastTs } ],
+               providerRates: [ { provider, errors, completedTasks,
                                rate } ] } ], weekly: [...],
                monthly: [...], all: [...] },
   errorDailySeries: [ { day, label, count } ],        // 30 days
+  toolErrorStats: { daily: [ { total, distinctTools,
+               byTool: [ { tool, errorKind, count, repeat, lastTs,
+                           models, example } ],
+               byToolChart: [ { tool, count } ],
+               byKind: [ { kind, count } ],
+               topRepeat: { tool, errorKind, example, repeat } | null } ],
+               weekly: [...], monthly: [...], all: [...] },
+  toolErrorDailySeries: [ { day, label, count } ],    // 30 days
   projections: {                     // usage-rate projections, per period
     daily: { totalCost, avgCostPerTurn, avgCostPerTask,
              completedTasks, activeDays, calendarDays, tasksPerDay,
              spendPerDay, projected7d, projected30d, projected90d,
              projected365d, estimated, note,
-             rows: [ { modelName, activeDays, turns, userPrompts,
+             rows: [ { modelName, provider, thinkingLevel, activeDays, turns, userPrompts,
                        completedTasks, cost, costPerTurn,
                        costPerTask, spendPerDay, tasksPerDay,
                        turnsPerDay, projected7d, projected30d,
@@ -364,7 +413,8 @@ every `/usage-report`; fetched by `app.mjs`:
 ```
 
 Scoreboard entries carry `na` when the row must render N/A with that
-tooltip reason (the row stays visible).
+tooltip reason (the row stays visible). Scoreboard model names carry an
+optional `provider` rendered under the name in smaller muted text.
 
 ## Why "report" and not just "usage"
 

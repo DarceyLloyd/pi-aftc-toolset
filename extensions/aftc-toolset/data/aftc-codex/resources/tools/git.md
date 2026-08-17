@@ -2,7 +2,11 @@
 
 ## Rules
 
+- [Rrzs5y] Before claiming a file was never published, verify with `git log --all --oneline -- <path>` - a file in ANY commit or branch is in history even if later deleted; force-push rewrites remove it only from the origin ref, while clones/forks and published artifacts keep it.
+
 ## Gotchyas
+
+- [AcOuHw] A `dir/**` ignore pattern silently swallows every new file added under that tree - the files exist locally and pass tests, but are never committed, so a clean deploy pulls without them and the feature 404s on the live host; add explicit `!dir/sub/file` un-ignore rules for each new file and verify with `git ls-files` before committing.
 
 ## Issues & Solutions
 

@@ -167,6 +167,39 @@ export interface ErrorRecord {
     /** The raw error message from pi (provider text, may mention HTTP
      *  status / retry-after). */
     errorMessage: string;
+    /** Extracted HTTP status code from the message (429, 503, ...);
+     *  null when the message carries no code. */
+    errorCode: number | null;
+    /** Provider id of the failing model (deepseek, qwencloud, ...) —
+     *  distinguishes same-named models across providers. '' when unknown. */
+    provider: string;
+}
+
+/**
+ * One failed TOOL call (a tool_result whose `isError` was true — model
+ * misuse: wrong args, stale anchors, bad regex, missing binary, timeout).
+ * Recorded by core.ts on the tool_result hook via TurnRecorder.recordToolError.
+ * Distinct from ErrorRecord (provider failures). Stored locally only; the
+ * error message is bounded and normalised into `errorSignature` so the
+ * report can collapse repeated identical mistakes into a repeat count.
+ */
+export interface ToolErrorRecord {
+    sessionId: string;
+    promptIndex: number;
+    timestamp: number;
+    modelName: string;
+    thinkingLevel: string;
+    provider: string;
+    toolName: string;
+    /** Classified category: "invalid-args" | "stale-anchor" | "not-found" |
+     *  "bad-regex" | "permission" | "timeout" | "network" |
+     *  "missing-binary" | "other". */
+    errorKind: string;
+    /** Bounded raw error message (local-only). */
+    errorMessage: string;
+    /** Normalised message (lowercase, whitespace collapsed, digits/paths
+     *  replaced) for repeat-dedup in the report. */
+    errorSignature: string;
 }
 /**
  * Surface that core.ts relies on from the thinking module.
@@ -181,6 +214,8 @@ export interface TurnRecorder {
     recordTask(record: TaskRecord): void;
     /** Record one failed LLM call (stopReason "error"). See ErrorRecord. */
     recordError(record: ErrorRecord): void;
+    /** Record one failed tool call (tool_result isError). See ToolErrorRecord. */
+    recordToolError(record: ToolErrorRecord): void;
 }
 
 // ──────────────────────────────────────────────────────────────────────

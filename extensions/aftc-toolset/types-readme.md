@@ -63,10 +63,24 @@ interface ErrorRecord {
     errorMessage: string;     // raw provider error text
 }
 
+interface ToolErrorRecord {
+    sessionId: string;
+    promptIndex: number;
+    timestamp: number;        // failing tool_result
+    modelName: string;
+    thinkingLevel: string;
+    provider: string;
+    toolName: string;         // the tool whose result carried isError
+    errorKind: string;        // invalid-args|stale-anchor|not-found|bad-regex|permission|timeout|network|missing-binary|other
+    errorMessage: string;     // bounded raw error text
+    errorSignature: string;   // normalised message for repeat dedup
+}
+
 interface TurnRecorder {
     recordTurn(record: TurnRecord): void;
     recordTask(record: TaskRecord): void;
     recordError(record: ErrorRecord): void;
+    recordToolError(record: ToolErrorRecord): void;
 }
 ```
 

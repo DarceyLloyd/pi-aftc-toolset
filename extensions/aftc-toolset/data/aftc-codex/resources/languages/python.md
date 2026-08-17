@@ -16,12 +16,6 @@
 
 - [kv9k6Y] str.rpartition(sep) returns ('', '', s) when sep is absent (unlike partition's (s, '', '')) - splitting extensions with rpartition gives an EMPTY stem for extension-less names, so collision naming yields " (1)" instead of "name (1)"; use os.path.splitext for stem/extension splits.
 
-- [egIWMk] Multiple python procs at 100% CPU, work duplicated, zero training progress
-  Cause: Windows multiprocessing spawn re-imports and re-runs the whole script per worker (DataLoader, Lightning Fabric).
-  Fix: wrap the body of any script that reaches DataLoader workers in `if __name__ == "__main__":`. (2026-07)
-- [CRoWpC] Windows console crashes on unicode output
-  Cause: default stdio is cp1252.
-  Fix: reconfigure stdout/stderr to UTF-8 at the entry point before any logging/printing. (2026-07)
 - `[t0JcFX] uv sync` creates venv from a system Python instead of the project one
   Cause: `UV_PYTHON_INSTALL_DIR` not set.
   Fix: set it into the project folder and verify `.venv/pyvenv.cfg` `home` afterwards. (2026-07)
@@ -75,3 +69,20 @@
 - [JJIV3J] argparse defaults that read module globals conflict with a `global` declaration in main() - SyntaxError 'name X is used prior to global declaration'; use None defaults and assign the globals after parse_args().
 
 - [2pI8vf] lst[i:-1]` silently drops the LAST element - building target paths from split path parts with parts[:-1] loses the filename and collapses destinations; use lst[i:] to mean 'everything from i'.
+
+- [aq3CvL] Python module/package names that start with a digit can't be imported with normal import/from syntax (a syntax error) - name modules without a leading digit, or fall back to importlib for the rare case you can't rename.
+
+- [2BIggD] Splitting a large class into per-domain mixins across files creates a circular import when the mixins instantiate the base module's dataclasses - move those shared data classes into a separate module both sides import, and use deferred imports inside entry-point functions to break controller<->processor cycles.
+
+## Issues & Solutions
+
+- [egIWMk] Multiple python procs at 100% CPU, work duplicated, zero training progress
+  Cause: Windows multiprocessing spawn re-imports and re-runs the whole script per worker (DataLoader, Lightning Fabric).
+  Fix: wrap the body of any script that reaches DataLoader workers in `if __name__ == "__main__":`. (2026-08)
+- [CRoWpC] Windows console crashes on unicode output
+  Cause: default stdio is cp1252.
+  Fix: reconfigure stdout/stderr to UTF-8 at the entry point before any logging/printing. (2026-08)
+
+- [aoUEJD] Web UI request hangs forever mid-step (console frozen before an import finishes), no traceback, worker thread gone in py-spy - but the SAME code works when the process is launched detached (stdout redirected to a file)
+  Cause: fd-level hush (os.dup2 fds 1/2 to devnull) around imports is process-wide; with a real console attached a mid-hush failure leaves output redirected, swallowing the traceback and framework error reporting so the request hangs silently
+  Fix: never fd-redirect in a server process; keep the cosmetic import noise, add step+heartbeat logs dual-written to console and a log file, and use py-spy dump to distinguish a stuck thread from a silently dead one (2026-08)

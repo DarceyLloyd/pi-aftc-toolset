@@ -4,8 +4,9 @@
 // window equivalents, 1M-window feasibility) plus provider-reported
 // 5h / weekly allowance consumption per task.
 
-import { fmtInt, fmtTok, fmtPct, thinkingPill, ctxBar, flag1m, dash, statCard, makeTable, rememberPeriod, savePeriod } from "../lib/format.mjs";
+import { fmtInt, fmtTok, fmtPct, thinkingPill, ctxBar, flag1m, dash, statCard, makeTable, rememberPeriod, savePeriod, modelCell, modelLabel } from "../lib/format.mjs";
 import { PALETTE, tooltipBase, chartsOk, chartFallback } from "../lib/charts.mjs";
+import { tipFor, hoveredRow } from "../lib/tooltips.mjs";
 
 export class ContextTab {
   data = null;
@@ -30,7 +31,7 @@ export class ContextTab {
       defaultKey: "avgEndPct",
       getRows: function () { return self.ctx(); },
       cols: [
-        { key: "modelName", label: "Model" },
+        { key: "modelName", label: "Model", top: true, render: function (r) { return modelCell(r.modelName, r.provider); } },
         { key: "thinkingLevel", label: "Thinking", render: function (r) { return thinkingPill(r.thinkingLevel); } },
         { key: "contextWindow", label: "Window", num: true, hint: HINT_WINDOW, render: function (r) { return r.contextWindow > 0 ? fmtTok(r.contextWindow) : dash(null); } },
         { key: "tasks", label: "Tasks", num: true, render: function (r) { return fmtInt(r.tasks); } },
@@ -64,6 +65,8 @@ export class ContextTab {
         { key: "avg5hEnd", label: "5h used", num: true, render: function (r) { return r.avg5hEnd != null ? fmtPct(r.avg5hEnd / 100) : dash(null); } },
         { key: "avgWeeklyEnd", label: "Weekly used", num: true, render: function (r) { return r.avgWeeklyEnd != null ? fmtPct(r.avgWeeklyEnd / 100) : dash(null); } },
         { key: "fiveHourResets", label: "5h resets", num: true, hint: HINT_RESETS, render: function (r) { return fmtInt(r.fiveHourResets); } },
+        { key: "fiveHourExhausted", label: "5h used up", num: true, center: true, hint: HINT_5H_USEDUP, render: function (r) { return r.fiveHourExhausted > 0 ? '<span class="pill bad">' + fmtInt(r.fiveHourExhausted) + '</span>' : "0"; } },
+        { key: "weeklyExhausted", label: "Weekly used up", num: true, center: true, hint: HINT_WEEK_USEDUP, render: function (r) { return r.weeklyExhausted > 0 ? '<span class="pill bad">' + fmtInt(r.weeklyExhausted) + '</span>' : "0"; } },
         { key: "tasksUntil5hFull", label: "Tasks to 5h full", num: true, render: function (r) {
             if (r.tasksUntil5hFull == null) return dash(null);
             var n = Math.round(r.tasksUntil5hFull);
@@ -113,7 +116,8 @@ export class ContextTab {
     var rows = this.ctx().slice()
       .filter(function (r) { return r.fiveHourBurn > 0; })
       .sort(function (a, b) { return b.fiveHourBurn - a.fiveHourBurn; }).slice(0, 8);
-    var labels = rows.map(function (r) { return r.modelName; });
+    this.burnRows = rows;
+    var labels = rows.map(function (r) { return modelLabel(r.modelName, r.provider, r.thinkingLevel); });
     var vals = rows.map(function (r) { return r.fiveHourWindows != null ? r.fiveHourWindows : 0; });
     if (!this.burnChart) {
       var self = this;
@@ -125,10 +129,21 @@ export class ContextTab {
           plugins: {
             legend: { display: false },
             tooltip: Object.assign({}, tooltipBase, {
-              callbacks: { label: function (item) {
-                  var r = rows[item.dataIndex] || {};
-                  return " " + (r.fiveHourWindows != null ? r.fiveHourWindows.toFixed(1) + "x window" : "n/a") + " · " + fmtTok(r.fiveHourBurn) + " tokens";
-              } },
+              enabled: false,   // shared HTML table tooltip (lib/tooltips.mjs)
+              external: function (context) {
+                tipFor(context, function () {
+                  var r = hoveredRow(context, self.burnRows || []);
+                  if (!r) return null;
+                  return {
+                    title: modelCell(r.modelName, r.provider, r.thinkingLevel),
+                    rows: [
+                      ["5h burn", fmtTok(r.fiveHourBurn) + " tokens"],
+                      ["5h / window", r.fiveHourWindows != null ? r.fiveHourWindows.toFixed(1) + "x" : "\u2014"],
+                      ["Window", r.contextWindow > 0 ? fmtTok(r.contextWindow) : "\u2014"],
+                    ],
+                  };
+                });
+              },
             }),
           },
           scales: {
@@ -153,3 +168,5 @@ var HINT_5H_WINDOWS = "Context-window equivalents burned in the last 5 hours (5h
 var HINT_5H_TASK = "Average % of the provider's 5-hour allowance this model's tasks consume (snapshot before vs after each task).";
 var HINT_WEEK_TASK = "Average % of the provider's weekly allowance this model's tasks consume.";
 var HINT_RESETS = "Tasks where the 5h window reset mid-task (end % < start %) — the delta for those is not averaged in.";
+var HINT_5H_USEDUP = "Tasks that ended with the provider's 5-hour allowance at 100% — the quota was used up, so the provider refused further requests until it reset. A provider hitting this often isn't giving you enough allowance.";
+var HINT_WEEK_USEDUP = "Tasks that ended with the provider's weekly allowance at 100% — the quota was used up until the weekly reset. A provider hitting this often isn't giving you enough allowance.";

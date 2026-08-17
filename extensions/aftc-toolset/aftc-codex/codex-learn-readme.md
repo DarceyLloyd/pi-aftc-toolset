@@ -17,20 +17,26 @@ do:
 
 1. **Review the session** for durable, general lessons (never project-specific).
    The prompt carries HARD LIMITS applied before every write: the generality
-   check (makes sense on ANY project? names a project, real path/URL or
-   project-invented term? reword or drop — with BAD/GOOD examples) and the
-   secrets ban (never passwords, API keys, tokens, private keys or any
-   credential — describe the shape, never a value).
+   check (makes sense on ANY project? names a project, real path/URL,
+   project-invented term, or a tool/command that only exists in one project's
+   own toolchain? reword or drop — with BAD/GOOD examples), the USEFULNESS
+   test (a cold reader — a competent developer or weak AI who was never in
+   this session — must know exactly WHEN the entry applies, WHAT to do and
+   WHY, without guessing; general does NOT mean vague — with a VAGUE/USEFUL
+   example pair), and the secrets ban (never passwords, API keys, tokens,
+   private keys or any credential — describe the shape, never a value).
 2. **Consult the resource list** (already in the system prompt, or
    `codex_load("list")`) — update the right existing doc; create a new topic
    (`category/name`, new categories allowed) only when nothing covers it.
-3. **codex_load each EXISTING target topic** — this is the duplicate check:
-   read what is there; if the lesson exists in any wording, amend
-   (`codex_edit_entry`) or skip instead of adding a near-duplicate. Enforced,
-   not trusted: the write tools REFUSE to modify a topic not loaded this
-   session and reject exact duplicates. NEW topics need no prior load —
-   `codex_add_entry` creates the file. A refusal is recoverable: load the
-   topic and retry, never drop the lesson.
+3. **Duplicate-check before writing** — when several topics are involved, in
+   ONE pass: read the candidate resource files together (one bulk read, then
+   process) instead of loading them one by one. Then `codex_load` ONLY each
+   EXISTING topic actually being written to — the write tools REFUSE to
+   modify a topic not `codex_load`ed this session (a plain read does not
+   count) and reject exact duplicates. NEW topics need no prior load —
+   `codex_add_entry` creates the file. If the lesson exists in any wording,
+   amend (`codex_edit_entry`) or skip instead of adding a near-duplicate. A
+   refusal is recoverable: load the topic and retry, never drop the lesson.
 4. **Classify + write** — first match wins, in order: observed failure with a
    diagnosis > `issue`; a convention we choose > `rule`; a technology trap you
    can only avoid > `gotcha`. Entries are ALWAYS written directly with
@@ -43,8 +49,9 @@ do:
    (`codex_edit_entry` / `codex_remove_entry`) — no waiting for a future `-learn`.
 
 The prompt closes with the guardrails: durable + general only (no project
-names/paths/URLs), write short — fewest plain words that carry the full
-lesson, never fabricate or pad; report an empty result honestly (added after
+names/paths/URLs), completeness first and economy second — the fewest plain
+words that carry the FULL lesson (when/what/why; cut filler, never meaning),
+never fabricate or pad; report an empty result honestly (added after
 a session whose learn loop burned most of its budget on meta-deliberation).
 Implementation details the tools enforce themselves (IDs, format, section
 placement, live-vs-seed target, date stamping) are deliberately NOT restated

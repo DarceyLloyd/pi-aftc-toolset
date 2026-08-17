@@ -14,6 +14,8 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 
 - [n1oVSs] Type-to-filter in a shared selectable list: reuse pi-tui's fuzzyFilter(items, query, getText) (whitespace/slash-separated tokens, best matches first), show the query with CURSOR_MARKER as the caret, let Backspace edit, Ctrl+U clear, Esc clear the query first (a second Esc closes), and reset the highlight to the top of the narrowed list on every filter edit - ship it as an OPT-IN option (default off) so existing callers behave identically.
 
+- [ye7j3e] When a model-facing protocol needs an explicit completion signal, the injected rules must state that the auto-sent reply is NOT completion — otherwise the model treats the reply itself as the done signal and never calls the done tool.
+
 ## Gotchyas
 
 - [cL1pBd] Clipboard write from an extension - hand-rolling clip/pbcopy/wl-copy/OSC 52 per platform is error-prone and unnecessary; import { copyToClipboard } from "@earendil-works/pi-coding-agent" (pi's own cross-platform helper: native addon, platform tools, OSC 52 fallback - it throws "Failed to copy to clipboard" when every method fails, so await it in try/catch and only clear the source text AFTER it resolves).
@@ -42,6 +44,16 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [eRgGt1] Making a static injected rules-file instruction conditional on a preference - do not edit the shipped rules file (byte-stable, versioned); inject an override block AFTER the rules text in the system-prompt prefix, flipped per the preference value, so the later instruction wins.
 
 - [RqPc9l] A 'fix' that skips a folder emitting no signals leaves the reported symptom unchanged - reproduce first and probe which input actually contributes (count contributions); the noise often comes from a different source entirely (eg a docs-heavy auto-inject file's keyword scan) than the folder suspected.
+
+- [NignfU] N processes consuming ONE shared append-only log corrupt each other when they share a mutable read-state file (resume offset + dedup ids) — last-writer-wins silently clobbers a sibling's parser state; give each process its OWN state file keyed by instance identity.
+
+- [Mfzs9v] Model providers intermittently hang mid-stream with no timeout (the same prompt completes on retry; injected turns stall), so headless harnesses driving pi need per-instance hang detection (streaming > ~4 min with no artifact/log growth) plus retries — otherwise one hung call burns the whole scenario budget.
+
+- [rZnSbC] The harness's saved SSH connection names are NOT hostnames — scp/ssh from a plain shell cannot resolve them; use the harness's own upload/download tools (or a real resolvable hostname) for file transfers.
+
+- [XLjxTS] Harness SSH sessions drop with idle time ('session is not connected' mid-workflow) — just reconnect by the saved connection name to get a fresh session id; never cache the opaque session id across long pauses.
+
+- [frCSg2] "This operation was aborted" - a failing turn (stopReason "error") carries this errorMessage for a transport-level abort (connection dropped / internal abort), NOT the user's Escape (which arrives as stopReason "aborted"); classify it as its own error type instead of lumping it into user aborts or a generic "other" bucket.
 
 ## Issues & Solutions
 
@@ -223,3 +235,15 @@ Gotchas and conventions for building extensions for the pi CLI coding agent (`@e
 - [kSRdzi] pi -p "/my-command" --flag fails with "Unknown option: --flag" even though the command itself supports that flag
   Cause: pi's own CLI argument parser runs before the prompt is dispatched, so any --flag passed as a SEPARATE argv item after the prompt string is consumed by pi itself and rejected.
   Fix: pass the slash command and its flags as ONE prompt argument (eg the single string "/my-command --apply") - inside the prompt string the flags reach the command handler untouched. (2026-08)
+
+- [HMb2uC] A search for the last assistant message via ctx.sessionManager.getEntries() silently finds nothing (auto-reply / final-text capture never fires)
+  Cause: entries are wrapped: type is "message" and the role lives in the nested message.role, so checking e.type === "assistant" never matches.
+  Fix: match e.type === "assistant" || e.role === "assistant" || e.message?.role === "assistant" and read content from e.message.content ?? e.content. (2026-08)
+
+- [aOrNPZ] Two instances of the same app on one machine overwrite each other's per-instance identity values (name/role) when set via a command or tool
+  Cause: the identity was persisted in ONE config file shared by every instance on the machine and read fresh on every access, so the last writer silently clobbers the sibling instance's live identity; automated tests miss it when they give each spawned instance a per-process env override.
+  Fix: store per-instance identity in-process ONLY (set the process env var in the setter at runtime; allow pre-setting it before launch), never persist it to the shared config; retire the old config keys so they are stripped from existing files, and state in the user-facing output that the change applies to this window/process only. (2026-08)
+
+- [9pFzMd] Appending large content via a heredoc through the agent's one-liner bash tool silently truncates the write — the appended record ends mid-content with no closing marker.
+  Cause: The inline bash tool has a command-size limit; the command was cut before the trailing heredoc delimiter reached the shell, so bash treated EOF as the delimiter and wrote a partial record.
+  Fix: Use the harness's script-runner tool (writes the body to a temp file — no inline size limit) or write the content to a temp file with the file-write tool and cat >> it; after appending to a structured log, verify the closing marker exists. (2026-08)

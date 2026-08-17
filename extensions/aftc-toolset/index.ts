@@ -88,7 +88,11 @@ import { createAftcCodex } from "./aftc-codex/aftc-codex";
 import { createSubAgents, buildSubAgentFooterLine } from "./subagents/subagents";
 import { getSubAgentPref } from "./subagents/subagent-config";
 import { createRunScript } from "./run-script";
+import { createBackgroundTerminals } from "./background-terminals/background-terminals";
+import { createCopyAll } from "./copy-all";
+import { createFileSearch } from "./file-search/file-search";
 import { createResume } from "./resume";
+import { createChat } from "./chat";
 import { migrateLegacyData } from "./paths";
 import * as aftcConsole from "./ui/aftc-console";
 // DISABLED 2026-07: pi 0.81 added native provider support. Module kept on
@@ -174,7 +178,11 @@ export default function (pi: ExtensionAPI): void {
 	createAftcCodex(pi);
 	const subAgents = createSubAgents(pi, { allowance });
 	createRunScript(pi);
+	createBackgroundTerminals(pi);
+	createCopyAll(pi);
+	createFileSearch(pi);
 	createResume(pi);
+	createChat(pi);
 	// createProviders(pi); // disabled — see note at the import above
 
 	// Core owns the data; the widget renders it. The orchestrator wires

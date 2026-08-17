@@ -96,11 +96,13 @@ Both commands share one handler (`handleDocxRun`), parameterised by the
 | `python-app` | Python CLI, web, GUI, TUI, services |
 | `cli-tool` | Command-line tools and terminal-UI apps (any language) |
 | `shell-scripts` | bash/sh/ps1/bat automation collections |
+| `server-stack` | Linux server / Docker hosting stacks (compose, nginx/Apache, ops scripts, systemd) |
 | `generic` | Closest-match fallback (libraries, SDKs, anything else) |
 
 Auto-detection is heuristic (package.json deps, manifests, compose files,
 build files) and ordered: Electron → JUCE → mobile → WebGPU/WebGL → web →
-Python → native desktop → CLI bin → shell scripts → static site.
+server stack (compose + scripts/nginx, no app manifest) → Python → native
+desktop → CLI bin → shell scripts → static site.
 
 ## Backup scheme (both commands)
 

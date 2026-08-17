@@ -55,7 +55,7 @@ assistant responded over time*, query this DB.
 | `cache_write` | int | Tokens written to cache this turn |
 | `context_window` | int | Model's declared context window in tokens at this turn (`getContextUsage().contextWindow`); 0 when unknown (old rows) |
 | `context_tokens` | int | pi's context-usage estimate at `message_end` (`getContextUsage().tokens`, input side); 0 when unavailable |
-| `device_id` | text | Per-installation owner id (one UUID per data dir, `paths.ts getDeviceId`) — tags every row so the online copy can be attributed back to this machine; `''` = legacy row recorded before device ids existed |
+| `device_id` | text | Per-installation owner id (one UUID per data dir, `paths.ts getDeviceId`) — tags every row with this installation; `''` = legacy row recorded before device ids existed |
 | `session_id` | text | Stable per-runtime-session id |
 | `prompt_index` | int | 1-based user-prompt number; all automated continuations share the same index as the user prompt that caused them |
 
@@ -158,12 +158,41 @@ Classification happens in `core.ts`'s `classifyError()` — order
 matters: 5xx beats timeout/network (a 503 gateway timeout is a server
 problem). The Errors tab groups by model × type.
 
+### `tool_errors` table (one row per failed tool call)
+
+Inserted by `core.ts` on the `tool_result` hook via `recordToolError` — a
+tool result whose `isError` was true. Model misuse (wrong args, stale edit
+anchors, bad regex, missing files/binaries, timeouts), distinct from the
+`errors` table above (provider failures).
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | int PK | Auto-increment row id |
+| `session_id` | text | Stable per-runtime-session id |
+| `prompt_index` | int | 1-based user-prompt number the failed call belonged to |
+| `timestamp` | int | ms since epoch at the failing `tool_result` |
+| `model_name` | text | Model that ran the tool |
+| `thinking_level` | text | Thinking level at the time |
+| `provider` | text | Provider id of the model (distinguishes same-named models) |
+| `tool_name` | text | The tool whose result carried `isError` |
+| `error_kind` | text | Classified: `invalid-args` / `stale-anchor` / `not-found` / `bad-regex` / `permission` / `timeout` / `network` / `missing-binary` / `other` |
+| `error_message` | text | Bounded (400 chars) raw error text |
+| `error_signature` | text | Normalised message (lowercase, digits → N) for repeat dedup |
+| `device_id` | text | Per-installation owner id — `''` for legacy rows |
+
+Classification happens in `core.ts`'s `classifyToolError()` (order
+matters: tool-specific `edit` anchors first, then missing-binary, then
+not-found, bad-regex, permission, timeout, network, invalid-args, other).
+`error_signature` is `toolErrorSignature()` — the report collapses repeated
+identical mistakes into a repeat count.
+
 ### What is NOT recorded
 
 - The actual **text** of user prompts, sub-prompts, or assistant
   responses.
-- File paths, tool names, or arguments the assistant invoked
-  tools with.
+- Tool ARGUMENTS the assistant passed. (Tool NAMES are recorded in
+  `tool_errors` as error metadata — the name of the tool that failed;
+  the bounded error message may contain file paths/ids.)
 - Reasoning or thinking-block content (only `thinking_ms` is
   recorded as a duration).
 

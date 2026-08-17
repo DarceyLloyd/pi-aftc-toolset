@@ -1,6 +1,6 @@
 {
   "name": "pi-aftc-toolset",
-  "version": "1.21.10",
+  "version": "1.21.13",
   "description": "Stats bar. Isolated SSH. Documentation generation (docx). Persistent self-educating cache-aware skills on demand (codex). Usage reports. Audio notifications. Shortcuts. Skills. Themes ++",
   "keywords": [
     "pi-package",
@@ -20,7 +20,7 @@
     ]
   },
   "author": "Darcey Lloyd",
-  "license": "MIT",
+  "license": "Elastic-2.0",
   "publishConfig": {
     "access": "public"
   },

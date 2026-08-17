@@ -242,10 +242,17 @@ Must work as a complete overview even if nothing else exists. In order:
 1. Title + `last-reviewed` header.
 2. Description: what it is, who it serves, what problem it solves, what it
    explicitly does NOT do.
-3. Tech stack with versions.
-4. Lite project map (branch level) + pointer to `project_map.md`. Never
+3. `## How To Use This Documentation` (immediately after the description,
+   plain words a weak model cannot misread): this master and the map are
+   the two docs read every session; every other doc is load-on-demand -
+   read a deep doc ONLY when you are about to work on the feature or area
+   it covers (or the user asks); never follow doc links into areas you are
+   not working on; when you change documented code, update its doc in the
+   same change.
+4. Tech stack with versions.
+5. Lite project map (branch level) + pointer to `project_map.md`. Never
    duplicate the full tree.
-5. `## Project Guidance & Rules`: `### Rules` list, then guidance blocks.
+6. `## Project Guidance & Rules`: `### Rules` list, then guidance blocks.
    One block is mandatory:
    `### Maintaining This Documentation`:
    - Docs update in the SAME change as the code - never deferred; a stale
@@ -259,7 +266,7 @@ Must work as a complete overview even if nothing else exists. In order:
      or a component with its own rules mints a leaf in the same commit: map
      node (next free sibling ID), leaf doc IN THE CORRECT MIRRORED FOLDER,
      Documentation Index entry, and the owning UI branch's sitemap entry.
-6. **One section per ID in the root map - every node at every level.**
+7. **One section per ID in the root map - every node at every level.**
    Shape per section: `## <id> - <Name>`; one short paragraph (purpose, what
    it owns, what it does NOT own); ALL functionality mentioned at this
    level, no technical depth; cross-references by ID; ends with:
@@ -276,7 +283,7 @@ Must work as a complete overview even if nothing else exists. In order:
    that does not exist.
 
    Sub-projects use the extended instruction (see Sub-Projects).
-7. Documentation Index (Deep Documents / Sub-Maps / Cross-Cutting / Dev
+8. Documentation Index (Deep Documents / Sub-Maps / Cross-Cutting / Dev
    Tools, with links). Entries carry the ID and the NESTED path, grouped by
    branch with children indented under their parents:
    `- [1.3_ui/1.3.4_x/1.3.4_x_documentation.md](1.3_ui/1.3.4_x/1.3.4_x_documentation.md) - ID 1.3.4, \`dev-tool\``.
@@ -285,7 +292,7 @@ Must work as a complete overview even if nothing else exists. In order:
    follow these links for areas you are not working on."* Every generated
    `.md` file under `docx/` MUST appear here (the link audit verifies
    completeness).
-8. Final note: new sections may be added by the AI or user as the project
+9. Final note: new sections may be added by the AI or user as the project
    evolves; the future shape cannot be known in advance.
 
 ## 6. Deep Documents
@@ -444,25 +451,26 @@ rewrite it wholesale. The generation run makes exactly two edits:
 
 ```markdown
 <!-- AFTC-DOCX
-Documentation lives in ./docx/. Do NOT read documentation up front. When
-you are about to work on an area, find its doc: read the Documentation
-Index in ./docx/project_documentation.md or the annotations in
-./docx/project_map.md, then load ONLY that doc from ./docx/. Never
-follow documentation links for areas you are not working on. When you
-change documented code, update its doc in the same change and refresh its
-last-reviewed stamp.
+Documentation lives in ./docx/. At the start of every session read the two
+root docs: ./docx/project_documentation.md (master - rules plus the
+Documentation Index) and ./docx/project_map.md (structure map). Every other
+doc is load-on-demand: read a deep doc ONLY when you are about to work on
+the feature or area it covers, or when the user asks you to. Never read
+deep docs up front, and never follow doc links into areas you are not
+working on. When you change documented code, update its doc in the same
+change and refresh its last-reviewed stamp.
 -->
 ```
 
 2. Update any OTHER stale documentation references in the file to point at
    `./docx/` (eg an old `project_documentation.md` link at the root).
 
-The block's discovery contract (binding): AGENTS.md points at the master
-and the map as the ONLY two entry points; the model looks no further until
-it is about to work on an area, and then loads only that area's doc. The
-master and the map each carry a visible "do not follow these links until
-the work touches that area" instruction so a model opening them for
-discovery does not cascade-load the whole set.
+The block's discovery contract (binding): AGENTS.md tells the model to
+read the master and the map at the start of every session - they are the
+ONLY two always-read docs - and to load a deep doc only when it is about
+to work on that area. The master and the map each carry a visible "do not
+follow these links until the work touches that area" instruction so a
+model opening them for discovery does not cascade-load the whole set.
 
 Every other character of the existing file - critical rules, conventions,
 do-not-touch lists - is preserved VERBATIM. If no `AGENTS.md` exists,
@@ -746,6 +754,10 @@ STEP 1 - RECONNAISSANCE (SOURCE OVER DOCS - the core discipline)
   walking the tree yourself:
   node "[MAP_SCAN_PATH]" "[PROJECT_PATH]"
 - Honour the Folders-To-Never-Touch rule for every operation.
+- Read the project's AGENTS.md (or equivalent rule files) FIRST. The
+  project's own rules outrank this prompt and the type pack: a declared
+  out-of-scope area (eg "website content is not documented") stays out of
+  scope - document the boundary, never the excluded content.
 - VERIFY EVERY MATERIAL CLAIM AGAINST ACTUAL SOURCE, never against the old
   docs. The appended type pack names your platform's sources of truth
   (route/window/screen registries, template/surface definitions, control
@@ -946,7 +958,9 @@ Angular/React/Next/Vue and custom MVC TS/JS frontends), `basic-website`
 (static HTML/CSS/JS), `webgpu-webgl` (Three.js/Babylon), `desktop-app`
 (Electron, .NET, Java, Qt), `juce-vst` (C++ JUCE audio plugins),
 `mobile-app`, `python-app`, `cli-tool` (CLI/TUI tools), `shell-scripts`
-(bash/sh/ps1/bat collections), `generic` (closest-match fallback).
+(bash/sh/ps1/bat collections), `server-stack` (Linux server / Docker
+hosting stacks - compose, nginx/Apache, ops scripts, systemd), `generic`
+(closest-match fallback).
 
 Maintainer rule: a pack is FAMILY-generalised - focused enough to name the
 stack's sources of truth, broad enough to cover the whole family. Never
@@ -996,7 +1010,7 @@ Fix any unchecked item, or document the gap in `docx/known-gaps.md`.
 - [ ] Dev tools: `dev-tool` tag, deep doc with host access + disable instructions, entry in `docx/development.md`.
 - [ ] `docx/dependency_map.md` exists: runtime graph, mount map, build-output contract, feature trace matrix, API consumer matrix - ID-keyed, `last-verified` header.
 - [ ] Cross-references use IDs, not paths.
-- [ ] `AGENTS.md`: under 200 lines, no secrets, managed AFTC-DOCX block present (no upfront doc reads; discovery via master index / map annotations; load-on-demand), prior critical rules preserved verbatim; copies at every AI tool location.
+- [ ] `AGENTS.md`: under 200 lines, no secrets, managed AFTC-DOCX block present (master + map read every session; deep docs load-on-demand; discovery via master index / map annotations), prior critical rules preserved verbatim; copies at every AI tool location.
 - [ ] Map annotations use full file names as link text; every generated `.md` under `docx/` appears in the master's Documentation Index at its nested path.
 - [ ] link-audit script prints PASS.
 - [ ] A new session can onboard from the root README + master + map + AGENTS.md + one deep doc.

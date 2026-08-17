@@ -67,6 +67,24 @@ This is an extension for pi (pi.dev) which helps me in my everyday work. If ther
   
   **Click here for more information** → [run_script section](#run_script-reliable-large-scripts)
 
+- **Background Terminals (/bt)**
+
+  Start long-running shell commands in the background (dev servers, watchers, builds) and keep working. The model gets `bg_start` / `bg_status` / `bg_list` / `bg_kill`; you get `/bt` — a scrollable list where Enter stops a terminal (with a yes/no confirm) and a top row stops them all. No stdin, session-scoped, off by default.
+
+  **Click here for more information** → [Background terminals section](#background-terminals-bt)
+
+- **Copy All (/copy-all)**
+
+  Copy every user and assistant message in the current thread to the clipboard (thinking excluded, bounded to 2 MB).
+
+  **Click here for more information** → [Copy all section](#copy-all-copy-all)
+
+- **File Search (fd + rg)**
+
+  Fast, gitignore-aware file discovery and content search over the Rust `fd` and `ripgrep` binaries - replacing the error-prone `find` / `grep` one-liners.
+
+  **Click here for more information** → [File search section](#file-search)
+
 - **Sub Agents (/007 Alpha 1)**
   
   Delegate work to your own custom AI agents (planner, researcher, worker - whatever you build). Off by default, enable it via /007 > settings and create your own agents from the agents folder. NOTE: This is an ALPHA 1 release.
@@ -81,6 +99,28 @@ This is an extension for pi (pi.dev) which helps me in my everyday work. If ther
 
 
 ## **WHATS NEW**
+
+### **FILE SEARCH (fd + rg) + TOOL-ERROR TRACKING**
+
+Two new model tools - `fd` (find files by name) and `rg` (ripgrep content
+search) - shell out to the fast, cross-platform Rust binaries instead of
+the `find`/`grep` one-liners models get wrong. The usage report Errors tab
+gains a "Tool errors" section (below the provider failures): every failed
+tool call (wrong args, stale edit anchors, bad regex, missing files,
+timeouts) is classified and recorded, and repeated mistakes are highlighted.
+
+### **BACKGROUND TERMINALS (/bt)**
+
+Start long-running commands in the background (dev servers, watchers,
+builds) and keep working. The model gets `bg_start`/`bg_status`/`bg_list`/
+`bg_kill`; you get `/bt` — a scrollable list of running terminals where
+Enter stops one (yes/no confirm) and the top row stops them all. No stdin,
+session-scoped, off by default (`/bt-on` + `/reload` to enable).
+
+### **COPY ALL (/copy-all)**
+
+Copy every user and assistant message in the current thread to the
+clipboard (max 2 MB).
 
 ### **USAGE REPORT UPDATED**
 
@@ -170,8 +210,7 @@ session's cached vs new token split.
 ### Line 2 - your money and prompts
 
 User vs AI prompt counts, last turn cost, live Task Time, Session Time
-(wall-clock since your first prompt), Session Time Cost, and the burn rate
-($/hr and $/min).
+(wall-clock since your first prompt) and Session Time Cost.
 
 ### Line 3 - speed and tools
 
@@ -191,7 +230,12 @@ calendar-anchored windows (1 Day → 1 Year).
 5-hour rolling + weekly allowance usage with live reset countdowns.
 Supported: ChatGPT/Codex (OAuth), Anthropic (OAuth subscription headers),
 MiniMax Token Plan, ZAI/GLM Coding Plan, Kimi for Coding. All other
-providers: the line stays hidden.
+providers: the line stays hidden — and it hides immediately when you
+switch to a model whose provider reports no allowance. The numbers
+refresh after every prompt, on model changes, and on a gentle 60-second
+background poll, so you can check what you have left BEFORE starting a
+big task (the poll backs off automatically if the provider's usage
+endpoint is failing or has no credentials).
 
 ### Line 6 - sub agents (only while /007 is enabled)
 
@@ -444,7 +488,13 @@ show N/A).
 
 Failed calls per model × error type (rate limit, overloaded, not found,
 auth, timeout, network) with a fair error rate over completed tasks — your
-own aborts are a stat on Timings, not errors.
+own aborts are a stat on Timings, not errors. The failed-calls-by-model
+chart reports model + provider (thinking levels are merged — a failed
+call is a provider issue). Below that, a **Tool errors**
+section lists failed tool calls (wrong args, stale edit anchors, bad regex,
+missing files, timeouts) with repeat-mistake highlighting; the example
+column is sanitized before it reaches the report — no file paths, URLs or
+project code, capped at 100 characters.
 
 
 ---
@@ -529,6 +579,44 @@ truncation bug (a few KB+ inline commands get silently cut). Bash-only
 (git-bash on Windows); default timeout 120 s, max 1800 s. Toggle:
 `/run-script-on` / `/run-script-off` (default on).
 
+
+---
+
+<br><br>
+
+## **Background Terminals (/bt)**
+
+Start long-running shell commands in the background and keep working while
+they run. The model uses `bg_start` / `bg_status` / `bg_list` / `bg_kill`;
+you use `/bt` — a scrollable list of the running terminals: Enter on a row
+asks "yes/no" and stops that terminal, the `TERMINATE ALL` row at the top
+stops everything at once, Esc closes. No stdin,
+session-scoped (killed on /new or /reload), max 8 at once, off by default
+(`/bt-on` then `/reload`). A one-line widget shows how many are running.
+
+---
+
+<br><br>
+
+## **Copy All (/copy-all)**
+
+`/copy-all` copies every previous user and assistant message in the current
+thread to the clipboard, joined with `---` separators (thinking excluded,
+bounded to 2 MB).
+
+---
+
+<br><br>
+
+## **File Search**
+
+First-class file finding and content search. `fd` finds files/directories
+by name, extension, glob, type and depth; `rg` searches file contents with
+regex or literal text, smart-case, gitignore-aware. Both shell out to the
+Rust `fd` / `ripgrep` binaries (fast, accurate, cross-platform) - install
+them via your package manager and the tools just work (a missing binary
+gives a clear install hint). Toggle: `/file-search-on` / `/file-search-off`
+(default on). Every failed run lands in the report's Tool-errors section.
 
 ---
 
@@ -685,6 +773,9 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | `/docx-update [--yes] [--type <key>]` | Reconcile an existing `./docx/` set with the source: mint/retire docs, fix drift, fact-check the README without rewriting it |
 | `/aftc-resume-save` | Stop current work and write `./aftc-resume.md` (handoff file: goal, current state, knowledge learned, key files, next steps). An existing handoff is kept as a timestamped snapshot - nothing is overwritten. Then `/new` + `/aftc-resume` to continue in a fresh window |
 | `/aftc-resume` | Restore the saved knowledge: the model reads `./aftc-resume.md`, re-loads its codex resources (codex on) and key files, reads the project's docx docs and AGENTS.md, confirms it is up to speed, then waits for your direction |
+| `/copy-all` | Copy all user/assistant messages in the thread to the clipboard |
+| `/file-search-on` | Enable the fd + rg search tools (`/reload` to apply) |
+| `/file-search-off` | Disable the fd + rg search tools (`/reload` to apply) |
 
 ### Interrupt
 
@@ -743,6 +834,14 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 | `/aftc-enable-think-processing` | Turn on inline `<think>…</think>` tag parsing (off by default; `/reload` to apply) |
 | `/aftc-disable-think-processing` | Turn off inline `<think>…</think>` tag parsing (`/reload` to apply) |
 
+### Background terminals
+
+| Command | What it does |
+| --- | --- |
+| `/bt` | List running background terminals (scrollable); Enter stops one after a yes/no confirm, `TERMINATE ALL` stops them all |
+| `/bt-on` | Enable the background terminals feature (`/reload` to apply) |
+| `/bt-off` | Disable the background terminals feature (`/reload` to apply) |
+
 ### Sub Agents
 
 | Command | What it does |
@@ -796,6 +895,8 @@ Currently **disabled** - pi now registers providers natively. The module stays i
 | Cloud codex contribution | Enabled (silent; toggle off in the /codex menu) |
 | Audio notifications | Disabled (fresh installs silent) |
 | run_script tool | Enabled |
+| Background terminals | Disabled |
+| File search (fd + rg) | Enabled |
 | Think-tag processing | Disabled |
 | Sub Agents (/007) | Disabled |
 | Response divider | Enabled |
@@ -1000,4 +1101,8 @@ SSH sessions, shell buffers, credentials, and carrier processes are in-memory on
 
 # License
 
-[MIT](./LICENSE) - Author <Darcey.Lloyd@gmail.com>
+[Elastic License 2.0](./LICENSE) - Author <Darcey.Lloyd@gmail.com>
+
+Source-available: you may use, modify and build on this software freely,
+but you may not resell it or provide it to third parties as a hosted or
+managed service.

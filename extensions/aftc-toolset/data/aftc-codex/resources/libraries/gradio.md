@@ -4,6 +4,10 @@
 
 ## Gotchyas
 
+- [3lyaui] Inserting a new component into an api_name endpoint's inputs list shifts the positional parameter order for gradio_client/curl callers - existing clients silently pass wrong values; update the API docs table, examples and E2E tests in the same commit as the UI change.
+
+- [Jn4E6y] gradio_client rejects a plain list-of-rows for a Dataframe input (pydantic DataframeData validation error) - pass the {"headers": [...], "data": [[...]]} dict (exactly what a Dataframe OUTPUT returns, so feeding one endpoint's table into another works as-is).
+
 ## Issues & Solutions
 
 
@@ -22,3 +26,7 @@
 - [wBzRRf] Force dark theme regardless of user OS setting
   Cause: Gradio follows the user's OS light/dark setting by default and has no direct force-dark option.
   Fix: add a redirect script with `?__theme=dark` via the `head` param. (2026-07)
+
+- [srDuKr] Native Save-As file dialog hangs/crashes when invoked from a Gradio (web server) worker thread
+  Cause: tkinter must run on the main thread; calling it from a Gradio worker thread deadlocks or crashes, and heavy top-level imports make the child process slow to start.
+  Fix: spawn the dialog as a child process (python helper.py --dialog ...) that prints the chosen path to stdout; keep numpy/soundfile-style imports lazy inside functions so the dialog child starts fast; support an env-var override that skips the dialog so automated E2E tests can drive the endpoint headlessly. (2026-08)

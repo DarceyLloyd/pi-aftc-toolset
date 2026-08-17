@@ -8,6 +8,8 @@
 
 - [oksuKj] ffmpeg "Unable to choose an output format for 'out.mp3.tmp'" - a non-standard temp extension (.tmp) defeats muxer inference; pass -f mp3 (or the real target format) before the temp output path, then os.replace onto the final name.
 
+- [jJt9uv] A 'static macOS ffmpeg' download can be x86_64-only and would run on Apple Silicon only through Rosetta (or not at all) — verify a downloaded binary's architecture from its header (Mach-O cputype, ELF e_machine, PE 'MZ') before bundling, and prefer a source that publishes per-OS/per-arch builds.
+
 ## Issues & Solutions
 
 

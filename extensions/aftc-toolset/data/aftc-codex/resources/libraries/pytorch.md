@@ -8,6 +8,8 @@
 
 - [R2Ntuv] Always split train/val by unique input identity (group rows by their key/name first, then split the groups) when a dataset has duplicate or near-duplicate inputs - a plain row shuffle leaks labels across the split and inflates val accuracy, because identical texts appear in both folds.
 
+- [Mggl0H] For user-facing 'seed (0 = random)' controls, resolve 0/None/negative to a concrete random int (eg random.randint(1, 2**31-1)) BEFORE generation and report/persist that value in the log and metadata - an unseeded 'random' run can never be reproduced or reported.
+
 ## Gotchyas
 
 - [uDrJKw] MODEL UNLOAD & background load - a background-thread model load finishing AFTER an unload request silently resurrects the model in GPU memory; set a disabled flag on unload and check it at load completion (discard instead of assigning), and free with del + torch.cuda.empty_cache().
@@ -15,6 +17,10 @@
 - [vXpOKf] Windows PyTorch ships without triton, and embedded/portable Pythons lack dev files: triton-based packages need a triton-windows wheel plus include/ (Python.h) and libs/ (python3NN.lib) added to the embedded Python - copy both from the official CPython NuGet package matching the exact Python minor version.
 
 - [MBKbmn] flash_attn is a painful source build on Windows - use attn_implementation='sdpa' in transformers instead, which is near-flash speed on modern GPUs without the toolchain.
+
+- [KcBeH6] torch.manual_seed(seed) seeds the CPU AND all CUDA device RNGs in one call (no separate cuda.manual_seed_all needed), and diffusion samplers that draw plain torch.randn (initial noise, scheduler step noise) are covered by it - but same-seed runs under bf16/fp16 CUDA are only NEAR-identical (max abs diff ~1e-3), not bitwise; verify reproducibility with np.allclose(atol~1e-3), never exact equality.
+
+- [EWuGiQ] On Apple Silicon, torch MPS raises NotImplementedError for certain ops (e.g. complex scatter_add_) and kills the whole job — set PYTORCH_ENABLE_MPS_FALLBACK=1 so unimplemented ops silently run on CPU, and run MPS inference in float32 (fp16 autocast can NaN some models).
 
 ## Issues & Solutions
 

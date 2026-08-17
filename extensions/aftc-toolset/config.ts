@@ -165,6 +165,14 @@ export interface Preferences {
     /** run_script tool: reliable large-script execution (workaround for a pi bash-tool
      *  truncation bug). On = tool registered; off = tool absent. /run-script-on|off. */
     runScriptEnabled?: boolean;
+    /** Background terminals: bg_start/bg_status/bg_list/bg_kill tools + the /bt
+     *  command family. Off by default (new features default OFF). /bt-on|off. */
+    backgroundTerminalsEnabled?: boolean;
+    /** fd + rg file-search tools. On by default (like run_script). /file-search-on|off. */
+    fileSearchEnabled?: boolean;
+    /** Peer chat: auto-send the final reply back to the sender after an
+     *  injected message. On by default (off = replies via chat_send_message). */
+    chatAutoReplyEnabled?: boolean;
     /** Stdout diagnostics ([aftc-toolset] load/detection lines via aftcConsole.log).
      *  OFF by default for a clean TUI; /aftc-debug-log-on|off. Error output is
      *  never gated. */
@@ -224,6 +232,9 @@ export const DEFAULT_PREFERENCES: Preferences = {
         aftcCodexCloudContribution: true,
     aftcCodexAutoInsertAgentsEnabled: false,
     runScriptEnabled: true,
+    backgroundTerminalsEnabled: false,
+    fileSearchEnabled: true,
+    chatAutoReplyEnabled: true,
     debugLoggingEnabled: false,
 };
 
@@ -244,6 +255,12 @@ export const DEFAULT_PREFERENCES: Preferences = {
  *     now (the codex write tools enforce format + safety guards).
  */
 const RETIRED_KEYS: readonly string[] = [
+    // Online usage mirror removed (v1.21.13): usage data is local SQLite
+    // only — no data-source switch remains.
+    "usageDataMode",
+    // Set-chat-log-file option removed: the log is always the default
+    // <dataDir>/chat/chat.log (AFTC_CHAT_FILE env still overrides per process).
+    "chatFile",
     "notifySound",
     "aftcCodexInjectMode",
     "aftcCodexAutoAddEntries",
@@ -257,6 +274,16 @@ const RETIRED_KEYS: readonly string[] = [
     "usagePushEnabled",
     "usagePushEndpoint",
     "usagePushApiKey",
+    // Peer chat identity went per-process (2026-08): name/role live in this
+    // pi process's env (AFTC_CHAT_NAME/AFTC_CHAT_ROLE) only, so two windows
+    // on one machine can never overwrite each other's identity via the
+    // shared config.json.
+    "chatName",
+    "chatRole",
+    // Peer chat is ALWAYS ON (2026-08): the on/off flag was removed — the
+    // watcher, tools and rules block are permanent. Stray chatEnabled keys
+    // are stripped from existing configs.
+    "chatEnabled",
 ];
 // ─────────────────────────────────────────────────────────────────────────────
 // Preferences (config.json) - ensure, read, write (NO cache)

@@ -414,18 +414,112 @@ class ShapeTracker {
 
 /** Classify a provider error message into a shameable category for the
  *  usage report's Errors tab. User aborts never reach this (stopReason
- *  "aborted" is a separate stat, not an error). Order matters: 5xx beats
- *  timeout/network (a 503 gateway timeout is a server problem, not a
- *  client one). Unknown messages fall back to "other". */
+ *  "aborted" is a separate stat, not an error). Order matters: explicit
+ *  rate-limit / allowance (quota) text beats bare status codes, and 5xx
+ *  beats timeout/network (a 503 gateway timeout is a server problem, not
+ *  a client one). Unknown messages fall back to "other". */
 function classifyError(message: string): string {
     const m = message || "";
-    if (/(^|\D)429(\D|$)/.test(m) || /rate\s*limit/i.test(m)) return "rate-limit";
+    if (/rate[\s_-]*limit/i.test(m)) return "rate-limit";
+    // Allowance exhausted: the 5h / weekly usage window is used up, so the
+    // provider refuses further calls until it resets. Not a provider
+    // outage — the plan/allowance was consumed (or is too small).
+    if (/quota|allowance|usage limit|out of credits|insufficient[\s_-]*(credits|balance|quota)/i.test(m)) return "allowance";
+    if (/limit(?:s)? (?:reached|exceeded)/i.test(m)) return "allowance";
+    // Context window / token limit exceeded: the request was too big for
+    // the model's declared context - actionable ("clear context"), not a
+    // provider outage.
+    if (/context[\s_-]*length|maximum context|context window|too many tokens|token limit|prompt (?:is )?too long/i.test(m)) return "context";
+    if (/(^|\D)429(\D|$)/.test(m)) return "rate-limit";
     if (/(^|\D)5\d\d(\D|$)/.test(m) || /overload|service unavailable|temporarily/i.test(m)) return "overloaded";
     if (/(^|\D)404(\D|$)/.test(m) || /not\s*found/i.test(m)) return "not-found";
     if (/(^|\D)(401|403)(\D|$)/.test(m) || /unauthori[sz]ed|forbidden|invalid\s*api\s*key|authentication/i.test(m)) return "auth";
     if (/(^|\D)408(\D|$)/.test(m) || /timeout|timed?\s*out|deadline/i.test(m)) return "timeout";
+    // Transport abort: the request was cut off mid-flight (connection
+    // dropped, or an internal abort). Distinct from a user Escape, which
+    // never reaches this classifier.
+    if (/aborted|\babort\b/i.test(m)) return "aborted";
     if (/fetch\s*failed|network|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|EPIPE|socket|connection|disconnect|offline|tunnel/i.test(m)) return "network";
     return "other";
+}
+
+/** Extract a leading HTTP status code from a provider error message
+ *  (eg "HTTP 429", "429", "503 Service Unavailable") — the first 3-digit
+ *  number in the 100-599 range; null when the message carries none. */
+function extractErrorCode(message: string): number | null {
+    const m = String(message || "");
+    const hit = m.match(/(^|\D)(\d{3})(\D|$)/);
+    if (!hit) return null;
+    const code = Number(hit[2]);
+    return code >= 100 && code <= 599 ? code : null;
+}
+
+/** Classify a tool error (a tool_result whose isError was true — model
+ *  misuse) into a category for the report's tool-errors section. Order
+ *  matters: tool-specific patterns first, then general classes. */
+export function classifyToolError(toolName: string, message: string): string {
+    const m = message || "";
+    const t = toolName || "";
+    // edit tool: "oldText must match exactly" = stale anchor — the single
+    // most common model misuse, so name it specifically.
+    if (t === "edit" && /oldText|must match|anchor/i.test(m)) return "stale-anchor";
+    // A binary our tools report as not installed (fd/rg).
+    if (/is not installed|install it and retry|not found on PATH/i.test(m)) return "missing-binary";
+    if (/no such file|not found|does not exist|ENOENT|unknown terminal|unknown.*\bid\b/i.test(m)) return "not-found";
+    if (/invalid regex|regex parse|unrecognized (?:flag|option)|unknown (?:flag|option)|unexpected argument|parse error/i.test(m)) return "bad-regex";
+    if (/permission denied|EACCES|EPERM|not permitted/i.test(m)) return "permission";
+    if (/timeout|timed?\s*out|deadline/i.test(m)) return "timeout";
+    if (/network|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|EPIPE|fetch\s*failed|socket|connection/i.test(m)) return "network";
+    if (/empty|must not be empty|required|provide at least|is required/i.test(m)) return "invalid-args";
+    return "other";
+}
+
+/** Normalise a tool error message for repeat-dedup: lowercase, collapse
+ *  whitespace, replace digit runs with N so "bg_kill bt-3" and
+ *  "bg_kill bt-7" collapse to the same repeated mistake. */
+export function toolErrorSignature(message: string): string {
+    return String(message || "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .replace(/\d+/g, "N")
+        .trim()
+        .slice(0, 160);
+}
+
+/** Pull the plain-text error out of a tool_result content (string or a
+ *  `[{ type: "text", text }]` content array). */
+function toolErrorMessage(content: unknown): string {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    const parts: string[] = [];
+    for (const part of content) {
+        if (part && typeof part === "object" && (part as any).type === "text") {
+            const text = (part as any).text;
+            if (typeof text === "string" && text) parts.push(text);
+        }
+    }
+    return parts.join(" ");
+}
+
+/** One-time backfill: re-classify error rows that fell through to "other"
+ *  under an older classifier. New rows are classified at record time, but
+ *  rows recorded before a classifier improvement keep their old bucket; a
+ *  single idempotent pass here re-evaluates them so historical data shows
+ *  the current categories. Only "other" rows are touched (a message that
+ *  still classifies to "other" is left alone). */
+function backfillErrorTypes(): void {
+    const db = getDb();
+    if (!db) return;
+    try {
+        const rows = db.prepare(`SELECT id, error_message FROM errors WHERE error_type = 'other'`).all();
+        const upd = db.prepare(`UPDATE errors SET error_type = ? WHERE id = ?`);
+        for (const r of rows as Array<{ id: number; error_message: string }>) {
+            const t = classifyError(String(r.error_message || ""));
+            if (t !== "other") upd.run(t, r.id);
+        }
+    } catch (_) {
+        // Non-fatal: leave rows as-is.
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -777,13 +871,16 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             model.reasoning = m.reasoning === true;
             model.contextWindow = m.contextWindow || 0;
         }
-        modelProvider = String((m as any).provider || modelProvider || "");
+        modelProvider = String((m as any).provider || (m as any).providerId || modelProvider || "");
         // thinkingLevel is NOT on the Model object - it's separate agent
         // state. Seed it from pi.getThinkingLevel() so the level is known
         // from the first render, not only after the user changes it.
         model.thinkingLevel = pi.getThinkingLevel();
 
         refreshToolCache();
+
+        // ---- 4. Backfill legacy error classifications ----
+        backfillErrorTypes();
     });
 
     pi.on("model_select", async (event, _ctx) => {
@@ -793,7 +890,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
             model.reasoning = m.reasoning === true;
             model.contextWindow = m.contextWindow || 0;
         }
-        modelProvider = String((m as any).provider || modelProvider || "");
+        modelProvider = String((m as any).provider || (m as any).providerId || modelProvider || "");
         // Re-read on model change: a new model may clamp the level
         // (non-reasoning models always use "off"). See session_start note.
         model.thinkingLevel = pi.getThinkingLevel();
@@ -969,6 +1066,33 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         }
     });
 
+    // Tool-error hook: a tool_result carrying isError is a model-misuse (or
+    // genuine tool) failure — record it (bounded + classified) into the
+    // tool_errors table so the report's Errors tab can surface repeated
+    // mistakes. Provider failures are a DIFFERENT table (recordError above).
+    pi.on("tool_result", async (event, ctx) => {
+        const ev = event as any;
+        if (!ev.isError) return;
+        const toolName = String(ev.toolName || "");
+        const message = toolErrorMessage(ev.content).slice(0, 400);
+        const cm = (ctx as any).model;
+        const modelName = (cm && (cm.id || cm.name)) || model.name || "";
+        const thinkingLevel = (ctx as any).thinkingLevel || model.thinkingLevel || "";
+        const provider = (cm && cm.provider) || modelProvider || "";
+        turnRecorder.recordToolError?.({
+            sessionId: _sessionId,
+            promptIndex: _activePromptIndex || _currentPromptIndex || 0,
+            timestamp: Date.now(),
+            modelName,
+            thinkingLevel,
+            provider,
+            toolName,
+            errorKind: classifyToolError(toolName, message),
+            errorMessage: message,
+            errorSignature: toolErrorSignature(message),
+        });
+    });
+
     pi.on("message_start", async (event, _ctx) => {
         const msg = (event as any).message;
         if (!msg) return;
@@ -1067,7 +1191,7 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
         // Provider + per-turn size metrics (v1.21.x). provider comes from the
         // assistant message (pi exposes it per turn); tool calls and response
         // length come from the message content parts.
-        const prov = String((msg as any).provider || modelProvider || "");
+        const prov = String((msg as any).provider || (msg as any).providerId || modelProvider || "");
         if (prov) modelProvider = prov;
         const parts: any[] = Array.isArray(msg.content) ? msg.content : [];
         const toolCalls = parts.filter(p => p && p.type === "toolCall").length;
@@ -1088,6 +1212,8 @@ export function createCore(pi: ExtensionAPI, turnRecorder: TurnRecorder, allowan
                 thinkingLevel: model.thinkingLevel || "",
                 errorType: classifyError(errMsg),
                 errorMessage: errMsg,
+                errorCode: extractErrorCode(errMsg),
+                provider: modelProvider || "",
             });
         }
 

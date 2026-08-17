@@ -38,6 +38,26 @@
 
 - [DcXvue] When a dedup pass keeps one copy of duplicate content that other files reference by path, refs must be rewritten to the kept copy and the kept copy must land where the ref points - resolve dedup and refs together, then verify no ref points at a dropped copy.
 
+- [TpnZ37] When multiple agents share one system, whoever did NOT make a change independently verifies the deployed result against the LIVE system before the thread closes - reviewing the diff is not reviewing what is actually running.
+
+- [od8ece] When accused of (or unsure about) an unexpected file change, answer with git evidence: git log --name-status on the affected paths shows which commit and author introduced it — and stage explicit paths when committing (never bulk add-all) so your own commits can never sweep in unrelated changes.
+
+- [SreVIx] A load-on-demand documentation contract must live in the auto-loaded entry file (AGENTS.md / CLAUDE.md etc), not only inside the docs it governs - a rule written inside a file the reader is told not to read is invisible; state there which root docs are read every session and that deep docs load only for the area being worked on.
+
+- [wQfP3k] When a documentation/generation prompt demands exhaustive coverage but the target project's own rules declare an area out of scope, the project rules win - document the declared boundary (inventory + why excluded), never the excluded content.
+
+- [hhGPR6] Run required verbose scripts (backups, archivers, installers) with their transcript output capped (quiet flag or tail the log) - full verbosity belongs in the log file; thousands of lines of file listings in the session transcript burn context and allowance for zero information.
+
+- [F2lWxs] When documenting or reviewing an UNFAMILIAR project that keeps one readme per source module next to the code (a <module>-readme.md convention): read those readmes FIRST as your map of the module set - they are updated in the same commit as the code, so they are usually current - but they are still docs, so grep-verify the load-bearing claims (command names, config keys, file paths) against the source before repeating them in your own documentation.
+
+- [APA87g] Document a test suite's check/assertion count from the runner's own summary output, never from a grep of the assertion call sites - calls sitting on conditional paths overstate the real count and the assertion helper's own definition line pollutes a naive grep, so the static number and the run number diverge.
+
+- [GuvvNI] When a documentation file, script or folder is removed, renamed or moved, grep the ENTIRE repo (not just the docs folder - sub-project readmes, structure maps, deployment guides and other docs' Related sections all hide pointers) for the old path or name and fix every hit in the same change; the sweep is only done when the grep returns zero.
+
+- [eMSSIF] Test suites (unit, integration, e2e) must never hardcode values that come from seed data - a fixture slug, a foreign-key id, a pager 'page X of Y' count, a search term - because regenerating or replacing the seed silently breaks every such assertion and the failures masquerade as code bugs. Repoint fixtures to entities the test creates itself, and add an early-abort guard so a failed fixture setup returns one clear error instead of a cascade of undefined-id requests.
+
+- [S6g2CA] Wire auxiliary report generation (rename suggestions, lint summaries) into the build/dry-run path so the reports stay fresh automatically, and wrap each pass in try/except so an auxiliary failure can never break the main flow.
+
 ## Gotchyas
 
 - [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.

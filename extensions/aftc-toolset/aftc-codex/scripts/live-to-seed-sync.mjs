@@ -20,6 +20,10 @@
  *     copy - porting it is the point of this tool). Each replacement is
  *     reported as UPDATED so the /codex-live-to-seed command can ask the AI
  *     to review the merged entries.
+ *   - Same-ID-different-SECTION (a kind change in live) is ported too: the
+ *     seed entry is removed from its old section and appended under the live
+ *     entry's section (reported as MOVED). A section heading the seed file
+ *     lacks is appended as a new section at the end of the file.
  *   - codex-resource-list.md is GENERATED — never copied to the seed.
  *   - Live-only topic files are copied whole (new topics).
  *   - Top-level fixed docs (codex-rules.md etc.) are diff-reported only.
@@ -113,7 +117,7 @@ function keyedEntries(sections) {
 
 const liveFiles = walk(join(LIVE, "resources"));
 const planned = [];
-let copied = 0, merged = 0, updated = 0;
+let copied = 0, merged = 0, updated = 0, moved = 0;
 
 for (const rel of liveFiles) {
     if (rel === "codex-resource-list.md") continue; // generated, never shipped
@@ -148,24 +152,47 @@ for (const rel of liveFiles) {
             console.log(`UPDATED    ${rel} [${key}] — live version ported into seed (was different)`);
         }
     }
-    if (missing.length === 0 && replace.size === 0) continue;
+    // Same ID, different SECTION: a kind change in live is a deliberate
+    // reclassification — the live placement wins. The seed entry is dropped
+    // from its old section and appended under the live heading (the move
+    // carries the live text, so it is excluded from the in-place replace).
+    const moves = new Map(); // id -> { heading, entry } (live target)
+    for (const [key, s] of seedMap) {
+        const l = liveMap.get(key);
+        if (l && s.entry.id && l.heading !== s.heading) {
+            moves.set(s.entry.id, { heading: l.heading, entry: l.entry });
+            replace.delete(key);
+            console.log(`MOVED      ${rel} [${s.entry.id}] — ${s.heading} -> ${l.heading}`);
+        }
+    }
+    if (missing.length === 0 && replace.size === 0 && moves.size === 0) continue;
 
     // Rebuild the seed text: missing live entries appended at the end of their
-    // section, replaced entries swapped in place.
+    // section, replaced entries swapped in place, moved entries dropped here
+    // and re-appended under their live section heading.
     const out = [];
     let current = null;
+    const seenHeadings = new Set();
+    // Per-heading append list in LIVE file order (missing + moved entries).
+    const appendFor = (heading) => (live.sections.get(heading) ?? []).filter((e) => {
+        const isMissing = missing.some((m) => m.entry === e && !m.done);
+        const isMoved = e.id !== null && moves.has(e.id) && !moves.get(e.id).done;
+        return isMissing || isMoved;
+    });
     const flushSection = (heading) => {
-        let appended = false;
-        for (const m of missing.filter((x) => x.heading === heading)) {
+        const toAppend = appendFor(heading);
+        if (toAppend.length === 0) return;
+        for (const e of toAppend) {
             while (out.length && out[out.length - 1].trim() === "") out.pop();
             if (out.length) out.push("");
-            out.push(...m.entry.block.map((x) => x.trimEnd()));
-            m.done = true;
-            appended = true;
+            out.push(...e.block.map((x) => x.trimEnd()));
+            const m = missing.find((x) => x.entry === e);
+            if (m) m.done = true;
+            if (e.id !== null && moves.has(e.id)) moves.get(e.id).done = true;
         }
         // Keep the blank separator between appended entries and the next heading
         // (for the final section this collapses to the file's trailing newline).
-        if (appended) out.push("");
+        out.push("");
     };
     let skippingEntry = false;
     let pendingBlank = false;
@@ -182,10 +209,17 @@ for (const rel of liveFiles) {
         if (line.startsWith("## ")) {
             if (current !== null) flushSection(current);
             current = line.trim();
+            seenHeadings.add(current);
             out.push(line);
             continue;
         }
         const id = (line.match(/^- \[([^\]]+)\]/) || [])[1];
+        if (line.startsWith("- ") && id !== undefined && moves.has(id)) {
+            // A moved entry: drop the seed copy entirely; flushSection re-appends
+            // the live block under the live heading.
+            skippingEntry = true;
+            continue;
+        }
         if (line.startsWith("- ") && id !== undefined && replace.has(id)) {
             out.push(...replace.get(id).block.map((x) => x.trimEnd()));
             skippingEntry = true;
@@ -195,19 +229,36 @@ for (const rel of liveFiles) {
     }
     if (skippingEntry && pendingBlank && out.length && out[out.length - 1].trim() !== "") out.push("");
     if (current !== null) flushSection(current);
+    // A section heading the seed file lacks entirely (eg the entry tools moved
+    // an entry to a section the seed never had): append it as a new section at
+    // the end of the file, in live section order.
+    for (const [heading] of live.sections) {
+        if (seenHeadings.has(heading)) continue;
+        if (appendFor(heading).length === 0) continue;
+        while (out.length && out[out.length - 1].trim() === "") out.pop();
+        if (out.length) out.push("");
+        out.push(heading, "");
+        flushSection(heading);
+        console.log(`NEW SECTION ${rel} "${heading}" — not in the seed file, appended at the end`);
+    }
     for (const m of missing) {
         if (!m.done) console.log(`WARN       ${rel} [${m.entry.key}] — heading "${m.heading}" not in seed file, skipped`);
+    }
+    for (const [, mv] of moves) {
+        if (!mv.done) console.log(`WARN       ${rel} [${mv.entry.id}] — move target heading "${mv.heading}" not applied`);
     }
 
     const parts = [];
     if (missing.length) parts.push(`+${missing.length} entr${missing.length === 1 ? "y" : "ies"}: ${missing.map((m) => m.entry.id ?? "?").join(", ")}`);
     if (replace.size) parts.push(`${replace.size} updated`);
+    if (moves.size) parts.push(`${moves.size} moved`);
     console.log(`MERGE      ${rel} ${parts.join(", ")}`);
     let text = out.join("\n");
     if (!text.endsWith("\n")) text += "\n"; // preserve the trailing-newline convention
     planned.push({ seedPath, text });
     merged += missing.length;
     updated += replace.size;
+    moved += moves.size;
 }
 
 // Top-level fixed docs: report only (maintainer docs, curated by hand).
@@ -217,7 +268,7 @@ for (const doc of ["codex-rules.md", "thought-and-action-guidance.md", "markdown
     console.log(`TOP-LEVEL  ${doc}: ${l === s ? "identical" : "DIFFERS (fixed maintainer doc — not synced, review manually)"}`);
 }
 
-console.log(`\n${copied} new topic file(s), ${merged} entr(ies) to merge, ${updated} entr(ies) updated (live text won), 0 conflicts left.`);
+console.log(`\n${copied} new topic file(s), ${merged} entr(ies) to merge, ${updated} entr(ies) updated (live text won), ${moved} entr(ies) moved section, 0 conflicts left.`);
 if (APPLY) {
     for (const p of planned) {
         mkdirSync(dirname(p.seedPath), { recursive: true });

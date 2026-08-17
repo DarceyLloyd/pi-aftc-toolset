@@ -54,18 +54,23 @@
   .period-sub.best { color:var(--good); }
   .period-sub.worst { color:var(--bad); }
   .period-score { margin-top:8px; border-top:1px solid var(--border); padding-top:6px; }
-  .period-score-row { display:flex; justify-content:space-between; align-items:baseline;
+  .period-score-row { display:flex; justify-content:space-between; align-items:flex-start;
     font-size:11px; line-height:1.7; gap:4px; }
-  .period-score-label { color:var(--muted); white-space:nowrap; }
-  .period-score-val { color:var(--text); font-weight:600; text-align:right;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .period-score-val .metric { color:var(--muted); font-weight:400; margin-left:4px; }
+  /* Fixed-width label column + left-aligned value column (table-like): the
+     model name / provider / metric all start at the same x across rows and
+     cards instead of hugging the right edge ragged. */
+  .period-score-label { color:var(--muted); white-space:nowrap; flex:0 0 170px; }
+  .period-score-val { color:var(--text); font-weight:600; text-align:left;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto; }
   .na-mark { color:var(--muted); font-style:italic; font-weight:600; }
   .period-score-val .col-hint { margin-left:6px; vertical-align:0; }
   .empty { color:var(--muted); font-style:italic; padding:12px 4px; }
 
   /* Charts */
   .chart-grid { display:grid; grid-template-columns:1.58fr 1fr; gap:10px; margin-top:10px; }
+  /* Vertically stacked panels (eg Errors tab: chart above its table) —
+     same 10px gap the grids use. */
+  .panel-stack { display:grid; grid-template-columns:1fr; gap:10px; }
   @media(max-width:900px){ .chart-grid { grid-template-columns:1fr; } }
   /* Grid children must be able to shrink: without min-width:0 the canvas
      locks wide after a shrink/expand resize and overflows the viewport. */
@@ -110,7 +115,9 @@
     opacity:0; transition:opacity .12s ease; }
   .col-tip.show { opacity:1; }
 
-  /* HTML chart tooltip (daily-spend bars: white labels + orange values) */
+  /* HTML chart tooltips (daily-spend bars + cost-share doughnut): a title,
+     then a two-column table — white keys, orange values — so every value
+     starts at the same horizontal position. */
   .chart-tip { position:fixed; z-index:60; max-width:280px; background:var(--panel-2);
     border:1px solid var(--border); border-radius:8px; padding:8px 11px;
     font-size:12px; line-height:1.5; color:var(--muted);
@@ -118,8 +125,13 @@
     opacity:0; transition:opacity .1s ease; }
   .chart-tip-title { color:var(--text); font-weight:700; margin-bottom:4px;
     border-bottom:1px solid var(--border); padding-bottom:3px; }
-  .chart-tip-key { color:var(--text); }
-  .chart-tip-val { color:var(--orange); font-weight:600; font-variant-numeric:tabular-nums; }
+  .chart-tip-table { border-collapse:collapse; margin-top:5px; width:auto; min-width:0; font-size:12px; }
+  .chart-tip-table td { padding:1px 0; vertical-align:top; border-bottom:none; }
+  .chart-tip-table td.ct-key { color:var(--text); font-weight:600; padding-right:12px; white-space:nowrap; }
+  .chart-tip-table td.ct-val { color:var(--orange); font-weight:600; font-variant-numeric:tabular-nums; text-align:left; }
+
+  /* Accent value on the model cell's second line (provider - $price) */
+  .model-cell .mc-sub { color:var(--orange); font-weight:600; }
   tbody tr:last-child td { border-bottom:none; }
   tbody tr:hover { background:var(--panel-2); }
   td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
@@ -143,6 +155,19 @@
   .verdict.good { background:rgba(90,209,154,.14); color:var(--good); border:1px solid rgba(90,209,154,.35); }
   .verdict.bad { background:rgba(239,107,107,.14); color:var(--bad); border:1px solid rgba(239,107,107,.35); }
   .verdict.info { background:rgba(106,169,255,.12); color:var(--accent); border:1px solid rgba(106,169,255,.3); }
+
+  /* Model + provider cell (name on top with the thinking level at the end,
+     provider underneath — "(unknown)" when not recorded) */
+  .model-cell { display:inline-block; line-height:1.35; }
+  .model-cell .mc-name { }
+  .model-cell .mc-level { color:var(--muted); font-size:10px; font-weight:400; margin-left:3px; }
+  .model-cell .mc-prov { display:block; color:var(--muted); font-size:10px; font-weight:400; line-height:1.3; }
+  td.align-top { vertical-align:top; }
+  /* Wrapping cell (eg the tool-error Example): overrides the global
+     nowrap, breaks long tokens, bounded width so the table keeps its
+     shape. Cell padding still applies — content is top-aligned but
+     never touches the edges. */
+  td.wrap { white-space:normal; overflow-wrap:anywhere; max-width:340px; }
 
   /* Context-window fill bar */
   .ctx-cell { display:inline-flex; width:56px; height:6px; background:var(--panel-2); border-radius:3px;

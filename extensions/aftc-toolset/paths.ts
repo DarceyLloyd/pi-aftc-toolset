@@ -129,6 +129,16 @@ export function getDataDir(): string {
     return path.join(getPersistentRoot(), "data");
 }
 
+/** Shared peer-chat folder under the data dir (chat.log + future agent-to-agent scratch space). */
+export function getChatDir(): string {
+    return path.join(getDataDir(), "chat");
+}
+
+/** Default shared chat log (chat/chat.log). Overridable via AFTC_CHAT_FILE. */
+export function getChatLogFile(): string {
+    return path.join(getChatDir(), "chat.log");
+}
+
 /** LEGACY data dir inside the package (pre-persistent releases). Migration source. */
 export function getLegacyDataDir(): string {
     return path.join(getRuntimeRoot(), "data");

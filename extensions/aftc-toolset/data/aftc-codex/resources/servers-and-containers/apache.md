@@ -4,6 +4,8 @@
 
 ## Gotchyas
 
+- [t8dxhw] AllowOverride None (a common hardening default) silently disables ALL .htaccess files - a `<Files> Require all denied` block protecting a config file never takes effect while the file stays fetchable; verify .htaccess-based protections actually fire (look for the deny in the access/error log) or move the protected file outside the document root.
+
 ## Issues & Solutions
 
 

@@ -1,5 +1,11 @@
 # CRITICAL GLOBAL RULES
 
+- NEVER SHIP automatically. The user always tests changes hands-on first.
+  Never run `ship-it.bat`, bump the version, commit, push, or create a
+  release unless the user has EXPLICITLY asked to ship in the current
+  conversation ("ship it", "ship vX.X.X", etc.). Finishing the code,
+  passing tests and peer confirmations are NOT shipping permission —
+  report done and wait for the user to test and say ship.
 <!-- AFTC-CODEX-STACK
 topics: pi-extension, typescript, powershell, nodejs, npm, git, bash, docker, documentation-and-planning
 -->
@@ -115,6 +121,10 @@ implementation is `ui/aftc-ui.ts` (all dialogs go through it). Read `docx/1_exte
 | Audio notifications | `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` |
 | Slash commands (create/edit/delete) | `docx/1_extension_source/1.5_feature_modules/1.5_feature_modules_documentation.md` |
 | Sub-agents (/007) | `docx/1_extension_source/1.9_subagents/1.9_subagents_documentation.md` |
+| Peer chat (/chat) | `docx/1_extension_source/1.5_feature_modules/1.5.16_chat.md` |
+| Background terminals (/bt) | `docx/1_extension_source/1.5_feature_modules/1.5.17_background_terminals.md` |
+| File search (fd + rg) | `docx/1_extension_source/1.5_feature_modules/1.5.19_file_search.md` |
+| Tool-error tracking (report Errors tab) | `docx/1_extension_source/1.4_footer_usage/1.4.5_usage_report.md` |
 | Keyboard shortcuts (add/change) | `extensions/aftc-toolset/keys-readme.md` |
 | Quick dir access (/qd) | `extensions/aftc-toolset/quick-open-dir-readme.md` |
 | docx documentation generator (/docx) | `extensions/aftc-toolset/docx/docx-readme.md` |

@@ -10,6 +10,10 @@
 
 - [CTG1bm] fs copyFileSync throws ENOENT on Windows paths with MIXED separators (backslashes + forward slashes + `..` segments, eg `/path/to/tests/../tmp/data/file`) even though existsSync/readdirSync/mkdirSync accept the same string - so a move flow fails while every pre-check passes. Countermeasure: normalise every path with path.resolve() before fs calls.
 
+- [loL8YQ] bun test` has no `--preload` CLI flag - `bun test --preload ./setup.ts` is rejected/ignored and the setup never runs (browser globals stay undefined), so DOM-dependent tests all fail with `window is not defined`; declare the preload in a `bunfig.toml` `[test]` `preload = ["./tests/setup.ts"]` array instead.
+
+- [nBlbva] happy-dom fires `error` on script/link/style elements appended to the document - it attempts to load non-resolvable `src`/`href` resources and dispatches an error event, which rejects loadCss/loadScript-style promise helpers during tests; in tests assert the element was appended and attach `.catch(() => {})` to swallow the expected rejection.
+
 ## Issues & Solutions
 
 

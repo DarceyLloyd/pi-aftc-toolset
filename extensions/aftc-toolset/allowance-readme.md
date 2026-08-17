@@ -56,13 +56,12 @@ export function createAllowance(pi: ExtensionAPI): AllowanceProvider;
 
 | Event | Why |
 |---|---|
-| `session_start` | Capture `ctx.model.provider`, do an initial fetch so line 5 appears before the first prompt. Does NOT start the timer (pi is idle). |
-| `session_shutdown` | Stop the periodic timer and clear the active flag. |
-| `model_select` | Update provider; force-refresh when it changed. The timer needs no restart — ticks refresh whatever provider is current. |
-| `before_agent_start` | Re-capture the selected provider after session restoration and fetch before the first request. Marks the prompt active and starts the 3-minute periodic timer. |
-| `agent_start` | Low-level run begin (covers auto-retry / compaction runs that skip `before_agent_start`). Marks active + starts the timer; idempotent, never stacks a second timer. |
-| `agent_end` | Re-capture the provider and refresh (throttled to ≤1 fetch / 30s). The timer keeps running — pi may still auto-retry, compact, or continue queued follow-ups. |
-| `agent_settled` | Pi is truly idle (no retry / compaction / follow-up left; every run ends here, including Escape aborts and errors). Does one final FORCED fetch so line 5 shows the latest numbers, then stops the timer. The tick also checks `ctx.isIdle()` itself, so a missed `agent_settled` can never leave the timer running. |
+| `session_start` | Capture `ctx.model.provider`, do an initial fetch so line 5 appears before the first prompt, then start the session-wide 60s poll timer (idempotent across resumes). |
+| `session_shutdown` | Stop the poll timer. |
+| `model_select` | Update provider; force-refresh when it changed. Switching to a provider with no allowance source clears the snapshot at once, so line 5 hides immediately. The timer needs no restart — ticks refresh whatever provider is current. |
+| `before_agent_start` | Re-capture the selected provider after session restoration and fetch before the first request. |
+| `agent_end` | Re-capture the provider and refresh (throttled to ≤1 fetch / 30s). |
+| `agent_settled` | Pi is truly idle (no retry / compaction / follow-up left; every run ends here, including Escape aborts and errors). Does one FORCED fetch so line 5 shows the latest numbers; the poll timer keeps running (it is session-wide, not prompt-scoped). |
 | `after_provider_response` | Anthropic-only: reads the unified rate-limit headers from each response (no fetch). No-op for every other provider. |
 
 `refresh()` is best-effort: any error (network, auth, parse, non-200)
@@ -92,23 +91,29 @@ older Pi releases, for the `ChatGPT-Account-Id` header.
 - Overlapping refreshes collapse into one in-flight fetch.
 - Minimum 30s between fetches (the footer's 1Hz ticker repaints, so
   data is always at most ~30s + 1s stale).
-- A 3-minute periodic timer keeps line 5 fresh while a response is in
-  flight (prompts can run for hours). It only runs while a prompt is
-  active — started by `before_agent_start` / `agent_start`, stopped by
-  `agent_settled` after a final forced fetch — and only for providers
-  with a fetch endpoint. On every tick it also asks pi directly whether
-  the agent is still active (`ctx.isIdle()`, captured from the last
-  event ctx): if pi is idle — e.g. a completion event was missed — the
-  tick does one final forced query and shuts the timer down. The timer
-  is unref'd, so it never keeps the process alive, and every start is
-  guarded so two timers can never run at once.
+- A 60-second poll timer runs for the WHOLE session (started at
+  `session_start`, stopped at `session_shutdown`; unref'd, so it never
+  keeps the process alive, and guarded so two timers can never run at
+  once). It keeps line 5 fresh even while IDLE, so you can check your
+  remaining allowance BEFORE starting a big task. The tick is
+  deliberately conservative so the provider API is never hammered:
+  - it only fires for fetch providers (header providers like anthropic
+    and unsupported providers are skipped);
+  - it respects the 30s throttle (an event-driven refresh just done
+    wins) and overlapping fetches collapse into one;
+  - after ANY failure (network, auth, parse, non-200, missing
+    credential) it backs off to one retry every 5 minutes until the
+    next success — a dead or authless endpoint gets at most 12
+    requests/hour instead of 60. Event-driven refreshes (prompts) are
+    NOT back-off-gated, so a credential added mid-session is picked up
+    on the next prompt.
 
 ## Failure modes
 
 | Failure | Behaviour |
 |---|---|
-| Unsupported provider | `getAllowance()` → `null` → line 5 hidden; no timer started. |
-| No credential for provider | view cleared to `null` → line 5 hidden. |
+| Unsupported provider | `getAllowance()` → `null` → line 5 hidden; poll ticks skip it. |
+| No credential for provider | view cleared to `null` → line 5 hidden; poll ticks back off 5 min. |
 | Network / timeout / abort | view cleared to `null` → hidden until the next success. |
 | Non-200 / unparseable body | view cleared to `null` → hidden until the next success. |
 | Missing window in body | that window is `null`; the other is still shown. |

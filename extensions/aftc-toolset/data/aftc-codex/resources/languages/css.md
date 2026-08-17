@@ -46,3 +46,7 @@
 - [kP4wQm] Text inside a padded container renders ~80px below the top (phantom blank lines) even though padding/margins are correct
   Cause: white-space: pre-wrap on the CONTAINER also preserves the HTML source whitespace BETWEEN its child divs (the newlines + indentation in the markup), generating anonymous block boxes that render as blank lines above the content. No computed-style metric exposes it (padding/margin/display all look right; offsetTop is just ~90px).
   Fix: put white-space: pre-wrap on the TEXT element only, never on the container; the container keeps normal white-space so source formatting whitespace collapses. Verify with a headless screenshot + getBoundingClientRect of the text vs the container top. (2026-07)
+
+- [3eV3oJ] Boxed icon next to a text block renders top-aligned even though its class sets display:grid + place-items:center
+  Cause: A bare element selector under the component class (eg .card span) also matches the icon span and out-specifies the single-class icon rule ((0,1,1) beats (0,1,0)), silently overriding display:grid to block. place-items still computes as 'center' but is inert on a block box, so the icon top-aligns - no console error, and reading the source makes the centring look correct.
+  Fix: Style inner text with purpose-named classes (eg .card-text), never bare element selectors inside components. When a visual bug has no console error, inspect the COMPUTED style of the real element (display, align-items, place-items) before editing source, and never blame browser cache first. (2026-08)

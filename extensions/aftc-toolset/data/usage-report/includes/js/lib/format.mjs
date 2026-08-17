@@ -20,6 +20,27 @@ export function fmtMs(ms){ ms=Number(ms)||0; if(ms<=0) return "0s";
 
 export function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
 
+// Model cell: name on line 1 with the thinking level at the end (gray,
+// smaller), provider underneath ("(unknown)" when not recorded) — the full
+// identity is (name, provider, thinking level) because each combo costs and
+// behaves differently. An optional `sub` (a cost / time value) joins the
+// provider line with " - " ("deepseek - $4.60").
+export function modelCell(name, provider, level, sub) {
+  var nameHtml = '<span class="mc-name">' + esc(name) + '</span>'
+    + (level && level !== "(none)" ? '<span class="mc-level">' + esc(level) + '</span>' : "");
+  var prov = provider ? esc(provider) : "(unknown)";
+  if (sub) prov = prov + " - " + '<span class="mc-sub">' + esc(sub) + '</span>';
+  return '<span class="model-cell">' + nameHtml
+    + '<span class="mc-prov">' + prov + '</span></span>';
+}
+
+// Multi-line label for Chart.js category axes / legends: line 1 = name +
+// thinking level, line 2 = provider (or "(unknown)") — matches modelCell.
+export function modelLabel(name, provider, level) {
+  var line1 = String(name) + (level && level !== "(none)" ? " " + String(level) : "");
+  return [line1, provider || "(unknown)"];
+}
+
 export function cachePill(rate){ var p=(Number(rate)||0)*100; var cls = p>=60?"good":p>=30?"warn":"bad"; return '<span class="pill '+cls+'">'+p.toFixed(1)+"%</span>"; }
 
 export function thinkingPill(level){
@@ -46,14 +67,15 @@ export function verdict(label, kind, hint){
 
 export var ERROR_TYPES = {
   "rate-limit":"Rate limited", "overloaded":"Overloaded", "not-found":"Not found",
-  "auth":"Auth", "timeout":"Timeout", "network":"Network", "other":"Other",
+  "auth":"Auth", "timeout":"Timeout", "network":"Network", "allowance":"Allowance",
+  "context":"Context window", "aborted":"Aborted", "other":"Other",
 };
 
 export function errorPill(type){
   var t = String(type||"other");
   var label = ERROR_TYPES[t] || t;
-  var cls = t === "network" || t === "overloaded" || t === "rate-limit" ? "bad"
-    : t === "not-found" || t === "auth" || t === "timeout" ? "warn" : "info";
+  var cls = t === "network" || t === "overloaded" || t === "rate-limit" || t === "context" ? "bad"
+    : t === "allowance" || t === "not-found" || t === "auth" || t === "timeout" || t === "aborted" ? "warn" : "info";
   return '<span class="pill '+cls+'">'+esc(label)+'</span>';
 }
 
@@ -193,7 +215,7 @@ export function makeTable(opts){
     rows.forEach(function(r){
       html += "<tr>";
       opts.cols.forEach(function(c){
-        html += '<td class="'+(c.num ? "num" : "")+(c.center ? " center" : "")+'">'+(c.render ? c.render(r) : esc(r[c.key]))+"</td>";
+        html += '<td class="'+(c.num ? "num" : "")+(c.center ? " center" : "")+(c.top ? " align-top" : "")+(c.wrap ? " wrap" : "")+'">'+(c.render ? c.render(r) : esc(r[c.key]))+"</td>";
       });
       html += "</tr>";
     });

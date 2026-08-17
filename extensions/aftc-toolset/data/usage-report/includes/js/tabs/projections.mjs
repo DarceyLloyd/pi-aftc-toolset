@@ -4,7 +4,7 @@
 // (nothing to project). A period selector scopes the rate the math is
 // derived from.
 
-import { fmtMoney, fmtInt, dash, statCard, makeTable, rememberPeriod, savePeriod } from "../lib/format.mjs";
+import { fmtMoney, fmtInt, dash, statCard, makeTable, rememberPeriod, savePeriod, modelCell } from "../lib/format.mjs";
 
 export class ProjectionsTab {
   data = null;
@@ -26,7 +26,7 @@ export class ProjectionsTab {
       defaultKey: "projected30d",
       getRows: function () { return self.proj().rows || []; },
       cols: [
-        { key: "modelName", label: "Model" },
+        { key: "modelName", label: "Model", top: true, render: function (r) { return modelCell(r.modelName, r.provider, r.thinkingLevel); } },
         { key: "activeDays", label: "Active days", num: true, render: function (r) { return fmtInt(r.activeDays); } },
         { key: "completedTasks", label: "Tasks done", num: true, render: function (r) { return fmtInt(r.completedTasks); } },
         { key: "turns", label: "Turns", num: true, render: function (r) { return fmtInt(r.turns); } },

@@ -13,6 +13,10 @@
 
 - [sRhSOw] In git-bash (MSYS) on Windows, a `>nul` redirect creates a real file named 'nul' - the null device name is only special to cmd/PowerShell; the stray file breaks `git add -A` ('unable to index file nul') and trips the no-NUL-files rule. Use `>/dev/null` in bash and reserve `>nul` for cmd/batch scripts.
 
+- [ycyrIv] N=$(grep -c pattern file || echo 0)` yields '0\n0' when there are no matches — grep -c PRINTS 0 AND exits non-zero, so the `|| echo 0` fallback appends a second 0 and any `[ "$N" -gt 0 ]` or arithmetic on N dies with 'integer expression expected'; grep -c already prints 0, so use plain `N=$(grep -c ...)` and handle the exit status separately (`|| true`), never a value-substituting fallback.
+
+- [Dw7zNj] Shell scripts saved with Windows (CRLF) line endings fail under bash on macOS/Linux — bash keeps the trailing \r inside each token (`set -euo pipefail\r` becomes `pipefail\r: invalid option`), dying with a misleading 'command not found'; write scripts with LF endings, and verify with a byte count of 0x0D (a grep for \r can misread it) rather than trusting the editor.
+
 ## Issues & Solutions
 
 
@@ -30,3 +34,7 @@
 - [MVahdj] grep: -P supports only unibyte and UTF-8 locales` - any grep -P (PCRE) call fails in git-bash on Windows even for a valid pattern
   Cause: git-bash's grep build only enables PCRE (-P) under unibyte or UTF-8 locales, and the default MSYS2 locale does not qualify, so every -P invocation dies before matching anything.
   Fix: use grep -oE (ERE) instead and rewrite PCRE-isms as POSIX: \d -> [0-9], \s -> [[:space:]], non-greedy .*? -> a greedy [^"]*/[^ ]* pattern that stops at the delimiter; -E works in every git-bash locale. Alternatively export LC_ALL=C.UTF-8 before the grep -P call to satisfy the locale requirement (verified working). (2026-08)
+
+- [CT1aam] Rows seeded with a timestamp from `date +%s%3N` never appear in date-range queries (FROM_UNIXTIME shows NULL)
+  Cause: some date builds (eg busybox) ignore the %N width modifier and print the FULL 9-digit nanoseconds, so date +%s%3N yields a 19-digit value (epoch-ms x 1,000,000) that is out of range for date arithmetic and range filters (FROM_UNIXTIME shows NULL, WHERE timestamp BETWEEN ... matches nothing).
+  Fix: before storing an epoch-ms value from date +%s%3N, verify it is 13 digits, or compute it arithmetically: $(( $(date +%s) * 1000 )). Rows already seeded with the huge value never match date-range pulls - re-seed them with corrected timestamps. (2026-08)

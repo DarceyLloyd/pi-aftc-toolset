@@ -59,9 +59,9 @@ import { runDocxBackup, type DocxBackupResult } from "./docx-backup";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Advise a fresh session when this much of the context window is already used. */
-const CONTEXT_WARN_PERCENT = 20;
+const CONTEXT_WARN_PERCENT = 90;
 /** Flat-out refuse to run when this much is used (compaction-corruption risk). */
-const CONTEXT_REFUSE_PERCENT = 25;
+const CONTEXT_REFUSE_PERCENT = 92;
 
 interface DocxType {
     /** Pack file stem: prompts/<key>.md and the --type value. */
@@ -85,6 +85,7 @@ const DOCX_TYPES: DocxType[] = [
     { key: "python-app", label: "Python application" },
     { key: "cli-tool", label: "CLI tool / TUI application" },
     { key: "shell-scripts", label: "Shell script collection" },
+    { key: "server-stack", label: "Linux server / Docker stack" },
     { key: "generic", label: "Generic / other" },
 ];
 
@@ -133,6 +134,11 @@ function detectProjectType(root: string): DocxType | null {
     if (has("composer.json")) return byKey("web-app");
     if (deps.some((d) => ["react", "next", "vue", "nuxt", "svelte", "@angular/core", "express", "fastify", "koa", "@nestjs/core"].includes(d))) return byKey("web-app");
     const compose = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"].find(has);
+    // Server/hosting stack: a compose file plus ops scripts or nginx config,
+    // but NO application manifest (this is the infra repo, not an app repo).
+    // Checked before the web-app compose heuristic below, which would claim
+    // any compose file mentioning php/mysql.
+    if (compose && !pkg && !has("composer.json") && (has("nginx") || has("scripts"))) return byKey("server-stack");
     if (compose && /php|mysql|mariadb|apache/i.test(readText(compose))) return byKey("web-app");
     // Python.
     if (has("pyproject.toml") || has("requirements.txt") || has("setup.py")) return byKey("python-app");

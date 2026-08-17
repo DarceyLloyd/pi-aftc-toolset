@@ -14,6 +14,14 @@
 
 - [Be9wL9] Windows reserves `nul`, `con`, `aux`, `prn`, `com1-9`, `lpt1-9` as device names - only cmd/PowerShell treat `>nul` as the null device; git-bash (MSYS) and other POSIX shells create a REAL file named `nul`, which then breaks `git add -A` and trips the no-NUL-files rule. Redirect to `/dev/null` in bash, never `>nul`.
 
+- [FFUtIP] A temp file written by Node's fs (e.g. '/tmp/x.json') is not found by git-bash tools (curl --data-binary @file) - Node resolves '/tmp' to a drive-relative path while git-bash maps it to its own MSYS temp; pipe data via stdin (@-) or use absolute paths instead of sharing /tmp.
+
+- [xOZk5o] A shared text-file protocol that gets edited/saved on Windows accumulates mixed CRLF/LF line endings and a UTF-8 BOM, which corrupt naive \n-based parsers and the first record's header — write LF-only, strip a trailing \r per line and a leading \uFEFF on read, and parse by record markers with a state machine, never regex over message content.
+
+- [wHoyQs] Cleaning up spawned child processes by name/command-line pattern (Get-CimInstance | Where CommandLine -match …) kills unrelated user processes that happen to match (eg the user's own live instance) — track the exact PIDs you spawned and kill ONLY those, kill synchronously (wait) rather than fire-and-forget spawn so cleanup completes before the harness exits, and never glob by process name.
+
+- [5h9GV9] A large inline shell argument (e.g. a ~70KB JSON payload inside -d '...') fails with 'Argument list too long' on Windows git-bash — write the payload to a temp file first and pass it via --data-binary @file or stdin.
+
 ## Issues & Solutions
 
 
@@ -34,3 +42,7 @@
 - [zf2tsx] A slash-command or absolute POSIX path passed as an argument from git-bash (eg `docker exec host pi -p "/cmd"`) reaches the target mangled into a Windows path
   Cause: MSYS/git-bash converts an argument that starts with `/` into a Windows path (`/keep-it-short` becomes `C:/Program Files/Git/keep-it-short`, `/tmp/x` becomes `%TEMP%/x`) when the command line is assembled OUTSIDE a quoted `sh -c` string.
   Fix: When invoking docker exec / ssh / other CLIs from git-bash with leading-slash arguments, wrap the whole remote command in `sh -c "..."` (or set MSYS_NO_PATHCONV=1) so the slash-arg is never exposed to git-bash's argument conversion. Symptom clue: the remote side receives a Windows-looking path or the slash-command silently does nothing. (2026-08)
+
+- [xtGdNh] Deleting a directory fails with EPERM/Permission denied on Windows while the same code works on Linux
+  Cause: a file inside is still open - e.g. a sqlite/better-sqlite3 connection that was never closed holds a lock on the file
+  Fix: close the handle (db.close()) before cleanup and wrap the delete in try/catch so a lock cannot fail the whole run. (2026-08)

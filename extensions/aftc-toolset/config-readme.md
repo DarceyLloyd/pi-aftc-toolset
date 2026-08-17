@@ -77,6 +77,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexResourceVersion: 0,    // live layout version (0=legacy, 1=v1 tree)
     aftcCodexCloudContribution: true, // silently post newly-added entries to the public curation inbox
     aftcCodexAutoInsertAgentsEnabled: false, // allow the AI to auto-insert the codex load list into AGENTS.md (off by default)
+    runScriptEnabled: true,          // run_script tool (off = tool absent)
+    backgroundTerminalsEnabled: false, // bg_* tools + /bt family (off by default)
+    fileSearchEnabled: true,         // fd + rg search tools
+    chatAutoReplyEnabled: true,      // peer-chat auto-reply
+    debugLoggingEnabled: false,      // stdout diagnostic chatter gate
 };
 
 ```

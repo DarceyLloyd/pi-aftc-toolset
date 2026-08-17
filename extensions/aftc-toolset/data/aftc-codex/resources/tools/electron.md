@@ -17,6 +17,10 @@
 
 - [muxSiU] Launching electron.exe (GUI subsystem) from PowerShell with `&` returns immediately and captures NO console output - use Start-Process with -RedirectStandardError plus ELECTRON_ENABLE_LOGGING=1 to capture renderer console errors for verification.
 
+- [Np3pm7] app.getPath('userData') is derived from the app NAME, so reading it before calling app.setName() resolves under the wrong folder (default 'Electron' or the package name) and runtime state silently splits across two locations — call app.setName() at module load, before the first getPath('userData').
+
+- [qh2ruX] Recent electron-builder refuses macOS targets on a non-mac host with 'Build for macOS is supported only on macOS', so a .dmg cannot be cross-built — build it on a real Mac; on another OS you can still confirm the config parses (electron-builder prints 'loaded configuration' before it fails).
+
 ## Issues & Solutions
 
 - [pT4xW7] `Electron failed to install correctly, please delete node_modules/electron and try installing again` on npm start - but node_modules/electron/dist/electron.exe EXISTS

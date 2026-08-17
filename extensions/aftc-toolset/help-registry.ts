@@ -36,6 +36,7 @@ export const HELP_CATEGORY_ORDER = [
     "Keep it short",
     "aftc-codex",
     "Sub-agents",
+    "Background terminals",
     "Thinking",
     "Audio notification",
     "Providers",
