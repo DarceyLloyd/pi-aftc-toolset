@@ -10,6 +10,8 @@
 
 - [atWihk] Put every input policy (password rules, profanity filters, size caps) in ONE shared server-side function called from EVERY path that mutates the value - enforcing it on only the newest form leaves the older paths (register vs password-reset vs account-change) wide open.
 
+- [nM2xC7] Name variables, functions and methods exactly what they are for (hemiLightColor, enableVisualDevConsole); in OOP code define fields above the constructor, and put user-adjustable values at the top of the script.
+
 ## Gotchyas
 
 - [EHm7AF] CSV written with f-strings or join() silently corrupts columns the moment any field contains a comma (filenames are full of them) - always write CSV through the csv module, which quotes fields.

@@ -9,10 +9,12 @@ Scans a working directory and maps signals to codex topic docs:
 - **File extensions** — `.ts`→typescript, `.py`→python, `.gd`→godot, `.scss/.sass`→scss,
   `.cpp/.cc/.cxx/.hpp/.h`→cpp, `.cs/.csx/.sln/.csproj`→cs, `.razor`→blazor,
   `.rs`→rs, `.java`→java, `.twig`→twig, `.sh`→bash, `.bat/.cmd`→batch,
-  `.wxs/.wixproj`→wix, `.jucer`→juce, `.ps1`→powershell, `.vue`→vue, …
+  `.wxs/.wixproj`→wix, `.jucer`→juce, `.ps1`→powershell, `.vue`→vue,
+  `.mid/.midi`→midi, `.wav/.aif/.aiff`→wav-aiff, `.fxp/.fxb`→fxp-fxb, …
 - **package.json deps** — `three`→threejs, `chart.js`→chartjs, `gsap`, `puppeteer`,
   `vite`, `gradio`, `torch`→pytorch, `webpack`, `electron`,
-  `@shoelace-style/shoelace`→shoelace, …
+  `@shoelace-style/shoelace`→shoelace, `hono`, `jose`, `mysql2`,
+  `xterm`→xtermjs, `better-sqlite3`/`sqlite3`→sqlite, `ffmpeg`, `ollama`, …
 - **package.json scripts / fields** — keys AND values word-scanned for
   `bun`/`bunx`/`vite`/`webpack`/`node` (word-boundary, so `"bundle"` never triggers
   `bun`); a `bin` field or `engines.node` → nodejs; a `pi` manifest → pi-extension.
@@ -20,7 +22,10 @@ Scans a working directory and maps signals to codex topic docs:
   `pyproject.toml`/`requirements.txt`→python, `project.godot`→godot,
   `deno.json/deno.jsonc`→deno, `nginx.conf`→nginx, `.htaccess`→apache,
   `CMakeLists.txt`→cmake, `Cargo.toml`→rs, `pom.xml`/`build.gradle`→java,
-  `bunfig.toml`/`bun.lock*`→bun, …
+  `bunfig.toml`/`bun.lock*`→bun, `uv.lock`→uv, `Modelfile`→ollama,
+  `vsftpd.conf`→vsftpd, `httpd.conf`→apache, …
+- **Root `.git` dir** — a git checkout → git (the walk skips dot-dirs, so this
+  is checked explicitly).
 - **Marker dirs** — an `aftc-framework/` directory→aftc-framework.
 - **Content scan** (bounded: ≤64 KB per file, ≤24 files) — `*.csproj` text →
   blazor / dotnet-maui; `CMakeLists.txt` text → juce; compose files → mysql / nginx
@@ -38,9 +43,10 @@ Scans a working directory and maps signals to codex topic docs:
     topics it merely describes).
   - a strict whole-word keyword scan of the full text against the live topic list,
     with a stoplist of ambiguous English words (`go`, `deno`, `vue`, `batch`, `bun`,
-    `twig`, `cs`, `rs`, `composer`, `windows`) that are ignored in prose. Skipped
+    `twig`, `cs`, `rs`, `composer`, `windows`, `jose`, `uv`) that are ignored in prose. Skipped
     entirely when a stack block is present (see above).
-- **Implied topics** — any ui-ux domain → `ui-ux-common`; `mysql` → `database-common`.
+- **Implied topics** — any ui-ux domain → `ui-ux-common`; `mysql` → `database-common`;
+  `mysql2` → `mysql`; `sqlite` → `database-common`.
 
 ## topics vs missing
 

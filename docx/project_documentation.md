@@ -48,7 +48,7 @@ and it never exposes SSH credentials to the model.
 | Host | `@earendil-works/pi-coding-agent` (peer) | any; developed against 0.83.0 |
 | Host peers | `@earendil-works/pi-ai`, `@earendil-works/pi-tui`, `typebox` | any (peer `*`) |
 | Extension runtime | TypeScript via pi's jiti loader (no build step) | TS 5.x syntax |
-| Package version | pi-aftc-toolset | 1.21.13 (npm: 1.21.12 published) |
+| Package version | pi-aftc-toolset | 1.21.14 (npm: 1.21.13 published) |
 | Persistence | `better-sqlite3` | 12.11.1 (pinned) |
 | Zip (docx backup) | `adm-zip` | ^0.6.0 |
 | SSH carrier | Python + `paramiko` (uv-locked sidecar) | Python >=3.10; paramiko >=3.4.0,<4.0.0; aftc-ssh-sidecar 0.1.0 |

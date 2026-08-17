@@ -1,91 +1,56 @@
 # Thought & Action Guidance
 
-Process / verification / finishing discipline. These entries direct *how to think and when to stop*, not just how to fix a string. Lead token is the greppable symptom; the rest is the directive. Cross-cutting - applies on top of the per-tool files (threejs.md, css.md, puppeteer.md, etc.).
+How to think, verify and finish. Applies on top of the per-topic resource
+files. Lead line = the greppable symptom; then Cause / Fix.
 
-- verify harness green but the feature is actually broken / "verified" != "correct" != "good"
-  Cause: a passing compile + DOM-presence + zero-console-error check is verification THEATRE: it cannot see that a canvas doesn't fill its band, that scroll leaked into the wrong scene, that smooth scroll is dead, or that 50 of 100 outputs are recolours of one design.
-  Fix: Done-criterion for any visual / interactive deliverable: (1) open it in a real browser, (2) screenshot at the user's STATED viewports (their desktop size down to ~393px mobile, ask if not given), (3) actually LOOK at each screenshot against the brief, (4) drive REAL interaction (trusted pointer clicks (not programmatic `.click()`, which bypasses hit-testing), plus scroll, resize, and theme toggle) and confirm the *claimed behaviour*, (5) only then report done. A node existing in the DOM is not the feature working. (2026-07)
-- combinatorial uniqueness != perceptible variety / "half of them are just colour changes"
-  Cause: when generating N variants from pools, a unique *signature tuple* (layout+nav+palette+...) does NOT mean a human sees N different things; shallow pools (layouts that differ by a few px, three.js pools reusing the same motif, the same hero composition recoloured) collapse to "the same design in a different skin."
-  Fix: Audit the *rendered* spread, not the signature: screenshot a sample and confirm no two read as the same. Make every axis produce a *perceptibly* different STRUCTURE (different hero composition, section order, header bar, card density, motion language), and make pools deep enough that N outputs don't visibly repeat. If the user says "too many look the same," the pools are too shallow - DEEPEN them; do not just re-seed and hope. (2026-07)
+- harness green but the feature is actually broken / "verified" != "working"
+  Cause: compile + DOM presence + zero console errors cannot see a canvas that does not fill its band, dead scroll, or 50 recolours of one design.
+  Fix: for visual/interactive work: open it in a real browser, screenshot at the user's viewports (down to ~393px, ask if not given), LOOK at each shot against the brief, drive real input (trusted clicks - not programmatic .click() - plus scroll, resize, theme toggle) and confirm the claimed behaviour. A node in the DOM is not the feature working. (2026-07)
+- "should work but doesn't" with NO console error
+  Cause: the bug lives in the computed reality, not in the source you are reading.
+  Fix: observe computed state first: getComputedStyle (overflow, display, visibility, pointer-events, which element is the scroll container), elementFromPoint at the click coordinate, the real scroll target - THEN reason. The recurring CSS traps are catalogued in css.md. (2026-07)
 - negative brief constraints silently violated / "the header must NOT react to scroll"
-  Cause: negative requirements ("X must NOT do Y", "only the background parallaxes", "never a radial shine on cards", "cart from the right only") are the easiest to break and produce NO error, so a green suite still ships them broken.
-  Fix: Before coding, extract EVERY constraint from the brief into an explicit checklist (positives AND negatives) and give each a test or a screenshot/interaction check, the negatives especially. Re-read the brief VERBATIM before declaring done and tick each line; an unchecked negative is a shipped bug. (2026-07)
-- silent CSS / layout trap: builds fine, "verified", but wrong / smooth scroll dead, hidden overlay eats clicks
-  Cause: these traps produce NO console error, so the bug is invisible in the source and only shows in the *computed* reality.
-  Fix: when a feature "should work but doesn't and there is NO console error," do NOT reason from source first; observe the *computed* reality: getComputedStyle (overflow, display, visibility, pointer-events, which element is the scroll container), `elementFromPoint` at the click coordinate, the real scroll target - not the authored source. The recurring specific traps are catalogued in css.md. (2026-07)
-- shared ticker / shared state leaks behaviour across components / the header moves when only the background should
-  Cause: when several components share one animation loop or one scroll/velocity value, a term added "for the background" silently drives the others too.
-  Fix: give each component ONLY the inputs its spec allows, and never pass a global velocity/boost to a component that must be independent of it. Lerp any driven value (ease toward the target; never apply raw deltas) so motion tweens instead of snapping or going violent. The scene-specific application (which input each of header/background may read) is in threejs.md. (2026-07)
-- reporting done on green boxes without self-QA as the user / "it works in the test but looks wrong"
-  Cause: the suite sees structure; the user sees the rendered, scrolled, resized, theme-toggled, clicked experience at THEIR screen sizes.
-  Fix: Before "done," spend the time to *use* the deliverable the way they will and judge it against the brief's aesthetic AND behaviour - fix what looks or feels wrong even when no test fails (too tall, too close to the search bar, tilt too strong, a band not filled, type not readable). Green tests are necessary, not sufficient; the final reviewer is the rendered result, not the harness. (2026-07)
-- resize / interaction bug "fixed" from a static read but still broken for the user
-  Cause: runtime layout is NOT provable by reading the CSS or running `node --check` on embedded JS; that is verification THEATRE for dynamic behaviour.
-  Fix: Reproduce the user's EXACT interaction sequence headlessly (the ORDER matters: load-full→shrink→expand and load-narrow→expand are different code paths in a responsive canvas/grid) and MEASURE the DOM (`scrollWidth` vs `clientWidth` for horizontal overflow, `getBoundingClientRect` of the suspect element) plus screenshot, before claiming fixed (recipe in puppeteer.md). And if your headless test of the *source* passes while the user still sees the bug, suspect a STALE running process or stale generated artifact (the running app holds old code in memory / the file on disk was written by old code); grep the artifact the user is actually viewing for a unique marker from your new code and compare mtimes BEFORE re-editing (see pi-extension.md on jiti module caching). (2026-07)
-- user asks you to add logging to diagnose a bug, then you spend a long thinking session theorising instead of just running and reading the log
-  Cause: theorising before reading the log wastes minutes and often reaches the wrong conclusion; the log IS the answer and reading it takes seconds.
-  Fix: when the user says "add logs so we can see what's happening", the workflow is: (1) add the logs, (2) tell the user to reproduce, (3) READ the log output, (4) THEN reason about the fix. Do NOT theorise for pages before step 3. If the log is unreadable (console flood, too fast), switch to file-based logging immediately instead of asking the user to squint at a scrolling terminal. (2026-07)
-- you already have the answer in the tool output but keep "thinking" about where to find it
-  Cause: the data is already on screen, so re-searching for it wastes the user's time and tokens.
-  Fix: if a grep, ls, or command output already contains the line/number/path the user asked about, ANSWER immediately from what's on screen. Do not re-read the file, do not re-grep, do not launch a search mission for data you already hold; the correct response to "what line is X on?" when the grep output shows `42: X` is `42`, full stop. (2026-07)
-- you 'learned' a hard-won fix mid-session but a later session (or even a later turn) repeats the same mistake
-  Cause: the model is STATELESS between turns and its chain-of-thought is generally NOT re-sent (and is folded lossily at compaction), so an insight held only 'in mind' is already gone.
-  Fix: externalize durable lessons to a file (the knowledge base / support doc / a plan or tasks file) the MOMENT they are found, while the cause and fix are still in context; reading it back later is the only real 'memory'. If it took >2-3 attempts or a future session could hit the same wall, write it down now, not 'at the end'. (2026-07)
-- you started creating/editing/deploying files while the user was still in planning/discussion mode
-  Cause: starting work early pollutes the discussion and wastes effort on unconfirmed designs.
-  Fix: 'let's discuss' / 'this is all planning for now' / 'we are in the planning stage' means DO NOT build, create, integrate, or deploy; capture decisions in a living plan doc, reflect them back, and confirm explicitly before any implementation. When unsure whether you're still planning, ASK. (2026-07)
-- decisions from a long back-and-forth get lost, contradicted, or half-remembered by the next context
-  Cause: without a single source of truth, a fresh context cannot resume and re-litigates settled questions; a stale plan doc hides progress.
-  Fix: maintain a SINGLE living spec/plan doc and update it CONTINUOUSLY as each decision is made (never batch to the end); record the decision, its rationale, and any earlier choice it supersedes, so the doc is always the source of truth and a fresh context can resume without re-deriving anything. (2026-07)
-- you declared a design 'ready' but it had untested edge cases that would break in production
-  Cause: 'it compiles and the happy path works' is not 'ready'; untested edge cases break in production.
-  Fix: before reporting a design/feature done, RED-TEAM it yourself: walk every mechanism step by step hunting edge cases (concurrency, missing/corrupt files, busy/streaming state, compaction, resume, cross-platform paths, cache stability), production-safety (data loss, broken sessions, reversibility), and a better/simpler implementation. Find the orphaned tool call, the cache churn, the broken handoff YOURSELF before the user hits them. (2026-07)
-- the feature works for you but breaks other users' data or sessions on update or in an edge case
-  Cause: convenience overriding safety destroys user data and sessions on update or in edge cases.
-  Fix: for anything shipped to many users, design safety FIRST: never destroy user data (no silent overwrite; copy-only seeding; back up before any destructive/merge op), never break or corrupt a session (non-destructive operations; fail soft with try/catch then safe fallback, never crash the host), off-by-default for opt-in behaviour, idempotent + resumable operations, value-preserving config migrations, and a reversible path for every significant action. Treat the user's data and sessions as sacred; convenience never overrides safety. (2026-07)
-- you designed/built on an assumed API shape (event payload, ctx field, tool result, return type, whether a method even exists) that turned out wrong
-  Cause: guessing payloads or copying from memory/the framework's internals builds the design on a wrong assumption.
-  Fix: when integrating with a framework/tool/SDK, VERIFY the actual behaviour against the official docs/source/examples BEFORE designing on it; do not guess payloads or copy from memory or from the framework's internals. Read the real type definitions and official examples for event fields, return shapes, and available methods (eg confirming an API has NO delete method changes the whole design). An hour reading the source beats a day rebuilding on a wrong assumption. (2026-07)
-- the user's proposed approach has a gap or issue but you implemented it as-is to be agreeable
-  Cause: compliance with a flawed plan produces a flawed result; the user wants the problem flagged and the smarter path taken, not silent agreement.
-  Fix: be a CRITICAL collaborator, not a yes-agent: when given a design or instruction, check it for gaps, edge cases, and better ways, and surface them honestly ('this will break because…', 'a better way is…'), then adapt intelligently. (And don't be contrarian for its own sake - flag real issues, defer on genuine preferences.) (2026-07)
-- you started exploring/editing a project before reading its rules and produced work that violated its conventions
-  Cause: skipping the mandatory docs leads to violating hard rules (naming, folder layout, versioning, what-not-to-touch) you could have known up front, which costs rework.
-  Fix: BEFORE exploring files, planning, or implementing, read the project's mandatory docs (AGENTS.md / global rules / the relevant support documents) and follow their self-learning process; identify the technologies in play and read their support docs first. (2026-07)
-- you re-read/re-describe a whole structure (project layout, menu flow, sitemap, API surface) every time, burning tokens and tool calls, OR you trusted a structure map that had gone stale and were misled
-  Cause: re-describing a hierarchy each time burns tokens and tool calls, and a hand-written map is a SNAPSHOT that goes stale and misleads.
-  Fix: for any non-trivial HIERARCHICAL structure, document/understand it as a compact ID STRUCTURE MAP: a tree with hierarchical IDs (1, 1.1, 1.2.1) drawn once, then per-ID detail below it; reference nodes by ID ('see 1.6.1') instead of re-describing (this collapses many file reads into one compact map). CRITICAL: verify a hand-written map against the actual structure (ls/read/grep) before trusting it and regenerate it when it diverges; only script-generated maps (built from reality) are self-keeping. Use judgment: map real hierarchies, not trivial things. (2026-07)
-- a new mid-task message derails the current task (you pivoted and left it half-done) - OR you ploughed on through a genuine 'STOP / DON'T' the user needed you to heed immediately
-  Cause: context-switching to a new user request before finishing the in-progress task abandons it mid-flight; the original task is then forgotten or silently dropped (the model is stateless, so 'I'll come back to it' held only in mind is already gone), and the user discovers the gap much later - an unfinished edit, an unrun test, a missing doc update - and has to fix it or ask you to.
-  Fix: when a new message arrives mid-task, FIRST triage it - is it an urgent STOP/correction (eg 'STOP', 'DON'T', 'NO DON'T DO', 'wait', 'hold on', or anything halting what you're doing or demanding immediate attention)? If YES: stop all thinking and current work at once and address what the user is urgently trying to get your attention with - a genuine stop overrides the queue; never plough on through it. If NO (not urgent): carry on with the flow - finish the current task to its done-criterion BEFORE starting the new one; acknowledge the new request and QUEUE it explicitly (write it in the living plan/tasks doc, not 'in mind'), complete what you are doing, then take queued requests in order. Never silently drop in-progress work to chase a non-urgent request. (2026-07)
-- you keep re-weighing the same decision / deliberation is running away (the same "which option / which file / which format" question resurfaces a third time)
-  Cause: there is no commit discipline; a good-enough, REVERSIBLE call is treated as if it must be optimal, so a settled point gets re-litigated endlessly. Perfect routing/format/style is NOT the deliverable.
-  Fix: give yourself a DECISION BUDGET - weigh a decision ONCE, pick the option that best satisfies the binding rules, commit, and act. Re-deliberating a point you already settled is the explicit SIGNAL to stop thinking and move; a reversible wrong-ish choice you can fix later beats a perfect choice never made. (2026-07)
-- agonising over a format / style / convention the docs leave ambiguous (entry IDs, naming, em-dash vs slash, which of two near-identical files)
-  Cause: the source docs genuinely under-specify it, so there is no "right" answer to find - only a choice to make; hunting for an authoritative answer that does not exist is the rabbit hole.
-  Fix: match the NEAREST existing example (the sibling file / the most recent entries), pick ONE, and move on; do not re-litigate style. If the ambiguity is real, flag it to the maintainer ONCE so the spec can be canonicalised, then proceed with your pick - don't burn the session resolving a doc gap that isn't yours to block on. (2026-07)
-- a tool / command / approach failed and you are theorising about WHY instead of just using the working alternative
-  Cause: diagnosing the failure mechanism (parse-time vs runtime, which block broke, who owns the state) feels productive but is rarely needed to make progress; it is the observe-first rule violated in a new disguise.
-  Fix: switch to the working approach IMMEDIATELY (file tools instead of a flaky shell blob, a different command, a fresh process) and investigate the cause later ONLY if it still matters. Progress first, post-mortem second - never theorise for pages when a working alternative is one call away. (2026-07)
-- the user expects entries/outputs in some bucket but honest analysis finds none, and you are torn between fabricating to satisfy and agonising over it
-  Cause: a stated expectation ("some will be C++") reads like a quota, so an empty honest result feels like failure even though padding is the worse outcome.
-  Fix: report the empty result TRANSPARENTLY - "I checked bucket X; nothing durable belongs there because …" - and offer to add one if the user still wants it. Never fabricate or pad to fill an expected file, and never agonise over the choice: honest-empty is correct and saying so takes one line. (2026-07)
-- you keep adding reminders / warnings / guidance for a mistake that keeps recurring - the fix only works if someone remembers it
-  Cause: a warning, comment, or guidance note only fires if it is RECALLED at the moment of the mistake; under time pressure, in a fresh context, or at scale it gets forgotten, so the same failure recurs. A reminder treats the symptom (a lapse of memory), not the cause (the safe path being harder than the unsafe one).
-  Fix: prefer a STRUCTURAL fix that makes the correct behaviour the DEFAULT or automatic - a guardrail, a validation/check that runs regardless, a tool that does the thing, a safe default, or removing the foot-gun entirely - over another reminder. Before reaching for a warning ask "can I make the safe path the easy or only path?". A fix that works without anyone remembering it beats one that depends on recall. (2026-07)
-- a row you intended to show is silently absent from a list you built / "the row just isn't there and no one notices"
-  Cause: when you build any derived list (a scoreboard, a stat panel, a per-item report) the easy habit is one global filter for the whole list plus "render the row only if its value exists". Both erase rows you meant to report on, and an absent row leaves NO trace - so neither you nor the user can tell "intentionally nothing here" from "bug". A filter that is correct for one kind of row (eg cost > 0 for a cost average) quietly empties every other kind computed over a different set, and a genuinely uncomputable value just vanishes.
-  Fix: treat ABSENCE itself as a finding - the thinking habit is "a missing row is a bug until proven intentional". Decide each intended row's data source and its empty-state independently (a filter right for one row must not govern another), and when a value can't be computed, surface the absence explicitly (an N/A with the reason) instead of omitting the row. A visible "nothing here, because..." is honest and debuggable; a vanished row is indistinguishable from a regression. (2026-07)
-- you grepped for all calls/usages, got a list, edited them, then discovered MANY more you'd missed - the "no remaining X" check was false
-  Cause: the search pattern matched only ONE syntax variant. `notify\(` misses the optional-call form `notify?.(`; `foo\(` misses `foo?.(`/`foo?.call(`; a double-quoted search misses template-literal / alternate-quote forms. The missed variant is usually scattered just as widely as the one you matched, so the first pass silently drops a large chunk and you declare "clean" prematurely.
-  Fix: when the goal is "find ALL occurrences", search the BROAD token first (`\.notify\b`, the bare name) to enumerate every variant, THEN narrow. Never assert "no remaining X" from a pattern that matches only one form; after a bulk edit, re-verify with the broad pattern, not the narrow one you just changed. (2026-07)
-- you filed a visual/UX lesson (layout, contrast, usability) into a language or tool file where a future design session will never look
-  Cause: design lessons routed by technology scatter the design knowledge and blur the web/desktop domain split the design files exist to protect; the css/scss files in particular accumulate visual CHOICES that are not CSS mechanics.
-  Fix: apply the mechanism-vs-choice test - if the technology bit you (property behaviour, specificity/cascade trap, browser quirk; the fix is a CSS technique) it stays in the language file even when the symptom is visual; if it is a choice that would hold in any technology (contrast, spacing, sizing, usability conventions) it goes to the matching resources/ui-ux/<platform>/<domain>.md file (web/web-app, web/web-page, web/web-backend, desktop/desktop-web-app, desktop/desktop-app, mobile/mobile-app, plugin/vst-plugin) - or to ui-ux/ui-ux-common.md when it holds on EVERY platform - picked by the DOMAIN the UI lives in, never by the tech stack. (2026-08)
-- you deleted one line/rule with a text replacement and silently dropped the adjacent line with it
-  Cause: the replacement's oldText spanned two lines (the target and its neighbor) but the newText kept only one - the neighbor vanished with no error, and the loss stayed invisible until someone asked where that entry went.
-  Fix: after ANY edit that deletes content, verify what REMAINS: grep the file for the entries you did NOT intend to touch (the lines around the edit) and confirm they are still there. A deletion is proven by what survives, not by what was removed. (2026-08)
-- you went off on an exploratory side mission and did work that was never asked for
-  Cause: treating every noticed issue, curiosity or "while I'm here" improvement as an implicit task - it derails the requested work, pollutes the change with unrelated edits, and the user has to untangle what they asked for from what you decided to do.
-  Fix: do EXACTLY what was asked and nothing more - no exploratory refactors, no drive-by fixes, no scope creep. If you find something else that needs attention, REPORT it to the user and let them decide; never act on it unprompted. (2026-08)
+  Cause: "X must NOT do Y" requirements produce no error when broken, so a green suite still ships them broken.
+  Fix: before coding, extract EVERY constraint (positives AND negatives) into a checklist with a test or screenshot check each; re-read the brief verbatim and tick every line before declaring done - an unchecked negative is a shipped bug. (2026-07)
+- generated variants that "all look the same"
+  Cause: unique signature tuples != perceptible variety; shallow pools collapse to the same design in different skins.
+  Fix: audit the RENDERED spread, not the signatures; make every axis change structure (composition, section order, density, motion), and deepen pools until N outputs visibly differ. If the user says "too many look the same", deepen - do not just re-seed. (2026-07)
+- reporting done without using it as the user / "works in the test but looks wrong"
+  Cause: the suite sees structure; the user sees the rendered, resized, clicked experience at their screen sizes.
+  Fix: before "done", use the deliverable the way they will and fix what looks or feels wrong even when no test fails. Green tests are necessary, not sufficient - the final reviewer is the rendered result. (2026-07)
+- theorising instead of reading the log / the answer is already on screen
+  Cause: the log or the last tool output IS the answer; page-long theory or re-searching wastes time and often ends wrong.
+  Fix: add the log, have it reproduced, READ the output, then reason (file-based logging if the console floods). If a grep/command output already shows the answer, answer from it immediately. If a tool failed, switch to the working alternative now and diagnose later only if it still matters. (2026-07)
+- a hard-won fix is repeated as a mistake in a later turn or session
+  Cause: the model is stateless; an insight held "in mind" is already gone next turn.
+  Fix: write durable lessons to the knowledge base / plan file the MOMENT they are found, while cause and fix are in context. Took >2-3 attempts, or a future session could hit it = write it now, not "at the end". (2026-07)
+- shipped to many users and an update or edge case breaks their data or sessions
+  Cause: convenience overriding safety destroys user data and sessions.
+  Fix: safety first: never destroy data (copy-only seeding, back up before destructive ops), fail soft, off-by-default opt-ins, idempotent + resumable ops, value-preserving config migrations, a reversible path for every significant action. (2026-07)
+- built on an assumed API shape that turned out wrong
+  Cause: guessing payloads or copying from memory builds the design on a wrong assumption.
+  Fix: verify event fields, return shapes and available methods against official docs/source/examples BEFORE designing on them. An hour reading source beats a day rebuilding. (2026-07)
+- implemented the user's flawed plan as-is to be agreeable
+  Cause: silent agreement ships the flaw; the user wants the gap flagged and the smarter path taken.
+  Fix: be a critical collaborator: check the given design for gaps and better ways, surface them honestly, then adapt. Defer on genuine preferences - no contrarianism. (2026-07)
+- a new mid-task message derails the in-progress task (or you ploughed through a real STOP)
+  Cause: pivoting abandons the first task mid-flight; the stateless model never comes back to it.
+  Fix: triage the message: urgent STOP/correction ("STOP", "DON'T", "wait"...) -> drop everything and address it now. Not urgent -> finish the current task to its done-criterion first, queue the new request in the plan doc, then take queued work in order. (2026-07)
+- re-deliberating a settled decision / agonising over an ambiguous style choice
+  Cause: no commit discipline; reversible calls treated as if they must be optimal.
+  Fix: weigh once, commit, act - re-deliberation is the signal to stop thinking. For ambiguous format/style, match the nearest existing example and move on; flag the doc gap to the maintainer once, do not block on it. (2026-07)
+- adding reminders for a mistake that keeps recurring
+  Cause: a warning only fires if recalled at the moment of the mistake; under pressure it is forgotten.
+  Fix: prefer a STRUCTURAL fix - guardrail, validation, safe default, a tool that does the thing - so the safe path is the easy or only path. (2026-07)
+- a row you intended is silently absent from a derived list or report
+  Cause: one global filter plus "render only if the value exists" erases rows, and absence leaves no trace.
+  Fix: treat absence as a finding: decide each row's data source and empty state independently, and surface uncomputable values as N/A with the reason instead of omitting the row. (2026-07)
+- "no remaining X" was false after a bulk edit
+  Cause: the search matched one syntax variant (notify( misses notify?.(; double quotes miss template literals).
+  Fix: search the BROAD token first to enumerate every variant, then narrow; after the edit, re-verify with the broad pattern, not the narrow one you just changed. (2026-07)
+- a deletion silently ate an adjacent line
+  Cause: the replacement's old text spanned the target plus a neighbour and the new text kept only one.
+  Fix: after any deletion, grep for the entries you did NOT mean to touch and confirm they survived. A deletion is proven by what survives. (2026-08)
+- off on an unasked exploratory side mission
+  Cause: every noticed issue or "while I'm here" treated as an implicit task derails the requested work.
+  Fix: do exactly what was asked and nothing more; report other findings and let the user decide. (2026-08)

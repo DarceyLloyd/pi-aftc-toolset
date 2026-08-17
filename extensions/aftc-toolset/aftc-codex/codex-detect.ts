@@ -66,6 +66,10 @@ const EXT_MAP: Record<string, string> = {
     // Misc tools by file type.
     wxs: "wix", wixproj: "wix",
     jucer: "juce",
+    // Audio / media file formats.
+    mid: "midi", midi: "midi",
+    wav: "wav-aiff", aif: "wav-aiff", aiff: "wav-aiff",
+    fxp: "fxp-fxb", fxb: "fxp-fxb",
 };
 
 /** package.json dependency name (or prefix) -> topic name. */
@@ -81,6 +85,14 @@ const DEP_MAP: Array<[string, string]> = [
     ["webpack", "webpack"],
     ["electron", "electron"],
     ["@shoelace-style/shoelace", "shoelace"],
+    ["hono", "hono"],
+    ["jose", "jose"],
+    ["mysql2", "mysql2"],
+    ["xterm", "xtermjs"],
+    ["better-sqlite3", "sqlite"],
+    ["sqlite3", "sqlite"],
+    ["ffmpeg", "ffmpeg"],
+    ["ollama", "ollama"],
 ];
 
 /** Marker file name (lowercase) -> topic name(s). */
@@ -110,6 +122,10 @@ const MARKER_MAP: Record<string, string[]> = {
     "pom.xml": ["java"],
     "build.gradle": ["java"],
     "build.gradle.kts": ["java"],
+    "uv.lock": ["uv"],
+    "modelfile": ["ollama"],
+    "vsftpd.conf": ["vsftpd"],
+    "httpd.conf": ["apache"],
 };
 
 /** Directory name (lowercase) -> topic name(s). Presence of the dir is the signal. */
@@ -152,6 +168,9 @@ const STACK_BLOCK_RE = /<!--\s*AFTC-CODEX-STACK([\s\S]*?)-->/i;
  *  words / too short). These stay pin-able via the explicit stack block. */
 const KEYWORD_STOPLIST = new Set([
     "go", "deno", "vue", "batch", "bun", "twig", "cs", "rs", "composer", "windows",
+    // "jose" is a person's name and "uv" a common abbreviation (texture
+    // coordinates etc.) - both would false-positive in free text.
+    "jose", "uv",
 ]);
 
 /** Implied companions: detecting a specific topic implies its common resource. */
@@ -164,6 +183,8 @@ const IMPLIED_TOPICS: Record<string, string[]> = {
     "mobile-app": ["ui-ux-common"],
     "vst-plugin": ["ui-ux-common"],
     "mysql": ["database-common"],
+    "mysql2": ["mysql"],
+    "sqlite": ["database-common"],
 };
 
 /** Legacy topic names (pre-v1 layout) -> their v1 home. Applied to every
@@ -335,6 +356,10 @@ const STACK_BLOCK_FILE_DISPLAY: Record<string, string> = {
         };
         // Root package.json first — guaranteed parsed even if the walk budget runs out.
         parsePackageJson(path.join(cwd, "package.json"), found);
+        // A git checkout is a high-confidence git signal (the walk skips dot-dirs).
+        try {
+            if (fs.statSync(path.join(cwd, ".git")).isDirectory()) found.add("git");
+        } catch { /* not a git checkout - fine */ }
         walk(cwd, 0);
         scanAutoInjectDocs(cwd, found);
 

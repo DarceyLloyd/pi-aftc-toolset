@@ -2,6 +2,8 @@
 
 ## Rules
 
+- [sV9qL4] Never base64-embed an SVG (via img src or JS injection) - inline the SVG in the HTML (best: its DOM stays reachable for animation) or use a real .svg file.
+
 ## Gotchyas
 
 - [hT6rD4] <option> without a value attribute - the browser silently uses the option's TEXT as its value, so a "Please select" / empty choice submits its label instead of ""; always write `value=""` explicitly for placeholder or empty options.

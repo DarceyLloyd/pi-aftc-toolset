@@ -4,6 +4,7 @@
 
 - [wG4uP1] Always target WebGPU first with a WebGL2 fallback for three.js/babylon.js work - unless the project docs or the user specifically ask otherwise.
 - [rN8kQ3] Always inspect the user's WebGPU/WebGL requirements in detail before building, and prove the result - zero console errors, and every requested feature actually renders and animates.
+- [tK8mW2] When several components share one animation loop or scroll/velocity value, a term added "for the background" silently drives the others too - give each component ONLY the inputs its spec allows, and lerp driven values (ease toward the target, never raw deltas) so motion tweens instead of snapping.
 
 ## Gotchyas
 

@@ -58,6 +58,14 @@
 
 - [S6g2CA] Wire auxiliary report generation (rename suggestions, lint summaries) into the build/dry-run path so the reports stay fresh automatically, and wrap each pass in try/except so an auxiliary failure can never break the main flow.
 
+- [pL5vB8] "let's discuss" / "this is all planning" means DO NOT build, create, integrate or deploy - capture decisions in a living plan doc, reflect them back, and confirm explicitly before any implementation; when unsure whether you are still planning, ask.
+
+- [sD3nH6] Maintain a SINGLE living spec/plan doc and update it CONTINUOUSLY as each decision is made (never batch to the end) - record the decision, its rationale and any earlier choice it supersedes, so a fresh context can resume without re-deriving anything.
+
+- [mP7wK3] Document a non-trivial HIERARCHICAL structure as a compact ID structure map: a tree with hierarchical IDs (1, 1.1, 1.2.1) drawn once, per-ID detail below it, nodes referenced by ID instead of re-described; verify a hand-written map against the real structure (ls/read/grep) before trusting it - only script-generated maps self-keep.
+
+- [tF4jR9] Build anything for testing in the project's tests folder (organised in named subfolders), with a Testing section in AGENTS.md linking a testing.md for the details - create both when missing.
+
 ## Gotchyas
 
 - [u3Qbqq] A UI-coverage rule written in one platform's vocabulary ("routes", "pages", "SPAs") makes the documenting model skip every other platform's UI (desktop windows, plugin editors, CLI screens) - it maps only what the words name; write the rule platform-neutrally ("every reachable surface: page, screen, window, view, editor") and require a per-area surface inventory during recon so a missed surface shows up as a visible gap.
