@@ -48,6 +48,8 @@ export function createHelpModule(pi: ExtensionAPI): HelpModule
 Returns the module instance (unused by callers — the orchestrator
 keeps the reference for symmetry with other modules).
 
-## Commands registered (1)
+## Commands registered (2)
 
 - `/aftc-help` — show this command and shortcut list.
+- `/tools` — scrollable list of every tool pi can call (built-in +
+  extensions, grouped by source, active state shown).

@@ -165,6 +165,12 @@ class HelpModule {
 			category: "General",
 		});
 
+		registerHelpEntry({
+			command: "tools",
+			description: "List every tool available to pi (built-in + extensions)",
+			category: "General",
+		});
+
 		this.pi.registerCommand("aftc-help", {
 			description: "Show the pi-aftc-toolset help (commands and shortcuts)",
 			handler: async (_a: string, ctx: ExtensionCommandContext) => {
@@ -181,6 +187,63 @@ class HelpModule {
 				}
 			},
 		});
+
+		this.pi.registerCommand("tools", {
+			description: "List every tool available to pi (built-in + extensions), scrollable.",
+			handler: async (_a: string, ctx: ExtensionCommandContext) => {
+				const rows = this.generateTools();
+				if (ctx.hasUI) {
+					await showViewer(ctx, { title: "/tools", rows });
+				} else {
+					for (const row of rows) console.log(`[aftc-toolset] ${row.text}`);
+				}
+			},
+		});
+	}
+
+	/** Rows for the /tools viewer: every tool pi can call, grouped by
+	 *  source (built-in, then per extension file, then SDK), with the
+	 *  active state from getActiveTools(). */
+	generateTools(): AftcViewerRow[] {
+		let tools: Array<{ name: string; description?: string; sourceInfo?: { source?: string; path?: string } }> = [];
+		let active: string[] = [];
+		try {
+			tools = this.pi.getAllTools();
+			active = this.pi.getActiveTools();
+		} catch {
+			tools = [];
+		}
+		const isActive = new Set(active);
+		const key = (t: (typeof tools)[number]): string =>
+			t.sourceInfo?.source === "builtin" ? "\u0000builtin"
+			: t.sourceInfo?.source === "sdk" ? "\u0002sdk"
+			: `\u0001${t.sourceInfo?.path ?? "extension"}`;
+		const groups = new Map<string, typeof tools>();
+		for (const t of tools) {
+			const k = key(t);
+			const g = groups.get(k) ?? [];
+			g.push(t);
+			groups.set(k, g);
+		}
+		const rows: AftcViewerRow[] = [
+			{ text: `Every tool pi can call (${tools.length} total, ${active.length} active). "(off)" = registered but not active right now.` },
+			{ text: "" },
+		];
+		const orderedKeys = [...groups.keys()].sort();
+		for (const k of orderedKeys) {
+			const g = (groups.get(k) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+			const title = k === "\u0000builtin" ? "Built-in tools"
+				: k === "\u0002sdk" ? "SDK tools"
+				: `Extension tools — ${k.slice(1)}`;
+			rows.push({ text: title, tone: "accent", bold: true });
+			rows.push({ text: "", divider: true });
+			for (const t of g) {
+				rows.push({ text: `${t.name}${isActive.has(t.name) ? "" : " (off)"}`, tone: "accent" });
+				rows.push({ text: (t.description ?? "").split(/\s+/).slice(0, 60).join(" ") });
+				rows.push({ text: "" });
+			}
+		}
+		return rows;
 	}
 }
 

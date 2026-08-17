@@ -88,7 +88,7 @@ export async function resolveBinary(tool: SearchTool): Promise<string | null> {
     if (tool === "fd") {
         if (fdBinary !== undefined) return fdBinary;
         const candidates = process.platform === "linux" ? ["fd", "fdfind"] : ["fd"];
-        for (const c of candidates) {
+        for (const c of [...candidates, ...agentBinPaths("fd")]) {
             if (await probe(c)) {
                 fdBinary = c;
                 return c;
@@ -98,8 +98,23 @@ export async function resolveBinary(tool: SearchTool): Promise<string | null> {
         return null;
     }
     if (rgBinary !== undefined) return rgBinary;
-    rgBinary = (await probe("rg")) ? "rg" : null;
-    return rgBinary;
+    for (const c of ["rg", ...agentBinPaths("rg")]) {
+        if (await probe(c)) {
+            rgBinary = c;
+            return c;
+        }
+    }
+    rgBinary = null;
+    return null;
+}
+
+/** Pi keeps helper binaries in ~/.pi/agent/bin, but that dir is only injected
+ *  into pi's own shell-tool PATH - the pi process (and every extension spawn)
+ *  often lacks it, so a plain PATH probe reports "not installed" while the
+ *  binary is right there. Probe it as a fallback (absolute path, cached). */
+function agentBinPaths(tool: string): string[] {
+    const exe = process.platform === "win32" ? `${tool}.exe` : tool;
+    return [path.join(os.homedir(), ".pi", "agent", "bin", exe)];
 }
 
 function installHint(tool: SearchTool): string {

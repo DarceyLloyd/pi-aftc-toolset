@@ -6,8 +6,12 @@ binaries, plus the on/off commands. Plain TS, no Effect.
 ## Binary resolution (lean)
 
 `resolveBinary` probes PATH (`fd`/`fdfind`, `rg`) with a `--version` run
-(5 s cap). The result is cached for the session. A missing binary makes the
-tool throw a clear error with platform install hints — no auto-download.
+(5 s cap), then falls back to pi's helper-binary dir `~/.pi/agent/bin`
+(`rg.exe`/`fd.exe` on Windows) - pi injects that dir into its own shell
+tool's PATH but the pi process itself often lacks it, so a PATH-only probe
+reports "not installed" while the binary is right there. The resolved name
+or absolute path is cached for the session. A missing binary makes the
+tool throw a clear error with platform install hints - no auto-download.
 
 ## Execution
 

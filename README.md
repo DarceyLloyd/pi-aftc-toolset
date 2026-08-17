@@ -758,6 +758,7 @@ Run `/aftc-help` inside pi for the same list grouped by category.
 | Command | What it does |
 | --- | --- |
 | `/aftc-help` | Grouped command/shortcut reference |
+| `/tools` | Scrollable list of every tool available to pi (built-in + extensions) |
 | `/aftc-install` | Install runtime deps (SQLite + packaged SSH carrier) |
 | `/aftc-response-divider` | Toggle the themed divider above each assistant reply |
 | `/aftc-intro-off` | Disable the AFTC text startup animation |

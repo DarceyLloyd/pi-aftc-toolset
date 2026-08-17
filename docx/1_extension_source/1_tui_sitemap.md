@@ -1,6 +1,6 @@
 # 1 - Extension source — TUI sitemap
 
-<!-- last-reviewed: 2026-08-15 -->
+<!-- last-reviewed: 2026-08-17 -->
 
 ## References
 
@@ -36,6 +36,7 @@ Full-screen overlays (AFTC UI takeovers, ctx.ui.custom overlay:true)
 |- Notification sounds hub (/aftc-audio-notifications) → 1.5.4
 |  \- Per-category sound picker (×8)             → 1.5.4
 |- /aftc-help viewer                             → 1.5.2
+|- /tools viewer (all pi tools)                  → 1.5.2
 |- Cache profile / cache stats viewers           → 1.4.1
 |- Codex menus (/codex)                          → 1.7.3
 |  |- Resources & updates menu                   → 1.7.3
@@ -137,6 +138,10 @@ notification sounds dir". Each row opens a sound picker (MP3 list + NONE).
 ### /aftc-help — see [1.5.2](./1.5_feature_modules/1.5.2_help.md)
 Scrollable viewer: registry-driven command sections (13 categories), static
 Skills list, static Shortcuts table.
+
+### /tools — see [1.5.2](./1.5_feature_modules/1.5.2_help.md)
+Scrollable viewer of every tool pi can call (built-in + extensions + SDK),
+grouped by source with the active state.
 
 ### Cache viewers — part of [1.4.1](./1.4_footer_usage/1.4.1_cache_core.md)
 `/cache-profile` (per-tool schema costs, prefix shape, churn) and
