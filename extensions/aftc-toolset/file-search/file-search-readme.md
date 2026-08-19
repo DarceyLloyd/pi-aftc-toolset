@@ -27,10 +27,13 @@ the full result persisted to a temp file when cut.
 
 - `fileSearchEnabled` preference, default on; `/file-search-on|off` +
   `/reload`.
-- Arg safety (patterns after `--`, `@`/`~` path handling, clamped limits)
-  lives in `file-search-args.ts`.
-- Model guidance steers fd (names) vs rg (content) vs bash (pipelines) and
-  `fixed_strings` for literal snippets.
+- Arg safety (patterns after `--`, `@`/`~` path handling, clamped limits,
+  fd match-all / auto-glob normalisation) lives in `file-search-args.ts`.
+- A failed run appends a recovery hint when stderr looks like a regex parse
+  error (omit the pattern / set `glob=true` on fd; `fixed_strings` on rg).
+- Model guidance steers fd (names) vs rg (content) vs bash (pipelines),
+  tells the model not to pass `*` as an fd regex, and `fixed_strings` for
+  literal snippets.
 
 Tests: `tests/file-search-check/` (arg building + classifier; the search
 itself needs fd/rg installed).

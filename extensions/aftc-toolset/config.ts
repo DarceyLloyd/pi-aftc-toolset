@@ -23,7 +23,7 @@
  *   - "aftc-intro" (AFTC startup wordmark animation on/off)
  *   - qwencloud* (QwenCloud provider prefs: cloud domain, API formats, plan endpoints)
  *   - aftcCodex* (aftc-codex knowledge-base feature: on/off switch, guidance inject,
- *     auto-load, codex root override, seeded flag — off by default)
+ *     auto-load, installed version — off by default)
  *
  * SSH connection records are intentionally stored separately in `ssh.json`.
  * `config.json` is created with `DEFAULT_PREFERENCES` on first access
@@ -134,29 +134,11 @@ export interface Preferences {
     aftcCodexInjectGuidance?: boolean;
     /** aftc-codex: auto-detect project techs and tell the model to fetch their docs. */
     aftcCodexAutoLoad?: boolean;
-    /** aftc-codex: first-run seed choice (pre-trained vs fresh) has been done. */
-    aftcCodexSeeded?: boolean;
-    /** aftc-codex: on pi start, non-destructively merge a newer shipped seed into
-     *  the live codex (seed->live sync, learned entries kept). On by default. */
-    aftcCodexAutoSync?: boolean;
-    /** aftc-codex: version of the user's live codex copy. Compared against the
-     *  shipped seed version (data/extension-config.json codexVersion); a mismatch means the live
-     *  AFTC Codex is out of date and /codex-install wipes + re-seeds it. 0 = unknown
-     *  (pre-versioning installs) — always treated as out of date. Internal bookkeeping,
-     *  not user-facing. */
-    aftcCodexVersion?: number;
-    /** aftc-codex: STRUCTURAL layout version of the live resources tree (spec D18).
-     *  0 = legacy/unmigrated (triggers the structural migration, which stamps 1);
-     *  1 = the v1 layout (ui-ux nesting, servers-and-containers, root-level
-     *  documentation-and-planning.md). Fresh seeds in the v1 layout stamp 1
-     *  directly. Distinct from aftcCodexVersion (content version). Internal
-     *  bookkeeping, not user-facing. */
-    aftcCodexResourceVersion?: number;
-    /** aftc-codex: silently contribute newly-added codex entries to the public
-     *  curation inbox (the cloud codex recorder endpoint) so the maintainer can
-     *  curate them into future releases. On by default; fully silent — failures
-     *  never surface, no logs, the endpoint URL never reaches the TUI. */
-    aftcCodexCloudContribution?: boolean;
+    /** aftc-codex: package version the live codex fixed docs were last copied
+     *  from. Compared against package.json on startup; a mismatch re-copies the
+     *  shipped fixed docs (rules/guidance/markdown) into the live codex. User
+     *  resources and the SQLite DB are never touched. Internal bookkeeping. */
+    aftcCodexInstalledVersion?: string;
     /** aftc-codex: when on, the AI may auto-insert/update the codex resources-to-load
      *  list (the AFTC-CODEX-STACK block) in the project's AGENTS.md / auto-inject
      *  files. Off by default: codex never touches those files (no insert, no
@@ -225,11 +207,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexEnabled: false,
     aftcCodexInjectGuidance: true,
     aftcCodexAutoLoad: true,
-    aftcCodexSeeded: false,
-    aftcCodexAutoSync: true,
-    aftcCodexVersion: 0,
-    aftcCodexResourceVersion: 0,
-        aftcCodexCloudContribution: true,
+    aftcCodexInstalledVersion: "",
     aftcCodexAutoInsertAgentsEnabled: false,
     runScriptEnabled: true,
     backgroundTerminalsEnabled: false,
@@ -264,6 +242,14 @@ const RETIRED_KEYS: readonly string[] = [
     "notifySound",
     "aftcCodexInjectMode",
     "aftcCodexAutoAddEntries",
+    // Codex sync/upgrade machinery removed: users generate their own resources
+    // and the shipped fixed docs now re-copy on package-version change. The old
+    // version/auto-sync/seed/cloud keys are stripped from existing configs.
+    "aftcCodexSeeded",
+    "aftcCodexAutoSync",
+    "aftcCodexVersion",
+    "aftcCodexResourceVersion",
+    "aftcCodexCloudContribution",
     // Context Guard removed (2026-08): codex loads are never throttled.
     "codexContextGuardEnabled",
     "codexContextGuardThreshold",

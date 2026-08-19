@@ -11,6 +11,12 @@ argv can be asserted in tests without any binary or process.
   expands `~` / `~/...` to the home dir.
 - Numeric options are clamped (`limit`, `max_depth`, `context`) to the
   exported bounds.
+- `resolveFdPattern` collapses match-all shorthand (`*`, and without an
+  explicit glob: `*.*`, `**`, `**/*`, `**/*.*`) to an empty pattern, and
+  auto-enables `--glob` for filename-glob shapes (leading `*`/`?`, `**`,
+  or `*`/`?` after a path separator). A real regex like `foo.*bar` is left
+  alone. `buildFdArgs` always goes through this so a bare `*` cannot reach
+  fd as a regex (that is an invalid quantifier).
 - `buildFdArgs` / `buildRgArgs` return a plain `string[]` ready for
   `spawn(command, args)`.
 

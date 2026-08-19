@@ -1,27 +1,28 @@
 /**
  * pi-aftc-toolset / aftc-codex — data-dir layout, seeding, and resource access.
  *
- * Pure data module (no pi imports, no event subscriptions). Owns the two-copy
- * model's "live copy" side:
+ * Pure data module (no pi imports, no event subscriptions). Owns the live
+ * copy side of the codex:
  *
  *   - SHIPPED SEED (source only):  <packageRoot>/extensions/aftc-toolset/data/aftc-codex/
  *   - USER LIVE COPY (per-user):   <codexRoot>/  (default <dataDir>/aftc-codex/)
  *
- * The shipped seed mirrors the live-copy layout: seed `data/aftc-codex/<x>` maps
- * 1:1 to the live `<dataDir>/aftc-codex/<x>`. Only the seed's CONTENT is
- * copied into the live codex root. The live copy survives `pi update` because it
- * lives in the persistent OS data dir (see paths.ts).
+ * The seed ships ONLY the 3 fixed maintainer docs (codex-rules.md,
+ * markdown-guidance.md, thought-and-action-guidance.md). Those copy into the
+ * live codex root on first seed, and re-copy when the package version changes.
+ * User topic resources live under `<root>/resources/` and are NEVER touched by
+ * the seed - users generate them with the codex entry tools. The live copy
+ * survives `pi update` because it lives in the persistent OS data dir.
  *
- * Responsibilities (step 2.2):
- *   - Resolve the codex root: always <dataDir>/aftc-codex (one-way copy: seed -> live).
- *   - First-run seed (pre-trained vs fresh), COPY-ONLY (never overwrites).
+ * Responsibilities:
+ *   - Resolve the codex root: always <dataDir>/aftc-codex.
+ *   - seed(): copy the shipped fixed docs + stamp the installed package version.
  *   - Read resources on demand (codex_load + injection): search ACROSS ALL
  *     category folders + top-level, fuzzy aliases, strip a leading "@".
- *   - Spawn the ensure-entry-ids script (add missing unique entry IDs to resources).
  *   - Spawn the sync script (regenerate codex-resource-list.md).
  *
- * Production-safety (spec Part G): every I/O op is best-effort try/catch -> fall
- * back to a safe default / no-op; seeding never overwrites an existing file.
+ * Production-safety: every I/O op is best-effort try/catch -> fall back to a
+ * safe default / no-op; user resources are never overwritten.
  *
  * See `codex-store-readme.md` for the full contract.
  */
@@ -31,8 +32,6 @@ import * as path from "node:path";
 import { spawn } from "node:child_process";
 import { setPreference } from "../config";
 import { getDataDir, getPackageRoot } from "../paths";
-import { readCodexSeedVersion } from "./codex-compat";
-import { CODEX_RESOURCE_VERSION } from "./codex-migrate";
 import * as aftcConsole from "../ui/aftc-console";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,14 +105,14 @@ export interface CodexStore {
     getResourcesDir(): string;
     /** Shipped seed dir (<packageRoot>/extensions/aftc-toolset/data/aftc-codex). */
     getSeedDir(): string;
-    /** Shipped seed resources dir. */
-    getSeedResourcesDir(): string;
-    /** True when the live copy exists and has a rules file (reconciled vs the pref). */
+    /** True when the live copy exists and has a rules file. */
     isSeeded(): boolean;
-    /** Copy-only seed from the package. "pretrained" = all docs; "fresh" = rules+guidance only. */
-    seed(mode: "pretrained" | "fresh"): { copied: number };
-    /** Seed if not already seeded (pre-trained default for headless). Returns true if seeded now. */
-    ensureSeeded(mode: "pretrained" | "fresh"): boolean;
+    /** Copy the shipped fixed docs (rules/guidance/markdown) into the live copy,
+     *  create the empty resources dir, and stamp the installed package version.
+     *  Never touches user resources or the SQLite DB. */
+    seed(): { copied: number };
+    /** Seed if not already seeded. Returns true if seeded now. */
+    ensureSeeded(): boolean;
     /** Read a topic doc by name/alias across all folders + top-level. Null if unknown. */
     readResource(topic: string): CodexResourceRead | null;
     /** All valid topic names (basename without .md), sorted. */
@@ -143,12 +142,6 @@ export interface CodexStore {
     getCategoryCount(): number;
     /** Spawn the sync script to regenerate codex-resource-list.md. Never throws. */
     runSyncScript(): Promise<void>;
-    /** Spawn the ensure-entry-ids script on the live resources dir. Never throws. */
-    runEnsureIds(): Promise<void>;
-    /** Spawn the live-to-seed release sync; returns captured stdout ("" on failure). Maintainer-only. */
-    runLiveToSeedSync(apply: boolean): Promise<string>;
-    /** Spawn the seed-to-live NON-DESTRUCTIVE update; returns captured stdout ("" on failure). */
-    runSeedToLiveSync(): Promise<string>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -226,36 +219,6 @@ function listMarkdownRecursive(dir: string, base: string): string[] {
     return out;
 }
 
-/** Recursively copy a directory tree, COPY-ONLY (never overwrites an existing
- *  file). Returns the number of files actually copied. Best-effort per file. */
-function copyTreeNoOverwrite(srcDir: string, destDir: string): number {
-    let copied = 0;
-    let entries: fs.Dirent[];
-    try {
-        entries = fs.readdirSync(srcDir, { withFileTypes: true });
-    } catch {
-        return 0;
-    }
-    for (const entry of entries) {
-        const src = path.join(srcDir, entry.name);
-        const dest = path.join(destDir, entry.name);
-        try {
-            if (entry.isDirectory()) {
-                fs.mkdirSync(dest, { recursive: true });
-                copied += copyTreeNoOverwrite(src, dest);
-            } else if (entry.isFile()) {
-                if (fs.existsSync(dest)) continue; // copy-only: never overwrite
-                fs.mkdirSync(path.dirname(dest), { recursive: true });
-                fs.copyFileSync(src, dest);
-                copied++;
-            }
-        } catch (err) {
-            aftcConsole.logError(`[aftc-toolset] codex seed: copy ${entry.name} failed: ${(err as Error).message}`);
-        }
-    }
-    return copied;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Factory
 // ─────────────────────────────────────────────────────────────────────────────
@@ -273,10 +236,6 @@ export function createCodexStore(): CodexStore {
         return path.join(getPackageRoot(), "extensions", "aftc-toolset", "data", "aftc-codex");
     }
 
-    function getSeedResourcesDir(): string {
-        return path.join(getSeedDir(), "resources");
-    }
-
     function isSeeded(): boolean {
         try {
             // Top-level rules file lives at the codex ROOT (not in resources/).
@@ -287,26 +246,21 @@ export function createCodexStore(): CodexStore {
         }
     }
 
-    function seed(mode: "pretrained" | "fresh"): { copied: number } {
+    function seed(): { copied: number } {
         const root = getRoot();
         const resourcesDir = getResourcesDir();
         const seedDir = getSeedDir();
-        const seedResourcesDir = getSeedResourcesDir();
         let copied = 0;
         try {
             fs.mkdirSync(root, { recursive: true });
             fs.mkdirSync(resourcesDir, { recursive: true });
-            // Always create the category folders (even empty) so the layout exists.
-            for (const cat of CODEX_CATEGORIES) {
-                fs.mkdirSync(path.join(resourcesDir, cat), { recursive: true });
-            }
-
-            // Top-level guidance files: seed dir root -> codex root (copy-only).
+            // Copy the shipped fixed docs (always the latest) into the live
+            // copy. User resources under resources/ are NEVER touched here.
             for (const name of TOP_LEVEL_RESOURCES) {
                 const src = path.join(seedDir, name);
                 const dest = path.join(root, name);
                 try {
-                    if (fs.existsSync(src) && !fs.existsSync(dest)) {
+                    if (fs.existsSync(src)) {
                         fs.copyFileSync(src, dest);
                         copied++;
                     }
@@ -314,32 +268,18 @@ export function createCodexStore(): CodexStore {
                     aftcConsole.logError(`[aftc-toolset] codex seed: copy ${name} failed: ${(err as Error).message}`);
                 }
             }
-
-            if (mode === "pretrained") {
-                // Copy the whole seed resources tree (copy-only).
-                copied += copyTreeNoOverwrite(seedResourcesDir, resourcesDir);
-            }
-            // Fresh mode: only the top-level files (already copied above) + empty categories.
-
-            setPreference("aftcCodexSeeded", true);
-            // Record the live version centrally: any seed path (first
-            // enable, fresh-session auto-seed, Start Fresh, re-install) makes
-            // the live copy the shipped version, so stamp it as such.
-            const v = readCodexSeedVersion(seedDir);
-            if (v !== null) setPreference("aftcCodexVersion", v);
-            // The shipped seed ships the v1 structural layout, so any fresh
-            // seed stamps the resource version too (legacy copies never pass
-            // through seed() - they are migrated by codex-migrate.ts).
-            setPreference("aftcCodexResourceVersion", CODEX_RESOURCE_VERSION);
+            // Stamp the installed package version so the startup override only
+            // re-copies the fixed docs when the package actually changes.
+            setPreference("aftcCodexInstalledVersion", readPackageVersion());
         } catch (err) {
             aftcConsole.logError(`[aftc-toolset] codex seed: error: ${(err as Error).message}`);
         }
         return { copied };
     }
 
-    function ensureSeeded(mode: "pretrained" | "fresh"): boolean {
+    function ensureSeeded(): boolean {
         if (isSeeded()) return false;
-        seed(mode);
+        seed();
         return true;
     }
 
@@ -574,110 +514,10 @@ export function createCodexStore(): CodexStore {
         });
     }
 
-    function runEnsureIds(): Promise<void> {
-        return new Promise<void>((resolve) => {
-            try {
-                const scriptPath = path.join(
-                    getPackageRoot(), "extensions", "aftc-toolset", "aftc-codex",
-                    "scripts", "ensure-entry-ids.mjs",
-                );
-                if (!fs.existsSync(scriptPath)) { resolve(); return; }
-                const resourcesDir = getResourcesDir();
-                if (!fs.existsSync(resourcesDir)) { resolve(); return; }
-                const nodeExe = process.platform === "win32" ? "node.exe" : "node";
-                const child = spawn(nodeExe, [scriptPath, resourcesDir], {
-                    stdio: "ignore",
-                    env: process.env,
-                });
-                const fallback = setTimeout(() => {
-                    killTree(child);
-                    resolve();
-                }, 10_000);
-                fallback.unref();
-                child.on("error", () => {
-                    clearTimeout(fallback);
-                    try {
-                        const retry = spawn(process.execPath, [scriptPath, resourcesDir], {
-                            stdio: "ignore",
-                            env: process.env,
-                        });
-                        retry.on("error", () => resolve());
-                        retry.on("close", () => resolve());
-                    } catch { resolve(); }
-                });
-                child.on("close", () => {
-                    clearTimeout(fallback);
-                    resolve();
-                });
-            } catch (err) {
-                aftcConsole.logError(`[aftc-toolset] codex ensure-ids spawn error: ${(err as Error).message}`);
-                resolve();
-            }
-        });
-    }
-
-    function runLiveToSeedSync(apply: boolean): Promise<string> {
-        return spawnCodexScript("live-to-seed-sync.mjs", apply ? ["--apply"] : [], "live-to-seed");
-    }
-
-    function runSeedToLiveSync(): Promise<string> {
-        return spawnCodexScript("seed-to-live-sync.mjs", [], "seed-to-live");
-    }
-
-    /** Shared spawn+capture for the codex sync scripts (arg array, no shell,
-     *  `node` on PATH with a process.execPath retry, 30s tree-kill timeout,
-     *  resolves captured stdout — "" when the script is missing/never ran). */
-    function spawnCodexScript(scriptName: string, extraArgs: string[], tag: string): Promise<string> {
-        return new Promise<string>((resolve) => {
-            const finish = (out: string): void => resolve(out);
-            try {
-                const scriptPath = path.join(
-                    getPackageRoot(), "extensions", "aftc-toolset", "aftc-codex",
-                    "scripts", scriptName,
-                );
-                if (!fs.existsSync(scriptPath)) { finish(""); return; }
-                const args = [scriptPath, ...extraArgs];
-                const nodeExe = process.platform === "win32" ? "node.exe" : "node";
-                const spawnArgs = { env: process.env };
-                const collect = (child: ReturnType<typeof spawn>): void => {
-                    let out = "";
-                    child.stdout?.on("data", (d) => { out += String(d); });
-                    child.stderr?.on("data", (d) => { out += String(d); });
-                    const timeout = setTimeout(() => {
-                        killTree(child);
-                        finish(out + `\n[${tag}] timed out (30s)`);
-                    }, 30_000);
-                    timeout.unref();
-                    child.on("error", () => finish(out));
-                    child.on("close", () => {
-                        clearTimeout(timeout);
-                        finish(out);
-                    });
-                };
-                let child: ReturnType<typeof spawn>;
-                try {
-                    child = spawn(nodeExe, args, spawnArgs);
-                } catch {
-                    child = spawn(process.execPath, args, spawnArgs);
-                }
-                // `node` not on PATH -> retry once with the running executable.
-                child.once("error", () => {
-                    try { collect(spawn(process.execPath, args, spawnArgs)); }
-                    catch { finish(""); }
-                });
-                collect(child);
-            } catch (err) {
-                aftcConsole.logError(`[aftc-toolset] ${tag} spawn error: ${(err as Error).message}`);
-                finish("");
-            }
-        });
-    }
-
     return {
         getRoot,
         getResourcesDir,
         getSeedDir,
-        getSeedResourcesDir,
         isSeeded,
         seed,
         ensureSeeded,
@@ -692,9 +532,17 @@ export function createCodexStore(): CodexStore {
         getCounts,
         getCategoryCount,
         runSyncScript,
-        runEnsureIds,
-        runLiveToSeedSync,
-        runSeedToLiveSync,
     };
 }
 
+/** Read the package.json version ("" when unreadable). */
+export function readPackageVersion(): string {
+    try {
+        const pkgPath = path.join(getPackageRoot(), "package.json");
+        const raw = fs.readFileSync(pkgPath, "utf8");
+        const parsed = JSON.parse(raw) as { version?: unknown };
+        return typeof parsed.version === "string" ? parsed.version : "";
+    } catch {
+        return "";
+    }
+}

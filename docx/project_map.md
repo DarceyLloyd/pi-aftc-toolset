@@ -66,11 +66,11 @@ pi-aftc-toolset (pi extension package v1.20.2)
 |  |     |- 1.6.10.3 SFTP & port forwarding (sftp_ops.py, port_forward.py)
 |  |     \- 1.6.10.4 Safety (keys.py, redaction.py, errors.py)
 |  |- 1.7 aftc-codex knowledge base (aftc-codex/)                  module
-|  |  |- 1.7.1 Store, seeding & version lifecycle (aftc-codex.ts, codex-store.ts, codex-compat.ts, codex-sync.ts)
+|  |  |- 1.7.1 Store, seeding & version lifecycle (aftc-codex.ts, codex-store.ts)
 |  |  |- 1.7.2 System-prompt injection & detection (codex-inject.ts, codex-detect.ts)
 |  |  |- 1.7.3 Commands (/aftc-codex-* menus & commands)
 |  |  |- 1.7.4 Model tools (codex_load/add/edit/remove)
-|  |  \- 1.7.5 Learn & live-to-seed scripts (codex-learn.ts, scripts/)
+|  |  \- 1.7.5 Learn & resource-list script (codex-learn.ts, scripts/)
 |  |- 1.8 docx documentation generator (docx/)                     module
 |     |- 1.8.1 /docx command & flow (docx.ts)
 |     |- 1.8.2 Backup (docx-backup.ts)
@@ -89,8 +89,7 @@ pi-aftc-toolset (pi extension package v1.20.2)
 |  |- 2.2 Bundled skills (skills/)
 |  |- 2.3 Bundled themes (themes/)
 |  \- 2.4 Release & maintainer scripts (shipit.ps1, backup.ps1, clear-docker.bat)
-\- 3 Tests (tests/ - not committed; usage rules in AGENTS.md)         module
-\- 4 Project website & feedback (dev.aftc.uk/)                      module
+\- 3 Project website & feedback (dev.aftc.uk/)                      module
 ```
 
 ## Annotations
@@ -107,11 +106,10 @@ pi-aftc-toolset (pi extension package v1.20.2)
 | 1.8 | docx documentation generator | `module` | [1.8_docx_documentation.md](1_extension_source/1.8_docx/1.8_docx_documentation.md) | [1.8_docx_map.md](1_extension_source/1.8_docx/1.8_docx_map.md) | done |
 | 1.9 | Sub-agents (007) | `module` | [1.9_subagents_documentation.md](1_extension_source/1.9_subagents/1.9_subagents_documentation.md) | [1.9_subagents_map.md](1_extension_source/1.9_subagents/1.9_subagents_map.md) | done |
 | 2 | Packaging & shipped assets | `module` | [2_packaging_documentation.md](2_packaging/2_packaging_documentation.md) | [2_packaging_map.md](2_packaging/2_packaging_map.md) | done |
-| 3 | Tests | `module` | [3_tests_documentation.md](3_tests/3_tests_documentation.md) | — | done |
 | 4 | Project website & feedback | `module` | [4_project_website_documentation.md](4_project_website_documentation.md) | — | done |
 
 Leaf-node annotations (1.1, 1.2, 1.3.x, 1.4.x, 1.5.x, 1.6.x, 1.6.10.x,
-1.7.x, 1.8.x, 2.x, 3.x) live in the owning sub-map listed above.
+1.7.x, 1.8.x, 2.x) live in the owning sub-map listed above.
 
 ### Status legend
 
@@ -130,7 +128,7 @@ Leaf-node annotations (1.1, 1.2, 1.3.x, 1.4.x, 1.5.x, 1.6.x, 1.6.10.x,
 
 ## Index By Kind
 
-- Modules: 1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 3, 4
+- Modules: 1, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2, 4
 - Sub-projects: 1.6.10 (Python SSH carrier)
-- Containers: none (test-only Docker lives in the tests/ folder)
-- Dev tools: Docker containers of the Linux gates — see [development.md](development.md)
+- Containers: none
+- Dev tools: none (clear-docker.bat remains for manual Docker cleanup)

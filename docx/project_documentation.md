@@ -27,7 +27,8 @@ extension loader (jiti — TypeScript at runtime, no build step), and it adds:
   ops) and a full-screen interactive terminal — credentials never reach the
   model context.
 - **aftc-codex**: an opt-in, self-educating knowledge base injected into the
-  system prompt with `codex_load`/entry tools.
+  system prompt with `codex_load`/entry tools (ships only the core rules +
+  guidance; the topic resources are user-generated).
 - **/docx + /docx-update**: a documentation generator (the feature that
   produced this doc set) and its reconcile-only update mode.
 - **Sub-agents (007)**: delegate focused work to isolated child pi processes,
@@ -54,7 +55,7 @@ and it never exposes SSH credentials to the model.
 | SSH carrier | Python + `paramiko` (uv-locked sidecar) | Python >=3.10; paramiko >=3.4.0,<4.0.0; aftc-ssh-sidecar 0.1.0 |
 | Report charts | Chart.js bundled in the shipped usage-report app (no CDN) | 4.4.7 |
 | Audio playback | bundled miniaudio binary (`extensions/aftc-toolset/bin/play_sound-win-x64.exe`, C source shipped) | n/a |
-| Tests | plain Node ESM scripts + jiti; Docker/Compose for SSH + Linux gates | n/a |
+| Tests | none (removed — hands-on Windows verification only) | n/a |
 
 ## Lite project map
 
@@ -65,8 +66,7 @@ pi-aftc-toolset
 |    1.6 SSH (+1.6.10 Python carrier sub-project) · 1.7 aftc-codex · 1.8 docx
 |    1.9 Sub-agents (007)
 |- 2 Packaging & shipped assets (data, skills, themes, release scripts)
-|- 3 Tests (tests/)
-\- 4 Project website & feedback (dev.aftc.uk/)
+\- 3 Project website & feedback (dev.aftc.uk/)
 ```
 
 The FULL tree of every node lives only in [project_map.md](project_map.md).
@@ -248,21 +248,22 @@ its folder is read-only for docs.
 
 ### 1.7 - aftc-codex knowledge base
 
-Opt-in knowledge base: ships a seed (`data/aftc-codex/`), maintains a live
-per-user copy in the data dir, injects rules/guidance/resource list into the
-system prompt, and gives the model `codex_load` + entry write tools. Off by
-default; fail-soft; never destroys user data.
+Opt-in knowledge base: ships only the core rules + guidance (no topic
+resources); maintains a live per-user copy in the data dir (the topic
+`resources/` tree is user-generated); injects rules/guidance/resource list
+into the system prompt, and gives the model `codex_load` + entry write
+tools. Off by default; fail-soft; never destroys user data.
 
 > Only read the following files if you need to work on aftc-codex features of
 > this project, or if requested by the user or aftc codex:
 > `./docx/1_extension_source/1.7_aftc_codex/1.7_aftc_codex_documentation.md` and
 > `./docx/1_extension_source/1.7_aftc_codex/1.7_aftc_codex_map.md`.
 
-#### 1.7.1 Store, seeding & version lifecycle — store, seed/live versions, compat guard, sync core. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.1_store_lifecycle.md`.
+#### 1.7.1 Store, seeding & version lifecycle — store, fixed-doc seeding, installed-version refresh. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.1_store_lifecycle.md`.
 #### 1.7.2 Injection & detection — system-prompt injection, rules-only mode, stack auto-detect/pinning. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.2_injection.md`.
 #### 1.7.3 Commands & menus — `/aftc-codex-*` commands + settings menus. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.3_commands.md`.
 #### 1.7.4 Model tools — codex_load + the entry write tools and their guards. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.4_tools.md`.
-#### 1.7.5 Learn & live-to-seed scripts — /codex-learn + the 4 shipped scripts. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.5_learn_sync_scripts.md`.
+#### 1.7.5 Learn & resource-list script — /codex-learn + the resource-list script. Only read `./docx/1_extension_source/1.7_aftc_codex/1.7.5_learn_sync_scripts.md`.
 
 ### 1.8 - docx documentation generator
 
@@ -318,19 +319,15 @@ seed→live flow inputs (consumed by 1.7) and the npm artifact shape.
 > `./docx/2_packaging/2_packaging_documentation.md` and
 > `./docx/2_packaging/2_packaging_map.md`.
 
-#### 2.1 Shipped data — extension-config.json (codexVersion), codex seed, audio MP3s, intro assets, play_sound binary. Only read `./docx/2_packaging/2.1_shipped_data.md`.
+#### 2.1 Shipped data — extension-config.json, codex fixed docs, audio MP3s, intro assets, play_sound binary. Only read `./docx/2_packaging/2.1_shipped_data.md`.
 #### 2.2 Bundled skills — the 34 shipped pi skills. Only read `./docx/2_packaging/2.2_skills.md`.
 #### 2.3 Bundled themes — aftc-black-n-blue, aftc-orange-viz, cache-viz. Only read `./docx/2_packaging/2.3_themes.md`.
 #### 2.4 Release & maintainer scripts — ship-it.bat, shipit.ps1, backup.ps1, clear-docker.bat + release discipline. Only read `./docx/2_packaging/2.4_release.md`.
 
-## 3 - Tests (tests/)
+## 3 - Tests (removed)
 
-All test suites live in `tests/` at the repo root (gitignored, NEVER
-committed). How to run and use them - which suites, timeout rules, the
-full-suite policy, the Linux verification cycle - lives in AGENTS.md.
-
-> Only read `./docx/3_tests/3_tests_documentation.md` if you need the
-> (intentionally minimal) tests node; it contains no suite details by design.
+The `tests/` directory has been removed — this project has no automated
+test suites. Verification is hands-on on Windows (see AGENTS.md).
 
 ## 4 - Project website & feedback (dev.aftc.uk/)
 
@@ -453,7 +450,7 @@ ONLY that doc; do not follow these links for areas you are not working on.
 
 ### Branch 3 — Tests
 
-- [3_tests/3_tests_documentation.md](3_tests/3_tests_documentation.md) - ID 3 (minimal: tests live in `tests/`, usage rules in AGENTS.md)
+- Tests were removed (no automated suites) — verification is hands-on on Windows (AGENTS.md).
 
 ### Branch 4 — Project website & feedback
 

@@ -5,9 +5,8 @@ Persistent configuration for the extension. One file, one concern:
 - `config.json` - cross-session extension configuration that persists forever.
   Holds: footer timeframe, footer on/off, response divider on/off,
   think-tag processing, startup animation, and the aftc-codex
-  knowledge-base preferences (`aftcCodex*` — master switch, guidance
-  inject, auto-load, seeded
-  flag; off by default).
+  knowledge-base preferences (`aftcCodex*` — feature switch, guidance
+  inject, auto-load, installed version; off by default).
   Read FRESH FROM DISK on every access (no in-memory cache — see
   "No in-memory cache" below). Survives `/reload`, `/new`, fresh pi
   startup, and machine reboot.
@@ -71,11 +70,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     aftcCodexEnabled: false,        // feature on/off (off by default)
     aftcCodexInjectGuidance: true,  // inject thought-and-action-guidance.md
     aftcCodexAutoLoad: true,        // auto-detect techs + fetch their docs
-    aftcCodexSeeded: false,         // first-run seed choice done
-    aftcCodexAutoSync: true,        // merge a newer shipped seed into live on pi start
-    aftcCodexVersion: 0,            // live codex version (vs shipped data/extension-config.json)
-    aftcCodexResourceVersion: 0,    // live layout version (0=legacy, 1=v1 tree)
-    aftcCodexCloudContribution: true, // silently post newly-added entries to the public curation inbox
+    aftcCodexInstalledVersion: "",  // package version the fixed docs were last copied from
     aftcCodexAutoInsertAgentsEnabled: false, // allow the AI to auto-insert the codex load list into AGENTS.md (off by default)
     runScriptEnabled: true,          // run_script tool (off = tool absent)
     backgroundTerminalsEnabled: false, // bg_* tools + /bt family (off by default)
@@ -128,8 +123,8 @@ stale values after the user hand-edits config.json — worse, the next
 `setPreference` would flush the stale cache back and silently clobber
 those edits. The file is tiny and local; reading it each time is
 free. The same rule applies to the shipped
-`data/extension-config.json` (read fresh by codex-compat.ts).
-Full contract: `docx/docs/1.2_orchestrator_core_documentation.md`.
+`data/extension-config.json`.
+Full contract: `docx/1_extension_source/1.2_core_infrastructure_documentation.md`.
 
 ## SSH connection records
 

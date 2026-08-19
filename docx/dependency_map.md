@@ -29,7 +29,7 @@ Process/component dependencies and startup order:
 | 1.5.19 fd + rg | system fd/rg binaries | PATH probe (`--version`) on first use; clear install hint when absent |
 | 1.6.1 | 1.6.2 `SshSessionManager` | all commands/tools |
 | 1.6.2 | 1.6.10 carrier | lazy spawn `uv run --locked … python -m aftc_ssh_carrier`; ready handshake ≤15 s; reaped 30 s after last session; terminated on session_shutdown |
-| 1.7 (all) | 1.7.1 store | live copy `<dataDir>/aftc-codex` + seed under `data/` |
+| 1.7 (all) | 1.7.1 store | live copy `<dataDir>/aftc-codex` + seed under `data/` (3 fixed docs) |
 | 1.5.3 installer | npm + uv | installs 1.2 db binding + 1.6.10 env |
 | 1.8.1 /docx + /docx-update | 1.8.2 backup | backup errors abort BEFORE the model runs |
 | 1.9.6 subagent tool | 1.9.5 supervisor | schedules runs; one foreground run per tool call |
@@ -52,11 +52,11 @@ Host path base: `<dataDir>` = `%APPDATA%\pi-aftc-toolset\data` (override
 | `<dataDir>/turns.db` | 1.4.4 (turns/tasks/errors/tool_errors) | 1.4.1 (timeframe stats), 1.4.5 (report) |
 | `<dataDir>/usage-report/` (app folder + generated `data.json`) | 1.4.5 | browser via local server |
 | `<dataDir>/debug.log` | 1.3.1 | user |
-| `<dataDir>/aftc-codex/**` | 1.7.1 seeding/sync + 1.7.4 entry tools | 1.7.2 injection, 1.7.4 codex_load |
+| `<dataDir>/aftc-codex/**` | 1.7.1 seeding/refresh + 1.7.4 entry tools | 1.7.2 injection, 1.7.4 codex_load |
 | `<dataDir>/subagents-config.json` | 1.9.1 | 1.9.x (fresh read on every access) |
 | `<dataDir>/subagents/agents/**` | 1.9.2 seed/sync/reset | 1.9.2 catalog, 1.9.6 spawn |
 | `<dataDir>/subagents/runs/<id>/**` | 1.9.5 (meta, transcript, report) | 1.9.7 status UI |
-| `<package>/extensions/aftc-toolset/data/**` (seed) | 1.7.5 live-to-seed (maintainer) | 1.7.1 seeding/sync (read), 1.9.2 agent seed (read) |
+| `<package>/extensions/aftc-toolset/data/**` (seed) | — (source only) | 1.7.1 seeding/refresh (read), 1.9.2 agent seed (read) |
 | `<package>/extensions/aftc-toolset/docx/**` | maintainers | 1.8.1 prompt assembly (read) |
 
 ## 3. Build-output contract
@@ -65,7 +65,7 @@ Host path base: `<dataDir>` = `%APPDATA%\pi-aftc-toolset\data` (override
 | --- | --- | --- | --- |
 | npm pack/publish (2.4, `.npmignore`) | npm artifact | everything shipped | never ships `.env`, credentials, dev folders; carrier SOURCE included (npm-package-check asserts) |
 | /docx generation (1.8) | target project's `docx/` + README | generated docs | AGENTS.md (edit in place), code-adjacent partner readmes (backup skips them) |
-| `sync-codex-resources.mjs` | live `codex-resource-list.md` | the generated list | never copies it into the seed (1.7.5) |
+| `sync-codex-resources.mjs` | live `codex-resource-list.md` | the generated list | never copies it into the seed |
 | zip-old.mjs | `docx/backups/<labelled timestamp>.zip` | the zip | deletes `old_docs/` only after the zip entry count verifies |
 
 ## 4. Feature trace matrix
@@ -76,7 +76,7 @@ Host path base: `<dataDir>` = `%APPDATA%\pi-aftc-toolset\data` (override
 | Subscription allowance | 1.4.2 line 5 | — (event-driven) | 1.4.3 in-memory snapshot |
 | Usage report | 1.4.5 tabs | `/usage-report`, `/usage-clear` | 1.4.4 turns/tasks/errors/tool_errors, `usage-report/` app + `data.json` |
 | SSH | 1.6.5–1.6.9 | 1.6.1 (16 cmds + 20 tools) | 1.6.3 ssh.json |
-| aftc-codex | 1.7.3 menus | 1.7.3 commands, 1.7.4 tools | 1.7.1 live copy + seed (2.1), config prefs |
+| aftc-codex | 1.7.3 menus | 1.7.3 commands, 1.7.4 tools | 1.7.1 live copy + 3 fixed-doc seed (2.1), config prefs |
 | docx generator | 1.8.1 modals | `/docx`, `/docx-update` | target project docx/ (not this package) |
 | Sub-agents (007) | 1.9.7 menus/status/kill | `subagent` tool, `/007` family | 1.9.1 config, 1.9.2 live agents + seed (2.1), 1.9.5 run records; spend in-memory only |
 | Audio notifications | 1.5.4 hub | `/aftc-audio-notifications`, `/aftc-notify-time` | 1.2 config prefs; assets 2.1 |

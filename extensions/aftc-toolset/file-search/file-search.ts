@@ -244,6 +244,7 @@ const FD_PROMPT_SNIPPET = "Find files and directories by name with fd (fast, git
 const FD_PROMPT_GUIDELINES = [
     "Use fd as the primary tool for discovering files and directories by name, extension, or glob instead of bash with find or ls -R.",
     "Use rg instead of fd when searching file contents rather than file names.",
+    "Omit fd's pattern to list everything under a path — do not pass '*' as a regex (it is a quantifier and fails). Use glob:true for filename globs like '*.ts'.",
     "Keep using bash for complex multi-step workflows that pipe or post-process file listings.",
 ];
 
@@ -256,6 +257,14 @@ const RG_PROMPT_GUIDELINES = [
     "Set fixed_strings on rg when searching for literal code snippets containing regex metacharacters.",
     "Keep using bash for complex multi-step workflows that combine searching with other commands.",
 ];
+
+/** Extra line appended to a failed fd/rg run so the model can recover. */
+export function searchFailureHint(tool: SearchTool, stderr: string): string {
+    if (!/regex parse|error parsing|invalid regex/i.test(stderr)) return "";
+    return tool === "fd"
+        ? "Hint: fd pattern is a regex by default. Omit it to list everything, or set glob=true for filename globs like '*.ts'."
+        : "Hint: rg pattern is a regex. Set fixed_strings for literal text, or escape metacharacters.";
+}
 
 export function createFileSearch(pi: ExtensionAPI): void {
     registerHelpEntry({
@@ -305,7 +314,8 @@ export function createFileSearch(pi: ExtensionAPI): void {
         }
         if (result.code !== 0) {
             const detail = result.stderr.trim() || `exit code ${result.code}`;
-            throw new Error(`${tool} failed: ${detail}`);
+            const hint = searchFailureHint(tool, detail);
+            throw new Error(hint ? `${tool} failed: ${detail}\n${hint}` : `${tool} failed: ${detail}`);
         }
         const trimmed = result.stdout;
         if (trimmed === "") return tool === "fd" ? "No files found." : "No matches found.";
@@ -320,7 +330,7 @@ export function createFileSearch(pi: ExtensionAPI): void {
         promptGuidelines: FD_PROMPT_GUIDELINES,
         parameters: Type.Object({
             pattern: Type.Optional(Type.String({
-                description: "Regex matched against file names (or a glob when glob is true). Omit to list everything under path.",
+                description: "Regex matched against file names (or a glob when glob is true). Omit to list everything under path. A bare '*' also lists everything; patterns like '*.ts' are treated as globs.",
             })),
             path: Type.Optional(Type.String({
                 description: "Directory to search. Defaults to the current working directory.",

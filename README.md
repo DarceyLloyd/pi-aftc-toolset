@@ -16,162 +16,6 @@
 
 
 
-## **Description**
-This is an extension for pi (pi.dev) which helps me in my everyday work. If there's something I feel I need I usually bolt it on.
-
-- **AFTC Codex (PI Skills on steroids) (/codex)**
-  
-  Self learning, self loading (manual also), cache aware resource (like skills) to better one-shot those complex tasks and to stop the AI model from making the same mistakes over and over and over.
-  
-  **Click here for more information** → [AFTC Codex section](#aftc-codex-pi-skills-on-steroids---codex-knowledge-base)
-
-- **DocX (/docx)**
-  
-  Will back up your old documentation (if you have any) and generate a hierarchical load on demand, AI and human friendly documentation and maps for each part of your project. Just added /docx-update to keep your documentation updated.
-  
-  **Click here for more information** → [DocX section](#docx-project-documentation-generator)
-
-- **SSH (/ssh-*)**
-  
-  Full and isolated SSH for pi, saved connections, slash commands for you, 20 tools for the AI model and a full-screen interactive terminal. Runs through a packaged Python carrier, opens no listening sockets, and your credentials never reach the model.
-  
-  **Click here for more information** → [SSH section](#ssh)
-
-- **Audio Notifications (/aftc-notifications) (Beta 2)**
-  
-  I didn't think it would be useful, I started programming it as some fun, but it turns out I use it all the time now. What do you get? You get to choose from a set list of MP3s for different spoken sequences for startup, question, task complete, error and aborted (questions when detected by pi), there are also context notifications for 25%, 50% and 75%, feel free to add your own, restart pi or /reload and they will be shown.
-  
-  **Click here for more information** → [Audio notifications section](#audio-notifications)
-
-- **AFTC Resume (/aftc-resume-save /aftc-resume)**
-  
-  Hand work off between context windows: `/aftc-resume-save` saves the current knowledge and work state to `aftc-resume.md` (an existing handoff is kept as a timestamped snapshot), then `/new` + `/aftc-resume` restore that knowledge in a fresh window - the model re-loads its codex resources, reads its key files plus both docx docs (project_documentation.md + project_map.md if available) and AGENTS.md, confirms it is up to speed, and waits for your direction (it does not continue the saved task on its own - tell it to pick the work back up if you want that). Save your context window, just because you may have 1M context window, it doesn't mean you should use it all. **If you use 30%+ on Kimi K3 kiss goodbye to your 5 hour and weekly allowance fast (K3 is good but I don't recommend it for this reason), /aftc-resume was created to help with this issue.**
-  
-  **Click here for more information** → [AFTC Resume section](#aftc-resume-aftc-resume-save-aftc-resume)
-
-- **Usage Report (/usage-report)**
-  
-  Records metrics for every assistant turn (never your prompts) into a local SQLite database, then generates and serves a web report - cost, cache hit rates, task times, context pressure and error rates, with best/worst model verdicts across selectable periods. All your data stays on your machine.
-  
-  **Click here for more information** → [Usage report section](#usage-report)
-
-- **Footer Widget (/aftc-footer)**
-  
-  A themed dashboard bar under the editor showing live model, context, cache and cost info, plus long-term averages and subscription quota countdowns for supported providers.
-  
-  **Click here for more information** → [Footer widget section](#footer-widget)
-
-- **run_script**
-  
-  A model tool for running large or multi-line shell scripts reliably - the script is written to a temp file first, working around a pi bug that silently truncates big inline bash commands.
-  
-  **Click here for more information** → [run_script section](#run_script-reliable-large-scripts)
-
-- **Background Terminals (/bt)**
-
-  Start long-running shell commands in the background (dev servers, watchers, builds) and keep working. The model gets `bg_start` / `bg_status` / `bg_list` / `bg_kill`; you get `/bt` — a scrollable list where Enter stops a terminal (with a yes/no confirm) and a top row stops them all. No stdin, session-scoped, off by default.
-
-  **Click here for more information** → [Background terminals section](#background-terminals-bt)
-
-- **Copy All (/copy-all)**
-
-  Copy every user and assistant message in the current thread to the clipboard (thinking excluded, bounded to 2 MB).
-
-  **Click here for more information** → [Copy all section](#copy-all-copy-all)
-
-- **File Search (fd + rg)**
-
-  Fast, gitignore-aware file discovery and content search over the Rust `fd` and `ripgrep` binaries - replacing the error-prone `find` / `grep` one-liners.
-
-  **Click here for more information** → [File search section](#file-search)
-
-- **Sub Agents (/007 Alpha 1)**
-  
-  Delegate work to your own custom AI agents (planner, researcher, worker - whatever you build). Off by default, enable it via /007 > settings and create your own agents from the agents folder. NOTE: This is an ALPHA 1 release.
-  
-  **Click here for more information** → [Sub Agents section](#sub-agents-007)
-
-
---- 
-<br>
-
-
-
-
-## **WHATS NEW**
-
-### **FILE SEARCH (fd + rg) + TOOL-ERROR TRACKING**
-
-Two new model tools - `fd` (find files by name) and `rg` (ripgrep content
-search) - shell out to the fast, cross-platform Rust binaries instead of
-the `find`/`grep` one-liners models get wrong. The usage report Errors tab
-gains a "Tool errors" section (below the provider failures): every failed
-tool call (wrong args, stale edit anchors, bad regex, missing files,
-timeouts) is classified and recorded, and repeated mistakes are highlighted.
-
-### **BACKGROUND TERMINALS (/bt)**
-
-Start long-running commands in the background (dev servers, watchers,
-builds) and keep working. The model gets `bg_start`/`bg_status`/`bg_list`/
-`bg_kill`; you get `/bt` — a scrollable list of running terminals where
-Enter stops one (yes/no confirm) and the top row stops them all. No stdin,
-session-scoped, off by default (`/bt-on` + `/reload` to enable).
-
-### **COPY ALL (/copy-all)**
-
-Copy every user and assistant message in the current thread to the
-clipboard (max 2 MB).
-
-### **USAGE REPORT UPDATED**
-
-The usage report has been refreshed. The Overview now opens with an
-all-time usage summary — six headline cards (total cost, cost per task,
-user prompts, your User/AI prompt ratio, the worst token burner and
-average cache hit) — above the spend charts and a six-window period
-summary. Costs Per Model adds a Provider column so models with the same
-name from different providers are told apart, plus verdict badges calling
-out the best and worst per metric. New Context & allowance and Errors tabs
-show context-window pressure, subscription allowance usage and failed
-calls. Every tab's period selector remembers your last choice. Extra
-details are now recorded per turn (provider, tool use, prompt and
-response size) to power these views.
-
-### **AFTC CODEX (PI Skills on steroids): /codex-list + /codex-load**
-
-Two new ways to browse and load codex resources. `/codex-list` opens a
-full-screen scrollable list of every available resource (type to filter,
-Documentation & Planning pinned at the top). `/codex-load` opens the same
-picker; Enter picks a resource and the AI loads it into the chat right
-away - the same as telling it "codex load <resource>" (works even in
-rules-only / un-prepped sessions).
-
-### **AFTC RESUME (/aftc-resume-save /aftc-resume)**
-
-Hand work off between context windows so a fresh session can continue without
-re-deriving what was already worked out. `/aftc-resume-save` stops the current
-work and has the model write `aftc-resume.md` - goal, current state, decisions
-made, knowledge learned, key files, tasks & progress (referencing tasks.md if
-you follow one), next steps and open questions. An existing handoff is first
-renamed to a timestamped snapshot (`aftc-resume-<last-modified>.md`), so
-nothing is ever overwritten. Then `/new` + `/aftc-resume` restore that
-knowledge in a fresh window: the model reads the handoff, re-loads the codex
-resources it lists (codex on), reads the project's docx docs and AGENTS.md,
-confirms it is up to speed, and waits for your direction (it does not continue
-the saved task on its own - tell it to pick the work back up if you want
-that). Codex resources are tracked automatically; the flow works with codex
-on or off. The `/new` is always yours - the toolset never starts a session on
-its own.
-
-### **DocX gets "/docx-update" to maintain generated DocX project documentation (BETA 1)**
-
-Stop the drift! You know AI models even when instructed wont do it right, so /docx-update
-is here to help keep your documentation up to date. It will backup the previous version of docx,
-just in case.
-
---- 
-<br>
-
-
 ## **Install**
 
 ```bash
@@ -351,10 +195,14 @@ host/port/key diagnostics ever reach the model.
 
 ## **aftc-codex (PI skills on steroids - codex knowledge base)**
 
-An OPT-IN, self-educating knowledge base: the maintainer's unified rules +
-thinking guidance + a generated resource list ride your system prompt, and
-the model fetches topic docs on demand with `codex_load` (aliases: ts, py,
-js; specials: rules, guidance, list, markdown).
+An OPT-IN, self-educating knowledge base: the core rules + thinking
+guidance + a generated resource list ride your system prompt, and the model
+fetches topic docs on demand with `codex_load` (aliases: ts, py, js;
+specials: rules, guidance, list, markdown). It ships with only the core
+rules and guidance - no ready-made topic docs. The knowledge base is yours
+to build: as you work it learns your usage patterns and the kinds of
+projects you build, so it adapts to you rather than inheriting the
+extension author's habits and AI-usage style.
 
 **Context cost - what you should know before enabling:**
 
@@ -374,20 +222,11 @@ js; specials: rules, guidance, list, markdown).
   your use of the codex skills.
 
 - `/codex` - settings menu (enable, guidance inject, auto-detect & load,
-  auto-sync on startup, cloud contribution, resources & updates).
-- **Cloud codex contribution (on by default)** - when the AI records a new
-  codex entry (`codex_add_entry`), a copy is silently submitted in the
-  background to the maintainer's curation inbox so the best lessons can be
-  included in future releases. Nothing is shown in the chat, nothing is
-  logged, and it only ever fires when the AI adds an entry. **Turn it off**
-  with `/codex` → *Cloud Codex Resource Contribution* → **No** (it's on by
-  default because it costs nothing and nobody would ever turn it on
-  themselves).
-- `/codex-enable` / `/codex-disable` - first enable asks: **Pre-trained**
-  (rules + all shipped topic docs) or **Fresh Start**.
+  auto insert of the codex stack into AGENTS.md, resources & updates).
+- `/codex-enable` / `/codex-disable` - turn the knowledge base on/off.
 - `/codex-init` / `/codex-refresh` - prep the session (auto-detects your
   project's stack and loads the relevant docs) / strip + re-prep.
-- `/codex-status` - state, resource counts, version row.
+- `/codex-status` - state and resource counts.
 - `/codex-list` - scrollable full-screen list of every available codex
   resource (first item highlighted, ↑/↓ to move, type to filter; the
   Documentation & Planning guide is pinned at the top; headless prints).
@@ -396,18 +235,18 @@ js; specials: rules, guidance, list, markdown).
   away - works even in rules-only /
   un-prepped sessions (it's the same as telling the AI "codex load
   <resource>").
-- `/codex-sync` - NON-DESTRUCTIVE update: merges new shipped content into
-  your live codex; learned entries are never touched.
-- `/codex-install` - wipe + fresh re-seed.
+- `/codex-install` - wipe the codex and restore the shipped basics (rules
+  + guidance; your resources folder starts empty).
 - `/codex-learn` - record durable lessons via the `codex_add_entry` /
   `codex_edit_entry` / `codex_remove_entry` tools (IDs generated, formats
   validated, generality + secrets guards enforced).
 - `/codex-inject-rules` - session-only critical-rules injection (works
   even when disabled; cleared by `/new`).
 
-Your live copy lives in your data dir (`aftc-codex/`); the shipped seed is
-versioned (`codexVersion` 20) and merges forward automatically on startup
-when Auto Sync is on.
+Your live copy lives in your data dir (`aftc-codex/`). It ships with only
+the core rules + guidance - the topic docs are yours to build with
+`/codex-learn` (or `codex_add_entry`), and your resources are never touched
+by an update.
 
 ---
 
@@ -871,8 +710,7 @@ See the [SSH](#ssh) section for the full command reference, model tools, and wor
 See the [aftc-codex](#aftc-codex-knowledge-base) section - `/codex`,
 `/codex-enable`, `/codex-disable`, `/codex-init`, `/codex-refresh`,
 `/codex-status`, `/codex-list`, `/codex-load`, `/codex-install`,
-`/codex-sync`, `/codex-learn`,
-`/codex-inject-rules`, `/codex-live-to-seed` (maintainer, dev-gated) (+ `/aftc-codex-*` full names).
+`/codex-learn`, `/codex-inject-rules` (+ `/aftc-codex-*` full names).
 
 ### Providers
 
@@ -892,8 +730,7 @@ Currently **disabled** - pi now registers providers natively. The module stays i
 | SSH | Available (command-driven) |
 | Usage recording | Enabled (when SQLite installed) |
 | aftc-codex knowledge base | Disabled |
-| Codex guidance inject / auto-load / auto-sync | Enabled (once codex is on) |
-| Cloud codex contribution | Enabled (silent; toggle off in the /codex menu) |
+| Codex guidance inject / auto-load | Enabled (once codex is on) |
 | Audio notifications | Disabled (fresh installs silent) |
 | run_script tool | Enabled |
 | Background terminals | Disabled |
@@ -938,9 +775,9 @@ or install a pinned GitHub release:
 pi install git:github.com/DarceyLloyd/pi-aftc-toolset@v<version>
 ```
 
-Then `/reload` in pi. When an update ships new codex content, your live
-codex merges it automatically on startup (Auto Sync) - otherwise
-`/codex-sync` (non-destructive) or `/codex-install` (fresh) when prompted.
+Then `/reload` in pi. When an update ships new codex rules or guidance, the
+shipped copy is refreshed in your live codex automatically on startup - your
+own codex resources are never touched.
 
 ---
 
@@ -1049,8 +886,7 @@ pi-aftc-toolset
 |    UI framework · Footer/cache/usage · Feature modules
 |    SSH (+ Python carrier) · aftc-codex · docx generator · Sub Agents (007)
 |- 2 Packaging & shipped assets (data, skills, themes, release scripts)
-|- 3 Tests (tests/)
-\- 4 Project website & feedback (dev.aftc.uk/)
+\- 3 Project website & feedback (dev.aftc.uk/)
 ```
 
 ---
@@ -1071,7 +907,7 @@ committed, and the whole data dir is excluded from git and npm publishing.
 | `turns.db` | SQLite usage database (turns + tasks tables - metrics only, never prompt text) |
 | `usage-report/` | Seeded report web app + freshly generated `data.json` (your recorded usage) |
 | `debug.log` | Rotating `[aftc-toolset]` diagnostic log (5 MB cap + one `.old` generation) |
-| `aftc-codex/` | Your live codex knowledge base (seeded from the shipped copy; learned entries yours) |
+| `aftc-codex/` | Your live codex knowledge base (ships the core rules + guidance; the topic docs are yours to build) |
 | `subagents-config.json` | Sub Agents (/007) preferences: presets, concurrency, budgets, watchdogs |
 | `subagents/` | Your live sub-agents (seeded built-ins you can edit) + per-run records |
 

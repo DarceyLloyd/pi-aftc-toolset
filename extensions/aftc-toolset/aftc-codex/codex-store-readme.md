@@ -5,51 +5,44 @@ Pure data module — no pi imports, no event subscriptions, no commands.
 
 ## What it adds to the extension
 
-The "live copy" side of a strict **one-way** model (seed → live; the live copy is
-merged back into the seed only by the maintainer's dev-gated live->seed tool,
-and the seed never overwrites a USER-edited live file — untouched entries do
-follow shipped improvements):
+Owns the "live copy" side of the codex:
 
 - **Shipped seed (source only):** `<packageRoot>/extensions/aftc-toolset/data/aftc-codex/`
 - **User live copy (per-user):** `<dataDir>/aftc-codex/` (always — there is no
   override; `%APPDATA%\pi-aftc-toolset\data\aftc-codex\` on Windows). Survives
   `pi update`.
 
-The shipped seed mirrors the live-copy layout — seed `data/aftc-codex/<x>` maps
-1:1 to the live `<dataDir>/aftc-codex/<x>`; only its CONTENT is copied into the
-live codex root, and only when the live file does not already exist (copy-only).
+The seed ships ONLY the 3 fixed maintainer docs (`codex-rules.md`,
+`markdown-guidance.md`, `thought-and-action-guidance.md`). Those copy into the
+live codex root on first seed, and re-copy when the package version changes.
+The live `resources/` tree is entirely USER-generated (built with the codex
+entry tools) and is NEVER touched by the seed.
 
 ## Public API
 
 `createCodexStore()` returns a `CodexStore`:
 
 - `getRoot()` — the live codex root, always `<dataDir>/aftc-codex`.
-- `getResourcesDir()` / `getSeedDir()` / `getSeedResourcesDir()` — path helpers.
-- `isSeeded()` — true when the live copy has a `codex-rules.md` (reconciled
-  against reality, not just the pref).
-- `seed(mode)` — copy-only seed. `"pretrained"` copies the whole seed tree;
-  `"fresh"` copies only the top-level guidance files (rules + guidance) and
-  creates empty category folders. Never overwrites an existing file. Sets
-  `aftcCodexSeeded = true` AND records the shipped version into
-  `aftcCodexVersion` (any seed path leaves the live copy at the shipped
-  version, so the version bookkeeping lives here centrally) AND stamps
-  `aftcCodexResourceVersion = CODEX_RESOURCE_VERSION` (the shipped seed is the
-  v1 structural layout; legacy live copies are migrated by codex-migrate.ts,
-  never by seeding).
-- `ensureSeeded(mode)` — seed only if not already seeded.
+- `getResourcesDir()` / `getSeedDir()` — path helpers.
+- `isSeeded()` — true when the live copy has a `codex-rules.md`.
+- `seed()` — copy the 3 shipped fixed docs into the live copy (overwriting the
+  fixed docs, always the latest) + create the empty `resources/` dir + stamp
+  `aftcCodexInstalledVersion` to the package.json version. Never touches user
+  resources or the SQLite DB. Returns `{ copied }`.
+- `ensureSeeded()` — seed only if not already seeded.
 - `readResource(topic)` — resolve a topic across ALL category folders (flat
   AND nested one level deep, eg `ui-ux/web/web-app.md`) + loose root-level
-  topics (eg `documentation-and-planning.md`) + top-level guidance; fuzzy
-  aliases (`ts`→typescript, `py`→python, `js`→javascript,
-  `rules`/`guidance`/`list`/`markdown` specials); strips a leading `@`; drops a
-  trailing `.md`; supports explicit `category/name` and `category/sub/name`.
-  Returns `{ absPath, relPath, content }` or `null`.
+  topics + top-level guidance; fuzzy aliases (`ts`→typescript, `py`→python,
+  `js`→javascript, `rules`/`guidance`/`list`/`markdown` specials); strips a
+  leading `@`; drops a trailing `.md`; supports explicit `category/name` and
+  `category/sub/name`. Returns `{ absPath, relPath, content }` or `null`.
 - `listTopics()` — all valid topic names (basename without `.md`), sorted.
 - `listTopicPaths()` — every loadable topic as a `category/name` path
   (recursive incl. nested topics + loose root-level topics, excluding the
   generated resource list and the top-level always-on guidance files),
   sorted. Feeds `/codex-list` and the `/codex-load` picker.
-- `readRules()` / `readGuidance()` / `readList()` — read the always-on files.
+- `readRules()` / `readSeedRules()` / `readGuidance()` / `readList()` — read the
+  always-on files (seed rules is the fallback for rules-only mode when unseeded).
 - `listCategories()` — all category folders under `resources/` (known order
   first, extras sorted; only folders that exist). The known order
   (`CODEX_CATEGORIES`): languages, libraries, frameworks, engines, runtimes,
@@ -61,30 +54,11 @@ live codex root, and only when the live file does not already exist (copy-only).
 - `runSyncScript()` — spawn `node sync-codex-resources.mjs` to regenerate
   `codex-resource-list.md` (arg array, no shell; falls back to
   `process.execPath` if `node` is not on PATH; 10s watchdog). Never throws.
-  Callers: the resource-touching commands AND `codex_add_entry` (internally,
-  only when it creates a new topic file). The model never runs the script.
-- `runEnsureIds()` — spawn `node ensure-entry-ids.mjs <resourcesDir>` to add
-  missing unique `[ID]`s to the live resources. Never throws. Backstop for
-  hand-edits only — the codex entry tools generate IDs themselves.
-- `runLiveToSeedSync(apply)` — spawn `live-to-seed-sync.mjs` (dry run, or
-  `--apply` when `apply` is true) and return its captured stdout (`""` on
-  spawn failure; 30s watchdog). Maintainer-only: called by the dev-gated
-  `/codex-live-to-seed` command (1.7.8's command surface in codex-commands.ts).
-- `runSeedToLiveSync()` — spawn `seed-to-live-sync.mjs` (always applies; the
-  NON-DESTRUCTIVE seed -> live update) and return its captured stdout (`""`
-  on spawn failure; 30s watchdog). Called by `/codex-sync`. Both sync spawns
-  share one spawn+capture helper (arg array, no shell, `node` on PATH with a
-  `process.execPath` retry).
+  Callers: `codex_add_entry` (internally, only when it creates a new topic
+  file) and `/codex-learn`/Start Fresh. The model never runs the script.
 
-There is **no** drift detection, no `.sync.json`, no backup/restore in this
-module — the codex is a one-way seed->live copy, and user edits (e.g. via
-`/aftc-codex-learn`) live only in the live copy. "Start Fresh" / re-install
-simply delete the live copy and re-seed it; `/codex-sync` is the
-non-destructive alternative (entry-level merge by `[ID]`; entries the user
-never touched are updated to new shipped wording via the sync manifest
-`codex-live-manifest.json`, user-edited entries kept on conflict).
-
-Also exports `CODEX_CATEGORIES` and the `CodexStore` / `CodexResourceRead` /
+Also exports `readPackageVersion()` (the package.json version string, `""` when
+unreadable) and the `CODEX_CATEGORIES`, `CodexStore`, `CodexResourceRead`,
 `CodexCounts` types.
 
 ## Files persisted
@@ -92,6 +66,6 @@ Also exports `CODEX_CATEGORIES` and the `CodexStore` / `CodexResourceRead` /
 Under `<dataDir>/aftc-codex/`:
 
 - `codex-rules.md`, `thought-and-action-guidance.md`, `markdown-guidance.md` —
-  top-level guidance (seeded copy-only).
-- `resources/**` — the live knowledge base (seeded copy-only from the package).
+  top-level guidance (copied from the seed; refreshed on package-version change).
+- `resources/**` — the live knowledge base, entirely user-generated.
 - `resources/codex-resource-list.md` — auto-generated by `runSyncScript()`.

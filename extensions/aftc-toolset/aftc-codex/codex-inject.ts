@@ -89,7 +89,7 @@ const MARKER_CONTENT =
     "It is usually already in your context; if it is not, look for those files in the project " +
     "root and read the one that exists.\n" +
     "4. LAST STEP: if the entry point contains a docx section (an AFTC-DOCX block), follow its " +
-    "instructions and read the root documentation and map files (docx/project_documentation.md " +
+    "instructions and read (ONLY IF NOT ALREADY READ) the root documentation and map files (docx/project_documentation.md " +
     "and docx/project_map.md) immediately after completing step 1's codex resource discovery " +
     "and loading.";
 
@@ -117,7 +117,7 @@ export function createCodexInject(
     ctx: CodexContext,
     detect?: { detect(cwd: string): CodexDetectResult; resetCache(): void },
 ): CodexInjectApi {
-    const { pi, store, state, checkCompat } = ctx;
+    const { pi, store, state } = ctx;
 
 
     const boldWhite = (text: string, theme: any) => {
@@ -146,58 +146,12 @@ export function createCodexInject(
 
 
     // ---- entry renderer: fresh-session prep notice (registered once) ----
-    // This entry is DURABLE: pi re-renders it on every /reload and /resume,
-    // long after the append-time snapshot in entry.data was taken. NEVER render
-    // the snapshot blindly — derive from the CURRENT truth (the compat guard's
-    // fresh disk reads + live session state) on every paint:
-    //   - the out-of-date warning shows only while the guard STILL fails (an
-    //     auto-sync /codex-sync moments later flips it to a resolved line —
-    //     regression: the warning used to replay forever on /reload, and /new
-    //     "fixed" it only because a fresh session has no old entries);
-    //   - the "run /codex-init" nag shows only while the session is genuinely
-    //     un-prepped (a prepped session gets a one-line "active" note instead).
-    // compatSafeNow is TTL-cached (2s): renderers can fire per redraw frame and
-    // the guard does two small disk reads. Fail-soft: an error reads as SAFE —
-    // a renderer must never cry wolf.
-    let compatCache: { at: number; safe: boolean } | null = null;
-    const compatSafeNow = (): boolean => {
-        const now = Date.now();
-        if (compatCache && now - compatCache.at < 2000) return compatCache.safe;
-        let safe = true;
-        try { safe = checkCompat().isSafe; } catch { /* keep fail-soft default */ }
-        compatCache = { at: now, safe };
-        return safe;
-    };
-
+    // This entry is DURABLE: pi re-renders it on every /reload and /resume.
+    // The "run /codex-init" nag shows only while the session is genuinely
+    // un-prepped (a prepped session gets a one-line "active" note instead).
     pi.registerEntryRenderer(CODEX_PREP_NOTICE_ENTRY, (_entry, _opts, theme) => {
         const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
         box.addChild(new Text(theme.fg("accent", theme.bold("AFTC CODEX [PI Skills on steroids]" + randSpaces())), 0, 0));
-
-        let noticeData: { outOfSync?: boolean } = {};
-        try { noticeData = (_entry.data ?? {}) as { outOfSync?: boolean }; } catch { /* fail-soft */ }
-
-        // Out of date RIGHT NOW -> the warning (even if this entry was appended
-        // as a plain prep notice: a newer seed can land mid-session via update).
-        if (!compatSafeNow()) {
-            box.addChild(new Text(
-                theme.fg("warning", "WARNING: Your AFTC codex is outdated."),
-                0, 0,
-            ));
-            box.addChild(new Text(
-                "Run " + boldWhite("`/codex-sync`", theme) + " to update (keeps your learned entries) or " + boldWhite("`/codex-install`", theme) + " for a fresh copy.",
-                0, 0,
-            ));
-            return box;
-        }
-
-        // Appended as a warning, since resolved (auto-sync / manual /codex-sync).
-        if (noticeData.outOfSync === true) {
-            box.addChild(new Text(
-                theme.fg("accent", "Codex was synced — you are up to date now. Run " + boldWhite("`/codex-init`", theme) + " to prep the AI."),
-                0, 0,
-            ));
-            return box;
-        }
 
         // Session already live -> a one-line note, not the full prep nag.
         if (state.rulesOnly) {
@@ -380,9 +334,6 @@ export function createCodexInject(
 
             if (!getPreference("aftcCodexEnabled", false)) return null;
             if (!state.prepped || state.silent) return null;
-            // Version guard: an out-of-date live codex must not be injected —
-            // codex features pause until /codex-install wipes + re-seeds.
-            if (!checkCompat().isSafe) return null;
 
             const rules = store.readRules();
             if (!rules.trim()) return null; // not seeded / no rules -> nothing to inject
@@ -585,17 +536,12 @@ export function createCodexInject(
             if (state.prepped) return;
 
             // Prep assumes seeded (spec M-C6): seed if needed (pre-trained default).
-            store.ensureSeeded("pretrained");
+            store.ensureSeeded();
 
             const isTui = sctx.hasUI && sctx.mode === "tui";
             if (isTui) {
                 if (!state.noticedThisSession) {
-                    // Codex out of date? The notice gains a NOTICE line.
-                    let outOfSync = false;
-                    try {
-                        outOfSync = !checkCompat().isSafe;
-                    } catch { /* fail-soft */ }
-                    pi.appendEntry(CODEX_PREP_NOTICE_ENTRY, { at: Date.now(), outOfSync });
+                    pi.appendEntry(CODEX_PREP_NOTICE_ENTRY, { at: Date.now() });
                     state.noticedThisSession = true;
                 }
             } else {

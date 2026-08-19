@@ -5,7 +5,7 @@ description: >-
   conventions and gotchas for a language, library, framework, engine, or tool
   on demand with codex_load, record durable lessons back into the knowledge
   base, and use the structure-map documentation pattern. Use when the user
-  enables, runs, syncs, or learns with aftc-codex, when you should consult the
+  enables, runs, or learns with aftc-codex, when you should consult the
   codex before relying on a technology's conventions, or when documenting a
   non-trivial hierarchical structure.
 ---

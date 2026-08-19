@@ -149,9 +149,8 @@ grouped by source with the active state.
 
 ### Codex menus — see [1.7.3](./1.7_aftc_codex/1.7.3_commands.md)
 `/codex` main menu (Codex Enabled / Inject Thought Guidance / Auto-Detect &
-Load Docs / Auto Sync on Startup / Resources &
-Updates), resources sub-menu
-(sync/install/status), first-run seed choice (Pre-trained / Fresh Start),
+Load Docs / Auto Insert Codex Skills into AGENTS.md / Resources &
+Updates), resources sub-menu (Start Fresh / open resource dir),
 install wipe confirms, status viewer.
 
 ### /docx + /docx-update modals — see [1.8.1](./1.8_docx/1.8.1_docx_command.md)

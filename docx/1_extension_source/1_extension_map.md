@@ -62,7 +62,7 @@ both). Leaf annotations live here; the root map annotates branches only.
 |  |- 1.7.2 System-prompt injection & detection
 |  |- 1.7.3 Commands (/aftc-codex-*)
 |  |- 1.7.4 Model tools (codex_load/add/edit/remove)
-|  \- 1.7.5 Learn & live-to-seed scripts
+|  \- 1.7.5 Learn & resource-list script
 \- 1.8 docx documentation generator (docx/)
    |- 1.8.1 /docx command & flow
    |- 1.8.2 Backup
@@ -120,7 +120,7 @@ both). Leaf annotations live here; the root map annotates branches only.
 | 1.7.2 | Codex injection & detection | | [1.7_aftc_codex/1.7.2_injection.md](./1.7_aftc_codex/1.7.2_injection.md) | done |
 | 1.7.3 | Codex commands | surface | [1.7_aftc_codex/1.7.3_commands.md](./1.7_aftc_codex/1.7.3_commands.md) | done |
 | 1.7.4 | Codex model tools | | [1.7_aftc_codex/1.7.4_tools.md](./1.7_aftc_codex/1.7.4_tools.md) | done |
-| 1.7.5 | Learn & live-to-seed scripts | | [1.7_aftc_codex/1.7.5_learn_sync_scripts.md](./1.7_aftc_codex/1.7.5_learn_sync_scripts.md) | done |
+| 1.7.5 | Learn & resource-list script | | [1.7_aftc_codex/1.7.5_learn_sync_scripts.md](./1.7_aftc_codex/1.7.5_learn_sync_scripts.md) | done |
 | 1.8.1 | /docx command & flow | surface | [1.8_docx/1.8.1_docx_command.md](./1.8_docx/1.8.1_docx_command.md) | done |
 | 1.8.2 | docx backup | | [1.8_docx/1.8.2_backup.md](./1.8_docx/1.8.2_backup.md) | done |
 | 1.8.3 | Shipped guide & type packs | | [1.8_docx/1.8.3_guide_packs.md](./1.8_docx/1.8.3_guide_packs.md) | done |

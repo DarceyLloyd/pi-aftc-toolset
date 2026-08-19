@@ -52,6 +52,35 @@ export interface FdToolParams {
     limit?: number;
 }
 
+/** Bare '*' is always "list everything" (invalid regex; glob '*' matches all). */
+const FD_ALWAYS_MATCH_ALL = new Set(["*"]);
+/** Model shorthand for "everything" — only collapse when glob was not set. */
+const FD_IMPLICIT_MATCH_ALL = new Set(["*.*", "**", "**/*", "**/*.*"]);
+
+/** Classic filename-glob shapes that are invalid (or nonsensical) as regex. */
+function looksLikeFilenameGlob(pattern: string): boolean {
+    return /^[*?]/.test(pattern) || pattern.includes("**") || /[/\\][*?]/.test(pattern);
+}
+
+/**
+ * Models often pass '*' to mean "list everything" or '*.ts' as a glob without
+ * setting glob=true. fd's default is regex, so a leading '*' is a quantifier
+ * without an atom and rust's regex crate fails ("repetition operator missing
+ * expression"). Collapse match-all shorthand to an empty pattern, and auto-enable
+ * --glob for filename-glob shapes.
+ */
+export function resolveFdPattern(params: FdToolParams): { pattern: string; glob: boolean } {
+    const pattern = (params.pattern ?? "").trim();
+    const glob = params.glob === true;
+    if (pattern === "" || FD_ALWAYS_MATCH_ALL.has(pattern) || (!glob && FD_IMPLICIT_MATCH_ALL.has(pattern))) {
+        return { pattern: "", glob };
+    }
+    if (!glob && looksLikeFilenameGlob(pattern)) {
+        return { pattern, glob: true };
+    }
+    return { pattern, glob };
+}
+
 const FD_TYPE_FLAGS: Record<FdEntryType, string> = {
     file: "f",
     directory: "d",
@@ -59,9 +88,10 @@ const FD_TYPE_FLAGS: Record<FdEntryType, string> = {
 };
 
 export function buildFdArgs(params: FdToolParams): string[] {
+    const { pattern, glob } = resolveFdPattern(params);
     const args = ["--color=never"];
     if (params.hidden) args.push("--hidden");
-    if (params.glob) args.push("--glob");
+    if (glob) args.push("--glob");
     if (params.type) args.push("--type", FD_TYPE_FLAGS[params.type]);
     if (params.extension) {
         args.push("--extension", params.extension.replace(/^\.+/, ""));
@@ -71,7 +101,7 @@ export function buildFdArgs(params: FdToolParams): string[] {
     }
     args.push("--max-results", String(clamp(params.limit ?? FD_DEFAULT_LIMIT, 1, FD_MAX_LIMIT)));
     // An empty pattern matches everything, keeping `path` usable without one.
-    args.push("--", params.pattern ?? "");
+    args.push("--", pattern);
     const path = optionalPath(params.path);
     if (path) args.push(path);
     return args;

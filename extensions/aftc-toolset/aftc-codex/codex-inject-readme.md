@@ -34,7 +34,7 @@ file is non-empty (seeded).
 
 Per-SESSION state (not a preference — nothing is written to config). When
 `state.rulesOnly` is set, injection short-circuits BEFORE every gate (enabled,
-prepped, silent, compat): the block is just the `## Critical Global Rules`
+prepped, silent): the block is just the `## Critical Global Rules`
 section extracted from codex-rules.md (heading -> next `## ` heading). No
 marker, no resource list, no guidance, no prep notice, no `/codex-init`
 requirement — the zero-ceremony "common do-nots" option. It works even with
@@ -60,13 +60,9 @@ entry (survives `/reload`); a fresh session (`/new`) clears it — that plus
   notice. TUI transcript only; not in LLM context. The entry is DURABLE (pi
   re-renders it on every /reload and /resume), so the renderer NEVER trusts the
   append-time snapshot in the entry data — it derives from CURRENT truth on
-  every paint (the compat guard's fresh disk reads, TTL-cached 2s, plus the live
-  session state): the `WARNING: Your AFTC codex is outdated.` line (plus "Run
-  `/codex-sync` to update (keeps your learned entries) or `/codex-install` for a
-  fresh copy.") shows only while the guard STILL fails; an entry appended as a
-  warning flips to a "synced — you are up to date now" line once the version is
-  fixed; a prepped session gets a one-line "Codex is active" note instead of the
-  stale /codex-init nag (rules-only sessions get a rules-only line).
+  every paint (deriving from the live session state, not the append-time
+  snapshot): a prepped session gets a one-line "Codex is active" note instead of
+  the stale /codex-init nag (rules-only sessions get a rules-only line).
 - `aftc-codex-marker` (message renderer) — renders the marker text in accent colour.
 
 ## Public API

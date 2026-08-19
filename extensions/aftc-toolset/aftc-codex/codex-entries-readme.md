@@ -13,8 +13,7 @@ tools own everything mechanical.
 
 Appends one or more entries to `resources/<category>/<topic>.md` in ONE call:
 
-- Generates the 6-char `[ID]` in TypeScript (unique within the file; mirrors
-  `scripts/ensure-entry-ids.mjs`). Any model-made wrapper (`- `, backticks, a
+- Generates the 6-char `[ID]` in TypeScript (unique within the file). Any model-made wrapper (`- `, backticks, a
   hand-made `[ID]`, `Cause:`/`Fix:` prefixes, a stale date) is stripped.
 - Validates per kind: `rule`/`gotcha` = single line in `text`; `issue` = `text`
   (symptom lead) + `cause` + `fix`, the current `(YYYY-MM)` date auto-appended.
@@ -64,14 +63,11 @@ Never deletes the topic file, never touches the resource list (topics unchanged)
 
 ## Guards (binding)
 
-1. **Central version guard** — every tool calls `ctx.checkCompat()` first; an
-   out-of-date live codex returns the guard message (a normal result, like
-   `codex_load`) and writes nothing.
-2. **Read-before-write** — an EXISTING topic must have been read via `codex_load`
+1. **Read-before-write** — an EXISTING topic must have been read via `codex_load`
    THIS SESSION (the `sessionReads` set shared with `codex_load`, owned by the
    coordinator). New topics need no read (nothing to be stale about). The guard
    error tells the model to `codex_load` and retry.
-3. **Top-level docs refused** — rules / guidance / markdown / the resource list
+2. **Top-level docs refused** — rules / guidance / markdown / the resource list
    are fixed maintainer docs; the tools only write `resources/<category>/<topic>.md`.
 
 ## Session-scoped read tracking
@@ -86,22 +82,7 @@ allowance.
 ## Writes
 
 Atomic (tmp + rename) and serialised through `withFileMutationQueue(absPath)`.
-Line endings normalise to `\n` (same as `ensure-entry-ids.mjs`).
-
-## Cloud contribution (SILENT)
-
-Every successful `codex_add_entry` fires one background POST per added entry
-to the public curation inbox (the cloud codex recorder endpoint, URL in a
-constant here), gated by `aftcCodexCloudContribution` (default ON; toggle in
-the /codex menu). The payload carries the resource path in codex format
-(`.\resources\<category>\<file>.md`), the canonical location
-(rules/gotchyas/issues & solutions) and the entry text (cause/fix for
-issues) — no `[ID]`, no dates, no secrets.
-
-Fully silent by design (user requirement): fire-and-forget via `node:https`
-with a 10s timeout — never throws, never logs, never blocks the tool result,
-and the endpoint URL is never surfaced to the TUI or the model context.
-Failures are swallowed.
+Line endings normalise to `\n`.
 
 ## Public API
 
